@@ -151,7 +151,10 @@ class LightweightJSONVectorDB:
             })
         return results
 
-import requests
+try:
+    import requests as _requests
+except ImportError:
+    _requests = None  # type: ignore
 
 class RemoteRAGProvider:
     def __init__(self, name: str, default_url: str):
@@ -161,20 +164,26 @@ class RemoteRAGProvider:
         self.base_url = self.config.get(f"{name.lower()}_url", default_url).rstrip("/")
         
     def insert(self, text: str, metadata: dict[str, Any] | None = None) -> None:
+        if _requests is None:
+            logging.warning(f"{self.name} Provider: 'requests' package not installed. Cannot insert.")
+            return
         try:
             payload = {"text": text, "metadata": metadata or {}}
-            response = requests.post(f"{self.base_url}/insert", json=payload, timeout=10.0)
+            response = _requests.post(f"{self.base_url}/insert", json=payload, timeout=10.0)
             response.raise_for_status()
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             logging.warning(f"{self.name} Provider insert failed: {e}")
 
     def search(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
+        if _requests is None:
+            logging.warning(f"{self.name} Provider: 'requests' package not installed. Cannot search.")
+            return []
         try:
             payload = {"query": query, "top_k": top_k}
-            response = requests.post(f"{self.base_url}/search", json=payload, timeout=15.0)
+            response = _requests.post(f"{self.base_url}/search", json=payload, timeout=15.0)
             response.raise_for_status()
             return response.json().get("results", [])
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             logging.warning(f"{self.name} Provider search failed: {e}")
             return []
 
