@@ -34,30 +34,9 @@ class Agent:
         if "api_keys" not in self.config:
             self.config["api_keys"] = {}
             
-        system_prompt = self.config.get("system_prompt", DEFAULT_SYSTEM_PROMPT)
-        
-        global_rules = self.config.get("global_rules", "").strip()
-        status_rule = "You MUST use the `update_status` tool to autosave your current project status and keep track of what is going on."
-        if global_rules:
-            system_prompt += f"\n\nGLOBAL RULES (You must strictly follow these):\n{global_rules}\n- {status_rule}"
-        else:
-            system_prompt += f"\n\nGLOBAL RULES:\n- {status_rule}"
-            
-        if self.config.get("mythic_engineering_mode"):
-            system_prompt += "\n\nMYTHIC ENGINEERING MODE PROTOCOL ACTIVATED:"
-            system_prompt += "\nYou are the orchestrator of an Architecture-First, intuition-led, document-guided development process."
-            system_prompt += "\n1. Vision before implementation. Architecture before patching."
-            system_prompt += "\n2. MD Protocol: Markdown as living memory (README.md, ARCHITECTURE.md, etc)."
-            system_prompt += "\n3. ALWAYS delegate and consult your 6 included Sub-Agents (Skald, Architect, Forge Worker, Auditor, Cartographer, Scribe) using the delegate_task tool when tackling large problems."
-            system_prompt += "\n4. Reality outranks theory. Refactor by ownership. Invariants matter."
-            
-        system_prompt += self.get_user_context()
-            
-        self.messages = [
-            {"role": "system", "content": system_prompt}
-        ]
-        
-        self.inject_mythic_agents()
+        self.messages = []
+        self._lock = threading.Lock()
+        self.rebuild_system_prompt()
         
         self.inject_mythic_agents()
         
@@ -73,6 +52,39 @@ class Agent:
         if user_data:
             context += f"Data about the user:\n{user_data}\n"
         return context
+
+    def rebuild_system_prompt(self) -> None:
+        if self.name == "Primary":
+            system_prompt = self.config.get("system_prompt", DEFAULT_SYSTEM_PROMPT)
+        else:
+            sub_agents = self.config.get("sub_agents", [])
+            sub_config = next((s for s in sub_agents if s.get("name") == self.name), None)
+            system_prompt = sub_config.get("prompt", "You are a helpful sub-agent.") if sub_config else "You are a helpful sub-agent."
+
+        global_rules = self.config.get("global_rules", "").strip()
+        status_rule = "You MUST use the `update_status` tool to autosave your current project status and keep track of what is going on."
+        if global_rules:
+            system_prompt += f"\n\nGLOBAL RULES (You must strictly follow these):\n{global_rules}\n- {status_rule}"
+        else:
+            system_prompt += f"\n\nGLOBAL RULES:\n- {status_rule}"
+
+        if self.name == "Primary" and self.config.get("mythic_engineering_mode"):
+            system_prompt += "\n\nMYTHIC ENGINEERING MODE PROTOCOL ACTIVATED:"
+            system_prompt += "\nYou are the orchestrator of an Architecture-First, intuition-led, document-guided development process."
+            system_prompt += "\n1. Vision before implementation. Architecture before patching."
+            system_prompt += "\n2. MD Protocol: Markdown as living memory (README.md, ARCHITECTURE.md, etc)."
+            system_prompt += "\n3. ALWAYS delegate and consult your 6 included Sub-Agents (Skald, Architect, Forge Worker, Auditor, Cartographer, Scribe) using the delegate_task tool when tackling large problems."
+            system_prompt += "\n4. Reality outranks theory. Refactor by ownership. Invariants matter."
+
+        system_prompt += self.get_user_context()
+        
+        with self._lock:
+            if not self.messages:
+                self.messages.append({"role": "system", "content": system_prompt})
+            elif self.messages[0].get("role") == "system":
+                self.messages[0]["content"] = system_prompt
+            else:
+                self.messages.insert(0, {"role": "system", "content": system_prompt})
             
     def inject_mythic_agents(self) -> None:
         """Inject the core Mythic Engineering sub-agents if they don't exist."""
@@ -140,93 +152,106 @@ class Agent:
 
 
     def chat(self, prompt: str | None) -> str:
-        if prompt:
-            self.messages.append({"role": "user", "content": prompt})
-        client = self.get_client()
-        
-        def print_chunk(text: str):
-            publish_sync("agent_chat_chunk", agent_name=self.name, text=text)
+        with self._lock:
+            if prompt:
+                self.messages.append({"role": "user", "content": prompt})
+                
+            # Sliding window memory pruner to prevent LLM max_context crashes
+            # Keep the system prompt at index 0, and retain the last ~100 messages.
+            if len(self.messages) > 100:
+                self.messages = [self.messages[0]] + self.messages[-99:]
+            client = self.get_client()
             
-        def print_tool(text: str):
-            publish_sync("agent_chat_tool", agent_name=self.name, text=text)
-        
-        while True:
-            max_retries = 3
-            retry_count = 0
-            response = None
+            def print_chunk(text: str):
+                publish_sync("agent_chat_chunk", agent_name=self.name, text=text)
+                
+            def print_tool(text: str):
+                publish_sync("agent_chat_tool", agent_name=self.name, text=text)
             
             while True:
-                try:
-                    response = client.chat.completions.create(
-                        model=self.config.get("model", config_manager.DEFAULT_MODEL),
-                        messages=self.messages,
-                        tools=get_agent_tools(),
-                        stream=False
-                    )
-                    break
-                except Exception as e:
-                    retry_count += 1
-                    if retry_count > max_retries:
-                        raise e
-                    print_tool(f"\n[bold red][!] API Error: {e}. Retrying {retry_count}/{max_retries}...[/bold red]")
-                    time.sleep(2)
-                    
-            choice = response.choices[0]
-            message = choice.message
-            
-            if hasattr(response, "usage") and response.usage:
-                self.total_tokens += getattr(response.usage, "total_tokens", 0)
-                publish_sync("agent_token_update", agent_name=self.name, total_tokens=self.total_tokens)
-            
-            if message.content:
-                logging.info(f"Agent response: {message.content}")
-                print_chunk(message.content)
-                self.messages.append({"role": "assistant", "content": message.content})
+                max_retries = 3
+                retry_count = 0
+                response = None
                 
-            if message.tool_calls:
-                self.messages.append(message)  # Add the assistant's tool calls to context
-                
-                for tool_call in message.tool_calls:
-                    name = tool_call.function.name
-                    args_str = tool_call.function.arguments
+                while True:
                     try:
-                        args = json.loads(args_str)
-                    except json.JSONDecodeError:
-                        args = {}
+                        response = client.chat.completions.create(
+                            model=self.config.get("model", config_manager.DEFAULT_MODEL),
+                            messages=self.messages,
+                            tools=get_agent_tools(),
+                            stream=False
+                        )
+                        break
+                    except Exception as e:
+                        retry_count += 1
+                        if retry_count > max_retries:
+                            raise e
+                        print_tool(f"\n[bold red][!] API Error: {e}. Retrying {retry_count}/{max_retries}...[/bold red]")
+                        time.sleep(2)
                         
-                    logging.info(f"Tool executing: {name}({args})")
-                    
-                    if name == "write_file":
-                        file_path = args.get("path", "unknown")
-                        target_file = (self.project_root / file_path) if self.project_root else Path.cwd() / file_path
-                        if target_file.exists():
-                            print_tool(f"\n[bold yellow][~] Edited {file_path}[/bold yellow]")
-                        else:
-                            print_tool(f"\n[bold green][+] Created {file_path}[/bold green]")
-                    elif name == "read_file":
-                        file_path = args.get("path", "unknown")
-                        print_tool(f"\n> Reading {file_path} ...")
-                    else:
-                        print_tool(f"\n> Executing {name} ...")
-                        
-                    # Notice we remove the direct reference to the TUI app
-                    result = execute_tool(name, args, self.project_root, None)
-                    logging.info(f"Tool result: {result}")
-                    
-                    self.messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": result
-                    })
-            else:
-                break
+                choice = response.choices[0]
+                message = choice.message
                 
-        return ""
+                if hasattr(response, "usage") and response.usage:
+                    self.total_tokens += getattr(response.usage, "total_tokens", 0)
+                    publish_sync("agent_token_update", agent_name=self.name, total_tokens=self.total_tokens)
+                
+                if message.content:
+                    logging.info(f"Agent response: {message.content}")
+                    print_chunk(message.content)
+                    self.messages.append({"role": "assistant", "content": message.content})
+                    
+                if message.tool_calls:
+                    self.messages.append(message)  # Add the assistant's tool calls to context
+                    
+                    for tool_call in message.tool_calls:
+                        name = tool_call.function.name
+                        args_str = tool_call.function.arguments
+                        try:
+                            args = json.loads(args_str)
+                        except json.JSONDecodeError:
+                            args = {}
+                            
+                        logging.info(f"Tool executing: {name}({args})")
+                        
+                        if name == "write_file":
+                            file_path = args.get("path", "unknown")
+                            target_file = (self.project_root / file_path) if self.project_root else Path.cwd() / file_path
+                            if target_file.exists():
+                                print_tool(f"\n[bold yellow][~] Edited {file_path}[/bold yellow]")
+                            else:
+                                print_tool(f"\n[bold green][+] Created {file_path}[/bold green]")
+                        elif name == "read_file":
+                            file_path = args.get("path", "unknown")
+                            print_tool(f"\n> Reading {file_path} ...")
+                        else:
+                            print_tool(f"\n> Executing {name} ...")
+                            
+                        # Notice we pass agent=self to enable recursion tracking
+                        result = execute_tool(name, args, self.project_root, None, agent=self)
+                        logging.info(f"Tool result: {result}")
+                        
+                        self.messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "content": result
+                        })
+                else:
+                    break
+                    
+            return ""
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
         subscribe("ui_chat_request", self.handle_chat_request)
+        subscribe("config_reload_requested", self._on_config_reload)
+        
+    def _on_config_reload(self, config: dict):
+        for name, agent in AGENT_REGISTRY.items():
+            agent.config = config
+            agent.rebuild_system_prompt()
+            logging.info(f"Hot-reloaded config for live agent: {name}")
         
     def spawn_subagent(self, name: str, project_root: Path | None = None) -> Agent | None:
         if name in AGENT_REGISTRY:
@@ -243,18 +268,7 @@ class AgentManager:
         logging.info(f"Dynamically spawning subagent: {name}")
         sub_agent = Agent(project_root=project_root)
         sub_agent.name = name
-        
-        sub_system_prompt = sub_config.get("prompt", "You are a helpful sub-agent.")
-        global_rules = config.get("global_rules", "").strip()
-        status_rule = "You MUST use the `update_status` tool to autosave your current project status and keep track of what is going on."
-        if global_rules:
-            sub_system_prompt += f"\n\nGLOBAL RULES (You must strictly follow these):\n{global_rules}\n- {status_rule}"
-        else:
-            sub_system_prompt += f"\n\nGLOBAL RULES:\n- {status_rule}"
-            
-        sub_system_prompt += sub_agent.get_user_context()
-            
-        sub_agent.messages = [{"role": "system", "content": sub_system_prompt}]
+        sub_agent.rebuild_system_prompt()
         AGENT_REGISTRY[name] = sub_agent
         return sub_agent
 
