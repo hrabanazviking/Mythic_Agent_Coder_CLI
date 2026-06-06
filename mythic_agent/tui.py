@@ -869,8 +869,11 @@ class MainChatScreen(Screen):
                 
                 sub_system_prompt = sub_config.get("prompt", "You are a helpful sub-agent.")
                 global_rules = config.get("global_rules", "").strip()
+                status_rule = "You MUST use the `update_status` tool to autosave your current project status and keep track of what is going on."
                 if global_rules:
-                    sub_system_prompt += f"\n\nGLOBAL RULES (You must strictly follow these):\n{global_rules}"
+                    sub_system_prompt += f"\n\nGLOBAL RULES (You must strictly follow these):\n{global_rules}\n- {status_rule}"
+                else:
+                    sub_system_prompt += f"\n\nGLOBAL RULES:\n- {status_rule}"
                     
                 sub_agent.messages = [{"role": "system", "content": sub_system_prompt}]
                 sub_agent.tui_app = self.app
