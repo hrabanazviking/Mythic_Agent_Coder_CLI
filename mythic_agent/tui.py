@@ -566,6 +566,8 @@ class MainChatScreen(Screen):
         
         if event.checkbox.id == "mythic-engineering-checkbox":
             self.app.agent.config["mythic_engineering_mode"] = event.value
+            if event.value:
+                self.app.agent.inject_mythic_agents()
             self.app.agent.save_config()
             chat_log.write(f"[bold magenta]Mythic Engineering Mode {status}![/bold magenta]")
             
