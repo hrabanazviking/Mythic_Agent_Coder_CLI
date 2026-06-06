@@ -32,10 +32,13 @@ class SubagentEditorWidget(Widget):
     }
     """
     
-    current_subagents = []
-    active_subagent_index = 0
-    _loading_ui = False
-    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Instance-level state — must NOT be class-level to avoid cross-widget pollution
+        self.current_subagents: list = []
+        self.active_subagent_index: int = 0
+        self._loading_ui: bool = False
+
     def compose(self):
         yield Label("9. Summon Shield-Maidens & Warriors (Sub-Agents):", classes="step")
         with Horizontal(id="subagents-header"):
@@ -49,6 +52,7 @@ class SubagentEditorWidget(Widget):
                 yield Button("Reset to Default", id="reset-active-subagent-btn", variant="primary")
                 yield Button("Delete Warrior", id="delete-active-subagent-btn", variant="error")
             yield TextArea(id="active-subagent-prompt", classes="step")
+
             
     def set_subagents(self, subagents: list):
         if not subagents:
