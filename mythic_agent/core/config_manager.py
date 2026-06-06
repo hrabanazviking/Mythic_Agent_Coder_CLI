@@ -111,6 +111,15 @@ class ConfigManager:
                     config["sub_agents"] = copy.deepcopy(DEFAULT_SUBAGENTS)
                     changed = True
                 else:
+                    # Append any missing default subagents (e.g. newly added ones)
+                    existing_names = {sa["name"] for sa in valid_subs}
+                    for default_sa in DEFAULT_SUBAGENTS:
+                        if default_sa["name"] not in existing_names:
+                            healed = copy.deepcopy(default_sa)
+                            healed["customized"] = False
+                            valid_subs.append(healed)
+                            changed = True
+
                     if config["sub_agents"] != valid_subs:
                         config["sub_agents"] = valid_subs
                         changed = True

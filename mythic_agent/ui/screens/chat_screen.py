@@ -392,7 +392,9 @@ class MainChatScreen(Screen):
 
         agent_name_lower = agent_name.lower()
         prefix = ""
-        if "runa" in agent_name_lower or "primary" in agent_name_lower:
+        if "alfhild" in agent_name_lower:
+            prefix = "Alfhild_Nyxra_Gridhex"
+        elif "runa" in agent_name_lower or "primary" in agent_name_lower:
             prefix = "Runa_Gridweaver_Freyasdottir"
         elif "forge" in agent_name_lower:
             prefix = "Forge_Worker"
