@@ -83,6 +83,10 @@ Here, you can:
 
 ---
 
+![https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-0210d1c9-7baf-43e4-9e85-507ef55b57f1.png](https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-0210d1c9-7baf-43e4-9e85-507ef55b57f1.png)
+
+---
+
 ## 📜 How to Use
 
 Simply launch `mythic` in your project's directory and type naturally! You can ask the agent to:
