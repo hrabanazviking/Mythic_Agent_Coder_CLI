@@ -33,28 +33,6 @@ PROVIDERS = [
     ("AnyScale", "https://api.endpoints.anyscale.com/v1"),
     ("OpenCode Go", "https://opencode.ai/zen/go/v1"),
 ]
-def run_tui():
-    agent = Agent(project_root=Path.cwd())
-    app = MythicTUI(agent)
-    app.run()
-
-PROVIDERS = [
-    ('OpenRouter (Global)', 'https://openrouter.ai/api/v1'),
-    ('OpenAI (US)', 'https://api.openai.com/v1'),
-    ('Mistral AI (French)', 'https://api.mistral.ai/v1'),
-    ('DeepSeek (Chinese)', 'https://api.deepseek.com/v1'),
-    ('DashScope / Qwen (Chinese)', 'https://dashscope.aliyuncs.com/compatible-mode/v1'),
-    ('Zhipu AI (Chinese)', 'https://open.bigmodel.cn/api/paas/v4/'),
-    ('Moonshot AI (Chinese)', 'https://api.moonshot.cn/v1'),
-    ('SiliconFlow (Chinese)', 'https://api.siliconflow.cn/v1'),
-    ('DeepInfra', 'https://api.deepinfra.com/v1/openai'),
-    ('Groq', 'https://api.groq.com/openai/v1'),
-    ('Together AI', 'https://api.together.xyz/v1'),
-    ('Fireworks AI', 'https://api.fireworks.ai/inference/v1'),
-    ('AnyScale', 'https://api.endpoints.anyscale.com/v1'),
-    ('OpenCode Go', 'https://opencode.ai/zen/go/v1'),
-]
-
 
 
 class SetupScreen(Screen):
@@ -286,9 +264,15 @@ class SetupScreen(Screen):
             user_name = self.query_one("#user-name-input", Input).value.strip()
             user_data = self.query_one("#user-data-input", TextArea).text.strip()
             
-            if not model or str(model) == "Select.BLANK":
+            if not model or str(model) == "Select.BLANK" or model == Select.BLANK:
                 error_msg = self.query_one("#error-msg", Label)
                 error_msg.update("[red]Please explicitly select a model from the dropdown first.[/red]")
+                error_msg.display = True
+                return
+                
+            if not base_url or str(base_url) == "Select.BLANK" or base_url == Select.BLANK:
+                error_msg = self.query_one("#error-msg", Label)
+                error_msg.update("[red]Please select a provider before saving.[/red]")
                 error_msg.display = True
                 return
                 

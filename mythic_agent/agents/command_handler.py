@@ -80,13 +80,23 @@ class CommandHandler:
             return
             
         cmd_list = ["gh"] + shlex.split(args)
-        result = subprocess.run(cmd_list, capture_output=True, text=True, env=self._get_gh_env())
-        output = result.stdout if result.returncode == 0 else result.stderr
+        try:
+            result = subprocess.run(cmd_list, capture_output=True, text=True, env=self._get_gh_env(), timeout=30)
+            output = result.stdout if result.returncode == 0 else result.stderr
+        except subprocess.TimeoutExpired:
+            output = "[red]Command timed out after 30 seconds.[/red]"
+        except FileNotFoundError:
+            output = "[red]Error: 'gh' CLI not found. Please install the GitHub CLI.[/red]"
         publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[dim]> gh {args}[/dim]\n{output.strip()}\n")
 
     def _handle_status(self, args: str):
-        result = subprocess.run(["git", "status"], capture_output=True, text=True, cwd=str(self.project_root))
-        output = result.stdout if result.returncode == 0 else result.stderr
+        try:
+            result = subprocess.run(["git", "status"], capture_output=True, text=True, cwd=str(self.project_root), timeout=15)
+            output = result.stdout if result.returncode == 0 else result.stderr
+        except subprocess.TimeoutExpired:
+            output = "[red]git status timed out.[/red]"
+        except FileNotFoundError:
+            output = "[red]Error: 'git' not found. Is git installed?[/red]"
         publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[dim]> git status[/dim]\n{output.strip()}\n")
 
     def _handle_commit(self, args: str):
@@ -94,15 +104,28 @@ class CommandHandler:
             publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]Usage: /commit <message>[/red]\n")
             return
             
-        subprocess.run(["git", "add", "."], cwd=str(self.project_root), check=True)
-        subprocess.run(["git", "commit", "-m", args], cwd=str(self.project_root), check=True)
+        try:
+            subprocess.run(["git", "add", "."], cwd=str(self.project_root), check=True, timeout=30)
+            subprocess.run(["git", "commit", "-m", args], cwd=str(self.project_root), check=True, timeout=30)
+        except subprocess.CalledProcessError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[red]Commit failed: {e}[/red]\n")
+            return
+        except subprocess.TimeoutExpired:
+            publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]Commit timed out.[/red]\n")
+            return
+        except FileNotFoundError:
+            publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]Error: 'git' not found.[/red]\n")
+            return
         publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[green]Successfully committed: {args}[/green]\n[dim]Pushing to repository...[/dim]\n")
         
-        res = subprocess.run(["git", "push"], cwd=str(self.project_root), capture_output=True, text=True, env=self._get_gh_env())
-        if res.returncode == 0:
-            publish_sync("agent_chat_chunk", agent_name="Primary", text="[green]Successfully pushed to remote.[/green]\n")
-        else:
-            publish_sync("agent_chat_chunk", agent_name="Primary", text=f"[red]Push failed: {res.stderr}[/red]\n")
+        try:
+            res = subprocess.run(["git", "push"], cwd=str(self.project_root), capture_output=True, text=True, env=self._get_gh_env(), timeout=60)
+            if res.returncode == 0:
+                publish_sync("agent_chat_chunk", agent_name="Primary", text="[green]Successfully pushed to remote.[/green]\n")
+            else:
+                publish_sync("agent_chat_chunk", agent_name="Primary", text=f"[red]Push failed: {res.stderr}[/red]\n")
+        except subprocess.TimeoutExpired:
+            publish_sync("agent_chat_chunk", agent_name="Primary", text="[red]git push timed out after 60 seconds.[/red]\n")
 
     def _handle_test(self, args: str):
         if not args:
@@ -110,9 +133,14 @@ class CommandHandler:
             return
             
         cmd_list = shlex.split(args)
-        result = subprocess.run(cmd_list, capture_output=True, text=True, cwd=str(self.project_root))
-        output = result.stdout + "\n" + result.stderr
-        publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[dim]> {args}[/dim]\n{output.strip()}\n[blue]Test results fed into agent context. Let's see what it says...[/blue]\n")
+        try:
+            result = subprocess.run(cmd_list, capture_output=True, text=True, cwd=str(self.project_root), timeout=120)
+            output = result.stdout + "\n" + result.stderr
+        except subprocess.TimeoutExpired:
+            output = "Test command timed out after 120 seconds."
+        except FileNotFoundError:
+            output = f"Command not found: {cmd_list[0] if cmd_list else args}"
+        publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[dim]> {args}[/dim]\n{output.strip()}\n[blue]Test results fed into agent context.[/blue]\n")
         
         # Pass back to the LLM agent using the secure API
         context = f"I ran tests using '{args}'. The output was:\n\n```\n{output}\n```\nDoes this output reveal any bugs? If so, please fix them."
@@ -124,16 +152,28 @@ class CommandHandler:
             return
             
         cmd_list = shlex.split(args)
-        result = subprocess.run(cmd_list, capture_output=True, text=True, cwd=str(self.project_root))
-        output = result.stdout + "\n" + result.stderr
+        try:
+            result = subprocess.run(cmd_list, capture_output=True, text=True, cwd=str(self.project_root), timeout=60)
+            output = result.stdout + "\n" + result.stderr
+        except subprocess.TimeoutExpired:
+            output = "Doctor command timed out after 60 seconds."
+        except FileNotFoundError:
+            output = f"Command not found: {cmd_list[0] if cmd_list else args}"
         publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[dim]> {args}[/dim]\n{output.strip()}\n[blue]Doctor output fed into agent context. Auto-fixing...[/blue]\n")
         
         context = f"I ran '{args}' to check for issues. The output was:\n\n```\n{output}\n```\nPlease fix any errors shown in this output."
         publish_sync("ui_chat_request", user_input=context, target_agent="Primary")
 
     def _handle_undo(self, args: str):
-        subprocess.run(["git", "reset", "--hard", "HEAD~1"], cwd=str(self.project_root), check=True)
-        publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[green]Successfully rolled back to the previous state using git reset.[/green]\n")
+        try:
+            subprocess.run(["git", "reset", "--hard", "HEAD~1"], cwd=str(self.project_root), check=True, timeout=30)
+            publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[green]Successfully rolled back to the previous state using git reset.[/green]\n")
+        except subprocess.CalledProcessError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[red]Undo failed: {e.stderr or str(e)}[/red]\n")
+        except subprocess.TimeoutExpired:
+            publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]git reset timed out.[/red]\n")
+        except FileNotFoundError:
+            publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]Error: 'git' not found.[/red]\n")
 
     def _handle_issue(self, args: str):
         if not args:
@@ -146,8 +186,13 @@ class CommandHandler:
             cmd_list.extend(["--repo", repo])
         cmd_list.extend(["--title", args, "--body", "Generated by Mythic Agent"])
         
-        result = subprocess.run(cmd_list, capture_output=True, text=True, env=self._get_gh_env())
-        output = result.stdout if result.returncode == 0 else result.stderr
+        try:
+            result = subprocess.run(cmd_list, capture_output=True, text=True, env=self._get_gh_env(), timeout=30)
+            output = result.stdout if result.returncode == 0 else result.stderr
+        except subprocess.TimeoutExpired:
+            output = "[red]gh issue create timed out.[/red]"
+        except FileNotFoundError:
+            output = "[red]Error: 'gh' CLI not found.[/red]"
         publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[dim]> Create Issue[/dim]\n{output.strip()}\n")
 
     def _handle_pr(self, args: str):
@@ -161,8 +206,13 @@ class CommandHandler:
             cmd_list.extend(["--repo", repo])
         cmd_list.extend(["--title", args, "--body", "Generated by Mythic Agent"])
         
-        result = subprocess.run(cmd_list, capture_output=True, text=True, env=self._get_gh_env())
-        output = result.stdout if result.returncode == 0 else result.stderr
+        try:
+            result = subprocess.run(cmd_list, capture_output=True, text=True, env=self._get_gh_env(), timeout=30)
+            output = result.stdout if result.returncode == 0 else result.stderr
+        except subprocess.TimeoutExpired:
+            output = "[red]gh pr create timed out.[/red]"
+        except FileNotFoundError:
+            output = "[red]Error: 'gh' CLI not found.[/red]"
         publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[dim]> Create Pull Request[/dim]\n{output.strip()}\n")
 
     def _handle_tutorial(self):
@@ -214,8 +264,15 @@ Vibe coding is the art of steering autonomous AI agents using natural language i
         publish_sync("agent_chat_chunk", agent_name="Primary", text=text)
 
     def _handle_review(self, args: str):
-        result = subprocess.run(["git", "diff", "HEAD"], capture_output=True, text=True, cwd=str(self.project_root))
-        diff_output = result.stdout
+        try:
+            result = subprocess.run(["git", "diff", "HEAD"], capture_output=True, text=True, cwd=str(self.project_root), timeout=15)
+            diff_output = result.stdout
+        except subprocess.TimeoutExpired:
+            publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]git diff timed out.[/red]\n")
+            return
+        except FileNotFoundError:
+            publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]Error: 'git' not found.[/red]\n")
+            return
         if not diff_output.strip():
             publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[dim]No uncommitted changes to review.[/dim]\n")
             return
