@@ -168,6 +168,7 @@ class MainChatScreen(Screen):
                 yield Label("[green]/flirt[/green]   - Flirt with the Agent")
                 yield Label("[green]/btw[/green]    - Add silent context")
                 yield Label("[green]/steer[/green]  - Steer the AI")
+                yield Label("[green]/tutorial[/green] - Vibe coding guide")
                 yield Label("[green]/quit[/green]   - Exit")
                 yield Label("\n[dim]Press F2 to quickly access setup.[/dim]")
                 yield Label("\n[dim]Interactions: 0[/dim]", id="interaction-count")
