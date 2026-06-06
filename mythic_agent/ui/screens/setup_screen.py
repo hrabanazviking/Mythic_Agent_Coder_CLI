@@ -118,6 +118,7 @@ class SetupScreen(Screen):
     #active-subagent-prompt {
         min-height: 4;
         height: auto;
+        border: solid $accent;
     }
     #subagent-buttons {
         height: 3;
