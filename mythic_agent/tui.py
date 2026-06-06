@@ -10,6 +10,7 @@ from textual.widgets import Header, Footer, Input, RichLog, Static, Select, Butt
 from textual.binding import Binding
 
 from .llm import Agent
+from .subagent_modal import SubagentSelectionModal
 
 PROVIDERS = [
     ("OpenRouter (Global)", "https://openrouter.ai/api/v1"),
@@ -480,6 +481,7 @@ class MainChatScreen(Screen):
     BINDINGS = [
         Binding("ctrl+c", "quit", "Quit", show=True),
         Binding("f2", "setup", "Setup", show=True),
+        Binding("f3", "select_agent", "Select Agent", show=True),
     ]
 
     def compose(self) -> ComposeResult:
@@ -548,6 +550,15 @@ class MainChatScreen(Screen):
 
     def action_setup(self) -> None:
         self.app.switch_screen("setup_wizard")
+        
+    def action_select_agent(self) -> None:
+        self.app.push_screen(SubagentSelectionModal(), self.on_agent_selected)
+        
+    def on_agent_selected(self, agent_name: str | None) -> None:
+        if agent_name:
+            self.app.active_chat_agent = agent_name
+            chat_log = self.query_one("#chat-log", RichLog)
+            chat_log.write(f"\n[bold cyan]⚔️ You are now speaking directly with {agent_name}![/bold cyan]")
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
         chat_log = self.query_one("#chat-log", RichLog)
@@ -798,13 +809,53 @@ class MainChatScreen(Screen):
         else:
             chat_log.write(f"[red]Unknown command:[/red] {cmd}")
 
+    def on_key(self, event):
+        if event.key == "f3":
+            self.app.push_screen(SubagentSelectionModal())
+
+    def handle_input(self, user_input: str):
+        chat_log = self.query_one("#chat-log", RichLog)
+        if user_input.startswith("/"):
+            self.handle_command(user_input, chat_log)
+            return
+            
+        self.run_agent_query(user_input)
+
     @work(exclusive=True, thread=True)
     def run_agent_query(self, user_input: str | None) -> None:
         chat_log = self.query_one("#chat-log", RichLog)
-        loading_ind = self.query_one("#loading-indicator", LoadingIndicator)
+        
+        target_name = getattr(self.app, "active_chat_agent", "Primary")
+        if target_name == "Primary":
+            agent = self.app.agent
+        else:
+            from mythic_agent.llm import AGENT_REGISTRY, Agent
+            if target_name not in AGENT_REGISTRY:
+                config = self.app.agent.config
+                sub_agents = config.get("sub_agents", [])
+                sub_config = next((s for s in sub_agents if s.get("name") == target_name), None)
+                if not sub_config:
+                    self.app.call_from_thread(self.query_one("#loading-indicator").__setattr__, "display", False)
+                    return
+                
+                sub_agent = Agent(project_root=self.app.agent.project_root)
+                sub_agent.name = target_name
+                sub_agent.config = dict(config)
+                
+                sub_system_prompt = sub_config.get("prompt", "You are a helpful sub-agent.")
+                global_rules = config.get("global_rules", "").strip()
+                if global_rules:
+                    sub_system_prompt += f"\n\nGLOBAL RULES (You must strictly follow these):\n{global_rules}"
+                    
+                sub_agent.messages = [{"role": "system", "content": sub_system_prompt}]
+                sub_agent.tui_app = self.app
+                AGENT_REGISTRY[target_name] = sub_agent
+            agent = AGENT_REGISTRY[target_name]
+
+        self.app.call_from_thread(self.query_one("#loading-indicator").__setattr__, "display", True)
         
         def set_loading(state: bool):
-            loading_ind.display = state
+            self.query_one("#loading-indicator").display = state
             
         self.app.call_from_thread(set_loading, True)
 
@@ -818,9 +869,9 @@ class MainChatScreen(Screen):
                 self.app.call_from_thread(chat_log.write, f"[dim]{text}[/dim]")
             
         try:
-            self.app.agent.chat(user_input, print_chunk, print_tool)
+            agent.chat(user_input, print_chunk, print_tool)
         except Exception as exc:
-            self.app.call_from_thread(chat_log.write, f"[red]Error:[/red] {exc}")
+            self.app.call_from_thread(chat_log.write, f"\n[bold red]Error: {exc}[/bold red]")
         finally:
             self.app.call_from_thread(set_loading, False)
 
@@ -838,6 +889,7 @@ class MythicTUI(App):
         super().__init__()
         self.agent = agent
         self.active_subagents = set()
+        self.active_chat_agent = "Primary"
         self.agent.tui_app = self  # Give agent access to TUI for prompting
 
     def on_mount(self) -> None:
