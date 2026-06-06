@@ -26,7 +26,8 @@ class SubagentEditorWidget(Widget):
         margin-bottom: 1;
     }
     #active-subagent-prompt {
-        height: 15;
+        min-height: 4;
+        height: auto;
         border: solid $accent;
     }
     """
