@@ -71,13 +71,28 @@ class Agent:
         else:
             system_prompt += f"\n\nGLOBAL RULES:\n- {status_rule}"
 
-        if self.name == "Primary" and self.config.get("mythic_engineering_mode"):
-            system_prompt += "\n\nMYTHIC ENGINEERING MODE PROTOCOL ACTIVATED:"
-            system_prompt += "\nYou are the orchestrator of an Architecture-First, intuition-led, document-guided development process."
-            system_prompt += "\n1. Vision before implementation. Architecture before patching."
-            system_prompt += "\n2. MD Protocol: Markdown as living memory (README.md, ARCHITECTURE.md, etc)."
-            system_prompt += "\n3. ALWAYS delegate and consult your 6 included Sub-Agents (Skald, Architect, Forge Worker, Auditor, Cartographer, Scribe) using the delegate_task tool when tackling large problems."
-            system_prompt += "\n4. Reality outranks theory. Refactor by ownership. Invariants matter."
+        if self.config.get("mythic_engineering_mode"):
+            system_prompt += "\n\n=== MYTHIC ENGINEERING MODE PROTOCOL ACTIVATED ===\n"
+            
+            # Dynamically resolve the path to the skill file relative to the mythic_agent package
+            # mythic-agent/mythic_agent/agents/llm.py -> parent.parent.parent -> mythic-agent
+            skill_file_path = Path(__file__).parent.parent.parent / "Mythic-Engineering" / "Mythic-Engineering_SKILL.md"
+            
+            try:
+                if skill_file_path.exists():
+                    skill_content = skill_file_path.read_text(encoding="utf-8")
+                    system_prompt += "\n[CORE PROTOCOL LOADED FROM DISK]\n"
+                    system_prompt += skill_content
+                else:
+                    raise FileNotFoundError("Skill file missing")
+            except Exception as e:
+                logging.error(f"Failed to load Mythic Engineering skill file: {e}. Using fallback.")
+                system_prompt += "\n[FALLBACK CORE PROTOCOL]\n"
+                system_prompt += "You are the orchestrator of an Architecture-First, intuition-led, document-guided development process."
+                system_prompt += "\n1. Vision before implementation. Architecture before patching."
+                system_prompt += "\n2. MD Protocol: Markdown as living memory (README.md, ARCHITECTURE.md, etc)."
+                system_prompt += "\n3. ALWAYS delegate and consult your 6 included Sub-Agents (Skald, Architect, Forge Worker, Auditor, Cartographer, Scribe) using the delegate_task tool when tackling large problems."
+                system_prompt += "\n4. Reality outranks theory. Refactor by ownership. Invariants matter."
 
         system_prompt += self.get_user_context()
         
