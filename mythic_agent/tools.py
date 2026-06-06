@@ -103,6 +103,22 @@ def get_agent_tools() -> list[dict[str, Any]]:
         {
             "type": "function",
             "function": {
+                "name": "update_status",
+                "description": "Auto-save your current status to keep track of what is going on, current projects, and their statuses.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "project": {"type": "string", "description": "The name of the project or task."},
+                        "status": {"type": "string", "description": "A comprehensive markdown summary of what is going on and the current status."}
+                    },
+                    "required": ["project", "status"],
+                    "additionalProperties": False,
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
                 "name": "delegate_task",
                 "description": "Delegate a task to a configured sub-agent.",
                 "parameters": {
@@ -290,6 +306,19 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
         except Exception as exc:
             return f"GitHub command failed: {exc}"
 
+    if name == "update_status":
+        project = args.get("project", "default")
+        status = args.get("status", "")
+        status_dir = Path.home() / ".mythic" / "status"
+        status_dir.mkdir(parents=True, exist_ok=True)
+        safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', project)
+        status_file = status_dir / f"{safe_name}.md"
+        try:
+            status_file.write_text(status, encoding="utf-8")
+            return f"Successfully auto-saved status for project '{project}' to {status_file}"
+        except Exception as e:
+            return f"Failed to save status: {e}"
+
     if name == "delegate_task":
         sub_name = arguments.get("sub_agent_name", "")
         task = arguments.get("task_description", "")
@@ -312,8 +341,11 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
                 
                 sub_system_prompt = sub_config.get("prompt", "You are a helpful sub-agent.")
                 global_rules = config.get("global_rules", "").strip()
+                status_rule = "You MUST use the `update_status` tool to autosave your current project status and keep track of what is going on."
                 if global_rules:
-                    sub_system_prompt += f"\n\nGLOBAL RULES (You must strictly follow these):\n{global_rules}"
+                    sub_system_prompt += f"\n\nGLOBAL RULES (You must strictly follow these):\n{global_rules}\n- {status_rule}"
+                else:
+                    sub_system_prompt += f"\n\nGLOBAL RULES:\n- {status_rule}"
                     
                 sub_agent.messages = [{"role": "system", "content": sub_system_prompt}]
                 sub_agent.tui_app = tui

@@ -55,8 +55,11 @@ class Agent:
         system_prompt = self.config.get("system_prompt", "You are Mythic, an expert AI programming assistant. You have access to local tools. ALWAYS use tools to accomplish tasks (e.g. read_file, write_file, replace_file_content, run_command). Do not tell the user to run commands; run them yourself.")
         
         global_rules = self.config.get("global_rules", "").strip()
+        status_rule = "You MUST use the `update_status` tool to autosave your current project status and keep track of what is going on."
         if global_rules:
-            system_prompt += f"\n\nGLOBAL RULES (You must strictly follow these):\n{global_rules}"
+            system_prompt += f"\n\nGLOBAL RULES (You must strictly follow these):\n{global_rules}\n- {status_rule}"
+        else:
+            system_prompt += f"\n\nGLOBAL RULES:\n- {status_rule}"
             
         if self.config.get("mythic_engineering_mode"):
             system_prompt += "\n\nMYTHIC ENGINEERING MODE PROTOCOL ACTIVATED:"
