@@ -193,12 +193,11 @@ class SetupScreen(Screen):
         self.query_one("#loading").display = False
         self.query_one("#error-msg").display = False
         
-        config = self.app.agent.config
+        config = config_manager.load_config()
         has_config = bool(config.get("model") and config.get("base_url"))
         
         if config.get("base_url"):
             provider_select = self.query_one("#provider-select", Select)
-            # Try to set value, ignoring if not matching an option
             try:
                 provider_select.value = config["base_url"]
             except Exception:
@@ -301,7 +300,8 @@ class SetupScreen(Screen):
     @work(exclusive=True, thread=True)
     def fetch_models_bg(self, base_url: str, api_key: str) -> None:
         try:
-            models = self.app.agent.fetch_models(base_url, api_key)
+            from mythic_agent.agents.llm import Agent
+            models = Agent().fetch_models(base_url, api_key)
             self.app.call_from_thread(self.on_fetch_success, models)
         except Exception as e:
             self.app.call_from_thread(self.on_fetch_error, str(e))
@@ -434,13 +434,6 @@ class SetupScreen(Screen):
             user_name = self.query_one("#user-name-input", Input).value.strip()
             user_data = self.query_one("#user-data-input", TextArea).text.strip()
             
-            # Save current state of subagents
-            valid_sub_agents = []
-            for sa in self.current_subagents:
-                if sa.get("name") and sa.get("prompt"):
-                    valid_sub_agents.append(sa)
-            self.app.agent.config["sub_agents"] = valid_sub_agents
-            
             if not model or str(model) == "Select.BLANK":
                 error_msg = self.query_one("#error-msg", Label)
                 error_msg.update("[red]Please explicitly select a model from the dropdown first.[/red]")
@@ -448,19 +441,40 @@ class SetupScreen(Screen):
                 return
                 
             model = str(model)
+            
+            config = config_manager.load_config()
+            
+            # Save current state of subagents
+            valid_sub_agents = []
+            for sa in self.current_subagents:
+                if sa.get("name") and sa.get("prompt"):
+                    valid_sub_agents.append(sa)
+            config["sub_agents"] = valid_sub_agents
                 
-            self.app.agent.config["primary_agent_name"] = primary_name
-            self.app.agent.config["system_prompt"] = sys_prompt
-            self.app.agent.config["global_rules"] = global_rules
-            self.app.agent.config["working_directory"] = working_dir
-            self.app.agent.config["user_name"] = user_name
-            self.app.agent.config["user_data"] = user_data
+            config["primary_agent_name"] = primary_name
+            config["system_prompt"] = sys_prompt
+            config["global_rules"] = global_rules
+            config["working_directory"] = working_dir
+            config["user_name"] = user_name
+            config["user_data"] = user_data
             
-            if working_dir:
-                from pathlib import Path
-                self.app.agent.project_root = Path(working_dir).expanduser().resolve()
+            config["model"] = model
+            config["base_url"] = str(base_url)
+            if "api_keys" not in config:
+                config["api_keys"] = {}
+            if api_key:
+                config["api_keys"][str(base_url)] = str(api_key)
+                
+            config_manager.save_config(config)
             
-            self.app.agent.set_model(str(model), str(base_url), str(api_key))
+            # Update the Primary Agent with the new config at runtime
+            from mythic_agent.agents.llm import AGENT_REGISTRY
+            if "Primary" in AGENT_REGISTRY:
+                AGENT_REGISTRY["Primary"].config = config
+                if working_dir:
+                    from pathlib import Path
+                    AGENT_REGISTRY["Primary"].project_root = Path(working_dir).expanduser().resolve()
+            
             self.app.switch_screen("main_chat")
         except Exception as e:
             self.app.notify(f"Error saving configuration: {str(e)}", severity="error", timeout=5)

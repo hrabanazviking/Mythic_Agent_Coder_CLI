@@ -2,6 +2,7 @@ import json
 import os
 import time
 import logging
+import threading
 from pathlib import Path
 from typing import Any, Callable
 
@@ -10,14 +11,16 @@ from openai import OpenAI
 from .tools import execute_tool, get_agent_tools
 from ..core.config_manager import config_manager
 from ..constants import DEFAULT_SYSTEM_PROMPT
+from ..core.secure_api import publish_sync, subscribe
 
 # Global registry of live sub-agent instances keyed by name.
 AGENT_REGISTRY: dict[str, "Agent"] = {}
 
 class Agent:
-    def __init__(self, project_root: Path | None = None):
+    def __init__(self, project_root: Path | None = None, name: str = "Primary"):
         self.config = config_manager.load_config()
         self.project_root = project_root
+        self.name = name
         
         working_dir_str = self.config.get("working_directory")
         if working_dir_str:
@@ -56,6 +59,9 @@ class Agent:
         
         self.inject_mythic_agents()
         
+        # Subscribe to chat requests
+        subscribe("ui_chat_request", self._handle_chat_request)
+        
     def get_user_context(self) -> str:
         user_name = self.config.get("user_name", "").strip()
         user_data = self.config.get("user_data", "").strip()
@@ -90,7 +96,6 @@ class Agent:
         config_manager.save_config(self.config)
         
     def get_api_key(self, base_url: str) -> str | None:
-        """Get the stored API key for a given base_url, or fallback to env vars."""
         stored_key = self.config.get("api_keys", {}).get(base_url)
         if stored_key:
             return stored_key
@@ -126,7 +131,6 @@ class Agent:
         self.save_config()
 
     def fetch_models(self, base_url: str, api_key: str) -> list[str]:
-        """Fetch the list of available models from a provider's OpenAI-compatible endpoint."""
         client = OpenAI(base_url=base_url, api_key=api_key)
         try:
             models_response = client.models.list()
@@ -134,10 +138,31 @@ class Agent:
         except Exception as e:
             raise RuntimeError(f"Failed to fetch models: {e}")
 
-    def chat(self, prompt: str | None, print_chunk: Callable[[str], None], print_tool: Callable[[str], None]) -> str:
+    def _handle_chat_request(self, user_input: str, target_agent: str = "Primary"):
+        """Event handler for chat requests. Spawns thread to avoid blocking EventBus."""
+        if target_agent != self.name:
+            return
+            
+        threading.Thread(target=self._run_chat, args=(user_input,)).start()
+
+    def _run_chat(self, prompt: str | None):
+        try:
+            self.chat(prompt)
+            publish_sync("agent_chat_complete", agent_name=self.name)
+        except Exception as e:
+            logging.exception(f"Error in chat execution: {e}")
+            publish_sync("agent_chat_error", agent_name=self.name, error=str(e))
+
+    def chat(self, prompt: str | None) -> str:
         if prompt:
             self.messages.append({"role": "user", "content": prompt})
         client = self.get_client()
+        
+        def print_chunk(text: str):
+            publish_sync("agent_chat_chunk", agent_name=self.name, text=text)
+            
+        def print_tool(text: str):
+            publish_sync("agent_chat_tool", agent_name=self.name, text=text)
         
         while True:
             max_retries = 3
@@ -165,9 +190,7 @@ class Agent:
             
             if hasattr(response, "usage") and response.usage:
                 self.total_tokens += getattr(response.usage, "total_tokens", 0)
-                tui = getattr(self, "tui_app", None)
-                if tui:
-                    tui.call_from_thread(tui.update_token_count, self.total_tokens)
+                publish_sync("agent_token_update", agent_name=self.name, total_tokens=self.total_tokens)
             
             if message.content:
                 logging.info(f"Agent response: {message.content}")
@@ -199,7 +222,9 @@ class Agent:
                         print_tool(f"\n> Reading {file_path} ...")
                     else:
                         print_tool(f"\n> Executing {name} ...")
-                    result = execute_tool(name, args, self.project_root, getattr(self, "tui_app", None))
+                        
+                    # Notice we remove the direct reference to the TUI app
+                    result = execute_tool(name, args, self.project_root, None)
                     logging.info(f"Tool result: {result}")
                     
                     self.messages.append({

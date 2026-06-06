@@ -16,44 +16,6 @@ from mythic_agent.core.secure_api import publish_sync, subscribe
 from mythic_agent.core.config_manager import config_manager
 
 
-PROVIDERS = [
-    ("OpenRouter (Global)", "https://openrouter.ai/api/v1"),
-    ("OpenAI (US)", "https://api.openai.com/v1"),
-    ("Mistral AI (French)", "https://api.mistral.ai/v1"),
-    ("DeepSeek (Chinese)", "https://api.deepseek.com/v1"),
-    ("DashScope / Qwen (Chinese)", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
-    ("Zhipu AI (Chinese)", "https://open.bigmodel.cn/api/paas/v4/"),
-    ("Moonshot AI (Chinese)", "https://api.moonshot.cn/v1"),
-    ("SiliconFlow (Chinese)", "https://api.siliconflow.cn/v1"),
-    ("DeepInfra", "https://api.deepinfra.com/v1/openai"),
-    ("Groq", "https://api.groq.com/openai/v1"),
-    ("Together AI", "https://api.together.xyz/v1"),
-    ("Fireworks AI", "https://api.fireworks.ai/inference/v1"),
-    ("AnyScale", "https://api.endpoints.anyscale.com/v1"),
-    ("OpenCode Go", "https://opencode.ai/zen/go/v1"),
-]
-def run_tui():
-    agent = Agent(project_root=Path.cwd())
-    app = MythicTUI(agent)
-    app.run()
-
-PROVIDERS = [
-    ('OpenRouter (Global)', 'https://openrouter.ai/api/v1'),
-    ('OpenAI (US)', 'https://api.openai.com/v1'),
-    ('Mistral AI (French)', 'https://api.mistral.ai/v1'),
-    ('DeepSeek (Chinese)', 'https://api.deepseek.com/v1'),
-    ('DashScope / Qwen (Chinese)', 'https://dashscope.aliyuncs.com/compatible-mode/v1'),
-    ('Zhipu AI (Chinese)', 'https://open.bigmodel.cn/api/paas/v4/'),
-    ('Moonshot AI (Chinese)', 'https://api.moonshot.cn/v1'),
-    ('SiliconFlow (Chinese)', 'https://api.siliconflow.cn/v1'),
-    ('DeepInfra', 'https://api.deepinfra.com/v1/openai'),
-    ('Groq', 'https://api.groq.com/openai/v1'),
-    ('Together AI', 'https://api.together.xyz/v1'),
-    ('Fireworks AI', 'https://api.fireworks.ai/inference/v1'),
-    ('AnyScale', 'https://api.endpoints.anyscale.com/v1'),
-    ('OpenCode Go', 'https://opencode.ai/zen/go/v1'),
-]
-
 
 from .components.modals import CommandApproval, GithubConfigModal
 from .screens.splash_screen import SplashScreen
@@ -62,7 +24,11 @@ from .screens.chat_screen import MainChatScreen
 
 
 class MythicTUI(App):
-    """The main Textual application."""
+    """
+    The main Textual application root.
+    """
+    
+    CSS_PATH = "../styles.css"
     
     SCREENS = {
         "splash": SplashScreen,
@@ -70,36 +36,49 @@ class MythicTUI(App):
         "main_chat": MainChatScreen,
     }
 
-    def __init__(self, agent: Agent):
+    def __init__(self):
         super().__init__()
-        self.agent = agent
-        self.active_subagents = set()
         self.active_chat_agent = "Primary"
-        self.agent.tui_app = self  # Give agent access to TUI for prompting
+        self.pet_active = False
+        self.pet_timer = None
+        self.active_subagents = []
+        
+        # Subscribe to UI notifications
+        subscribe("ui_notification", self._handle_notification)
+
+    def _handle_notification(self, title: str, message: str, severity: str = "info"):
+        self.call_from_thread(self.notify, message, title=title, severity=severity)
 
     def on_mount(self) -> None:
-        self.title = "Mythic Agent"
-        self.theme = "tokyo-night"
-        self.push_screen("splash")
+        self.push_screen(SplashScreen())
 
     def action_request_approval(self, command: str, on_approve, on_reject):
         self.push_screen(CommandApproval(command, on_approve, on_reject))
 
     def update_token_count(self, count: int) -> None:
         try:
-            chat_screen = self.query_one(MainChatScreen)
-            lbl = chat_screen.query_one("#token-count", Label)
-            lbl.update(f"[dim]Tokens Used: {count}[/dim]")
+            from .screens.chat_screen import MainChatScreen
+            if isinstance(self.screen, MainChatScreen):
+                self.screen.query_one("#token-count").update(f"[dim]Tokens Used: {count}[/dim]")
+        except Exception:
+            pass
+
+    def copy_to_clipboard(self, text: str) -> None:
+        """Copies text to the system clipboard using Pyperclip."""
+        try:
+            import pyperclip
+            pyperclip.copy(text)
         except Exception as e:
-            import logging
-            logging.exception(f"Error in update_token_count: {e}")
+            self.notify(f"Clipboard error: {e}", severity="error")
 
     def update_agent_status(self, name: str, is_active: bool) -> None:
         try:
             if is_active:
-                self.active_subagents.add(name)
+                if name not in self.active_subagents:
+                    self.active_subagents.append(name)
             else:
-                self.active_subagents.discard(name)
+                if name in self.active_subagents:
+                    self.active_subagents.remove(name)
                 
             from .llm import AGENT_REGISTRY
             chat_screen = self.query_one(MainChatScreen)

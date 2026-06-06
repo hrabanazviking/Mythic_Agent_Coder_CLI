@@ -38,8 +38,13 @@ class MythicEngine:
         logging.info("Loading configuration...")
         self.config = config_manager.load_config()
         
-        # Here we'd initialize agents, but they're decoupled so they will 
-        # subscribe to events themselves when imported.
+        # Initialize Primary Agent and subscribe to events
+        from mythic_agent.agents.llm import Agent, AGENT_REGISTRY
+        from mythic_agent.agents.command_handler import command_handler # Ensure it's imported to subscribe
+        
+        primary_agent = Agent(name="Primary")
+        AGENT_REGISTRY["Primary"] = primary_agent
+        
         logging.info("Engine initialization complete.")
 
     def handle_crash(self, exc: Exception):
