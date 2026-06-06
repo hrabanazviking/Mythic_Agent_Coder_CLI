@@ -60,20 +60,60 @@ class ConfigManager:
         version = config.get("config_version", 0)
         changed = False
         
-        # Upgrade 0 -> 1: Major overhaul of subagent prompts to use markdown files
-        if version < 1:
-            if "sub_agents" in config:
-                # We identify if they are using the old 1-line defaults by checking prompt length
-                subs = config["sub_agents"]
-                for i in range(len(subs)):
-                    sa = subs[i]
-                    prompt = sa.get("prompt", "")
-                    if len(prompt) < 300:
-                        # Too short to be the new markdown prompts, mark entire array as stale
-                        # We delete it so the UI will recreate it from DEFAULT_SUBAGENTS
-                        del config["sub_agents"]
-                        break
-            config["config_version"] = 1
+        # 1. Ensure root schema integrity
+        if "api_keys" not in config or not isinstance(config["api_keys"], dict):
+            config["api_keys"] = {}
+            changed = True
+            
+        if "model" not in config or not isinstance(config["model"], str):
+            config["model"] = self.DEFAULT_MODEL
+            changed = True
+            
+        if "base_url" not in config or not isinstance(config["base_url"], str):
+            config["base_url"] = self.DEFAULT_BASE_URL
+            changed = True
+            
+        # 2. Robust Subagent validation and stale-prompt auto-healing
+        from mythic_agent.constants import DEFAULT_SUBAGENTS
+        import copy
+        
+        if "sub_agents" in config:
+            subs = config["sub_agents"]
+            if not isinstance(subs, list):
+                config["sub_agents"] = copy.deepcopy(DEFAULT_SUBAGENTS)
+                changed = True
+            else:
+                valid_subs = []
+                for sa in subs:
+                    if isinstance(sa, dict) and "name" in sa and "prompt" in sa:
+                        prompt = sa.get("prompt", "")
+                        name = sa.get("name", "")
+                        
+                        # Auto-heal default agents if their prompt is suspiciously short (legacy cache)
+                        default_match = next((d for d in DEFAULT_SUBAGENTS if d["name"] == name), None)
+                        if default_match and len(prompt) < 200:
+                            valid_subs.append(copy.deepcopy(default_match))
+                            changed = True
+                        else:
+                            valid_subs.append(sa)
+                    else:
+                        changed = True  # Discard malformed subagent entries
+                        
+                if not valid_subs:
+                    config["sub_agents"] = copy.deepcopy(DEFAULT_SUBAGENTS)
+                    changed = True
+                else:
+                    if config["sub_agents"] != valid_subs:
+                        config["sub_agents"] = valid_subs
+                        changed = True
+        else:
+            config["sub_agents"] = copy.deepcopy(DEFAULT_SUBAGENTS)
+            changed = True
+
+        # 3. Upgrade version schema
+        self.CURRENT_CONFIG_VERSION = 2
+        if version < self.CURRENT_CONFIG_VERSION:
+            config["config_version"] = self.CURRENT_CONFIG_VERSION
             changed = True
             
         if changed:
