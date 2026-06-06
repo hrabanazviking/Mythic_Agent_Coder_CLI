@@ -670,6 +670,14 @@ class MainChatScreen(Screen):
                     chat_log.write(f"[dim]> gh {args}[/dim]\n{output.strip()}")
                 except Exception as e:
                     chat_log.write(f"[red]Error running gh: {e}[/red]")
+        elif cmd == "/status":
+            import subprocess
+            try:
+                result = subprocess.run("git status", shell=True, capture_output=True, text=True, cwd=str(self.app.agent.project_root))
+                output = result.stdout if result.returncode == 0 else result.stderr
+                chat_log.write(f"[dim]> git status[/dim]\n{output.strip()}")
+            except Exception as e:
+                chat_log.write(f"[red]Error running git status: {e}[/red]")
         elif cmd == "/commit":
             if not args:
                 chat_log.write("[red]Usage: /commit <message>[/red]")
