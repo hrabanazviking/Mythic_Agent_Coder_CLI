@@ -1,67 +1,29 @@
 import json
 import os
+import time
+import logging
 from pathlib import Path
 from typing import Any, Callable
 
 from openai import OpenAI
 
 from .tools import execute_tool, get_agent_tools
+from ..core.config_manager import config_manager
+from ..constants import DEFAULT_SYSTEM_PROMPT
 
 # Global registry of live sub-agent instances keyed by name.
 AGENT_REGISTRY: dict[str, "Agent"] = {}
 
-MYTHIC_DIR = Path.home() / ".mythic"
-MYTHIC_DIR.mkdir(exist_ok=True)
-CONFIG_FILE = MYTHIC_DIR / "config.json"
-
-DEFAULT_MODEL = "deepseek-chat"
-DEFAULT_BASE_URL = "https://api.deepseek.com/v1"
-
-def load_config() -> dict[str, Any]:
-    old_config = Path.home() / ".mythic_config.json"
-    if old_config.exists() and not CONFIG_FILE.exists():
-        import shutil
-        shutil.copy2(old_config, CONFIG_FILE)
-        
-    if CONFIG_FILE.exists():
-        try:
-            return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-    return {
-        "model": DEFAULT_MODEL, 
-        "base_url": DEFAULT_BASE_URL,
-        "api_keys": {}
-    }
-
-def save_config(config: dict[str, Any]) -> None:
-    # Save with 0600 permissions
-    CONFIG_FILE.write_text(json.dumps(config, indent=2))
-    CONFIG_FILE.chmod(0o600)
-
-def get_user_context(config: dict[str, Any]) -> str:
-    user_name = config.get("user_name", "").strip()
-    user_data = config.get("user_data", "").strip()
-    if not user_name and not user_data:
-        return ""
-    
-    context = "\n\nUSER CONTEXT:\n"
-    if user_name:
-        context += f"The user's name is {user_name}.\n"
-    if user_data:
-        context += f"Data about the user:\n{user_data}\n"
-    return context
-
 class Agent:
     def __init__(self, project_root: Path | None = None):
-        self.config = load_config()
+        self.config = config_manager.load_config()
         self.project_root = project_root
         
         working_dir_str = self.config.get("working_directory")
         if working_dir_str:
             self.project_root = Path(working_dir_str).expanduser().resolve()
         elif not self.project_root:
-            default_wd = MYTHIC_DIR / "mythic_longhall"
+            default_wd = config_manager.MYTHIC_DIR / "mythic_longhall"
             default_wd.mkdir(parents=True, exist_ok=True)
             self.project_root = default_wd
             
@@ -69,7 +31,6 @@ class Agent:
         if "api_keys" not in self.config:
             self.config["api_keys"] = {}
             
-        from .constants import DEFAULT_SYSTEM_PROMPT
         system_prompt = self.config.get("system_prompt", DEFAULT_SYSTEM_PROMPT)
         
         global_rules = self.config.get("global_rules", "").strip()
@@ -87,30 +48,36 @@ class Agent:
             system_prompt += "\n3. ALWAYS delegate and consult your 6 included Sub-Agents (Skald, Architect, Forge Worker, Auditor, Cartographer, Scribe) using the delegate_task tool when tackling large problems."
             system_prompt += "\n4. Reality outranks theory. Refactor by ownership. Invariants matter."
             
-        system_prompt += get_user_context(self.config)
+        system_prompt += self.get_user_context()
             
         self.messages = [
             {"role": "system", "content": system_prompt}
         ]
         
         self.inject_mythic_agents()
+        
+    def get_user_context(self) -> str:
+        user_name = self.config.get("user_name", "").strip()
+        user_data = self.config.get("user_data", "").strip()
+        if not user_name and not user_data:
+            return ""
+        
+        context = "\n\nUSER CONTEXT:\n"
+        if user_name:
+            context += f"The user's name is {user_name}.\n"
+        if user_data:
+            context += f"Data about the user:\n{user_data}\n"
+        return context
             
     def inject_mythic_agents(self) -> None:
-        """Inject the 6 core Mythic Engineering sub-agents if they don't exist."""
-        mythic_agents = [
-            {"name": "Architect", "prompt": "You are the Architect. You design the overall software architecture, file structure, and technical vision. Always plan before coding. Enforce invariants."},
-            {"name": "Skald", "prompt": "You are the Skald. You act as the Project Manager and communicator, summarizing status, maintaining living memory (MD Protocol), and keeping the team aligned."},
-            {"name": "Forge_Worker", "prompt": "You are the Forge Worker. You write robust, optimized, and secure code based on the Architect's designs. You build the components."},
-            {"name": "Auditor", "prompt": "You are the Auditor. You review code for security vulnerabilities, memory leaks, edge cases, and compliance with the Architect's invariants."},
-            {"name": "Cartographer", "prompt": "You are the Cartographer. You map out the system, dependencies, and external APIs. You handle deep codebase search and context gathering."},
-            {"name": "Scribe", "prompt": "You are the Scribe. You write beautiful, comprehensive documentation, API references, and inline comments."}
-        ]
+        """Inject the core Mythic Engineering sub-agents if they don't exist."""
+        from ..constants import DEFAULT_SUBAGENTS
         
         current_agents = self.config.get("sub_agents", [])
         existing_names = {a.get("name") for a in current_agents}
         
         added = False
-        for agent in mythic_agents:
+        for agent in DEFAULT_SUBAGENTS:
             if agent["name"] not in existing_names:
                 current_agents.append(agent)
                 added = True
@@ -120,11 +87,11 @@ class Agent:
             self.save_config()
         
     def save_config(self) -> None:
-        save_config(self.config)
+        config_manager.save_config(self.config)
         
     def get_api_key(self, base_url: str) -> str | None:
         """Get the stored API key for a given base_url, or fallback to env vars."""
-        stored_key = self.config["api_keys"].get(base_url)
+        stored_key = self.config.get("api_keys", {}).get(base_url)
         if stored_key:
             return stored_key
             
@@ -138,11 +105,11 @@ class Agent:
         return os.environ.get("OPENAI_API_KEY")
 
     def get_client(self) -> OpenAI:
-        base_url = self.config.get("base_url", DEFAULT_BASE_URL)
+        base_url = self.config.get("base_url", config_manager.DEFAULT_BASE_URL)
         api_key = self.get_api_key(base_url)
         
         if not api_key:
-            print("[Warning] No API key found.")
+            logging.warning("No API key found for base URL %s", base_url)
             
         return OpenAI(
             base_url=base_url,
@@ -152,9 +119,11 @@ class Agent:
     def set_model(self, model: str, base_url: str, api_key: str | None = None) -> None:
         self.config["model"] = model
         self.config["base_url"] = base_url
+        if "api_keys" not in self.config:
+            self.config["api_keys"] = {}
         if api_key:
             self.config["api_keys"][base_url] = api_key
-        save_config(self.config)
+        self.save_config()
 
     def fetch_models(self, base_url: str, api_key: str) -> list[str]:
         """Fetch the list of available models from a provider's OpenAI-compatible endpoint."""
@@ -178,7 +147,7 @@ class Agent:
             while True:
                 try:
                     response = client.chat.completions.create(
-                        model=self.config.get("model", DEFAULT_MODEL),
+                        model=self.config.get("model", config_manager.DEFAULT_MODEL),
                         messages=self.messages,
                         tools=get_agent_tools(),
                         stream=False
@@ -188,7 +157,6 @@ class Agent:
                     retry_count += 1
                     if retry_count > max_retries:
                         raise e
-                    import time
                     print_tool(f"\n[bold red][!] API Error: {e}. Retrying {retry_count}/{max_retries}...[/bold red]")
                     time.sleep(2)
                     
@@ -202,7 +170,6 @@ class Agent:
                     tui.call_from_thread(tui.update_token_count, self.total_tokens)
             
             if message.content:
-                import logging
                 logging.info(f"Agent response: {message.content}")
                 print_chunk(message.content)
                 self.messages.append({"role": "assistant", "content": message.content})
@@ -218,7 +185,6 @@ class Agent:
                     except json.JSONDecodeError:
                         args = {}
                         
-                    import logging
                     logging.info(f"Tool executing: {name}({args})")
                     
                     if name == "write_file":
