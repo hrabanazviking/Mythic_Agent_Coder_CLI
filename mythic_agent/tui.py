@@ -181,14 +181,19 @@ class SplashScreen(Screen):
             self.app.switch_screen("setup_wizard")
 
 class SubAgentForm(Static):
+    def __init__(self, init_name: str = "", init_prompt: str = "", *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.init_name = init_name
+        self.init_prompt = init_prompt
+
     def compose(self) -> ComposeResult:
-        with Collapsible(title="Warrior Configuration", collapsed=True, classes="subagent-collapsible"):
+        with Collapsible(title=self.init_name if self.init_name else "Warrior Configuration", collapsed=True, classes="subagent-collapsible"):
             with Vertical(classes="subagent-form-content"):
                 yield Horizontal(
-                    Input(placeholder="Warrior Name (e.g. Shield-Maiden)", classes="subagent-name"),
+                    Input(placeholder="Warrior Name (e.g. Shield-Maiden)", classes="subagent-name", value=self.init_name),
                     Button("X", variant="error", classes="del-subagent-btn")
                 )
-                yield TextArea(classes="subagent-prompt", text="You are a helpful sub-agent.")
+                yield TextArea(classes="subagent-prompt", text=self.init_prompt if self.init_prompt else "You are a helpful sub-agent.")
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.has_class("subagent-name"):
@@ -228,6 +233,10 @@ class SetupScreen(Screen):
     }
     #system-prompt-input {
         height: 8;
+        border: solid $accent;
+    }
+    #user-data-input {
+        height: 6;
         border: solid $accent;
     }
     #global-rules-input {
@@ -363,15 +372,8 @@ class SetupScreen(Screen):
             ]
         
         for sa in sub_agents:
-            form = SubAgentForm()
+            form = SubAgentForm(init_name=sa.get("name", ""), init_prompt=sa.get("prompt", ""))
             self.query_one("#subagents-list").mount(form)
-            # We must set text after mount
-            def _set_fields(f=form, n=sa.get("name",""), p=sa.get("prompt","")):
-                f.query_one(".subagent-name", Input).value = n
-                f.query_one(".subagent-prompt", TextArea).text = p
-                collapsible = f.query_one(Collapsible)
-                collapsible.title = n if n else "Unnamed Warrior"
-            self.app.call_after_refresh(_set_fields)
             
         cancel_btn = self.query_one("#cancel-btn", Button)
         if not has_config:
