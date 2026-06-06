@@ -14,6 +14,8 @@ from .tools import execute_tool, get_agent_tools
 from ..core.config_manager import config_manager
 from ..constants import DEFAULT_SYSTEM_PROMPT
 from ..core.secure_api import publish_sync, subscribe
+from ..memory.core_memory import CoreMemoryManager
+from ..memory.vector_db import get_vector_provider
 
 # Global registry of live sub-agent instances keyed by name.
 AGENT_REGISTRY: dict[str, "Agent"] = {}
@@ -40,6 +42,14 @@ class Agent:
         self.inbox = queue.Queue()
         self._lock = threading.Lock()
         self.rebuild_system_prompt()
+        
+        self.core_memory = CoreMemoryManager(self.name)
+        
+        # Initialize Vector DB
+        base_url = self.config.get("base_url", config_manager.DEFAULT_BASE_URL)
+        api_key = self.get_api_key(base_url)
+        provider = self.config.get("vector_db_provider", "lightweight")
+        self.vector_db = get_vector_provider(provider, self.name, base_url, api_key)
         
         self.inject_mythic_agents()
         
@@ -95,6 +105,9 @@ class Agent:
                 system_prompt += "\n4. Reality outranks theory. Refactor by ownership. Invariants matter."
 
         system_prompt += self.get_user_context()
+        
+        if hasattr(self, "core_memory"):
+            system_prompt += self.core_memory.format_for_prompt()
         
         with self._lock:
             if not self.messages:
@@ -172,7 +185,20 @@ class Agent:
     def chat(self, prompt: str | None) -> str:
         with self._lock:
             if prompt:
-                self.messages.append({"role": "user", "content": prompt})
+                # Continuous Subconscious Recall (Auto-RAG)
+                recalled = ""
+                if hasattr(self, "vector_db"):
+                    try:
+                        results = self.vector_db.search(prompt, top_k=2)
+                        if results:
+                            recalled = "\n\n[Subconscious Recall (Archival Memory)]\n"
+                            for r in results:
+                                recalled += f"- {r['text']}\n"
+                    except Exception as e:
+                        logging.error(f"Auto-RAG search failed: {e}")
+                
+                enriched_prompt = f"{prompt}{recalled}"
+                self.messages.append({"role": "user", "content": enriched_prompt})
                 
             # Sliding window memory pruner to prevent LLM max_context crashes
             # Alert the agent right before compaction so it autosaves status
@@ -185,8 +211,21 @@ class Agent:
                 
             # Keep the system prompt at index 0, and retain the last 90 messages.
             if len(self.messages) > 100:
-                publish_sync("agent_chat_chunk", agent_name=self.name, text="\n[bold red][!] Context Compacted.[/bold red]\n")
+                publish_sync("agent_chat_chunk", agent_name=self.name, text="\n[bold red][!] Context Compacted & Archived.[/bold red]\n")
+                
+                # Auto-Archival: Save the forgotten chunk to Vector DB
+                if hasattr(self, "vector_db"):
+                    forgotten_chunk = self.messages[1:11]
+                    try:
+                        archive_text = "Archived Context Chunk:\n" + "\n".join(
+                            f"{m.get('role', 'unknown').upper()}: {m.get('content', '')}" for m in forgotten_chunk
+                        )
+                        self.vector_db.insert(archive_text)
+                    except Exception as e:
+                        logging.error(f"Auto-Archival failed: {e}")
+                
                 self.messages = [self.messages[0]] + self.messages[-90:]
+                
             client = self.get_client()
             
             def print_chunk(text: str):
