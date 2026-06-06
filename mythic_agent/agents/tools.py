@@ -327,51 +327,15 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
         task = arguments.get("task_description", "")
         sender = arguments.get("sender", "Primary")
         
-        tui = getattr(tui_app, "app", tui_app)
-        config = tui.agent.config if tui else {}
-        sub_agents = config.get("sub_agents", [])
-        sub_config = next((s for s in sub_agents if s.get("name") == sub_name), None)
-        
-        if not sub_config:
-            return f"Error: No sub-agent named {sub_name} is configured."
-            
         import threading
-        def run_subagent():
-            from .llm import Agent, AGENT_REGISTRY
-            if sub_name not in AGENT_REGISTRY:
-                sub_agent = Agent(project_root=root_path)
-                sub_agent.name = sub_name
-                
-                sub_system_prompt = sub_config.get("prompt", "You are a helpful sub-agent.")
-                global_rules = config.get("global_rules", "").strip()
-                status_rule = "You MUST use the `update_status` tool to autosave your current project status and keep track of what is going on."
-                if global_rules:
-                    sub_system_prompt += f"\n\nGLOBAL RULES (You must strictly follow these):\n{global_rules}\n- {status_rule}"
-                else:
-                    sub_system_prompt += f"\n\nGLOBAL RULES:\n- {status_rule}"
-                    
-                from .llm import get_user_context
-                sub_system_prompt += get_user_context(config)
-                    
-                sub_agent.messages = [{"role": "system", "content": sub_system_prompt}]
-                sub_agent.tui_app = tui
-                AGENT_REGISTRY[sub_name] = sub_agent
-            else:
-                sub_agent = AGENT_REGISTRY[sub_name]
-                
-            if tui:
-                tui.call_from_thread(tui.update_agent_status, sub_name, True)
-                
-            def noop_print(chunk): pass
-            def noop_tool(chunk): pass
+        from .llm import agent_manager
+        
+        agent = agent_manager.spawn_subagent(sub_name, root_path)
+        if not agent:
+            return f"Error: No sub-agent named {sub_name} is configured or could be spawned."
             
-            try:
-                sub_agent.chat(f"Task from {sender}:\n{task}", noop_print, noop_tool)
-            finally:
-                if tui:
-                    tui.call_from_thread(tui.update_agent_status, sub_name, False)
-                    
-        threading.Thread(target=run_subagent, daemon=True).start()
+        threading.Thread(target=agent_manager._run_agent_chat, args=(agent, f"Task from {sender}:\n{task}"), daemon=True).start()
+        
         return f"Task delegated to {sub_name} in the background. It will message you when done."
 
     if name == "send_message":
@@ -379,15 +343,19 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
         message = arguments.get("message", "")
         sender = arguments.get("sender", "Unknown")
         
-        from .llm import AGENT_REGISTRY
-        if recipient not in AGENT_REGISTRY:
-            return f"Error: Agent {recipient} not found or not active."
-            
-        target_agent = AGENT_REGISTRY[recipient]
-        target_agent.messages.append({"role": "user", "content": f"Message from {sender}:\n{message}"})
+        from .llm import AGENT_REGISTRY, agent_manager
+        from ..core.secure_api import publish_sync
         
-        if recipient == "Primary" and tui_app:
-            tui_app.call_from_thread(tui_app.notify_message, message, sender)
+        if recipient not in AGENT_REGISTRY:
+            agent = agent_manager.spawn_subagent(recipient, root_path)
+            if not agent:
+                return f"Error: Agent {recipient} not found or not active."
+        else:
+            agent = AGENT_REGISTRY[recipient]
+            
+        agent.messages.append({"role": "user", "content": f"Message from {sender}:\n{message}"})
+        
+        publish_sync("subagent_message_received", sender=sender, recipient=recipient, message=message)
             
         return f"Message sent to {recipient}."
 
