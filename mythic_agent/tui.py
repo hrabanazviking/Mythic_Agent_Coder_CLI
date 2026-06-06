@@ -11,6 +11,7 @@ from textual.binding import Binding
 
 from .llm import Agent
 from .subagent_modal import SubagentSelectionModal
+from .constants import DEFAULT_GLOBAL_RULES
 
 PROVIDERS = [
     ("OpenRouter (Global)", "https://openrouter.ai/api/v1"),
@@ -246,6 +247,14 @@ class SetupScreen(Screen):
         height: 6;
         margin-top: 1;
     }
+    #global-rules-header {
+        height: 3;
+        margin-bottom: 1;
+    }
+    #global-rules-label {
+        width: 1fr;
+        content-align: left middle;
+    }
     """
 
     def compose(self) -> ComposeResult:
@@ -278,7 +287,9 @@ class SetupScreen(Screen):
             yield Input(id="primary-agent-name", placeholder="e.g. Mythic", classes="step")
             yield TextArea(id="system-prompt-input", classes="step")
             
-            yield Label("8. The Elder's Laws (Global Rules applied to ALL):", classes="step")
+            with Horizontal(id="global-rules-header"):
+                yield Label("8. The Elder's Laws (Global Rules applied to ALL):", id="global-rules-label")
+                yield Button("Reset to Default", id="reset-rules-btn", variant="primary")
             yield TextArea(id="global-rules-input", classes="step")
             
             yield Label("9. Summon Shield-Maidens & Warriors (Sub-Agents):", classes="step")
@@ -335,10 +346,10 @@ class SetupScreen(Screen):
         self.query_one("#primary-agent-name", Input).value = primary_name
             
         global_rules = config.get("global_rules")
-        if global_rules:
+        if global_rules is not None:
             self.query_one("#global-rules-input", TextArea).text = global_rules
         else:
-            self.query_one("#global-rules-input", TextArea).text = ""
+            self.query_one("#global-rules-input", TextArea).text = DEFAULT_GLOBAL_RULES
             
         sub_agents = config.get("sub_agents", [])
         if not sub_agents:
@@ -375,6 +386,8 @@ class SetupScreen(Screen):
             self.app.switch_screen("main_chat")
         elif event.button.id == "add-subagent-btn":
             self.query_one("#subagents-list").mount(SubAgentForm())
+        elif event.button.id == "reset-rules-btn":
+            self.query_one("#global-rules-input", TextArea).text = DEFAULT_GLOBAL_RULES
             
     async def handle_fetch(self) -> None:
         provider_url = self.query_one("#provider-select", Select).value
