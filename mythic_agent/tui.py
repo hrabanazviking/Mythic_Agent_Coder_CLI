@@ -6,7 +6,7 @@ from textual import work
 from textual.app import App, ComposeResult
 from textual.containers import Vertical, Horizontal, Center, Middle, VerticalScroll
 from textual.screen import Screen, ModalScreen
-from textual.widgets import Header, Footer, Input, RichLog, Static, Select, Button, Label, LoadingIndicator, TextArea, Checkbox
+from textual.widgets import Header, Footer, Input, RichLog, Static, Select, Button, Label, LoadingIndicator, TextArea, Checkbox, Collapsible
 from textual.binding import Binding
 
 from .llm import Agent
@@ -181,12 +181,21 @@ class SplashScreen(Screen):
 
 class SubAgentForm(Static):
     def compose(self) -> ComposeResult:
-        with Vertical(classes="subagent-form"):
-            yield Horizontal(
-                Input(placeholder="Warrior Name (e.g. Shield-Maiden)", classes="subagent-name"),
-                Button("X", variant="error", classes="del-subagent-btn")
-            )
-            yield TextArea(classes="subagent-prompt", text="You are a helpful sub-agent.")
+        with Collapsible(title="Warrior Configuration", collapsed=True, classes="subagent-collapsible"):
+            with Vertical(classes="subagent-form-content"):
+                yield Horizontal(
+                    Input(placeholder="Warrior Name (e.g. Shield-Maiden)", classes="subagent-name"),
+                    Button("X", variant="error", classes="del-subagent-btn")
+                )
+                yield TextArea(classes="subagent-prompt", text="You are a helpful sub-agent.")
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.has_class("subagent-name"):
+            collapsible = self.query_one(Collapsible)
+            if event.value.strip():
+                collapsible.title = event.value
+            else:
+                collapsible.title = "Unnamed Warrior"
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.has_class("del-subagent-btn"):
@@ -224,10 +233,10 @@ class SetupScreen(Screen):
         height: 6;
         border: solid yellow;
     }
-    .subagent-form {
-        border: heavy $secondary;
-        padding: 1;
+    .subagent-collapsible {
         margin-bottom: 1;
+    }
+    .subagent-form-content {
         height: auto;
     }
     .subagent-name {
@@ -333,6 +342,8 @@ class SetupScreen(Screen):
             def _set_fields(f=form, n=sa.get("name",""), p=sa.get("prompt","")):
                 f.query_one(".subagent-name", Input).value = n
                 f.query_one(".subagent-prompt", TextArea).text = p
+                collapsible = f.query_one(Collapsible)
+                collapsible.title = n if n else "Unnamed Warrior"
             self.app.call_after_refresh(_set_fields)
             
         cancel_btn = self.query_one("#cancel-btn", Button)
