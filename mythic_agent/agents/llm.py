@@ -239,6 +239,17 @@ class Agent:
             
             internal_loops = 0
             while True:
+                import queue
+                try:
+                    while True:
+                        queued_prompt = self.inbox.get_nowait()
+                        if queued_prompt is None:
+                            return # Cleanly exit thread
+                        self.messages.append({"role": "user", "content": f"New queued message received while you were working:\n{queued_prompt}"})
+                        print_chunk(f"\n[dim italic]... received and processed a queued message mid-execution ...[/dim italic]\n")
+                except queue.Empty:
+                    pass
+                    
                 internal_loops += 1
                 if internal_loops > 15:
                     print_chunk("\n[bold red][!] Infinite tool loop detected. Forcing break.[/bold red]")
