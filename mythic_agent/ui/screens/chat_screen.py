@@ -153,7 +153,7 @@ class MainChatScreen(Screen):
                 with Horizontal(id="chat-input-container"):
                     yield Label(" [bold yellow]ᛟ❯[/bold yellow] ", id="prompt-label")
                     from textual.suggester import SuggestFromList
-                    COMMANDS = ["/setup", "/add", "/commit", "/issue", "/pr", "/status", "/gh", "/test", "/undo", "/doctor", "/flirt", "/lick", "/btw", "/steer", "/stop", "/tutorial", "/quit", "/help", "/exit"]
+                    COMMANDS = ["/setup", "/add", "/commit", "/issue", "/pr", "/status", "/gh", "/test", "/undo", "/doctor", "/flirt", "/lick", "/hug", "/kiss", "/snuggle", "/cuddle", "/tickle", "/wink", "/btw", "/steer", "/stop", "/tutorial", "/quit", "/help", "/exit"]
                     yield Input(placeholder="Speak to the Seer... (Press Enter to send)", id="chat-input", suggester=SuggestFromList(COMMANDS))
             with VerticalScroll(id="sidebar"):
                 yield Label("[bold cyan]Instructions[/bold cyan]\n")
@@ -170,7 +170,7 @@ class MainChatScreen(Screen):
                 yield Label("[green]/undo[/green]    - Undo last file edit")
                 yield Label("[green]/doctor[/green]  - Auto-fix issues")
                 yield Label("[green]/flirt[/green]   - Flirt with the Agent")
-                yield Label("[green]/lick[/green]    - Lick the Agent")
+                yield Label("[green]...[/green]    - (and more emotes!)")
                 yield Label("[green]/btw[/green]    - Add silent context")
                 yield Label("[green]/steer[/green]  - Steer the AI")
                 yield Label("[green]/stop[/green]   - Stop all agents")
@@ -536,6 +536,12 @@ class MainChatScreen(Screen):
                 chat_log.write("  [green]/doctor[/green]    - Auto-fix a command output")
                 chat_log.write("  [green]/flirt[/green]     - Flirt with the Agent")
                 chat_log.write("  [green]/lick[/green]      - Lick the Agent")
+                chat_log.write("  [green]/hug[/green]       - Hug the Agent")
+                chat_log.write("  [green]/kiss[/green]      - Kiss the Agent")
+                chat_log.write("  [green]/snuggle[/green]   - Snuggle with the Agent")
+                chat_log.write("  [green]/cuddle[/green]    - Cuddle the Agent")
+                chat_log.write("  [green]/tickle[/green]    - Tickle the Agent")
+                chat_log.write("  [green]/wink[/green]      - Wink at the Agent")
                 chat_log.write("  [green]/btw[/green]      - Add silent context to an agent")
                 chat_log.write("  [green]/steer[/green]    - Give the AI a strong steering instruction")
                 chat_log.write("  [green]/stop[/green]     - Stop all currently active agents")
@@ -559,6 +565,12 @@ class MainChatScreen(Screen):
                     "/doctor": "Usage: /doctor\nExamines the output of the last failed command and automatically generates a fix.",
                     "/flirt": "Usage: /flirt <message>\nSpawns a temporary Ghost session to flirt with the current agent. Does not interrupt the agent's main workflow.",
                     "/lick": "Usage: /lick <message>\nSpawns a temporary Ghost session and explicitly sends the action *User licks you*. Fun alternative to /flirt.",
+                    "/hug": "Usage: /hug <message>\nSpawns a temporary Ghost session and explicitly sends the action *User hugs you*.",
+                    "/kiss": "Usage: /kiss <message>\nSpawns a temporary Ghost session and explicitly sends the action *User kisses you*.",
+                    "/snuggle": "Usage: /snuggle <message>\nSpawns a temporary Ghost session and explicitly sends the action *User snuggles with you*.",
+                    "/cuddle": "Usage: /cuddle <message>\nSpawns a temporary Ghost session and explicitly sends the action *User cuddles with you*.",
+                    "/tickle": "Usage: /tickle <message>\nSpawns a temporary Ghost session and explicitly sends the action *User tickles you*.",
+                    "/wink": "Usage: /wink <message>\nSpawns a temporary Ghost session and explicitly sends the action *User winks at you*.",
                     "/btw": "Usage: /btw <message>\nAdds context or notes to the agent via a Ghost session without forcing an immediate context break. Useful for side-chatter or corrections while it thinks.",
                     "/steer": "Usage: /steer <instruction>\nDirectly alters the ongoing task of the current active agent. Will immediately be appended to the active agent's prompt.",
                     "/stop": "Usage: /stop\nSends a kill signal to all currently active agents and subagents. Clears the background task queues.",
