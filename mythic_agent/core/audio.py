@@ -99,26 +99,58 @@ class AudioRecorder:
         return temp_path
 
     def transcribe(self, wav_path: str) -> Optional[str]:
-        """Sends the WAV file to the Whisper API and returns the transcribed text."""
-        if not self.api_key:
-            logging.error("No API key found. Cannot transcribe audio.")
-            return None
-            
+        """Sends the WAV file to the Deepgram or Whisper API and returns the transcribed text."""
+        # Reload config in case it changed
+        self.config = config_manager.load_config()
+        stt_backend = self.config.get("stt_backend", "whisper")
+        
         try:
-            # For transcription, we usually want to hit the main OpenAI API directly 
-            # unless the user is explicitly pointing to an open-source endpoint that supports Whisper API (e.g. litellm proxy).
-            # We'll use the user's base_url, but standard OpenAI requires "whisper-1".
-            client = OpenAI(api_key=self.api_key, base_url=self.base_url)
-            
-            with open(wav_path, "rb") as audio_file:
-                # whisper-1 is the standard model name for OpenAI transcriptions
-                transcription = client.audio.transcriptions.create(
-                    model="whisper-1", 
-                    file=audio_file
-                )
+            if stt_backend == "deepgram":
+                deepgram_api_key = self.config.get("deepgram_api_key", "")
+                if not deepgram_api_key:
+                    logging.error("No Deepgram API key found. Cannot transcribe audio.")
+                    return None
+                    
+                import requests
+                url = "https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true"
+                headers = {
+                    "Authorization": f"Token {deepgram_api_key}",
+                    "Content-Type": "audio/wav"
+                }
+                with open(wav_path, "rb") as audio_file:
+                    resp = requests.post(url, headers=headers, data=audio_file)
+                    
+                if resp.status_code == 200:
+                    data = resp.json()
+                    transcript = data.get("results", {}).get("channels", [{}])[0].get("alternatives", [{}])[0].get("transcript", "")
+                    os.remove(wav_path)
+                    return transcript
+                else:
+                    logging.error(f"Deepgram STT failed: {resp.status_code} {resp.text}")
+                    return None
+                    
+            else:
+                # Whisper fallback
+                api_key = self._get_api_key()
+                if not api_key:
+                    logging.error("No OpenAI API key found. Cannot transcribe audio.")
+                    return None
+                    
+                # For transcription, we usually want to hit the main OpenAI API directly 
+                # unless the user is explicitly pointing to an open-source endpoint that supports Whisper API (e.g. litellm proxy).
+                # We'll use the user's base_url, but standard OpenAI requires "whisper-1".
+                client = OpenAI(api_key=api_key, base_url=self.base_url)
                 
-            os.remove(wav_path)
-            return transcription.text
+                with open(wav_path, "rb") as audio_file:
+                    # whisper-1 is the standard model name for OpenAI transcriptions
+                    transcription = client.audio.transcriptions.create(
+                        model="whisper-1", 
+                        file=audio_file
+                    )
+                    
+                os.remove(wav_path)
+                return transcription.text
+
         except Exception as e:
             logging.error(f"Transcription failed: {e}")
             try:
