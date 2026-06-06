@@ -10,6 +10,7 @@ from textual.binding import Binding
 import copy
 from mythic_agent.agents.llm import Agent
 from mythic_agent.ui.components.subagent_modal import SubagentSelectionModal
+from mythic_agent.ui.components.subagent_editor import SubagentEditorWidget
 from mythic_agent.constants import DEFAULT_GLOBAL_RULES, DEFAULT_PRIMARY_NAME, DEFAULT_SYSTEM_PROMPT, DEFAULT_SUBAGENTS
 
 from mythic_agent.core.secure_api import publish_sync, subscribe
@@ -173,19 +174,8 @@ class SetupScreen(Screen):
                 yield Button("Reset to Default", id="reset-rules-btn", variant="primary")
             yield TextArea(id="global-rules-input", classes="step")
             
-            yield Label("9. Summon Shield-Maidens & Warriors (Sub-Agents):", classes="step")
-            
-            with Horizontal(id="subagents-header"):
-                yield Select([], id="subagent-select", prompt="Select a Warrior to Edit")
-                yield Button("+ Create New Warrior", id="create-subagent-btn", variant="success")
-                
-            with Vertical(id="subagent-editor"):
-                yield Input(id="active-subagent-name", placeholder="Warrior Name")
-                with Horizontal(id="subagent-buttons"):
-                    yield Button("Reset to Default", id="reset-active-subagent-btn", variant="primary")
-                    yield Button("Delete Warrior", id="delete-active-subagent-btn", variant="error")
-                yield TextArea(id="active-subagent-prompt", classes="step")
-            
+            yield SubagentEditorWidget(id="subagent-editor-widget")
+
             with Horizontal(id="setup-buttons"):
                 yield Button("Flee", id="cancel-btn", variant="error")
                 yield Button("To Valhalla! (Save)", id="save-btn", variant="warning", disabled=True)
@@ -241,12 +231,7 @@ class SetupScreen(Screen):
             self.query_one("#global-rules-input", TextArea).text = DEFAULT_GLOBAL_RULES
             
         sub_agents = config.get("sub_agents", [])
-        if not sub_agents:
-            self.current_subagents = copy.deepcopy(DEFAULT_SUBAGENTS)
-        else:
-            self.current_subagents = copy.deepcopy(sub_agents)
-            
-        self.update_subagent_dropdown()
+        self.query_one("#subagent-editor-widget").set_subagents(sub_agents)
             
         cancel_btn = self.query_one("#cancel-btn", Button)
         if not has_config:
@@ -260,14 +245,6 @@ class SetupScreen(Screen):
                 self.handle_save()
             elif event.button.id == "cancel-btn":
                 self.app.switch_screen("main_chat")
-            elif event.button.id == "create-subagent-btn":
-                new_idx = len(self.current_subagents)
-                self.current_subagents.append({"name": "New Warrior", "prompt": "You are a helpful warrior."})
-                self.update_subagent_dropdown(new_idx)
-            elif event.button.id == "reset-active-subagent-btn":
-                self.reset_active_subagent()
-            elif event.button.id == "delete-active-subagent-btn":
-                self.delete_active_subagent()
             elif event.button.id == "reset-rules-btn":
                 self.query_one("#global-rules-input", TextArea).text = DEFAULT_GLOBAL_RULES
             elif event.button.id == "reset-primary-btn":
@@ -324,131 +301,8 @@ class SetupScreen(Screen):
         error_msg.update(f"[red]{error}[/red]")
         error_msg.display = True
 
-    def update_subagent_dropdown(self, select_index: int | None = None) -> None:
-        try:
-            if not getattr(self, 'current_subagents', None):
-                self.current_subagents = copy.deepcopy(DEFAULT_SUBAGENTS)
-            
-            select = self.query_one("#subagent-select", Select)
-            options = [(sa.get("name", f"Warrior {i}"), i) for i, sa in enumerate(self.current_subagents)]
-            
-            self._loading_subagent = True
-            try:
-                select.set_options(options)
-                if select_index is not None and 0 <= select_index < len(options):
-                    select.value = select_index
-                elif options:
-                    select.value = 0
-            except Exception as e:
-                import logging
-                logging.error(f"Select widget error: {e}")
-            finally:
-                self._loading_subagent = False
-            
-            if select_index is not None and 0 <= select_index < len(self.current_subagents):
-                self.load_subagent(select_index)
-            elif options:
-                self.load_subagent(0)
-        except Exception as e:
-            self._loading_subagent = False
-            self.app.notify(f"Error updating dropdown: {str(e)}", severity="error", timeout=5)
-
-    def on_select_changed(self, event: Select.Changed) -> None:
-        if getattr(self, '_loading_subagent', False):
-            return
-        try:
-            if event.select.id == "subagent-select" and event.value is not None:
-                val = event.value
-                if hasattr(val, "value"):  # Handle textual version differences
-                    val = val.value
-                if str(val) != "Select.BLANK":
-                    try:
-                        idx = int(val)
-                        self.load_subagent(idx)
-                    except ValueError:
-                        pass
-        except Exception as e:
-            self.app.notify(f"Error handling selection: {str(e)}", severity="error", timeout=5)
-
-    def load_subagent(self, index: int) -> None:
-        try:
-            if not getattr(self, 'current_subagents', None) or index < 0 or index >= len(self.current_subagents):
-                return
-            self.active_subagent_index = index
-            sub_agent = self.current_subagents[index]
-            
-            self._loading_subagent = True
-            
-            name_input = self.query_one("#active-subagent-name", Input)
-            name_input.value = sub_agent.get("name", "") or ""
-            
-            prompt_ta = self.query_one("#active-subagent-prompt", TextArea)
-            prompt_text = sub_agent.get("prompt", "") or ""
-            if hasattr(prompt_ta, "load_text"):
-                prompt_ta.load_text(prompt_text)
-            else:
-                prompt_ta.text = prompt_text
-                
-        except Exception as e:
-            self.app.notify(f"Error loading subagent: {str(e)}", severity="error", timeout=5)
-        finally:
-            self._loading_subagent = False
-
-    def on_input_changed(self, event: Input.Changed) -> None:
-        if getattr(self, '_loading_subagent', False):
-            return
-        try:
-            if event.input.id == "active-subagent-name" and hasattr(self, 'active_subagent_index'):
-                idx = self.active_subagent_index
-                if 0 <= idx < len(self.current_subagents):
-                    self.current_subagents[idx]["name"] = event.value or ""
-        except Exception as e:
-            pass
-
-    def on_text_area_changed(self, event: TextArea.Changed) -> None:
-        if getattr(self, '_loading_subagent', False):
-            return
-        try:
-            if event.text_area.id == "active-subagent-prompt" and hasattr(self, 'active_subagent_index'):
-                idx = self.active_subagent_index
-                if 0 <= idx < len(self.current_subagents):
-                    self.current_subagents[idx]["prompt"] = event.text_area.text or ""
-        except Exception as e:
-            pass
-
-    def reset_active_subagent(self) -> None:
-        try:
-            idx = getattr(self, 'active_subagent_index', 0)
-            if not getattr(self, 'current_subagents', None) or idx >= len(self.current_subagents):
-                return
-            current_name = self.current_subagents[idx].get("name", "")
-            default = next((sa for sa in DEFAULT_SUBAGENTS if sa["name"] == current_name), None)
-            if not default:
-                # Try partial match
-                default = next((sa for sa in DEFAULT_SUBAGENTS if current_name in sa["name"]), {"name": "New Warrior", "prompt": "You are a helpful warrior."})
-            
-            self.current_subagents[idx] = copy.deepcopy(default)
-            self.load_subagent(idx)
-        except Exception as e:
-            self.app.notify(f"Error resetting subagent: {str(e)}", severity="error", timeout=5)
-
-    def delete_active_subagent(self) -> None:
-        try:
-            if getattr(self, 'current_subagents', None) and len(self.current_subagents) > 1:
-                idx = getattr(self, 'active_subagent_index', 0)
-                if 0 <= idx < len(self.current_subagents):
-                    del self.current_subagents[idx]
-                    self.update_subagent_dropdown(0)
-        except Exception as e:
-            self.app.notify(f"Error deleting subagent: {str(e)}", severity="error", timeout=5)
-
     def handle_save(self) -> None:
         try:
-            # Sync active editor to memory
-            if hasattr(self, 'active_subagent_index'):
-                self.current_subagents[self.active_subagent_index]["name"] = self.query_one("#active-subagent-name", Input).value.strip()
-                self.current_subagents[self.active_subagent_index]["prompt"] = self.query_one("#active-subagent-prompt", TextArea).text.strip()
-                
             base_url = self.query_one("#provider-select", Select).value
             api_key = self.query_one("#api-key-input", Input).value
             model_select = self.query_one("#model-select", Select)
@@ -471,11 +325,7 @@ class SetupScreen(Screen):
             config = config_manager.load_config()
             
             # Save current state of subagents
-            valid_sub_agents = []
-            for sa in self.current_subagents:
-                if sa.get("name") and sa.get("prompt"):
-                    valid_sub_agents.append(sa)
-            config["sub_agents"] = valid_sub_agents
+            config["sub_agents"] = self.query_one("#subagent-editor-widget").get_subagents()
                 
             config["primary_agent_name"] = primary_name
             config["system_prompt"] = sys_prompt
