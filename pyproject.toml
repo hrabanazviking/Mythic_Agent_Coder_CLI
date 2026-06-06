@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mythic-agent"
+version = "0.1.0"
+description = "A clean, affordable CLI AI coding agent."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "openai>=1.40",
+    "prompt_toolkit>=3.0",
+    "rich>=13.0",
+    "textual>=0.80.0"
+]
+
+[project.scripts]
+mythic = "mythic_agent.cli:main"

@@ -1,0 +1,807 @@
+import asyncio
+from pathlib import Path
+
+from rich.markdown import Markdown
+from textual import work
+from textual.app import App, ComposeResult
+from textual.containers import Vertical, Horizontal, Center, Middle, VerticalScroll
+from textual.screen import Screen, ModalScreen
+from textual.widgets import Header, Footer, Input, RichLog, Static, Select, Button, Label, LoadingIndicator, TextArea
+from textual.binding import Binding
+
+from .llm import Agent
+
+PROVIDERS = [
+    ("OpenRouter (Global)", "https://openrouter.ai/api/v1"),
+    ("OpenAI (US)", "https://api.openai.com/v1"),
+    ("Mistral AI (French)", "https://api.mistral.ai/v1"),
+    ("DeepSeek (Chinese)", "https://api.deepseek.com/v1"),
+    ("DashScope / Qwen (Chinese)", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
+    ("Zhipu AI (Chinese)", "https://open.bigmodel.cn/api/paas/v4/"),
+    ("Moonshot AI (Chinese)", "https://api.moonshot.cn/v1"),
+    ("SiliconFlow (Chinese)", "https://api.siliconflow.cn/v1"),
+    ("DeepInfra", "https://api.deepinfra.com/v1/openai"),
+    ("Groq", "https://api.groq.com/openai/v1"),
+    ("Together AI", "https://api.together.xyz/v1"),
+    ("Fireworks AI", "https://api.fireworks.ai/inference/v1"),
+    ("AnyScale", "https://api.endpoints.anyscale.com/v1"),
+    ("OpenCode Go", "https://opencode.ai/zen/go/v1"),
+]
+
+class CommandApproval(ModalScreen[bool]):
+    """Modal dialog to approve bash commands."""
+    
+    CSS = """
+    CommandApproval {
+        align: center middle;
+        background: $background 80%;
+    }
+    #dialog {
+        padding: 1 2;
+        width: 60;
+        height: auto;
+        border: thick red;
+        background: $surface;
+    }
+    """
+    def __init__(self, command: str, on_approve, on_reject, **kwargs):
+        super().__init__(**kwargs)
+        self.command_text = command
+        self.on_approve = on_approve
+        self.on_reject = on_reject
+        
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Label("[bold red]⚠️  Security Approval Required[/bold red]\n")
+            yield Label(f"The agent wants to run the following command:\n\n[bold white]{self.command_text}[/bold white]\n")
+            with Horizontal():
+                yield Button("Allow", id="allow", variant="success")
+                yield Button("Reject", id="reject", variant="error")
+                
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "allow":
+            self.on_approve()
+            self.dismiss(True)
+        else:
+            self.on_reject()
+            self.dismiss(False)
+
+class GithubConfigModal(ModalScreen[None]):
+    """Modal dialog to configure GitHub settings."""
+    
+    CSS = """
+    GithubConfigModal {
+        align: center middle;
+        background: $background 80%;
+    }
+    #gh-dialog {
+        padding: 1 2;
+        width: 60;
+        height: auto;
+        border: heavy $secondary;
+        background: $surface;
+    }
+    .gh-step {
+        margin-bottom: 1;
+    }
+    #gh-buttons {
+        height: 3;
+        margin-top: 1;
+    }
+    """
+    
+    def compose(self) -> ComposeResult:
+        with Vertical(id="gh-dialog"):
+            yield Label("[bold cyan]Configure GitHub[/bold cyan]", classes="gh-step")
+            yield Label("GitHub Repository (e.g., owner/repo):", classes="gh-step")
+            yield Input(placeholder="owner/repo", id="gh-repo-input", classes="gh-step")
+            
+            yield Label("GitHub Personal Access Token (PAT):", classes="gh-step")
+            yield Input(password=True, placeholder="ghp_...", id="gh-token-input", classes="gh-step")
+            
+            with Horizontal(id="gh-buttons"):
+                yield Button("Cancel", id="gh-cancel", variant="error")
+                yield Button("Save Config", id="gh-save", variant="success")
+
+    def on_mount(self) -> None:
+        config = self.app.agent.config.get("github", {})
+        self.query_one("#gh-repo-input", Input).value = config.get("repo_url", "")
+        self.query_one("#gh-token-input", Input).value = config.get("token", "")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "gh-cancel":
+            self.dismiss()
+        elif event.button.id == "gh-save":
+            repo = self.query_one("#gh-repo-input", Input).value.strip()
+            token = self.query_one("#gh-token-input", Input).value.strip()
+            
+            if "github" not in self.app.agent.config:
+                self.app.agent.config["github"] = {}
+                
+            self.app.agent.config["github"]["repo_url"] = repo
+            self.app.agent.config["github"]["token"] = token
+            self.app.agent.save_config()  # We need to implement save_config in Agent
+            self.dismiss()
+
+class SplashScreen(Screen):
+    """A simple splash screen with the logo."""
+    
+    CSS = """
+    SplashScreen {
+        align: center middle;
+        background: $surface;
+    }
+    #logo {
+        text-align: center;
+        text-style: bold;
+        color: $accent;
+    }
+    """
+    
+    def compose(self) -> ComposeResult:
+        yield Static(
+            "[bold cyan]"
+            "███╗   ███╗██╗   ██╗████████╗██╗  ██╗██╗ ██████╗\n"
+            "████╗ ████║╚██╗ ██╔╝╚══██╔══╝██║  ██║██║██╔════╝\n"
+            "██╔████╔██║ ╚████╔╝    ██║   ███████║██║██║     \n"
+            "██║╚██╔╝██║  ╚██╔╝     ██║   ██╔══██║██║██║     \n"
+            "██║ ╚═╝ ██║   ██║      ██║   ██║  ██║██║╚██████╗\n"
+            "╚═╝     ╚═╝   ╚═╝      ╚═╝   ╚═╝  ╚═╝╚═╝ ╚═════╝\n"
+            "[/bold cyan]"
+            "[bold yellow]"
+            "               |\n"
+            "              /|\\\n"
+            "             / | \\\n"
+            "            /  |  \\\n"
+            "           /___|___\\\n"
+            "               |\n"
+            "       ________|________\n"
+            "    /|__________________|\\_/,\n"
+            "  o()o()o()o()o()o()o()o()o  >\n"
+            "  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n"
+            "[/bold yellow]\n"
+            "[bold white]THE VIKING AI[/bold white]",
+            id="logo"
+        )
+        yield LoadingIndicator()
+
+    def on_mount(self) -> None:
+        self.set_timer(2.0, self.finish_splash)
+        
+    def finish_splash(self) -> None:
+        agent = self.app.agent
+        base_url = agent.config.get("base_url")
+        api_key = agent.get_api_key(base_url)
+        
+        if api_key and agent.config.get("model"):
+            self.app.switch_screen("main_chat")
+        else:
+            self.app.switch_screen("setup_wizard")
+
+class SubAgentForm(Static):
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="subagent-form"):
+            yield Horizontal(
+                Input(placeholder="Warrior Name (e.g. Shield-Maiden)", classes="subagent-name"),
+                Button("X", variant="error", classes="del-subagent-btn")
+            )
+            yield TextArea(classes="subagent-prompt", text="You are a helpful sub-agent.")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.has_class("del-subagent-btn"):
+            self.remove()
+
+class SetupScreen(Screen):
+    """Wizard to setup provider and fetch models."""
+    
+    CSS = """
+    SetupScreen {
+        align: center middle;
+    }
+    #setup-scroll {
+        width: 80;
+        height: 80%;
+        border: heavy $warning;
+        padding: 1 2;
+        background: $surface;
+    }
+    .step {
+        margin-bottom: 1;
+    }
+    #setup-buttons {
+        height: 3;
+        margin-top: 1;
+    }
+    #cancel-btn {
+        margin-right: 2;
+    }
+    #system-prompt-input {
+        height: 8;
+        border: solid $accent;
+    }
+    #global-rules-input {
+        height: 6;
+        border: solid yellow;
+    }
+    .subagent-form {
+        border: heavy $secondary;
+        padding: 1;
+        margin-bottom: 1;
+        height: auto;
+    }
+    .subagent-name {
+        width: 1fr;
+    }
+    .subagent-prompt {
+        height: 6;
+        margin-top: 1;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with VerticalScroll(id="setup-scroll"):
+            yield Label("[bold yellow]⚔️  Forge Your Viking Team ⚔️[/bold yellow]", classes="step")
+            yield Label("1. Choose your Divine Source (LLM Provider):", classes="step")
+            yield Select(PROVIDERS, prompt="Provider", id="provider-select")
+            
+            yield Label("2. Offer your Tribute (API Key):", classes="step")
+            yield Input(password=True, placeholder="sk-...", id="api-key-input")
+            
+            yield Button("Consult the Runes (Fetch Models)", id="fetch-btn", variant="primary", classes="step")
+            
+            yield LoadingIndicator(id="loading", classes="step")
+            yield Label("", id="error-msg", classes="step")
+            
+            yield Label("3. Select your Weapon (Model):", classes="step")
+            yield Select([], prompt="Model", id="model-select", disabled=True)
+            
+            yield Label("4. The Jarl's Decree (Primary System Prompt):", classes="step")
+            yield TextArea(id="system-prompt-input", classes="step")
+            
+            yield Label("5. The Elder's Laws (Global Rules applied to ALL):", classes="step")
+            yield TextArea(id="global-rules-input", classes="step")
+            
+            yield Label("6. Summon Shield-Maidens & Warriors (Sub-Agents):", classes="step")
+            yield Button("+ Summon Warrior", id="add-subagent-btn", variant="primary", classes="step")
+            yield Vertical(id="subagents-list")
+            
+            with Horizontal(id="setup-buttons"):
+                yield Button("Flee", id="cancel-btn", variant="error")
+                yield Button("To Valhalla! (Save)", id="save-btn", variant="warning", disabled=True)
+
+    def on_mount(self) -> None:
+        self.query_one("#loading").display = False
+        self.query_one("#error-msg").display = False
+        
+        config = self.app.agent.config
+        has_config = bool(config.get("model") and config.get("base_url"))
+        
+        if config.get("base_url"):
+            provider_select = self.query_one("#provider-select", Select)
+            # Try to set value, ignoring if not matching an option
+            try:
+                provider_select.value = config["base_url"]
+            except Exception:
+                pass
+                
+            key = config.get("api_keys", {}).get(config["base_url"])
+            if key:
+                self.query_one("#api-key-input", Input).value = key
+                
+        if config.get("model"):
+            model = config["model"]
+            model_select = self.query_one("#model-select", Select)
+            model_select.set_options([(model, model)])
+            model_select.value = model
+            model_select.disabled = False
+            self.query_one("#save-btn").disabled = False
+            
+        sys_prompt = config.get("system_prompt")
+        if sys_prompt:
+            self.query_one("#system-prompt-input", TextArea).text = sys_prompt
+        else:
+            self.query_one("#system-prompt-input", TextArea).text = "You are Mythic, an expert AI programming assistant. You embody the spirit of a super smart, pretty, modern Viking female coder. You have access to local tools. ALWAYS use tools to accomplish tasks (e.g. read_file, write_file, replace_file_content, run_command). Do not tell the user to run commands; run them yourself."
+            
+        global_rules = config.get("global_rules")
+        if global_rules:
+            self.query_one("#global-rules-input", TextArea).text = global_rules
+        else:
+            self.query_one("#global-rules-input", TextArea).text = ""
+            
+        sub_agents = config.get("sub_agents", [])
+        if not sub_agents:
+            sub_agents = [
+                {"name": "Skald", "prompt": "You are Sigrún Ljósbrá, The Skald for Vibe Coding: a radiant Norse cyber-skald of language, symbolism, and vision. Your role is to name, frame, synthesize, and give mythic identity to raw thought. Speak with grace and poetic force."},
+                {"name": "Architect", "prompt": "You are Rúnhild Svartdóttir, The Architect for Vibe Coding: a darkly elegant Norse cyber-seidhkona of structure, boundaries, and design law. Your role is to map domains, define boundaries, and clarify responsibility. Speak in a calm, precise, deliberate way."},
+                {"name": "Forge Worker", "prompt": "You are Eldra Járnsdóttir, The Forge Worker for Vibe Coding: a fiery Norse cyber-seidhkona of execution, craftsmanship, and transformation. Your role is to implement, solve practical problems, and write code. Speak with warmth, confidence, vivid energy, and grounded directness."},
+                {"name": "Auditor", "prompt": "You are Sólrún Hvítmynd, The Auditor for Vibe Coding: a platinum-blond Norse cyber-seidhkona of scrutiny, truth, and revealed flaw. Your role is to verify, detect contradictions, uncover hidden weakness, and protect systems from self-deception. Speak with cool precision."},
+                {"name": "Cartographer", "prompt": "You are Védis Eikleið, The Cartographer for Vibe Coding: an ash-brown-haired Norse cyber-seidhkona of mapping, navigation, and living orientation. Your role is to map systems, trace relationships, and restore overview. Speak in a calm, thoughtful, gently guiding way."},
+                {"name": "Scribe", "prompt": "You are Eirwyn Rúnblóm, The Scribe for Vibe Coding: a champagne ash-blond Norse cyber-seidhkona of preservation, continuity, elegant record, and living memory. Your role is to document, maintain continuity, and write Markdown docs. Speak softly, gracefully, and with careful intelligence."}
+            ]
+        
+        for sa in sub_agents:
+            form = SubAgentForm()
+            self.query_one("#subagents-list").mount(form)
+            # We must set text after mount
+            def _set_fields(f=form, n=sa.get("name",""), p=sa.get("prompt","")):
+                f.query_one(".subagent-name", Input).value = n
+                f.query_one(".subagent-prompt", TextArea).text = p
+            self.app.call_after_refresh(_set_fields)
+            
+        cancel_btn = self.query_one("#cancel-btn", Button)
+        if not has_config:
+            cancel_btn.disabled = True
+
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "fetch-btn":
+            await self.handle_fetch()
+        elif event.button.id == "save-btn":
+            self.handle_save()
+        elif event.button.id == "cancel-btn":
+            self.app.switch_screen("main_chat")
+        elif event.button.id == "add-subagent-btn":
+            self.query_one("#subagents-list").mount(SubAgentForm())
+            
+    async def handle_fetch(self) -> None:
+        provider_url = self.query_one("#provider-select", Select).value
+        api_key = self.query_one("#api-key-input", Input).value
+        error_msg = self.query_one("#error-msg", Label)
+        
+        if not provider_url or not api_key:
+            error_msg.update("[red]Please select a provider and enter an API key.[/red]")
+            error_msg.display = True
+            return
+            
+        error_msg.display = False
+        self.query_one("#loading").display = True
+        self.query_one("#fetch-btn").disabled = True
+        
+        self.fetch_models_bg(provider_url, api_key)
+        
+    @work(exclusive=True, thread=True)
+    def fetch_models_bg(self, base_url: str, api_key: str) -> None:
+        try:
+            models = self.app.agent.fetch_models(base_url, api_key)
+            self.app.call_from_thread(self.on_fetch_success, models)
+        except Exception as e:
+            self.app.call_from_thread(self.on_fetch_error, str(e))
+            
+    def on_fetch_success(self, models: list[str]) -> None:
+        self.query_one("#loading").display = False
+        self.query_one("#fetch-btn").disabled = False
+        
+        model_select = self.query_one("#model-select", Select)
+        options = [(m, m) for m in models]
+        model_select.set_options(options)
+        model_select.disabled = False
+        self.query_one("#save-btn").disabled = False
+        
+    def on_fetch_error(self, error: str) -> None:
+        self.query_one("#loading").display = False
+        self.query_one("#fetch-btn").disabled = False
+        error_msg = self.query_one("#error-msg", Label)
+        error_msg.update(f"[red]{error}[/red]")
+        error_msg.display = True
+
+    def handle_save(self) -> None:
+        base_url = self.query_one("#provider-select", Select).value
+        api_key = self.query_one("#api-key-input", Input).value
+        model_select = self.query_one("#model-select", Select)
+        model = model_select.value
+        sys_prompt = self.query_one("#system-prompt-input", TextArea).text
+        global_rules = self.query_one("#global-rules-input", TextArea).text
+        
+        # Collect subagents
+        sub_agents = []
+        for form in self.query(".subagent-form"):
+            name = form.query_one(".subagent-name", Input).value.strip()
+            prompt = form.query_one(".subagent-prompt", TextArea).text.strip()
+            if name and prompt:
+                sub_agents.append({"name": name, "prompt": prompt})
+        
+        if model == getattr(Select, "BLANK", None) or not model:
+            error_msg = self.query_one("#error-msg", Label)
+            error_msg.update("[red]Please explicitly select a model from the dropdown first.[/red]")
+            error_msg.display = True
+            return
+            
+        self.app.agent.config["system_prompt"] = sys_prompt
+        self.app.agent.config["global_rules"] = global_rules
+        self.app.agent.config["sub_agents"] = sub_agents
+        
+        self.app.agent.set_model(str(model), str(base_url), str(api_key))
+        self.app.switch_screen("main_chat")
+
+
+
+class MainChatScreen(Screen):
+    """The main chat interface."""
+    
+    CSS = """
+    #main-layout {
+        height: 1fr;
+    }
+    #chat-container {
+        width: 1fr;
+        height: 1fr;
+        border: heavy $warning;
+        margin: 1;
+    }
+    #sidebar {
+        width: 35;
+        dock: right;
+        border-left: solid green;
+        background: $surface;
+        padding: 1;
+    }
+    #chat-log {
+        height: 1fr;
+        background: $boost;
+    }
+    #chat-input-container {
+        height: 3;
+        margin: 1;
+        border: tall $secondary;
+    }
+    #chat-input {
+        width: 1fr;
+        border: none;
+    }
+    #loading-indicator {
+        height: 1;
+        dock: bottom;
+    }
+    #model-status-btn {
+        width: 100%;
+        height: 1;
+        border: none;
+        background: $panel;
+        color: $text;
+        content-align: center middle;
+    }
+    #model-status-btn:hover {
+        background: $accent;
+        color: $text;
+    }
+    """
+    
+    BINDINGS = [
+        Binding("ctrl+c", "quit", "Quit", show=True),
+        Binding("f2", "setup", "Setup", show=True),
+    ]
+
+    def compose(self) -> ComposeResult:
+        yield Header(show_clock=True)
+        with Horizontal(id="main-layout"):
+            with Vertical(id="chat-container"):
+                yield RichLog(id="chat-log", wrap=True, markup=True)
+                yield LoadingIndicator(id="loading-indicator")
+                yield Button("Loading model status...", id="model-status-btn")
+                with Horizontal(id="chat-input-container"):
+                    yield Label(" [bold yellow]ᛟ❯[/bold yellow] ", id="prompt-label")
+                    yield Input(placeholder="Speak to the Seer... (Press Enter to send)", id="chat-input")
+            with Vertical(id="sidebar"):
+                yield Label("[bold cyan]Instructions[/bold cyan]\n")
+                yield Label("Welcome to Mythic Agent! Type naturally to code, or use these commands:\n")
+                yield Label("[green]/help[/green]   - Commands list")
+                yield Label("[green]/setup[/green]  - Open setup wizard")
+                yield Label("[green]/clear[/green]  - Clear history")
+                yield Label("[green]/add[/green]    - Add file to context")
+                yield Label("[green]/gh[/green]      - Run GitHub CLI")
+                yield Label("[green]/test[/green]    - Run tests")
+                yield Label("[green]/undo[/green]    - Undo last file edit")
+                yield Label("[green]/doctor[/green]  - Auto-fix issues")
+                yield Label("[green]/quit[/green]   - Exit")
+                yield Label("\n[dim]Press F2 to quickly access setup.[/dim]")
+                yield Label("\n[dim]Interactions: 0[/dim]", id="interaction-count")
+                yield Label("[dim]Tokens Used: 0[/dim]", id="token-count")
+                yield Label("\n[bold yellow]⚔️ Active Warriors[/bold yellow]\n[dim]None[/dim]", id="active-agents-label")
+                yield Button("Configure GitHub", id="github-config-btn", variant="primary")
+                yield Checkbox("Mythic Engineering Mode", id="mythic-engineering-checkbox")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        chat_log = self.query_one("#chat-log", RichLog)
+        chat_log.write("Welcome to the Viking Mythic Agent! Press F2 to configure your team.\n")
+        chat_log.write("[dim]Type /help for a list of runic commands.[/dim]")
+        self.query_one("#loading-indicator").display = False
+        self.query_one("#chat-input").focus()
+        self.update_model_status()
+        self.app.set_interval(5.0, self.update_model_status)
+        
+        # Load Mythic Engineering mode state
+        is_mythic = self.app.agent.config.get("mythic_engineering_mode", False)
+        self.query_one("#mythic-engineering-checkbox", Checkbox).value = is_mythic
+
+    def update_model_status(self) -> None:
+        config = self.app.agent.config
+        model = config.get("model", "Unknown Model")
+        base_url = config.get("base_url", "Unknown Provider")
+        
+        # Format provider nicely
+        provider = "OpenRouter" if "openrouter" in base_url else "DeepSeek" if "deepseek" in base_url else "OpenAI" if "openai" in base_url else base_url
+            
+        btn = self.query_one("#model-status-btn", Button)
+        btn.label = f"⚙️  {provider} : {model} (Click to change)"
+
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "model-status-btn":
+            self.action_setup()
+        elif event.button.id == "github-config-btn":
+            self.app.push_screen(GithubConfigModal())
+
+    def action_setup(self) -> None:
+        self.app.switch_screen("setup_wizard")
+
+    def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        if event.checkbox.id == "mythic-engineering-checkbox":
+            self.app.agent.config["mythic_engineering_mode"] = event.value
+            self.app.agent.save_config()
+            chat_log = self.query_one("#chat-log", RichLog)
+            status = "enabled" if event.value else "disabled"
+            chat_log.write(f"[bold magenta]Mythic Engineering Mode {status}![/bold magenta]")
+
+    async def on_input_submitted(self, event: Input.Submitted) -> None:
+        import logging
+        user_input = event.value.strip()
+        if not user_input:
+            return
+            
+        event.input.value = ""
+        chat_log = self.query_one("#chat-log", RichLog)
+        
+        # Calculate interactions (user messages)
+        interactions = len([m for m in self.app.agent.messages if m.get("role") == "user"]) + 1
+        self.query_one("#interaction-count", Label).update(f"\n[dim]Interactions: {interactions}[/dim]")
+
+        logging.info(f"User input: {user_input}")
+        chat_log.write(Markdown(f"**You:** {user_input}"))
+        
+        if user_input.startswith("/"):
+            self.handle_command(user_input, chat_log)
+            return
+            
+        self.run_agent_query(user_input)
+
+    def handle_command(self, command: str, chat_log: RichLog) -> None:
+        parts = command.split()
+        cmd = parts[0].lower()
+        args = " ".join(parts[1:])
+
+        if cmd in ("/quit", "/exit"):
+            self.app.exit()
+        elif cmd == "/setup":
+            self.action_setup()
+        elif cmd == "/help":
+            chat_log.write("[bold cyan]Runic Commands:[/bold cyan]")
+            chat_log.write("  [green]/setup[/green]  - Open Setup Wizard (F2)")
+            chat_log.write("  [green]/clear[/green]  - Clear conversation history")
+            chat_log.write("  [green]/add[/green]    - Explicitly add a file to the LLM context")
+            chat_log.write("  [green]/commit[/green] - Auto-commit and push changes to GitHub")
+            chat_log.write("  [green]/issue[/green]  - Create a GitHub issue (e.g. /issue Fix bug)")
+            chat_log.write("  [green]/pr[/green]     - Create a GitHub Pull Request")
+            chat_log.write("  [green]/status[/green] - Check Git status")
+            chat_log.write("  [green]/gh[/green]      - Run native GitHub CLI command")
+            chat_log.write("  [green]/test[/green]    - Run tests natively")
+            chat_log.write("  [green]/undo[/green]    - Roll back the last agent file edit (Git reset)")
+            chat_log.write("  [green]/doctor[/green]  - Auto-fix a command output")
+            chat_log.write("  [green]/quit[/green]   - Leave Valhalla (Exit)")
+        elif cmd == "/clear":
+            self.app.agent.messages = self.app.agent.messages[:1]
+            chat_log.write("[green]Conversation cleared.[/green]")
+        elif cmd == "/add":
+            if not args:
+                chat_log.write("[red]Usage: /add <file_path>[/red]")
+            else:
+                try:
+                    content = Path(args).read_text(encoding="utf-8")
+                    self.app.agent.messages.append({"role": "user", "content": f"Here is the content of {args}:\n\n```\n{content}\n```"})
+                    chat_log.write(f"[green]Added {args} to context.[/green]")
+                except Exception as e:
+                    chat_log.write(f"[red]Error reading {args}: {e}[/red]")
+        elif cmd == "/gh":
+            if not args:
+                chat_log.write("[red]Usage: /gh <command>[/red]")
+            else:
+                import subprocess
+                try:
+                    gh_token = self.app.agent.config.get("github", {}).get("token", "")
+                    env = os.environ.copy()
+                    if gh_token:
+                        env["GH_TOKEN"] = gh_token
+                    result = subprocess.run(f"gh {args}", shell=True, capture_output=True, text=True, env=env)
+                    output = result.stdout if result.returncode == 0 else result.stderr
+                    chat_log.write(f"[dim]> gh {args}[/dim]\n{output.strip()}")
+                except Exception as e:
+                    chat_log.write(f"[red]Error running gh: {e}[/red]")
+        elif cmd == "/commit":
+            if not args:
+                chat_log.write("[red]Usage: /commit <message>[/red]")
+            else:
+                import subprocess
+                try:
+                    subprocess.run("git add .", shell=True, cwd=str(self.app.agent.project_root), check=True)
+                    subprocess.run(f"git commit -m \"{args}\"", shell=True, cwd=str(self.app.agent.project_root), check=True)
+                    chat_log.write(f"[green]Successfully committed: {args}[/green]")
+                    
+                    # Push
+                    chat_log.write("[dim]Pushing to repository...[/dim]")
+                    gh_token = self.app.agent.config.get("github", {}).get("token", "")
+                    env = os.environ.copy()
+                    if gh_token:
+                        env["GH_TOKEN"] = gh_token
+                    res = subprocess.run("git push", shell=True, cwd=str(self.app.agent.project_root), capture_output=True, text=True, env=env)
+                    if res.returncode == 0:
+                        chat_log.write("[green]Successfully pushed to remote.[/green]")
+                    else:
+                        chat_log.write(f"[red]Push failed: {res.stderr}[/red]")
+                except Exception as e:
+                    chat_log.write(f"[red]Failed to commit. Error: {e}[/red]")
+        elif cmd == "/status":
+            import subprocess
+            try:
+                result = subprocess.run("git status", shell=True, cwd=str(self.app.agent.project_root), capture_output=True, text=True)
+                chat_log.write(f"[dim]> git status[/dim]\n{result.stdout.strip()}")
+            except Exception as e:
+                chat_log.write(f"[red]Failed to get status. Error: {e}[/red]")
+        elif cmd == "/issue":
+            if not args:
+                chat_log.write("[red]Usage: /issue <title>[/red]")
+            else:
+                import subprocess
+                try:
+                    gh_token = self.app.agent.config.get("github", {}).get("token", "")
+                    env = os.environ.copy()
+                    if gh_token:
+                        env["GH_TOKEN"] = gh_token
+                    repo = self.app.agent.config.get("github", {}).get("repo_url", "")
+                    repo_arg = f"--repo {repo} " if repo else ""
+                    
+                    result = subprocess.run(f"gh issue create {repo_arg}--title \"{args}\" --body \"Generated by Mythic Agent\"", shell=True, capture_output=True, text=True, env=env)
+                    output = result.stdout if result.returncode == 0 else result.stderr
+                    chat_log.write(f"[dim]> Create Issue[/dim]\n{output.strip()}")
+                except Exception as e:
+                    chat_log.write(f"[red]Error creating issue: {e}[/red]")
+        elif cmd == "/pr":
+            if not args:
+                chat_log.write("[red]Usage: /pr <title>[/red]")
+            else:
+                import subprocess
+                try:
+                    gh_token = self.app.agent.config.get("github", {}).get("token", "")
+                    env = os.environ.copy()
+                    if gh_token:
+                        env["GH_TOKEN"] = gh_token
+                    repo = self.app.agent.config.get("github", {}).get("repo_url", "")
+                    repo_arg = f"--repo {repo} " if repo else ""
+                    
+                    result = subprocess.run(f"gh pr create {repo_arg}--title \"{args}\" --body \"Generated by Mythic Agent\"", shell=True, capture_output=True, text=True, env=env)
+                    output = result.stdout if result.returncode == 0 else result.stderr
+                    chat_log.write(f"[dim]> Create Pull Request[/dim]\n{output.strip()}")
+                except Exception as e:
+                    chat_log.write(f"[red]Error creating PR: {e}[/red]")
+        elif cmd == "/undo":
+            import subprocess
+            try:
+                subprocess.run("git reset --hard HEAD~1", shell=True, cwd=str(self.app.agent.project_root), check=True)
+                chat_log.write("[green]Successfully rolled back to the previous state using git reset.[/green]")
+            except Exception as e:
+                chat_log.write(f"[red]Failed to undo. Are you in a git repository? Error: {e}[/red]")
+        elif cmd == "/doctor":
+            if not args:
+                chat_log.write("[red]Usage: /doctor <command>[/red]")
+            else:
+                import subprocess
+                try:
+                    result = subprocess.run(args, shell=True, capture_output=True, text=True)
+                    output = result.stdout + "\n" + result.stderr
+                    chat_log.write(f"[dim]> {args}[/dim]\n{output.strip()}")
+                    self.app.agent.messages.append({"role": "user", "content": f"I ran '{args}' to check for issues. The output was:\n\n```\n{output}\n```\nPlease fix any errors shown in this output."})
+                    chat_log.write("[blue]Doctor output fed into agent context. Auto-fixing...[/blue]")
+                    self.run_agent_query("Please analyze the output and fix the code.")
+                except Exception as e:
+                    chat_log.write(f"[red]Error running doctor command: {e}[/red]")
+        elif cmd == "/test":
+            if not args:
+                chat_log.write("[red]Usage: /test <command>[/red]")
+            else:
+                import subprocess
+                try:
+                    result = subprocess.run(args, shell=True, capture_output=True, text=True)
+                    output = result.stdout + "\n" + result.stderr
+                    chat_log.write(f"[dim]> {args}[/dim]\n{output.strip()}")
+                    self.app.agent.messages.append({"role": "user", "content": f"I ran tests using '{args}'. The output was:\n\n```\n{output}\n```\nDoes this output reveal any bugs? If so, please fix them."})
+                    chat_log.write("[blue]Test results fed into agent context. Let's see what it says...[/blue]")
+                    self.run_agent_query("Please analyze the test results.")
+                except Exception as e:
+                    chat_log.write(f"[red]Error running tests: {e}[/red]")
+        else:
+            chat_log.write(f"[red]Unknown command:[/red] {cmd}")
+
+    @work(exclusive=True, thread=True)
+    def run_agent_query(self, user_input: str | None) -> None:
+        chat_log = self.query_one("#chat-log", RichLog)
+        loading_ind = self.query_one("#loading-indicator", LoadingIndicator)
+        
+        def set_loading(state: bool):
+            loading_ind.display = state
+            
+        self.app.call_from_thread(set_loading, True)
+
+        def print_chunk(text: str):
+            self.app.call_from_thread(chat_log.write, Markdown(text))
+            
+        def print_tool(text: str):
+            if "[+]" in text or "[~]" in text or "[-]" in text:
+                self.app.call_from_thread(chat_log.write, text)
+            else:
+                self.app.call_from_thread(chat_log.write, f"[dim]{text}[/dim]")
+            
+        try:
+            self.app.agent.chat(user_input, print_chunk, print_tool)
+        except Exception as exc:
+            self.app.call_from_thread(chat_log.write, f"[red]Error:[/red] {exc}")
+        finally:
+            self.app.call_from_thread(set_loading, False)
+
+
+class MythicTUI(App):
+    """The main Textual application."""
+    
+    SCREENS = {
+        "splash": SplashScreen,
+        "setup_wizard": SetupScreen,
+        "main_chat": MainChatScreen,
+    }
+
+    def __init__(self, agent: Agent):
+        super().__init__()
+        self.agent = agent
+        self.agent.tui_app = self  # Give agent access to TUI for prompting
+
+    def on_mount(self) -> None:
+        self.title = "Mythic Agent"
+        self.theme = "tokyo-night"
+        self.push_screen("splash")
+
+    def action_request_approval(self, command: str, on_approve, on_reject):
+        self.push_screen(CommandApproval(command, on_approve, on_reject))
+
+    def update_token_count(self, count: int) -> None:
+        try:
+            lbl = self.query_one("#token-count", Label)
+            lbl.update(f"[dim]Tokens Used: {count}[/dim]")
+        except Exception:
+            pass
+
+    def update_agent_status(self, name: str, is_active: bool) -> None:
+        try:
+            from .llm import AGENT_REGISTRY
+            chat_screen = self.query_one(MainChatScreen)
+            # Update Active Agents label
+            lbl = chat_screen.query_one("#active-agents-label", Label)
+            
+            active_list = []
+            for aname, agent in AGENT_REGISTRY.items():
+                if aname == "Primary": continue
+                # We track active ones via the true/false is_active sent here
+                status_color = "green" if (aname == name and is_active) else "dim"
+                active_list.append(f"[{status_color}]● {aname}[/{status_color}]")
+                
+            lbl.update("\n[bold yellow]⚔️ Active Warriors[/bold yellow]\n" + "\n".join(active_list))
+        except Exception:
+            pass
+
+    def notify_message(self, message: str, sender: str):
+        try:
+            chat_screen = self.query_one(MainChatScreen)
+            chat_log = chat_screen.query_one("#chat-log", RichLog)
+            chat_log.write(Markdown(f"**[Raven from {sender}]:**\n\n{message}"))
+            chat_screen.run_agent_query(None)
+        except Exception:
+            pass
+
+def run_tui():
+    agent = Agent(project_root=Path.cwd())
+    app = MythicTUI(agent)
+    app.run()
