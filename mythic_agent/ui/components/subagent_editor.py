@@ -13,12 +13,12 @@ class SubagentEditorWidget(Widget):
         height: auto;
     }
     #subagents-header {
-        height: 3;
+        height: auto;
         margin-top: 1;
-        margin-bottom: 1;
+        margin-bottom: 0;
     }
     #subagent-editor {
-        margin-bottom: 1;
+        margin-bottom: 0;
         height: auto;
     }
     #subagent-buttons {
@@ -92,10 +92,15 @@ class SubagentEditorWidget(Widget):
                 prompt_ta.load_text(prompt_text)
             else:
                 prompt_ta.text = prompt_text
+            prompt_ta.styles.height = max(4, prompt_ta.document.line_count + 1)
         except Exception:
             pass
         finally:
             self._loading_ui = False
+            
+    def on_text_area_changed(self, event: TextArea.Changed):
+        if event.text_area.id == "active-subagent-prompt":
+            event.text_area.styles.height = max(4, event.text_area.document.line_count + 1)
             
     def on_select_changed(self, event: Select.Changed):
         if getattr(self, "_loading_ui", False) or event.select.id != "subagent-select":
