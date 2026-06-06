@@ -198,9 +198,11 @@ def auto_git_commit(root_path: Path, file_path: Path, message: str) -> None:
         import logging
         logging.exception(f"auto_git_commit failed: {e}")
 
-def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None = None, tui_app: Any = None) -> str:
+def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None = None, tui_app: Any = None, agent: Any = None) -> str:
     root_path = project_root if project_root is not None else Path.cwd()
-    
+    if agent:
+        root_path = agent.project_root or root_path
+        
     if name == "read_file":
         path = root_path / arguments.get("path", "")
         try:
@@ -325,16 +327,26 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
     if name == "delegate_task":
         sub_name = arguments.get("sub_agent_name", "")
         task = arguments.get("task_description", "")
-        sender = arguments.get("sender", "Primary")
+        sender = arguments.get("sender", agent.name if agent else "Primary")
         
+        if agent:
+            # Prevent infinite recursion depth
+            depth = getattr(agent, "_delegation_depth", 0)
+            if depth > 5:
+                return "Error: Maximum delegation recursion depth exceeded. You cannot delegate this task any further. You must complete it yourself."
+        else:
+            depth = 0
+            
         import threading
         from .llm import agent_manager
         
-        agent = agent_manager.spawn_subagent(sub_name, root_path)
-        if not agent:
+        sub_agent = agent_manager.spawn_subagent(sub_name, root_path)
+        if not sub_agent:
             return f"Error: No sub-agent named {sub_name} is configured or could be spawned."
             
-        threading.Thread(target=agent_manager._run_agent_chat, args=(agent, f"Task from {sender}:\n{task}"), daemon=True).start()
+        sub_agent._delegation_depth = depth + 1
+            
+        threading.Thread(target=agent_manager._run_agent_chat, args=(sub_agent, f"Task from {sender}:\n{task}"), daemon=True).start()
         
         return f"Task delegated to {sub_name} in the background. It will message you when done."
 
