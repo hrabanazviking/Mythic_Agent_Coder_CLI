@@ -112,6 +112,26 @@ You can type these at any time in the chat input:
 
 ---
 
+![https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-9839cf70-13ab-4cc0-aeda-a80e54537ad5.png](https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-9839cf70-13ab-4cc0-aeda-a80e54537ad5.png)
+
+---
+
+![https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-c37f94ae-d9a4-4be7-970c-254e49cf39b3.png](https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-c37f94ae-d9a4-4be7-970c-254e49cf39b3.png)
+
+---
+
+![https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-9fc2a590-2a63-430a-90de-ed5a3dbf07d5.png](https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-9fc2a590-2a63-430a-90de-ed5a3dbf07d5.png)
+
+---
+
+![https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-ee72688e-d3cd-44fd-bbdd-6a7b6b6013ec.png](https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-ee72688e-d3cd-44fd-bbdd-6a7b6b6013ec.png)
+
+---
+
+![https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-9969954d-00e4-4fd5-a447-a9aad1ad8a62.png](https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-9969954d-00e4-4fd5-a447-a9aad1ad8a62.png)
+
+---
+
 ![https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/Viking_Apache_V2_1.jpg](https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/Viking_Apache_V2_1.jpg)
 
 ---
