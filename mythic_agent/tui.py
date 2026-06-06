@@ -622,6 +622,7 @@ class MainChatScreen(Screen):
             chat_log.write("  [green]/btw[/green]    - Add context without forcing an immediate response")
             chat_log.write("  [green]/steer[/green]  - Give the AI a strong steering instruction (system prompt)")
             chat_log.write("  [green]/flirt[/green]  - Flirt with your Viking coder")
+            chat_log.write("  [green]/pet[/green]    - Hatch a tiny coding pet")
             chat_log.write("  [green]/quit[/green]   - Leave Valhalla (Exit)")
         elif cmd == "/clear":
             self.app.agent.messages = self.app.agent.messages[:1]
@@ -666,6 +667,19 @@ class MainChatScreen(Screen):
         elif cmd == "/flirt":
             chat_log.write("[magenta]Sending flirty vibes...[/magenta]")
             self.run_agent_query("*winks and flirts with you playfully*")
+        elif cmd == "/pet":
+            if getattr(self.app, "pet_active", False):
+                self.app.pet_active = False
+                if hasattr(self.app, "pet_timer"):
+                    self.app.pet_timer.pause()
+                chat_log.write("\n[bold yellow]Your coding dragon curled up and went to sleep.[/bold yellow]")
+            else:
+                self.app.pet_active = True
+                chat_log.write("\n[bold green]🥚 *CRACK* A tiny Mythic Coding Dragon has hatched![/bold green]")
+                if hasattr(self.app, "pet_timer"):
+                    self.app.pet_timer.resume()
+                else:
+                    self.app.pet_timer = self.set_interval(60.0, self.pet_speak)
         elif cmd == "/gh":
             if not args:
                 chat_log.write("[red]Usage: /gh <command>[/red]")
@@ -874,6 +888,35 @@ class MainChatScreen(Screen):
             self.app.call_from_thread(chat_log.write, f"\n[bold red]Error: {exc}[/bold red]")
         finally:
             self.app.call_from_thread(set_loading, False)
+
+    def pet_speak(self) -> None:
+        if not getattr(self.app, "pet_active", False):
+            return
+        import random
+        quotes = [
+            "rawr! *chews on a stray bracket*",
+            "Did you remember to save? Just checking!",
+            "I smell a bug... oh wait, it's just Python.",
+            "*sleeps on your keyboard*",
+            "Are you really going to name that variable 'temp'?",
+            "*breathes tiny fire on a syntax error*",
+            "More code! Feed me more code!",
+            "Who needs documentation when you have ME?",
+            "*chases a rogue pointer*",
+            "git commit -m 'pet told me to'",
+            "Why do humans always forget the semicolon?",
+            "Look, a memory leak! Can I eat it?",
+            "*curls up around your compiler*",
+            "Are we pushing to production on a Friday? Brave human.",
+            "*sits directly on your enter key*"
+        ]
+        chat_log = self.query_one("#chat-log", RichLog)
+        msg = random.choice(quotes)
+        chat_log.write(f"\n[bold magenta]🐉 Pet Dragon:[/bold magenta] [italic]{msg}[/italic]")
+
+    def on_unmount(self) -> None:
+        if hasattr(self.app, "pet_timer"):
+            self.app.pet_timer.stop()
 
 
 class MythicTUI(App):
