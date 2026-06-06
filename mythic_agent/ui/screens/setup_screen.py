@@ -96,35 +96,7 @@ class SetupScreen(Screen):
         height: auto;
         border: solid yellow;
     }
-    #subagents-header {
-        height: 3;
-        margin-top: 1;
-        margin-bottom: 1;
-    }
-    #subagents-label {
-        width: 1fr;
-        content-align: left middle;
-    }
-    #subagent-select {
-        margin-bottom: 1;
-    }
-    #subagent-editor {
-        border: heavy $primary;
-        padding: 1;
-        margin-bottom: 1;
-    }
-    #active-subagent-name {
-        margin-bottom: 1;
-    }
-    #active-subagent-prompt {
-        min-height: 4;
-        height: auto;
-        border: solid $accent;
-    }
-    #subagent-buttons {
-        height: 3;
-        margin-bottom: 1;
-    }
+
     #global-rules-label {
     }
     #primary-header {
