@@ -8,10 +8,11 @@ from textual.containers import Vertical, Horizontal, Center, Middle, VerticalScr
 from textual.screen import Screen, ModalScreen
 from textual.widgets import Header, Footer, Input, RichLog, Static, Select, Button, Label, LoadingIndicator, TextArea, Checkbox, Collapsible
 from textual.binding import Binding
+import copy
 
 from .llm import Agent
 from .subagent_modal import SubagentSelectionModal
-from .constants import DEFAULT_GLOBAL_RULES, DEFAULT_PRIMARY_NAME, DEFAULT_SYSTEM_PROMPT
+from .constants import DEFAULT_GLOBAL_RULES, DEFAULT_PRIMARY_NAME, DEFAULT_SYSTEM_PROMPT, DEFAULT_SUBAGENTS
 
 PROVIDERS = [
     ("OpenRouter (Global)", "https://openrouter.ai/api/v1"),
@@ -180,41 +181,6 @@ class SplashScreen(Screen):
         else:
             self.app.switch_screen("setup_wizard")
 
-class SubAgentForm(Static):
-    def __init__(self, init_name: str = "", init_prompt: str = "", *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.init_name = init_name
-        self.init_prompt = init_prompt
-
-    def compose(self) -> ComposeResult:
-        with Collapsible(title=self.init_name if self.init_name else "Warrior Configuration", collapsed=True, classes="subagent-collapsible"):
-            with Vertical(classes="subagent-form-content"):
-                yield Horizontal(
-                    Input(placeholder="Warrior Name (e.g. Shield-Maiden)", classes="subagent-name"),
-                    Button("X", variant="error", classes="del-subagent-btn")
-                )
-                yield TextArea(classes="subagent-prompt")
-
-    def on_mount(self) -> None:
-        if self.init_name:
-            self.query_one(".subagent-name", Input).value = self.init_name
-        if self.init_prompt:
-            self.query_one(".subagent-prompt", TextArea).text = self.init_prompt
-        else:
-            self.query_one(".subagent-prompt", TextArea).text = "You are a helpful sub-agent."
-
-    def on_input_changed(self, event: Input.Changed) -> None:
-        if event.input.has_class("subagent-name"):
-            collapsible = self.query_one(Collapsible)
-            if event.value.strip():
-                collapsible.title = event.value
-            else:
-                collapsible.title = "Unnamed Warrior"
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.has_class("del-subagent-btn"):
-            self.remove()
-
 class SetupScreen(Screen):
     """Wizard to setup provider and fetch models."""
     
@@ -251,26 +217,38 @@ class SetupScreen(Screen):
         height: 6;
         border: solid yellow;
     }
-    .subagent-collapsible {
+    #subagents-header {
+        height: 3;
+        margin-top: 1;
         margin-bottom: 1;
     }
-    .subagent-form-content {
-        height: auto;
-    }
-    .subagent-name {
+    #subagents-label {
         width: 1fr;
+        content-align: left middle;
     }
-    .subagent-prompt {
+    #subagent-select {
+        margin-bottom: 1;
+    }
+    #subagent-editor {
+        border: heavy $primary;
+        padding: 1;
+        margin-bottom: 1;
+    }
+    #active-subagent-name {
+        margin-bottom: 1;
+    }
+    #active-subagent-prompt {
         height: 6;
-        margin-top: 1;
     }
-    #global-rules-header {
+    #subagent-buttons {
         height: 3;
         margin-bottom: 1;
     }
     #global-rules-label {
-        width: 1fr;
-        content-align: left middle;
+    }
+    #global-rules-input {
+        height: 6;
+        border: solid yellow;
     }
     #primary-header {
         height: 3;
@@ -320,8 +298,17 @@ class SetupScreen(Screen):
             yield TextArea(id="global-rules-input", classes="step")
             
             yield Label("9. Summon Shield-Maidens & Warriors (Sub-Agents):", classes="step")
-            yield Button("+ Summon Warrior", id="add-subagent-btn", variant="primary", classes="step")
-            yield Vertical(id="subagents-list")
+            
+            with Horizontal(id="subagents-header"):
+                yield Select([], id="subagent-select", prompt="Select a Warrior to Edit")
+                yield Button("+ Create New Warrior", id="create-subagent-btn", variant="success")
+                
+            with Vertical(id="subagent-editor"):
+                yield Input(id="active-subagent-name", placeholder="Warrior Name")
+                with Horizontal(id="subagent-buttons"):
+                    yield Button("Reset to Default", id="reset-active-subagent-btn", variant="primary")
+                    yield Button("Delete Warrior", id="delete-active-subagent-btn", variant="error")
+                yield TextArea(id="active-subagent-prompt", classes="step")
             
             with Horizontal(id="setup-buttons"):
                 yield Button("Flee", id="cancel-btn", variant="error")
@@ -380,18 +367,11 @@ class SetupScreen(Screen):
             
         sub_agents = config.get("sub_agents", [])
         if not sub_agents:
-            sub_agents = [
-                {"name": "Skald", "prompt": "You are Sigrún Ljósbrá, The Skald for Vibe Coding: a radiant Norse cyber-skald of language, symbolism, and vision. Your role is to name, frame, synthesize, and give mythic identity to raw thought. Speak with grace and poetic force."},
-                {"name": "Architect", "prompt": "You are Rúnhild Svartdóttir, The Architect for Vibe Coding: a darkly elegant Norse cyber-seidhkona of structure, boundaries, and design law. Your role is to map domains, define boundaries, and clarify responsibility. Speak in a calm, precise, deliberate way."},
-                {"name": "Forge Worker", "prompt": "You are Eldra Járnsdóttir, The Forge Worker for Vibe Coding: a fiery Norse cyber-seidhkona of execution, craftsmanship, and transformation. Your role is to implement, solve practical problems, and write code. Speak with warmth, confidence, vivid energy, and grounded directness."},
-                {"name": "Auditor", "prompt": "You are Sólrún Hvítmynd, The Auditor for Vibe Coding: a platinum-blond Norse cyber-seidhkona of scrutiny, truth, and revealed flaw. Your role is to verify, detect contradictions, uncover hidden weakness, and protect systems from self-deception. Speak with cool precision."},
-                {"name": "Cartographer", "prompt": "You are Védis Eikleið, The Cartographer for Vibe Coding: an ash-brown-haired Norse cyber-seidhkona of mapping, navigation, and living orientation. Your role is to map systems, trace relationships, and restore overview. Speak in a calm, thoughtful, gently guiding way."},
-                {"name": "Scribe", "prompt": "You are Eirwyn Rúnblóm, The Scribe for Vibe Coding: a champagne ash-blond Norse cyber-seidhkona of preservation, continuity, elegant record, and living memory. Your role is to document, maintain continuity, and write Markdown docs. Speak softly, gracefully, and with careful intelligence."}
-            ]
-        
-        for sa in sub_agents:
-            form = SubAgentForm(init_name=sa.get("name", ""), init_prompt=sa.get("prompt", ""))
-            self.query_one("#subagents-list").mount(form)
+            self.current_subagents = copy.deepcopy(DEFAULT_SUBAGENTS)
+        else:
+            self.current_subagents = copy.deepcopy(sub_agents)
+            
+        self.update_subagent_dropdown()
             
         cancel_btn = self.query_one("#cancel-btn", Button)
         if not has_config:
@@ -404,8 +384,14 @@ class SetupScreen(Screen):
             self.handle_save()
         elif event.button.id == "cancel-btn":
             self.app.switch_screen("main_chat")
-        elif event.button.id == "add-subagent-btn":
-            self.query_one("#subagents-list").mount(SubAgentForm())
+        elif event.button.id == "create-subagent-btn":
+            new_idx = len(self.current_subagents)
+            self.current_subagents.append({"name": "New Warrior", "prompt": "You are a helpful warrior."})
+            self.update_subagent_dropdown(new_idx)
+        elif event.button.id == "reset-active-subagent-btn":
+            self.reset_active_subagent()
+        elif event.button.id == "delete-active-subagent-btn":
+            self.delete_active_subagent()
         elif event.button.id == "reset-rules-btn":
             self.query_one("#global-rules-input", TextArea).text = DEFAULT_GLOBAL_RULES
         elif event.button.id == "reset-primary-btn":
@@ -453,7 +439,59 @@ class SetupScreen(Screen):
         error_msg.update(f"[red]{error}[/red]")
         error_msg.display = True
 
+    def update_subagent_dropdown(self, select_index: int | None = None) -> None:
+        select = self.query_one("#subagent-select", Select)
+        options = [(sa["name"], i) for i, sa in enumerate(self.current_subagents)]
+        select.set_options(options)
+        if select_index is not None:
+            select.value = select_index
+            self.load_subagent(select_index)
+        elif options:
+            select.value = 0
+            self.load_subagent(0)
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.select.id == "subagent-select" and event.value is not None:
+            self.load_subagent(event.value)
+
+    def load_subagent(self, index: int) -> None:
+        self.active_subagent_index = index
+        sub_agent = self.current_subagents[index]
+        self.query_one("#active-subagent-name", Input).value = sub_agent["name"]
+        self.query_one("#active-subagent-prompt", TextArea).text = sub_agent["prompt"]
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "active-subagent-name" and hasattr(self, 'active_subagent_index'):
+            self.current_subagents[self.active_subagent_index]["name"] = event.value
+            
+            # Update the dropdown label to reflect the new name dynamically
+            select = self.query_one("#subagent-select", Select)
+            options = [(sa["name"], i) for i, sa in enumerate(self.current_subagents)]
+            # Textual's Select doesn't trivially update a single option label, so we re-set all options
+            select.set_options(options)
+            select.value = self.active_subagent_index
+
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        if event.text_area.id == "active-subagent-prompt" and hasattr(self, 'active_subagent_index'):
+            self.current_subagents[self.active_subagent_index]["prompt"] = event.text_area.text
+
+    def reset_active_subagent(self) -> None:
+        idx = self.active_subagent_index
+        default = next((sa for sa in DEFAULT_SUBAGENTS if sa["name"] == self.current_subagents[idx]["name"]), {"name": "New Warrior", "prompt": "You are a helpful warrior."})
+        self.current_subagents[idx] = copy.deepcopy(default)
+        self.load_subagent(idx)
+
+    def delete_active_subagent(self) -> None:
+        if len(self.current_subagents) > 1:
+            del self.current_subagents[self.active_subagent_index]
+            self.update_subagent_dropdown(0)
+
     def handle_save(self) -> None:
+        # Sync active editor to memory
+        if hasattr(self, 'active_subagent_index'):
+            self.current_subagents[self.active_subagent_index]["name"] = self.query_one("#active-subagent-name", Input).value.strip()
+            self.current_subagents[self.active_subagent_index]["prompt"] = self.query_one("#active-subagent-prompt", TextArea).text.strip()
+            
         base_url = self.query_one("#provider-select", Select).value
         api_key = self.query_one("#api-key-input", Input).value
         model_select = self.query_one("#model-select", Select)
@@ -465,13 +503,12 @@ class SetupScreen(Screen):
         user_name = self.query_one("#user-name-input", Input).value.strip()
         user_data = self.query_one("#user-data-input", TextArea).text.strip()
         
-        # Collect subagents
-        sub_agents = []
-        for form in self.query(SubAgentForm):
-            name = form.query_one(".subagent-name", Input).value.strip()
-            prompt = form.query_one(".subagent-prompt", TextArea).text.strip()
-            if name and prompt:
-                sub_agents.append({"name": name, "prompt": prompt})
+        # Save current state of subagents
+        valid_sub_agents = []
+        for sa in self.current_subagents:
+            if sa.get("name") and sa.get("prompt"):
+                valid_sub_agents.append(sa)
+        self.app.agent.config["sub_agents"] = valid_sub_agents
         
         if model == getattr(Select, "BLANK", None) or not model:
             error_msg = self.query_one("#error-msg", Label)
