@@ -7,6 +7,9 @@ from openai import OpenAI
 
 from .tools import execute_tool, get_agent_tools
 
+# Global registry of live sub-agent instances keyed by name.
+AGENT_REGISTRY: dict[str, "Agent"] = {}
+
 MYTHIC_DIR = Path.home() / ".mythic"
 MYTHIC_DIR.mkdir(exist_ok=True)
 CONFIG_FILE = MYTHIC_DIR / "config.json"
