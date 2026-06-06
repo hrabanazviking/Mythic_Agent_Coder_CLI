@@ -352,6 +352,9 @@ class AgentManager:
         sub_agent.rebuild_system_prompt()
         AGENT_REGISTRY[name] = sub_agent
         threading.Thread(target=self._run_agent_loop, args=(sub_agent,), daemon=True).start()
+        
+        # Publish creation message to UI
+        publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[bold green]✦ A new subagent has been awakened: {name}[/bold green]\n")
         return sub_agent
 
     def handle_chat_request(self, user_input: str, target_agent: str = "Primary"):
@@ -376,6 +379,7 @@ class AgentManager:
                     try:
                         prompt = agent.inbox.get()
                         if prompt is None:
+                            publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[bold red]✦ The subagent {agent.name} has been terminated and put to rest.[/bold red]\n")
                             return # Cleanly exit thread
                             
                         agent.active_task_start_time = time.time()
