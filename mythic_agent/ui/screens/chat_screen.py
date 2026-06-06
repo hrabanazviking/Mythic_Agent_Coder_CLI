@@ -96,6 +96,10 @@ class MainChatScreen(Screen):
         background: $accent;
         color: $text;
     }
+    #agent-image {
+        width: 100%;
+        height: auto;
+    }
     """
     
     BINDINGS = [
@@ -119,6 +123,10 @@ class MainChatScreen(Screen):
                 yield Label("Welcome to Mythic Agent! Type naturally to code, or use these commands:\n")
                 yield Label("[green]/help[/green]   - Commands list")
                 yield Label("[green]/setup[/green]  - Open setup wizard")
+                yield Label("[green]/add[/green]    - Add file to context")
+                yield Label("[green]/commit[/green] - Commit and push")
+                yield Label("[green]/issue[/green]  - Create GitHub issue")
+                yield Label("[green]/pr[/green]     - Create GitHub PR")
                 yield Label("[green]/status[/green] - Check Git status")
                 yield Label("[green]/gh[/green]      - Run GitHub CLI")
                 yield Label("[green]/test[/green]    - Run tests")
