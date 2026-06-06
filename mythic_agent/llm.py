@@ -7,15 +7,22 @@ from openai import OpenAI
 
 from .tools import execute_tool, get_agent_tools
 
-CONFIG_FILE = Path.home() / ".mythic_config.json"
+MYTHIC_DIR = Path.home() / ".mythic"
+MYTHIC_DIR.mkdir(exist_ok=True)
+CONFIG_FILE = MYTHIC_DIR / "config.json"
 
 DEFAULT_MODEL = "deepseek-chat"
 DEFAULT_BASE_URL = "https://api.deepseek.com/v1"
 
 def load_config() -> dict[str, Any]:
+    old_config = Path.home() / ".mythic_config.json"
+    if old_config.exists() and not CONFIG_FILE.exists():
+        import shutil
+        shutil.copy2(old_config, CONFIG_FILE)
+        
     if CONFIG_FILE.exists():
         try:
-            return json.loads(CONFIG_FILE.read_text())
+            return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
         except Exception:
             pass
     return {
@@ -33,9 +40,15 @@ class Agent:
     def __init__(self, project_root: Path | None = None):
         self.config = load_config()
         self.project_root = project_root
-        if self.config.get("working_directory"):
-            self.project_root = Path(self.config["working_directory"]).expanduser().resolve()
         
+        working_dir_str = self.config.get("working_directory")
+        if working_dir_str:
+            self.project_root = Path(working_dir_str).expanduser().resolve()
+        elif not self.project_root:
+            default_wd = MYTHIC_DIR / "mythic_longhall"
+            default_wd.mkdir(parents=True, exist_ok=True)
+            self.project_root = default_wd
+            
         self.total_tokens = 0
         if "api_keys" not in self.config:
             self.config["api_keys"] = {}

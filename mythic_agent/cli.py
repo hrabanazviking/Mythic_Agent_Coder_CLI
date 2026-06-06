@@ -21,7 +21,9 @@ import os
 from .tui import run_tui
 
 def main():
-    log_file = Path.home() / ".mythic_agent.log"
+    MYTHIC_DIR = Path.home() / ".mythic"
+    MYTHIC_DIR.mkdir(exist_ok=True)
+    log_file = MYTHIC_DIR / "agent.log"
     logging.basicConfig(
         filename=str(log_file),
         filemode="a",
