@@ -27,9 +27,6 @@ class MythicTUI(App):
     """
     The main Textual application root.
     """
-    
-    CSS_PATH = "../styles.css"
-    
     SCREENS = {
         "splash": SplashScreen,
         "setup_wizard": SetupScreen,
