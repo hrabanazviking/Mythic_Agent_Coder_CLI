@@ -21,6 +21,8 @@ try:
 except ImportError:
     HAS_CHATTERBOX = False
 
+from .config_manager import config_manager
+
 class TTSManager:
     def __init__(self):
         self.queue = queue.Queue()
@@ -36,9 +38,9 @@ class TTSManager:
         self.thread: Optional[threading.Thread] = None
         self.is_muted = False
         
-        # Primary agent
+        # Primary agent (Piper)
         self.primary_voice = "en_US-lessac-high"
-        # Subagent pool
+        # Subagent pool (Piper)
         self.subagent_voices = [
             "en_GB-jenny_dioco-medium",
             "en_US-ryan-high",
@@ -48,6 +50,12 @@ class TTSManager:
         ]
         self.agent_voice_map = {"Primary": self.primary_voice}
         self.next_subagent_idx = 0
+        
+        # NovelAI voices
+        self.novelai_primary_voice = "Aina"
+        self.novelai_subagent_voices = ["Orea", "Clio", "Ligeia", "Aura", "Eleanor"]
+        self.novelai_agent_voice_map = {"Primary": self.novelai_primary_voice}
+        self.novelai_next_subagent_idx = 0
 
     def start(self):
         if not HAS_TTS:
@@ -86,6 +94,15 @@ class TTSManager:
         voice = self.subagent_voices[self.next_subagent_idx % len(self.subagent_voices)]
         self.next_subagent_idx += 1
         self.agent_voice_map[agent_name] = voice
+        return voice
+
+    def _get_novelai_voice_for_agent(self, agent_name: str) -> str:
+        if agent_name in self.novelai_agent_voice_map:
+            return self.novelai_agent_voice_map[agent_name]
+            
+        voice = self.novelai_subagent_voices[self.novelai_next_subagent_idx % len(self.novelai_subagent_voices)]
+        self.novelai_next_subagent_idx += 1
+        self.novelai_agent_voice_map[agent_name] = voice
         return voice
 
     def _download_voice_if_missing(self, voice_name: str) -> Path:
@@ -153,7 +170,6 @@ class TTSManager:
                 clean_text = self._clean_text(raw_text)
                 if not clean_text:
                     continue
-                
                 custom_wav = self.voice_samples_dir / f"{agent_name}.wav"
                 fallback_wav = self.voice_samples_dir / "default.wav"
                 
@@ -163,8 +179,34 @@ class TTSManager:
                 elif fallback_wav.exists():
                     audio_sample_path = fallback_wav
                     
+                config = config_manager.load_config()
+                backend = config.get("tts_backend", "piper")
+                novelai_key = config.get("novelai_api_key", "")
+                
                 try:
-                    if audio_sample_path and HAS_CHATTERBOX:
+                    if backend == "novelai" and novelai_key:
+                        voice_seed = self._get_novelai_voice_for_agent(agent_name)
+                        logging.info(f"Generating NovelAI audio using seed {voice_seed}")
+                        
+                        headers = {"Authorization": f"Bearer {novelai_key}"}
+                        payload = {"text": clean_text, "voice": -1, "seed": voice_seed, "opus": "false", "version": "v2"}
+                        
+                        resp = requests.get("https://api.novelai.net/ai/generate-voice", headers=headers, params=payload)
+                        if resp.status_code == 200 and not self.is_muted:
+                            from pydub import AudioSegment
+                            import io
+                            
+                            audio_seg = AudioSegment.from_file(io.BytesIO(resp.content))
+                            audio_array = np.array(audio_seg.get_array_of_samples(), dtype=np.int16)
+                            
+                            if audio_seg.channels == 2:
+                                audio_array = audio_array.reshape((-1, 2))
+                                
+                            sd.play(audio_array, samplerate=audio_seg.frame_rate)
+                            sd.wait()
+                        else:
+                            logging.error(f"NovelAI TTS failed: {resp.status_code} {resp.text}")
+                    elif audio_sample_path and HAS_CHATTERBOX:
                         if self.chatterbox_model is None:
                             import torch
                             device = "cuda" if torch.cuda.is_available() else "cpu"

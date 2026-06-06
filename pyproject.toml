@@ -25,7 +25,8 @@ dependencies = [
     "scipy>=1.14.0",
     "piper-tts>=1.2.0",
     "chatterbox-tts>=0.1.0",
-    "torchaudio>=2.0.0"
+    "torchaudio>=2.0.0",
+    "pydub>=0.25.1"
 ]
 
 [project.scripts]
