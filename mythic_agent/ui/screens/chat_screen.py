@@ -153,7 +153,7 @@ class MainChatScreen(Screen):
                 with Horizontal(id="chat-input-container"):
                     yield Label(" [bold yellow]ᛟ❯[/bold yellow] ", id="prompt-label")
                     from textual.suggester import SuggestFromList
-                    COMMANDS = ["/setup", "/add", "/commit", "/issue", "/pr", "/status", "/gh", "/test", "/undo", "/doctor", "/flirt", "/lick", "/hug", "/kiss", "/snuggle", "/cuddle", "/tickle", "/wink", "/btw", "/steer", "/stop", "/tutorial", "/quit", "/help", "/exit"]
+                    COMMANDS = ["/setup", "/add", "/commit", "/issue", "/pr", "/status", "/gh", "/test", "/undo", "/doctor", "/flirt", "/lick", "/hug", "/kiss", "/snuggle", "/cuddle", "/tickle", "/wink", "/rose", "/mead", "/ale", "/beer", "/cookies", "/candy", "/love", "/btw", "/steer", "/stop", "/tutorial", "/quit", "/help", "/exit"]
                     yield Input(placeholder="Speak to the Seer... (Press Enter to send)", id="chat-input", suggester=SuggestFromList(COMMANDS))
             with VerticalScroll(id="sidebar"):
                 yield Label("[bold cyan]Instructions[/bold cyan]\n")
@@ -472,7 +472,7 @@ class MainChatScreen(Screen):
         try:
             lbl = self.query_one("#autocomplete-suggestions", Label)
             if val.startswith("/"):
-                COMMANDS = ["/setup", "/add", "/commit", "/issue", "/pr", "/status", "/gh", "/test", "/undo", "/doctor", "/flirt", "/lick", "/btw", "/steer", "/stop", "/tutorial", "/quit", "/help", "/exit"]
+                COMMANDS = ["/setup", "/add", "/commit", "/issue", "/pr", "/status", "/gh", "/test", "/undo", "/doctor", "/flirt", "/lick", "/hug", "/kiss", "/snuggle", "/cuddle", "/tickle", "/wink", "/rose", "/mead", "/ale", "/beer", "/cookies", "/candy", "/love", "/btw", "/steer", "/stop", "/tutorial", "/quit", "/help", "/exit"]
                 matches = [c for c in COMMANDS if c.startswith(val.lower())]
                 if matches:
                     formatted = []
@@ -542,6 +542,13 @@ class MainChatScreen(Screen):
                 chat_log.write("  [green]/cuddle[/green]    - Cuddle the Agent")
                 chat_log.write("  [green]/tickle[/green]    - Tickle the Agent")
                 chat_log.write("  [green]/wink[/green]      - Wink at the Agent")
+                chat_log.write("  [green]/rose[/green]      - Send a red rose")
+                chat_log.write("  [green]/mead[/green]      - Send a drinking horn of mead")
+                chat_log.write("  [green]/ale[/green]       - Send a tankard of ale")
+                chat_log.write("  [green]/beer[/green]      - Send a stein of beer")
+                chat_log.write("  [green]/cookies[/green]   - Give some cookies")
+                chat_log.write("  [green]/candy[/green]     - Give a chocolate candy bar")
+                chat_log.write("  [green]/love[/green]      - Give positive love energy")
                 chat_log.write("  [green]/btw[/green]      - Add silent context to an agent")
                 chat_log.write("  [green]/steer[/green]    - Give the AI a strong steering instruction")
                 chat_log.write("  [green]/stop[/green]     - Stop all currently active agents")
@@ -571,6 +578,13 @@ class MainChatScreen(Screen):
                     "/cuddle": "Usage: /cuddle <message>\nSpawns a temporary Ghost session and explicitly sends the action *User cuddles with you*.",
                     "/tickle": "Usage: /tickle <message>\nSpawns a temporary Ghost session and explicitly sends the action *User tickles you*.",
                     "/wink": "Usage: /wink <message>\nSpawns a temporary Ghost session and explicitly sends the action *User winks at you*.",
+                    "/rose": "Usage: /rose <message>\nSpawns a temporary Ghost session and explicitly sends the action *User gives you a red rose*.",
+                    "/mead": "Usage: /mead <message>\nSpawns a temporary Ghost session and explicitly sends the action *User gives you a drinking horn full of mead*.",
+                    "/ale": "Usage: /ale <message>\nSpawns a temporary Ghost session and explicitly sends the action *User gives you a tankard of ale*.",
+                    "/beer": "Usage: /beer <message>\nSpawns a temporary Ghost session and explicitly sends the action *User gives you a stein of beer*.",
+                    "/cookies": "Usage: /cookies <message>\nSpawns a temporary Ghost session and explicitly sends the action *User gives you some cookies*.",
+                    "/candy": "Usage: /candy <message>\nSpawns a temporary Ghost session and explicitly sends the action *User gives you a chocolate candy bar*.",
+                    "/love": "Usage: /love <message>\nSpawns a temporary Ghost session and explicitly sends the action *User gives you positive love energy*.",
                     "/btw": "Usage: /btw <message>\nAdds context or notes to the agent via a Ghost session without forcing an immediate context break. Useful for side-chatter or corrections while it thinks.",
                     "/steer": "Usage: /steer <instruction>\nDirectly alters the ongoing task of the current active agent. Will immediately be appended to the active agent's prompt.",
                     "/stop": "Usage: /stop\nSends a kill signal to all currently active agents and subagents. Clears the background task queues.",
@@ -610,18 +624,31 @@ class MainChatScreen(Screen):
                 active = getattr(self.app, "active_chat_agent", "Primary")
                 SecureAPI.publish_chat_request(f"USER STEERING INSTRUCTION (Priority): {args}", target_agent=active)
                 chat_log.write(f"[bold yellow]Steering instruction applied: {args}[/bold yellow]")
-        elif cmd == "/flirt":
+        elif cmd in ["/flirt", "/lick", "/hug", "/kiss", "/snuggle", "/cuddle", "/tickle", "/wink", "/rose", "/mead", "/ale", "/beer", "/cookies", "/candy", "/love"]:
             active = getattr(self.app, "active_chat_agent", "Primary")
             if "[Ghost]" not in active:
                 self.on_agent_selected(f"[Ghost] {active}")
-            SecureAPI.publish_ghost_chat_request(f"*flirts with you* {args}", target_agent=active)
-            chat_log.write(f"[magenta]*Flirts with ghost agent...*[/magenta] {args}")
-        elif cmd == "/lick":
-            active = getattr(self.app, "active_chat_agent", "Primary")
-            if "[Ghost]" not in active:
-                self.on_agent_selected(f"[Ghost] {active}")
-            SecureAPI.publish_ghost_chat_request(f"*User licks you* {args}", target_agent=active)
-            chat_log.write(f"[magenta]*Licks ghost agent...*[/magenta] {args}")
+                
+            action_text = {
+                "/flirt": "*flirts with you*",
+                "/lick": "*User licks you*",
+                "/hug": "*User hugs you*",
+                "/kiss": "*User kisses you*",
+                "/snuggle": "*User snuggles with you*",
+                "/cuddle": "*User cuddles with you*",
+                "/tickle": "*User tickles you*",
+                "/wink": "*User winks at you*",
+                "/rose": "*User gives you a red rose*",
+                "/mead": "*User gives you a drinking horn full of mead*",
+                "/ale": "*User gives you a tankard of ale*",
+                "/beer": "*User gives you a stein of beer*",
+                "/cookies": "*User gives you some cookies*",
+                "/candy": "*User gives you a chocolate candy bar*",
+                "/love": "*User gives you positive love energy*"
+            }[cmd]
+            
+            SecureAPI.publish_ghost_chat_request(f"{action_text} {args}", target_agent=active)
+            chat_log.write(f"[magenta]{action_text}[/magenta] {args}")
         elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr", "/stop"]:
             SecureAPI.publish_system_command(cmd, args)
         else:
