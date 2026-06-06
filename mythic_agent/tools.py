@@ -265,7 +265,6 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
         path = root_path / arguments.get("path", "")
         query = arguments.get("query", "")
         try:
-            import re
             pattern = re.compile(query)
             results = []
             if path.is_file():
