@@ -16,45 +16,6 @@ from mythic_agent.core.secure_api import publish_sync, subscribe
 from mythic_agent.core.config_manager import config_manager
 
 
-PROVIDERS = [
-    ("OpenRouter (Global)", "https://openrouter.ai/api/v1"),
-    ("OpenAI (US)", "https://api.openai.com/v1"),
-    ("Mistral AI (French)", "https://api.mistral.ai/v1"),
-    ("DeepSeek (Chinese)", "https://api.deepseek.com/v1"),
-    ("DashScope / Qwen (Chinese)", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
-    ("Zhipu AI (Chinese)", "https://open.bigmodel.cn/api/paas/v4/"),
-    ("Moonshot AI (Chinese)", "https://api.moonshot.cn/v1"),
-    ("SiliconFlow (Chinese)", "https://api.siliconflow.cn/v1"),
-    ("DeepInfra", "https://api.deepinfra.com/v1/openai"),
-    ("Groq", "https://api.groq.com/openai/v1"),
-    ("Together AI", "https://api.together.xyz/v1"),
-    ("Fireworks AI", "https://api.fireworks.ai/inference/v1"),
-    ("AnyScale", "https://api.endpoints.anyscale.com/v1"),
-    ("OpenCode Go", "https://opencode.ai/zen/go/v1"),
-]
-def run_tui():
-    agent = Agent(project_root=Path.cwd())
-    app = MythicTUI(agent)
-    app.run()
-
-PROVIDERS = [
-    ('OpenRouter (Global)', 'https://openrouter.ai/api/v1'),
-    ('OpenAI (US)', 'https://api.openai.com/v1'),
-    ('Mistral AI (French)', 'https://api.mistral.ai/v1'),
-    ('DeepSeek (Chinese)', 'https://api.deepseek.com/v1'),
-    ('DashScope / Qwen (Chinese)', 'https://dashscope.aliyuncs.com/compatible-mode/v1'),
-    ('Zhipu AI (Chinese)', 'https://open.bigmodel.cn/api/paas/v4/'),
-    ('Moonshot AI (Chinese)', 'https://api.moonshot.cn/v1'),
-    ('SiliconFlow (Chinese)', 'https://api.siliconflow.cn/v1'),
-    ('DeepInfra', 'https://api.deepinfra.com/v1/openai'),
-    ('Groq', 'https://api.groq.com/openai/v1'),
-    ('Together AI', 'https://api.together.xyz/v1'),
-    ('Fireworks AI', 'https://api.fireworks.ai/inference/v1'),
-    ('AnyScale', 'https://api.endpoints.anyscale.com/v1'),
-    ('OpenCode Go', 'https://opencode.ai/zen/go/v1'),
-]
-
-
 
 class CommandApproval(ModalScreen[bool]):
     """Modal dialog to approve bash commands."""
@@ -132,7 +93,7 @@ class GithubConfigModal(ModalScreen[None]):
                 yield Button("Save Config", id="gh-save", variant="success")
 
     def on_mount(self) -> None:
-        config = self.app.agent.config.get("github", {})
+        config = config_manager.load_config().get("github", {})
         self.query_one("#gh-repo-input", Input).value = config.get("repo_url", "")
         self.query_one("#gh-token-input", Input).value = config.get("token", "")
 
@@ -143,11 +104,18 @@ class GithubConfigModal(ModalScreen[None]):
             repo = self.query_one("#gh-repo-input", Input).value.strip()
             token = self.query_one("#gh-token-input", Input).value.strip()
             
-            if "github" not in self.app.agent.config:
-                self.app.agent.config["github"] = {}
+            config = config_manager.load_config()
+            if "github" not in config:
+                config["github"] = {}
                 
-            self.app.agent.config["github"]["repo_url"] = repo
-            self.app.agent.config["github"]["token"] = token
-            self.app.agent.save_config()  # We need to implement save_config in Agent
+            config["github"]["repo_url"] = repo
+            config["github"]["token"] = token
+            config_manager.save_config(config)
+            
+            # Update running agents if needed
+            from mythic_agent.agents.llm import AGENT_REGISTRY
+            for agent in AGENT_REGISTRY.values():
+                agent.config = config
+                
             self.dismiss()
 

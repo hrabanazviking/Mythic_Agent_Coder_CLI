@@ -16,12 +16,13 @@ def print_help(console: Console):
     console.print("  [green]/clear[/green]  - Clear conversation history")
 
 from .core.engine import engine
-from .ui.main_app import run_tui
+from .ui.main_app import MythicTUI
 
 def main():
     try:
         engine.initialize()
-        run_tui()
+        app = MythicTUI()
+        app.run()
     except Exception as e:
         engine.handle_crash(e)
         raise

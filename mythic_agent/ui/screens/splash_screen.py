@@ -16,45 +16,6 @@ from mythic_agent.core.secure_api import publish_sync, subscribe
 from mythic_agent.core.config_manager import config_manager
 
 
-PROVIDERS = [
-    ("OpenRouter (Global)", "https://openrouter.ai/api/v1"),
-    ("OpenAI (US)", "https://api.openai.com/v1"),
-    ("Mistral AI (French)", "https://api.mistral.ai/v1"),
-    ("DeepSeek (Chinese)", "https://api.deepseek.com/v1"),
-    ("DashScope / Qwen (Chinese)", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
-    ("Zhipu AI (Chinese)", "https://open.bigmodel.cn/api/paas/v4/"),
-    ("Moonshot AI (Chinese)", "https://api.moonshot.cn/v1"),
-    ("SiliconFlow (Chinese)", "https://api.siliconflow.cn/v1"),
-    ("DeepInfra", "https://api.deepinfra.com/v1/openai"),
-    ("Groq", "https://api.groq.com/openai/v1"),
-    ("Together AI", "https://api.together.xyz/v1"),
-    ("Fireworks AI", "https://api.fireworks.ai/inference/v1"),
-    ("AnyScale", "https://api.endpoints.anyscale.com/v1"),
-    ("OpenCode Go", "https://opencode.ai/zen/go/v1"),
-]
-def run_tui():
-    agent = Agent(project_root=Path.cwd())
-    app = MythicTUI(agent)
-    app.run()
-
-PROVIDERS = [
-    ('OpenRouter (Global)', 'https://openrouter.ai/api/v1'),
-    ('OpenAI (US)', 'https://api.openai.com/v1'),
-    ('Mistral AI (French)', 'https://api.mistral.ai/v1'),
-    ('DeepSeek (Chinese)', 'https://api.deepseek.com/v1'),
-    ('DashScope / Qwen (Chinese)', 'https://dashscope.aliyuncs.com/compatible-mode/v1'),
-    ('Zhipu AI (Chinese)', 'https://open.bigmodel.cn/api/paas/v4/'),
-    ('Moonshot AI (Chinese)', 'https://api.moonshot.cn/v1'),
-    ('SiliconFlow (Chinese)', 'https://api.siliconflow.cn/v1'),
-    ('DeepInfra', 'https://api.deepinfra.com/v1/openai'),
-    ('Groq', 'https://api.groq.com/openai/v1'),
-    ('Together AI', 'https://api.together.xyz/v1'),
-    ('Fireworks AI', 'https://api.fireworks.ai/inference/v1'),
-    ('AnyScale', 'https://api.endpoints.anyscale.com/v1'),
-    ('OpenCode Go', 'https://opencode.ai/zen/go/v1'),
-]
-
-
 
 class SplashScreen(Screen):
     """A simple splash screen with the logo."""
@@ -102,11 +63,22 @@ class SplashScreen(Screen):
         self.set_timer(2.0, self.finish_splash)
         
     def finish_splash(self) -> None:
-        agent = self.app.agent
-        base_url = agent.config.get("base_url")
-        api_key = agent.get_api_key(base_url)
+        config = config_manager.load_config()
+        base_url = config.get("base_url")
+        api_key = config.get("api_keys", {}).get(base_url) if base_url else None
         
-        if api_key and agent.config.get("model"):
+        if not api_key:
+            import os
+            if base_url and "deepseek" in base_url:
+                api_key = os.environ.get("DEEPSEEK_API_KEY")
+            elif base_url and "openrouter" in base_url:
+                api_key = os.environ.get("OPENROUTER_API_KEY")
+            elif base_url and "anthropic" in base_url:
+                api_key = os.environ.get("ANTHROPIC_API_KEY")
+            else:
+                api_key = os.environ.get("OPENAI_API_KEY")
+                
+        if api_key and config.get("model"):
             self.app.switch_screen("main_chat")
         else:
             self.app.switch_screen("setup_wizard")
