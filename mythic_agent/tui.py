@@ -851,9 +851,7 @@ class MainChatScreen(Screen):
         else:
             chat_log.write(f"[red]Unknown command:[/red] {cmd}")
 
-    def on_key(self, event):
-        if event.key == "f3":
-            self.app.push_screen(SubagentSelectionModal())
+
 
     def handle_input(self, user_input: str):
         chat_log = self.query_one("#chat-log", RichLog)
@@ -994,7 +992,8 @@ class MythicTUI(App):
 
     def update_token_count(self, count: int) -> None:
         try:
-            lbl = self.query_one("#token-count", Label)
+            chat_screen = self.query_one(MainChatScreen)
+            lbl = chat_screen.query_one("#token-count", Label)
             lbl.update(f"[dim]Tokens Used: {count}[/dim]")
         except Exception as e:
             import logging
