@@ -115,14 +115,17 @@ class AudioRecorder:
                         "Authorization": f"Token {deepgram_api_key}",
                         "Content-Type": "audio/wav"
                     }
-                    with open(wav_path, "rb") as audio_file:
-                        resp = requests.post(url, headers=headers, data=audio_file)
-                        
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        transcript = data.get("results", {}).get("channels", [{}])[0].get("alternatives", [{}])[0].get("transcript", "")
-                    else:
-                        logging.error(f"Deepgram STT failed: {resp.status_code} {resp.text}. Falling back to Whisper.")
+                    try:
+                        with open(wav_path, "rb") as audio_file:
+                            resp = requests.post(url, headers=headers, data=audio_file, timeout=30)
+                            
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            transcript = data.get("results", {}).get("channels", [{}])[0].get("alternatives", [{}])[0].get("transcript", "")
+                        else:
+                            logging.error(f"Deepgram STT failed: {resp.status_code} {resp.text}. Falling back to Whisper.")
+                    except requests.exceptions.RequestException as e:
+                        logging.error(f"Deepgram STT network error: {e}. Falling back to Whisper.")
                 else:
                     logging.warning("Deepgram API key missing. Falling back to Whisper.")
                     
@@ -136,26 +139,30 @@ class AudioRecorder:
                 # For transcription, we usually want to hit the main OpenAI API directly 
                 # unless the user is explicitly pointing to an open-source endpoint that supports Whisper API (e.g. litellm proxy).
                 # We'll use the user's base_url, but standard OpenAI requires "whisper-1".
-                client = OpenAI(api_key=api_key, base_url=self.base_url)
+                client = OpenAI(api_key=api_key, base_url=self.base_url, timeout=30.0)
                 
-                with open(wav_path, "rb") as audio_file:
-                    # whisper-1 is the standard model name for OpenAI transcriptions
-                    transcription = client.audio.transcriptions.create(
-                        model="whisper-1", 
-                        file=audio_file
-                    )
-                transcript = transcription.text
+                try:
+                    with open(wav_path, "rb") as audio_file:
+                        # whisper-1 is the standard model name for OpenAI transcriptions
+                        transcription = client.audio.transcriptions.create(
+                            model="whisper-1", 
+                            file=audio_file
+                        )
+                    transcript = transcription.text
+                except Exception as e:
+                    logging.error(f"Whisper STT failed: {e}")
                 
-            os.remove(wav_path)
             return transcript
 
         except Exception as e:
             logging.error(f"Transcription failed: {e}")
+            return None
+        finally:
             try:
-                os.remove(wav_path)
+                if os.path.exists(wav_path):
+                    os.remove(wav_path)
             except OSError:
                 pass
-            return None
 
 # Global singleton
 audio_recorder = AudioRecorder()
