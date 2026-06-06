@@ -505,7 +505,6 @@ class AgentManager:
                             agent.inbox.task_done()
             except Exception as outer_e:
                 logging.critical(f"FATAL THREAD ERROR in {agent.name}: {outer_e}. Resurrecting thread...")
-                import time
                 time.sleep(2)
 
 # Instantiate the singleton router
