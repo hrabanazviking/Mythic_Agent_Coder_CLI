@@ -1256,17 +1256,7 @@ def render_card_mini(card):
         line3 = f"[muted]{card.attribution}[/muted]"
     else:
         line3 = ""
-    return "\n".join(filter(None, [line1, line2, line3]))
-
-
-
-
-
-
-
-# ═══════════════════════════════════════════════════════════════
-
-def ai_reading(spread_name, cards_with_positions, question, api_key, model="openai/gpt-4o"):
+(spread_name, cards_with_positions, question, api_key, model="openai/gpt-4o"):
     """Request an AI-enhanced reading from OpenRouter."""
     if not HAS_REQUESTS:
         return None, "The 'requests' library is required. Install with: pip install requests"
