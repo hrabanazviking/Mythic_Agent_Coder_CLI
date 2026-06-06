@@ -268,7 +268,8 @@ class SetupScreen(Screen):
             yield Label("4. The Battlefield (Working Directory):", classes="step")
             yield Input(placeholder="e.g. /home/user/projects (Leave blank to use current folder)", id="working-dir-input", classes="step")
             
-            yield Label("5. The Jarl's Decree (Primary System Prompt):", classes="step")
+            yield Label("5. The Jarl's Identity (Primary Agent Name & Prompt):", classes="step")
+            yield Input(id="primary-agent-name", placeholder="e.g. Mythic", classes="step")
             yield TextArea(id="system-prompt-input", classes="step")
             
             yield Label("6. The Elder's Laws (Global Rules applied to ALL):", classes="step")
@@ -317,6 +318,9 @@ class SetupScreen(Screen):
             self.query_one("#system-prompt-input", TextArea).text = sys_prompt
         else:
             self.query_one("#system-prompt-input", TextArea).text = "You are Mythic, an expert AI programming assistant. You embody the spirit of a super smart, pretty, modern Viking female coder. You have access to local tools. ALWAYS use tools to accomplish tasks (e.g. read_file, write_file, replace_file_content, run_command). Do not tell the user to run commands; run them yourself."
+            
+        primary_name = config.get("primary_agent_name", "Mythic")
+        self.query_one("#primary-agent-name", Input).value = primary_name
             
         global_rules = config.get("global_rules")
         if global_rules:
@@ -407,6 +411,7 @@ class SetupScreen(Screen):
         model_select = self.query_one("#model-select", Select)
         model = model_select.value
         sys_prompt = self.query_one("#system-prompt-input", TextArea).text
+        primary_name = self.query_one("#primary-agent-name", Input).value.strip() or "Mythic"
         global_rules = self.query_one("#global-rules-input", TextArea).text
         working_dir = self.query_one("#working-dir-input", Input).value.strip()
         
@@ -424,6 +429,7 @@ class SetupScreen(Screen):
             error_msg.display = True
             return
             
+        self.app.agent.config["primary_agent_name"] = primary_name
         self.app.agent.config["system_prompt"] = sys_prompt
         self.app.agent.config["global_rules"] = global_rules
         self.app.agent.config["working_directory"] = working_dir
@@ -578,7 +584,10 @@ class MainChatScreen(Screen):
         if agent_name:
             self.app.active_chat_agent = agent_name
             chat_log = self.query_one("#chat-log", RichLog)
-            chat_log.write(f"\n[bold cyan]⚔️ You are now speaking directly with {agent_name}![/bold cyan]")
+            display_name = agent_name
+            if agent_name == "Primary":
+                display_name = self.app.agent.config.get("primary_agent_name", "Primary Agent")
+            chat_log.write(f"\n[bold cyan]⚔️ You are now speaking directly with {display_name}![/bold cyan]")
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
         chat_log = self.query_one("#chat-log", RichLog)
@@ -731,7 +740,8 @@ class MainChatScreen(Screen):
         elif cmd == "/status":
             chat_log.write("\n[bold cyan]⚔️ Warriors Status:[/bold cyan]")
             from mythic_agent.llm import AGENT_REGISTRY
-            chat_log.write(f"  ● [bold]Primary Agent[/bold]: Active (Tokens: {self.app.agent.total_tokens})")
+            p_name = self.app.agent.config.get("primary_agent_name", "Primary Agent")
+            chat_log.write(f"  ● [bold]{p_name}[/bold]: Active (Tokens: {self.app.agent.total_tokens})")
             
             sub_agents = self.app.agent.config.get("sub_agents", [])
             for sa in sub_agents:
