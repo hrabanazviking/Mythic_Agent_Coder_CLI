@@ -459,8 +459,8 @@ class SetupScreen(Screen):
     def on_select_changed(self, event: Select.Changed) -> None:
         if getattr(self, '_loading_subagent', False):
             return
-        if event.select.id == "subagent-select" and event.value is not None:
-            self.load_subagent(event.value)
+        if event.select.id == "subagent-select" and event.value is not None and event.value != getattr(Select, "BLANK", None):
+            self.load_subagent(int(event.value))
 
     def load_subagent(self, index: int) -> None:
         self.active_subagent_index = index
