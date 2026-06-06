@@ -27,6 +27,11 @@ class MythicTUI(App):
     """
     The main Textual application root.
     """
+    BINDINGS = [
+        ("ctrl+c", "", "Copy"), # Unbind default quit so widgets can handle copy natively
+        ("ctrl+q", "quit", "Quit")
+    ]
+    
     SCREENS = {
         "splash": SplashScreen,
         "setup_wizard": SetupScreen,
