@@ -48,6 +48,8 @@ class CommandHandler:
                 self._handle_issue(args)
             elif cmd == "/pr":
                 self._handle_pr(args)
+            elif cmd == "/tutorial":
+                self._handle_tutorial()
         except Exception as e:
             logging.error(f"Command Execution Error: {e}", exc_info=True)
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[bold red]System Command Error: {e}[/bold red]\n")
@@ -154,6 +156,31 @@ class CommandHandler:
         result = subprocess.run(cmd_list, capture_output=True, text=True, env=self._get_gh_env())
         output = result.stdout if result.returncode == 0 else result.stderr
         publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[dim]> Create Pull Request[/dim]\n{output.strip()}\n")
+
+    def _handle_tutorial(self):
+        tutorial_text = """
+[bold cyan]Mythic Agent Vibe Coding Tutorial[/bold cyan]
+
+[bold yellow]What is Vibe Coding?[/bold yellow]
+Vibe coding is the art of steering autonomous AI agents using natural language intents, high-level directives, and "vibes" rather than writing every line of code manually. You are the Architect; the Agent is the Builder.
+
+[bold yellow]Core Principles:[/bold yellow]
+1. [green]Declare the Goal:[/green] Tell the agent *what* you want, not necessarily *how* to do it. (e.g., "Build a React login page with glassmorphism")
+2. [green]Iterate Rapidly:[/green] Run the code, observe the UI/errors, and feed the "vibe" back to the agent. (e.g., "It looks too corporate, make it more cyber-pagan")
+3. [green]Use Context:[/green] Use `/add file.py` or `/btw <message>` to inject context without forcing a major re-write.
+4. [green]Steer Strongly:[/green] If the agent is drifting, use `/steer <directive>` to forcefully inject a high-priority system-level instruction.
+5. [green]Let it Work:[/green] The agent can loop and use tools autonomously. Trust the loop. Use F3 to spawn specialized subagents for parallel work.
+
+[bold yellow]Example Flow:[/bold yellow]
+- You: "Create a fast API server in main.py that returns hello world."
+- (Agent builds it)
+- You: "/test pytest"
+- (Agent reads the test output and fixes its own bugs automatically)
+- You: "Perfect. Now vibe check the response format, make it return JSON with a mythic aesthetic."
+
+[dim]Press F2 to adjust your team of subagents. Happy coding![/dim]
+"""
+        publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n{tutorial_text}\n")
 
 # Global singleton
 command_handler = CommandHandler()
