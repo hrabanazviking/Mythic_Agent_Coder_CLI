@@ -236,31 +236,30 @@ class Agent:
                 enriched_prompt = f"{prompt}{recalled}"
                 self.messages.append({"role": "user", "content": enriched_prompt})
                 
-            # Sliding window memory pruner to prevent LLM max_context crashes
-            # Alert the agent right before compaction so it autosaves status
-            if len(self.messages) == 95:
-                self.messages.append({
-                    "role": "system", 
-                    "content": "[CRITICAL ALERT] Memory capacity approaching 100%. A context compaction event is imminent. You MUST use the `update_status` tool NOW to dump your current task list, open problems, and findings to disk, or they will be permanently forgotten."
-                })
-                publish_sync("agent_chat_chunk", agent_name=self.name, text="\n[bold yellow][!] Auto-Compaction Warning Triggered. Forcing state dump...[/bold yellow]\n")
-                
-            # Keep the system prompt at index 0, and retain the last 90 messages.
-            if len(self.messages) > 100:
-                publish_sync("agent_chat_chunk", agent_name=self.name, text="\n[bold red][!] Context Compacted & Archived.[/bold red]\n")
-                
-                # Auto-Archival: Save the forgotten chunk to Vector DB
-                if hasattr(self, "vector_db"):
-                    forgotten_chunk = self.messages[1:11]
-                    try:
-                        archive_text = "Archived Context Chunk:\n" + "\n".join(
-                            f"{m.get('role', 'unknown').upper()}: {m.get('content', '')}" for m in forgotten_chunk
-                        )
-                        self.vector_db.insert(archive_text)
-                    except Exception as e:
-                        logging.error(f"Auto-Archival failed: {e}")
-                
-                self.messages = [self.messages[0]] + self.messages[-90:]
+        # Emit the compaction warning BEFORE locking so subscribers can acquire the lock safely
+        if len(self.messages) == 95:
+            self.messages.append({
+                "role": "system",
+                "content": "[CRITICAL ALERT] Memory capacity approaching 100%. A context compaction event is imminent. You MUST use the `update_status` tool NOW to dump your current task list, open problems, and findings to disk, or they will be permanently forgotten."
+            })
+            publish_sync("agent_chat_chunk", agent_name=self.name, text="\n[bold yellow][!] Auto-Compaction Warning Triggered. Forcing state dump...[/bold yellow]\n")
+
+        # Keep the system prompt at index 0, and retain the last 90 messages.
+        if len(self.messages) > 100:
+            publish_sync("agent_chat_chunk", agent_name=self.name, text="\n[bold red][!] Context Compacted & Archived.[/bold red]\n")
+
+            # Auto-Archival: Save the forgotten chunk to Vector DB
+            if hasattr(self, "vector_db"):
+                forgotten_chunk = self.messages[1:11]
+                try:
+                    archive_text = "Archived Context Chunk:\n" + "\n".join(
+                        f"{m.get('role', 'unknown').upper()}: {m.get('content', '')}" for m in forgotten_chunk
+                    )
+                    self.vector_db.insert(archive_text)
+                except Exception as e:
+                    logging.error(f"Auto-Archival failed: {e}")
+
+            self.messages = [self.messages[0]] + self.messages[-90:]
                 
             client = self.get_client()
             
@@ -277,7 +276,7 @@ class Agent:
                     while True:
                         queued_prompt = self.inbox.get_nowait()
                         if queued_prompt is None:
-                            return # Cleanly exit thread
+                            return  # Cleanly exit thread
                         self.messages.append({"role": "user", "content": f"New queued message received while you were working:\n{queued_prompt}"})
                         print_chunk(f"\n[dim italic]... received and processed a queued message mid-execution ...[/dim italic]\n")
                 except queue.Empty:
@@ -404,9 +403,7 @@ class AgentManager:
             return None
             
         logging.info(f"Dynamically spawning subagent: {name}")
-        sub_agent = Agent(project_root=project_root)
-        sub_agent.name = name
-        sub_agent.rebuild_system_prompt()
+        sub_agent = Agent(project_root=project_root, name=name)
         AGENT_REGISTRY[name] = sub_agent
         threading.Thread(target=self._run_agent_loop, args=(sub_agent,), daemon=True).start()
         
@@ -450,12 +447,19 @@ class AgentManager:
             import json
             awareness = []
             for m in latest_work:
-                if m["role"] == "tool":
-                    awareness.append(f"Tool Result: {str(m.get('content'))[:200]}...")
-                elif "tool_calls" in m and m["tool_calls"]:
-                    awareness.append(f"Agent called tools: {[t.function.name for t in m['tool_calls']]}")
-                elif "content" in m:
-                    awareness.append(f"Agent thought: {str(m['content'])[:200]}...")
+                role = m.get("role") if isinstance(m, dict) else getattr(m, "role", "")
+                content = m.get("content") if isinstance(m, dict) else getattr(m, "content", None)
+                tool_calls = m.get("tool_calls") if isinstance(m, dict) else getattr(m, "tool_calls", None)
+                if role == "tool":
+                    awareness.append(f"Tool Result: {str(content)[:200]}...")
+                elif tool_calls:
+                    try:
+                        names = [t.function.name for t in tool_calls]
+                    except Exception:
+                        names = [str(tool_calls)[:100]]
+                    awareness.append(f"Agent called tools: {names}")
+                elif content:
+                    awareness.append(f"Agent thought: {str(content)[:200]}...")
                     
             awareness_text = "\n".join(awareness)
             user_input = f"[SYSTEM: For your awareness, your original working copy is currently doing this in the background:\n{awareness_text}]\n\n{user_input}"
@@ -490,10 +494,11 @@ class AgentManager:
                         agent.active_task_start_time = time.time()
                         publish_sync("agent_chat_tool", agent_name=agent.name, text=f"\n[dim][~] {agent.name} began executing a background task...[/dim]")
                         publish_sync("agent_status_changed", agent_name=agent.name, is_active=True)
+                        task_start = agent.active_task_start_time
                         agent.chat(prompt)
                         publish_sync("agent_chat_complete", agent_name=agent.name)
-                        
-                        elapsed = time.time() - agent.active_task_start_time
+
+                        elapsed = time.time() - (task_start or time.time())
                         publish_sync("agent_chat_tool", agent_name=agent.name, text=f"\n[dim][+] {agent.name} finished background task in {elapsed:.1f}s.[/dim]")
                     except Exception as e:
                         logging.exception(f"Error in chat execution for {agent.name}: {e}")

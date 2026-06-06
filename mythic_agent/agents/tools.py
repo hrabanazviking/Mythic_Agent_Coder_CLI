@@ -363,7 +363,10 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             return f"Failed to read file: {exc}"
             
     if name == "write_file":
-        path = root_path / arguments.get("path", "")
+        file_arg = arguments.get("path", "").strip()
+        if not file_arg:
+            return "Error: 'path' argument is required and cannot be empty for write_file."
+        path = root_path / file_arg
         try:
             import difflib
             old_content = path.read_text(encoding="utf-8") if path.exists() else ""
