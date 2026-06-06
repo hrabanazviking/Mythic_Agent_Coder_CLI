@@ -307,7 +307,8 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
         def run_subagent():
             from .llm import Agent, AGENT_REGISTRY
             if sub_name not in AGENT_REGISTRY:
-                sub_agent = Agent(project_root=root_path, name=sub_name)
+                sub_agent = Agent(project_root=root_path)
+                sub_agent.name = sub_name
                 
                 sub_system_prompt = sub_config.get("prompt", "You are a helpful sub-agent.")
                 global_rules = config.get("global_rules", "").strip()
