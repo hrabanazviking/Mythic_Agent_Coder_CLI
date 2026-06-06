@@ -19,6 +19,7 @@ class ConfigManager:
         
         self.DEFAULT_MODEL = "deepseek-chat"
         self.DEFAULT_BASE_URL = "https://api.deepseek.com/v1"
+        self.CURRENT_CONFIG_VERSION = 1
         
         # Ensure directories exist
         try:
@@ -41,15 +42,44 @@ class ConfigManager:
         if self.CONFIG_FILE.exists():
             try:
                 content = self.CONFIG_FILE.read_text(encoding="utf-8")
-                return json.loads(content)
+                config = json.loads(content)
+                config = self._upgrade_stale_data(config)
+                return config
             except Exception as e:
                 logger.error(f"Failed to load or parse {self.CONFIG_FILE}: {e}. Falling back to default.")
                 
         return {
             "model": self.DEFAULT_MODEL, 
             "base_url": self.DEFAULT_BASE_URL,
-            "api_keys": {}
+            "api_keys": {},
+            "config_version": self.CURRENT_CONFIG_VERSION
         }
+
+    def _upgrade_stale_data(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Self-healing function to upgrade stale or outdated cached data."""
+        version = config.get("config_version", 0)
+        changed = False
+        
+        # Upgrade 0 -> 1: Major overhaul of subagent prompts to use markdown files
+        if version < 1:
+            if "sub_agents" in config:
+                # We identify if they are using the old 1-line defaults by checking prompt length
+                subs = config["sub_agents"]
+                for i in range(len(subs)):
+                    sa = subs[i]
+                    prompt = sa.get("prompt", "")
+                    if len(prompt) < 300:
+                        # Too short to be the new markdown prompts, mark entire array as stale
+                        # We delete it so the UI will recreate it from DEFAULT_SUBAGENTS
+                        del config["sub_agents"]
+                        break
+            config["config_version"] = 1
+            changed = True
+            
+        if changed:
+            self.save_config(config)
+            
+        return config
 
     def save_config(self, config: Dict[str, Any]) -> bool:
         """Safely saves configuration with 0600 permissions."""
