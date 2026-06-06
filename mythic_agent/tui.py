@@ -6,7 +6,7 @@ from textual import work
 from textual.app import App, ComposeResult
 from textual.containers import Vertical, Horizontal, Center, Middle, VerticalScroll
 from textual.screen import Screen, ModalScreen
-from textual.widgets import Header, Footer, Input, RichLog, Static, Select, Button, Label, LoadingIndicator, TextArea
+from textual.widgets import Header, Footer, Input, RichLog, Static, Select, Button, Label, LoadingIndicator, TextArea, Checkbox
 from textual.binding import Binding
 
 from .llm import Agent
