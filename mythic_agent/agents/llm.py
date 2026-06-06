@@ -41,6 +41,7 @@ class Agent:
         self.messages = []
         self.inbox = queue.Queue()
         self._lock = threading.Lock()
+        self.active_task_start_time = None
         self.rebuild_system_prompt()
         
         self.core_memory = CoreMemoryManager(self.name)
@@ -377,13 +378,19 @@ class AgentManager:
                         if prompt is None:
                             return # Cleanly exit thread
                             
+                        agent.active_task_start_time = time.time()
+                        publish_sync("agent_chat_tool", agent_name=agent.name, text=f"\n[dim][~] {agent.name} began executing a background task...[/dim]")
                         publish_sync("agent_status_changed", agent_name=agent.name, is_active=True)
                         agent.chat(prompt)
                         publish_sync("agent_chat_complete", agent_name=agent.name)
+                        
+                        elapsed = time.time() - agent.active_task_start_time
+                        publish_sync("agent_chat_tool", agent_name=agent.name, text=f"\n[dim][+] {agent.name} finished background task in {elapsed:.1f}s.[/dim]")
                     except Exception as e:
                         logging.exception(f"Error in chat execution for {agent.name}: {e}")
                         publish_sync("agent_chat_error", agent_name=agent.name, error=str(e))
                     finally:
+                        agent.active_task_start_time = None
                         publish_sync("agent_status_changed", agent_name=agent.name, is_active=False)
                         if hasattr(agent.inbox, "task_done"):
                             agent.inbox.task_done()
