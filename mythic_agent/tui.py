@@ -255,13 +255,16 @@ class SetupScreen(Screen):
             yield Label("3. Select your Weapon (Model):", classes="step")
             yield Select([], prompt="Model", id="model-select", disabled=True)
             
-            yield Label("4. The Jarl's Decree (Primary System Prompt):", classes="step")
+            yield Label("4. The Battlefield (Working Directory):", classes="step")
+            yield Input(placeholder="e.g. /home/user/projects (Leave blank to use current folder)", id="working-dir-input", classes="step")
+            
+            yield Label("5. The Jarl's Decree (Primary System Prompt):", classes="step")
             yield TextArea(id="system-prompt-input", classes="step")
             
-            yield Label("5. The Elder's Laws (Global Rules applied to ALL):", classes="step")
+            yield Label("6. The Elder's Laws (Global Rules applied to ALL):", classes="step")
             yield TextArea(id="global-rules-input", classes="step")
             
-            yield Label("6. Summon Shield-Maidens & Warriors (Sub-Agents):", classes="step")
+            yield Label("7. Summon Shield-Maidens & Warriors (Sub-Agents):", classes="step")
             yield Button("+ Summon Warrior", id="add-subagent-btn", variant="primary", classes="step")
             yield Vertical(id="subagents-list")
             
@@ -295,6 +298,9 @@ class SetupScreen(Screen):
             model_select.value = model
             model_select.disabled = False
             self.query_one("#save-btn").disabled = False
+            
+        wd = config.get("working_directory", "")
+        self.query_one("#working-dir-input", Input).value = wd
             
         sys_prompt = config.get("system_prompt")
         if sys_prompt:
@@ -390,6 +396,7 @@ class SetupScreen(Screen):
         model = model_select.value
         sys_prompt = self.query_one("#system-prompt-input", TextArea).text
         global_rules = self.query_one("#global-rules-input", TextArea).text
+        working_dir = self.query_one("#working-dir-input", Input).value.strip()
         
         # Collect subagents
         sub_agents = []
@@ -407,7 +414,12 @@ class SetupScreen(Screen):
             
         self.app.agent.config["system_prompt"] = sys_prompt
         self.app.agent.config["global_rules"] = global_rules
+        self.app.agent.config["working_directory"] = working_dir
         self.app.agent.config["sub_agents"] = sub_agents
+        
+        if working_dir:
+            from pathlib import Path
+            self.app.agent.project_root = Path(working_dir).expanduser().resolve()
         
         self.app.agent.set_model(str(model), str(base_url), str(api_key))
         self.app.switch_screen("main_chat")

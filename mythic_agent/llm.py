@@ -31,9 +31,12 @@ def save_config(config: dict[str, Any]) -> None:
 
 class Agent:
     def __init__(self, project_root: Path | None = None):
-        self.project_root = project_root
-        self.total_tokens = 0
         self.config = load_config()
+        self.project_root = project_root
+        if self.config.get("working_directory"):
+            self.project_root = Path(self.config["working_directory"]).expanduser().resolve()
+        
+        self.total_tokens = 0
         if "api_keys" not in self.config:
             self.config["api_keys"] = {}
         system_prompt = self.config.get("system_prompt", "You are Mythic, an expert AI programming assistant. You have access to local tools. ALWAYS use tools to accomplish tasks (e.g. read_file, write_file, replace_file_content, run_command). Do not tell the user to run commands; run them yourself.")
