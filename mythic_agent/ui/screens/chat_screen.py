@@ -139,6 +139,7 @@ class MainChatScreen(Screen):
         Binding("ctrl+q", "quit", "Quit", show=True),
         Binding("f2", "setup", "Setup", show=True),
         Binding("f3", "select_agent", "Select Agent", show=True),
+        Binding("f4", "toggle_voice", "Voice Mode", show=True),
         Binding("escape", "exit_ghost", "Exit Ghost Session", show=True),
     ]
 
@@ -671,6 +672,51 @@ class MainChatScreen(Screen):
         chat_log.write(f"[dim italic]→ Routing to {target_name}...[/dim italic]")
         
         SecureAPI.publish_chat_request(user_input, target_agent=target_name)
+
+    @work(thread=True)
+    def _transcribe_voice_task(self, wav_path: str) -> None:
+        from mythic_agent.core.audio import audio_recorder
+        chat_log = self.query_one("#chat-log", RichLog)
+        
+        try:
+            transcript = audio_recorder.transcribe(wav_path)
+            if transcript and transcript.strip():
+                self.app.call_from_thread(self._inject_voice_transcript, transcript.strip())
+            else:
+                self.app.call_from_thread(chat_log.write, "[dim]Could not transcribe audio or no speech detected.[/dim]")
+        except Exception as e:
+            self.app.call_from_thread(chat_log.write, f"[red]Voice transcription error: {e}[/red]")
+        finally:
+            self.app.call_from_thread(self.query_one("#prompt-label").update, " [bold yellow]ᛟ❯[/bold yellow] ")
+
+    def _inject_voice_transcript(self, text: str) -> None:
+        chat_log = self.query_one("#chat-log", RichLog)
+        chat_log.write(f"\n[bold green]User (Voice):[/bold green] {text}")
+        self.run_agent_query(text)
+
+    def action_toggle_voice(self) -> None:
+        from mythic_agent.core.audio import audio_recorder, HAS_AUDIO
+        
+        chat_log = self.query_one("#chat-log", RichLog)
+        prompt_label = self.query_one("#prompt-label", Label)
+        
+        if not HAS_AUDIO:
+            chat_log.write("[red]Audio dependencies (sounddevice) not available.[/red]")
+            return
+            
+        if not audio_recorder.is_recording:
+            if audio_recorder.start_recording():
+                prompt_label.update(" [bold red]🎤 (F4 to stop)[/bold red] ")
+                chat_log.write("[bold red]Recording started...[/bold red]")
+        else:
+            prompt_label.update(" [bold yellow]⏳[/bold yellow] ")
+            chat_log.write("[dim]Stopping recording and transcribing...[/dim]")
+            wav_path = audio_recorder.stop_recording()
+            if wav_path:
+                self._transcribe_voice_task(wav_path)
+            else:
+                prompt_label.update(" [bold yellow]ᛟ❯[/bold yellow] ")
+                chat_log.write("[red]No audio captured.[/red]")
 
     def on_unmount(self) -> None:
         if hasattr(self.app, "pet_timer"):
