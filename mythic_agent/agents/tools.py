@@ -198,6 +198,37 @@ def get_agent_tools() -> list[dict[str, Any]]:
         {
             "type": "function",
             "function": {
+                "name": "knowledge_db_semantic_search",
+                "description": "Perform a semantic vector search against Volmarr's personal Knowledge DB (requires gungnir Tailnet access).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "The search query."},
+                        "limit": {"type": "integer", "description": "Maximum number of results to return (default: 10)."}
+                    },
+                    "required": ["query"],
+                    "additionalProperties": False,
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "knowledge_db_sql_query",
+                "description": "Execute a raw read-only SQL query against Volmarr's personal Knowledge DB (PostgreSQL).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "sql": {"type": "string", "description": "The SELECT query to execute."}
+                    },
+                    "required": ["sql"],
+                    "additionalProperties": False,
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
                 "name": "archival_memory_search",
                 "description": "Search your Archival Vector Memory for relevant information.",
                 "parameters": {
@@ -567,5 +598,95 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
                 output += f"{idx+1}. (Score: {r['score']:.2f}) {r['text']}\n"
             return output
         return "Error: Archival memory not initialized."
+
+    if name == "knowledge_db_semantic_search":
+        query = arguments.get("query")
+        limit = arguments.get("limit", 10)
+        
+        try:
+            import requests
+            import psycopg
+            
+            # 1. Get embedding from Ollama
+            embed_url = "http://gungnir:11434/api/embed"
+            payload = {"model": "nomic-embed-text", "input": query}
+            resp = requests.post(embed_url, json=payload, timeout=10.0)
+            resp.raise_for_status()
+            vector = resp.json().get("embeddings", [[]])[0]
+            if not vector:
+                return "Failed to retrieve embeddings from Ollama."
+                
+            # 2. Connect to PostgreSQL
+            pwd_file = Path.home() / ".pg-knowledge-password"
+            if pwd_file.exists():
+                pwd = pwd_file.read_text().strip()
+            else:
+                pwd = "mtcwauwkGfRVT8u7V6gWh0Qv"
+                
+            conn_str = f"postgresql://volmarr:{pwd}@gungnir:5432/knowledge"
+            
+            # 3. Execute search
+            with psycopg.connect(conn_str) as conn:
+                with conn.cursor() as cur:
+                    sql = """
+                    SELECT c.id, c.text, d.title,
+                           1 - (c.embedding <=> %s::vector) AS similarity
+                    FROM chunks c
+                    JOIN documents d ON c.document_id = d.id
+                    ORDER BY c.embedding <=> %s::vector
+                    LIMIT %s;
+                    """
+                    # Convert vector to string format pgvector expects
+                    vector_str = "[" + ",".join(str(f) for f in vector) + "]"
+                    cur.execute(sql, (vector_str, vector_str, limit))
+                    rows = cur.fetchall()
+                    
+            if not rows:
+                return "No results found in Knowledge DB."
+                
+            output = f"Semantic Search Results for '{query}':\n\n"
+            for row in rows:
+                chunk_id, text, title, sim = row
+                output += f"--- Result (Similarity: {sim:.3f}) ---\nDocument: {title}\nChunk ID: {chunk_id}\n\n{text}\n\n"
+            return output
+        except Exception as e:
+            return f"Knowledge DB semantic search failed: {e}"
+
+    if name == "knowledge_db_sql_query":
+        sql = arguments.get("sql")
+        try:
+            import psycopg
+            pwd_file = Path.home() / ".pg-knowledge-password"
+            if pwd_file.exists():
+                pwd = pwd_file.read_text().strip()
+            else:
+                pwd = "mtcwauwkGfRVT8u7V6gWh0Qv"
+                
+            conn_str = f"postgresql://volmarr:{pwd}@gungnir:5432/knowledge"
+            
+            # Enforce read-only
+            if any(forbidden in sql.upper() for forbidden in ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "GRANT", "REVOKE"]):
+                return "Error: Only read-only SELECT queries are allowed via this tool."
+                
+            with psycopg.connect(conn_str) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql)
+                    try:
+                        rows = cur.fetchall()
+                        colnames = [desc[0] for desc in cur.description] if cur.description else []
+                    except psycopg.ProgrammingError:
+                        return "Query executed successfully, but returned no rows."
+                        
+            if not rows:
+                return "Query returned 0 rows."
+                
+            output = " | ".join(colnames) + "\n"
+            output += "-" * len(output) + "\n"
+            for row in rows:
+                output += " | ".join(str(val) for val in row) + "\n"
+                
+            return truncate_output(output)
+        except Exception as e:
+            return f"Knowledge DB SQL query failed: {e}"
 
     return f"Error: Unknown tool {name}"
