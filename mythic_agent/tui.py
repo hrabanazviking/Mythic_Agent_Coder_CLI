@@ -623,6 +623,7 @@ class MainChatScreen(Screen):
             chat_log.write("  [green]/steer[/green]  - Give the AI a strong steering instruction (system prompt)")
             chat_log.write("  [green]/flirt[/green]  - Flirt with your Viking coder")
             chat_log.write("  [green]/pet[/green]    - Hatch a tiny coding pet")
+            chat_log.write("  [green]/tutorial[/green] - Learn vibe coding, program usage, and language basics")
             chat_log.write("  [green]/quit[/green]   - Leave Valhalla (Exit)")
         elif cmd == "/clear":
             self.app.agent.messages = self.app.agent.messages[:1]
@@ -680,6 +681,16 @@ class MainChatScreen(Screen):
                     self.app.pet_timer.resume()
                 else:
                     self.app.pet_timer = self.set_interval(60.0, self.pet_speak)
+        elif cmd == "/tutorial":
+            from .tutorials import TUTORIALS
+            topic = args.strip().lower()
+            if not topic:
+                topics = ", ".join([f"[bold]{k}[/bold]" for k in TUTORIALS.keys()])
+                chat_log.write(f"\n[bold cyan]📚 Mythic Academy[/bold cyan]\nAvailable tutorials: {topics}\n[dim]Usage: /tutorial <topic>[/dim]")
+            elif topic in TUTORIALS:
+                chat_log.write(Markdown(TUTORIALS[topic]))
+            else:
+                chat_log.write(f"[red]Tutorial '{topic}' not found.[/red] Type /tutorial to see available topics.")
         elif cmd == "/gh":
             if not args:
                 chat_log.write("[red]Usage: /gh <command>[/red]")
