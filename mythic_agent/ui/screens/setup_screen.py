@@ -350,8 +350,15 @@ class SetupScreen(Screen):
         if getattr(self, '_loading_subagent', False):
             return
         try:
-            if event.select.id == "subagent-select" and event.value is not None and event.value != getattr(Select, "BLANK", None):
-                self.load_subagent(int(event.value))
+            val = event.value
+            if event.select.id == "subagent-select" and val is not None and str(val) != "Select.BLANK":
+                if hasattr(val, "value"):  # Handle textual version differences
+                    val = val.value
+                try:
+                    idx = int(val)
+                    self.load_subagent(idx)
+                except ValueError:
+                    pass
         except Exception as e:
             self.app.notify(f"Error handling selection: {str(e)}", severity="error", timeout=5)
 
@@ -376,17 +383,7 @@ class SetupScreen(Screen):
         try:
             if event.input.id == "active-subagent-name" and hasattr(self, 'active_subagent_index'):
                 self.current_subagents[self.active_subagent_index]["name"] = event.value
-                
-                # Update the dropdown label to reflect the new name dynamically
-                select = self.query_one("#subagent-select", Select)
-                options = [(sa["name"], i) for i, sa in enumerate(self.current_subagents)]
-                
-                self._loading_subagent = True
-                select.set_options(options)
-                select.value = self.active_subagent_index
-                self._loading_subagent = False
         except Exception as e:
-            self._loading_subagent = False
             self.app.notify(f"Error handling input: {str(e)}", severity="error", timeout=5)
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
@@ -444,11 +441,13 @@ class SetupScreen(Screen):
                     valid_sub_agents.append(sa)
             self.app.agent.config["sub_agents"] = valid_sub_agents
             
-            if model == getattr(Select, "BLANK", None) or not model:
+            if not model or str(model) == "Select.BLANK":
                 error_msg = self.query_one("#error-msg", Label)
                 error_msg.update("[red]Please explicitly select a model from the dropdown first.[/red]")
                 error_msg.display = True
                 return
+                
+            model = str(model)
                 
             self.app.agent.config["primary_agent_name"] = primary_name
             self.app.agent.config["system_prompt"] = sys_prompt
