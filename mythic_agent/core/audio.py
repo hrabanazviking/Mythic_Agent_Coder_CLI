@@ -105,32 +105,29 @@ class AudioRecorder:
         stt_backend = self.config.get("stt_backend", "whisper")
         
         try:
+            transcript = None
             if stt_backend == "deepgram":
                 deepgram_api_key = self.config.get("deepgram_api_key", "")
-                if not deepgram_api_key:
-                    logging.error("No Deepgram API key found. Cannot transcribe audio.")
-                    return None
-                    
-                import requests
-                url = "https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true"
-                headers = {
-                    "Authorization": f"Token {deepgram_api_key}",
-                    "Content-Type": "audio/wav"
-                }
-                with open(wav_path, "rb") as audio_file:
-                    resp = requests.post(url, headers=headers, data=audio_file)
-                    
-                if resp.status_code == 200:
-                    data = resp.json()
-                    transcript = data.get("results", {}).get("channels", [{}])[0].get("alternatives", [{}])[0].get("transcript", "")
-                    os.remove(wav_path)
-                    return transcript
+                if deepgram_api_key:
+                    import requests
+                    url = "https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true"
+                    headers = {
+                        "Authorization": f"Token {deepgram_api_key}",
+                        "Content-Type": "audio/wav"
+                    }
+                    with open(wav_path, "rb") as audio_file:
+                        resp = requests.post(url, headers=headers, data=audio_file)
+                        
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        transcript = data.get("results", {}).get("channels", [{}])[0].get("alternatives", [{}])[0].get("transcript", "")
+                    else:
+                        logging.error(f"Deepgram STT failed: {resp.status_code} {resp.text}. Falling back to Whisper.")
                 else:
-                    logging.error(f"Deepgram STT failed: {resp.status_code} {resp.text}")
-                    return None
+                    logging.warning("Deepgram API key missing. Falling back to Whisper.")
                     
-            else:
-                # Whisper fallback
+            if not transcript:
+                # Whisper fallback / default
                 api_key = self._get_api_key()
                 if not api_key:
                     logging.error("No OpenAI API key found. Cannot transcribe audio.")
@@ -147,9 +144,10 @@ class AudioRecorder:
                         model="whisper-1", 
                         file=audio_file
                     )
-                    
-                os.remove(wav_path)
-                return transcription.text
+                transcript = transcription.text
+                
+            os.remove(wav_path)
+            return transcript
 
         except Exception as e:
             logging.error(f"Transcription failed: {e}")
