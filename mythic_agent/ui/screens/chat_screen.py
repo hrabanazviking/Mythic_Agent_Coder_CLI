@@ -115,7 +115,7 @@ class MainChatScreen(Screen):
     """
     
     BINDINGS = [
-        Binding("ctrl+c", "quit", "Quit", show=True),
+        Binding("ctrl+q", "quit", "Quit", show=True),
         Binding("f2", "setup", "Setup", show=True),
         Binding("f3", "select_agent", "Select Agent", show=True),
     ]
@@ -144,6 +144,7 @@ class MainChatScreen(Screen):
                 yield Label("[green]/test[/green]    - Run tests")
                 yield Label("[green]/undo[/green]    - Undo last file edit")
                 yield Label("[green]/doctor[/green]  - Auto-fix issues")
+                yield Label("[green]/flirt[/green]   - Flirt with the Agent")
                 yield Label("[green]/btw[/green]    - Add silent context")
                 yield Label("[green]/steer[/green]  - Steer the AI")
                 yield Label("[green]/quit[/green]   - Exit")
@@ -158,6 +159,7 @@ class MainChatScreen(Screen):
                         yield TextualImage(None, id="agent-image")
                 else:
                     yield Static("", id="agent-image")
+                yield Button("GitHub Repo", id="github-repo-btn", variant="primary")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -237,6 +239,10 @@ class MainChatScreen(Screen):
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "model-status-btn":
             self.action_setup()
+        elif event.button.id == "github-repo-btn":
+            import webbrowser
+            webbrowser.open("https://github.com/hrabanazviking/Mythic_Agent_Coder_CLI")
+            self._write_to_log("[dim]Opening GitHub repository in browser...[/dim]", dim=True)
 
     def action_setup(self) -> None:
         self.app.switch_screen("setup_wizard")
@@ -356,6 +362,7 @@ class MainChatScreen(Screen):
             chat_log.write("  [green]/test[/green]    - Run tests natively")
             chat_log.write("  [green]/undo[/green]    - Roll back the last agent file edit (Git reset)")
             chat_log.write("  [green]/doctor[/green]  - Auto-fix a command output")
+            chat_log.write("  [green]/flirt[/green]   - Flirt with the Agent")
             chat_log.write("  [green]/btw[/green]    - Add context without forcing an immediate response")
             chat_log.write("  [green]/steer[/green]  - Give the AI a strong steering instruction (system prompt)")
             chat_log.write("  [green]/quit[/green]   - Leave Valhalla (Exit)")
@@ -381,6 +388,9 @@ class MainChatScreen(Screen):
             else:
                 SecureAPI.publish_chat_request(f"USER STEERING INSTRUCTION (Priority): {args}")
                 chat_log.write(f"[bold yellow]Steering instruction applied: {args}[/bold yellow]")
+        elif cmd == "/flirt":
+            SecureAPI.publish_chat_request(f"*flirts with you* {args}")
+            chat_log.write(f"[magenta]*Flirts...*[/magenta] {args}")
         elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr"]:
             SecureAPI.publish_system_command(cmd, args)
         else:
