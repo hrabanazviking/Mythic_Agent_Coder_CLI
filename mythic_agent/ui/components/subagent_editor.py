@@ -8,6 +8,31 @@ from mythic_agent.constants import DEFAULT_SUBAGENTS
 class SubagentEditorWidget(Widget):
     """A massively robust, self-contained widget for editing subagents."""
     
+    CSS = """
+    SubagentEditorWidget {
+        height: auto;
+    }
+    #subagents-header {
+        height: 3;
+        margin-top: 1;
+        margin-bottom: 1;
+    }
+    #subagent-editor {
+        border: heavy $primary;
+        padding: 1;
+        margin-bottom: 1;
+        height: auto;
+    }
+    #subagent-buttons {
+        height: 3;
+        margin-bottom: 1;
+    }
+    #active-subagent-prompt {
+        height: 15;
+        border: solid $accent;
+    }
+    """
+    
     current_subagents = []
     active_subagent_index = 0
     _loading_ui = False
