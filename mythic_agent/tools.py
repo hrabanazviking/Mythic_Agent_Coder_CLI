@@ -152,6 +152,10 @@ def get_agent_tools() -> list[dict[str, Any]]:
 def prompt_approval_sync(command: str, tui_app) -> bool:
     if not tui_app:
         return True # Fallback if UI not connected
+        
+    if tui_app.agent.config.get("auto_accept_permissions", False):
+        return True
+        
     import threading
     event = threading.Event()
     result = {"approved": False}
