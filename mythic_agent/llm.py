@@ -73,6 +73,33 @@ class Agent:
             {"role": "system", "content": system_prompt}
         ]
         
+        if self.config.get("mythic_engineering_mode"):
+            self.inject_mythic_agents()
+            
+    def inject_mythic_agents(self) -> None:
+        """Inject the 6 core Mythic Engineering sub-agents if they don't exist."""
+        mythic_agents = [
+            {"name": "Architect", "prompt": "You are the Architect. You design the overall software architecture, file structure, and technical vision. Always plan before coding. Enforce invariants."},
+            {"name": "Skald", "prompt": "You are the Skald. You act as the Project Manager and communicator, summarizing status, maintaining living memory (MD Protocol), and keeping the team aligned."},
+            {"name": "Forge_Worker", "prompt": "You are the Forge Worker. You write robust, optimized, and secure code based on the Architect's designs. You build the components."},
+            {"name": "Auditor", "prompt": "You are the Auditor. You review code for security vulnerabilities, memory leaks, edge cases, and compliance with the Architect's invariants."},
+            {"name": "Cartographer", "prompt": "You are the Cartographer. You map out the system, dependencies, and external APIs. You handle deep codebase search and context gathering."},
+            {"name": "Scribe", "prompt": "You are the Scribe. You write beautiful, comprehensive documentation, API references, and inline comments."}
+        ]
+        
+        current_agents = self.config.get("sub_agents", [])
+        existing_names = {a.get("name") for a in current_agents}
+        
+        added = False
+        for agent in mythic_agents:
+            if agent["name"] not in existing_names:
+                current_agents.append(agent)
+                added = True
+                
+        if added:
+            self.config["sub_agents"] = current_agents
+            self.save_config()
+        
     def save_config(self) -> None:
         save_config(self.config)
         
