@@ -22,7 +22,8 @@ dependencies = [
     "requests>=2.0.0",
     "sounddevice>=0.5.1",
     "numpy>=2.0.0",
-    "scipy>=1.14.0"
+    "scipy>=1.14.0",
+    "piper-tts>=1.2.0"
 ]
 
 [project.scripts]

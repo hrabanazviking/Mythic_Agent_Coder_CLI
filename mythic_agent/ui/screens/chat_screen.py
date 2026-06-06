@@ -140,6 +140,7 @@ class MainChatScreen(Screen):
         Binding("f2", "setup", "Setup", show=True),
         Binding("f3", "select_agent", "Select Agent", show=True),
         Binding("f4", "toggle_voice", "Voice Mode", show=True),
+        Binding("f5", "toggle_mute", "Mute TTS", show=True),
         Binding("escape", "exit_ghost", "Exit Ghost Session", show=True),
     ]
 
@@ -217,6 +218,7 @@ class MainChatScreen(Screen):
         subscribe("agent_chat_chunk", self._on_chat_chunk)
         subscribe("agent_chat_tool", self._on_chat_tool)
         subscribe("agent_chat_complete", self._on_chat_complete)
+        subscribe("agent_chat_spoken", self._on_agent_chat_spoken)
         subscribe("agent_chat_error", self._on_chat_error)
         subscribe("agent_token_update", self._on_token_update)
         subscribe("agent_status_changed", self._on_agent_status_changed)
@@ -225,6 +227,14 @@ class MainChatScreen(Screen):
         # Load initial agent image
         primary_name = config.get("primary_agent_name", "Primary")
         self.update_agent_image(primary_name)
+        
+        # Start TTS manager
+        from mythic_agent.core.tts import tts_manager
+        tts_manager.start()
+
+    def _on_agent_chat_spoken(self, agent_name: str, text: str):
+        from mythic_agent.core.tts import tts_manager
+        tts_manager.speak(agent_name, text)
 
     def _on_chat_chunk(self, agent_name: str, text: str):
         self.app.call_from_thread(self._write_to_log, text, markdown=True)
@@ -717,6 +727,15 @@ class MainChatScreen(Screen):
             else:
                 prompt_label.update(" [bold yellow]ᛟ❯[/bold yellow] ")
                 chat_log.write("[red]No audio captured.[/red]")
+
+    def action_toggle_mute(self) -> None:
+        from mythic_agent.core.tts import tts_manager
+        is_muted = tts_manager.toggle_mute()
+        chat_log = self.query_one("#chat-log", RichLog)
+        if is_muted:
+            chat_log.write("[bold yellow]TTS Muted (F5 to unmute).[/bold yellow]")
+        else:
+            chat_log.write("[bold green]TTS Unmuted.[/bold green]")
 
     def on_unmount(self) -> None:
         if hasattr(self.app, "pet_timer"):

@@ -1,0 +1,174 @@
+import os
+import re
+import queue
+import threading
+import logging
+from pathlib import Path
+from typing import Dict, Optional
+
+try:
+    import requests
+    import sounddevice as sd
+    import numpy as np
+    from piper import PiperVoice
+    HAS_TTS = True
+except ImportError:
+    HAS_TTS = False
+
+class TTSManager:
+    def __init__(self):
+        self.queue = queue.Queue()
+        self.voices: Dict[str, PiperVoice] = {}
+        self.voice_dir = Path.home() / ".local" / "share" / "mythic-agent" / "voices"
+        self.voice_dir.mkdir(parents=True, exist_ok=True)
+        self.is_running = False
+        self.thread: Optional[threading.Thread] = None
+        self.is_muted = False
+        
+        # Primary agent
+        self.primary_voice = "en_US-lessac-high"
+        # Subagent pool
+        self.subagent_voices = [
+            "en_GB-jenny_dioco-medium",
+            "en_US-ryan-high",
+            "en_US-joe-medium",
+            "en_US-amy-medium",
+            "en_GB-alba-medium"
+        ]
+        self.agent_voice_map = {"Primary": self.primary_voice}
+        self.next_subagent_idx = 0
+
+    def start(self):
+        if not HAS_TTS:
+            logging.error("Piper TTS dependencies not installed. TTS disabled.")
+            return
+            
+        if self.is_running:
+            return
+            
+        self.is_running = True
+        self.thread = threading.Thread(target=self._worker_loop, daemon=True)
+        self.thread.start()
+
+    def stop(self):
+        self.is_running = False
+        if self.thread:
+            self.queue.put(None) # Sentinel
+            self.thread.join(timeout=2.0)
+
+    def toggle_mute(self) -> bool:
+        self.is_muted = not self.is_muted
+        if self.is_muted:
+            sd.stop() # stop any currently playing audio immediately
+        return self.is_muted
+
+    def speak(self, agent_name: str, text: str):
+        if not self.is_running or self.is_muted:
+            return
+        self.queue.put((agent_name, text))
+
+    def _get_voice_for_agent(self, agent_name: str) -> str:
+        if agent_name in self.agent_voice_map:
+            return self.agent_voice_map[agent_name]
+            
+        # Assign a new voice from the pool
+        voice = self.subagent_voices[self.next_subagent_idx % len(self.subagent_voices)]
+        self.next_subagent_idx += 1
+        self.agent_voice_map[agent_name] = voice
+        return voice
+
+    def _download_voice_if_missing(self, voice_name: str) -> Path:
+        model_path = self.voice_dir / f"{voice_name}.onnx"
+        json_path = self.voice_dir / f"{voice_name}.onnx.json"
+        
+        if not model_path.exists() or not json_path.exists():
+            logging.info(f"Downloading Piper TTS voice: {voice_name}")
+            
+            # HuggingFace piper-voices structure
+            # e.g., en_US-lessac-high -> en/en_US/lessac/high/en_US-lessac-high.onnx
+            parts = voice_name.split("-")
+            lang = parts[0].split("_")[0] # en
+            locale = parts[0] # en_US
+            speaker = parts[1] # lessac
+            quality = parts[2] # high
+            
+            base_url = f"https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/{lang}/{locale}/{speaker}/{quality}/{voice_name}"
+            
+            for ext in [".onnx", ".onnx.json"]:
+                url = base_url + ext
+                dest = self.voice_dir / f"{voice_name}{ext}"
+                try:
+                    resp = requests.get(url, stream=True)
+                    resp.raise_for_status()
+                    with open(dest, "wb") as f:
+                        for chunk in resp.iter_content(chunk_size=8192):
+                            f.write(chunk)
+                except Exception as e:
+                    logging.error(f"Failed to download voice {voice_name}{ext} from {url}: {e}")
+                    raise
+                    
+        return model_path
+
+    def _get_piper_voice(self, voice_name: str) -> PiperVoice:
+        if voice_name in self.voices:
+            return self.voices[voice_name]
+            
+        model_path = self._download_voice_if_missing(voice_name)
+        voice = PiperVoice.load(str(model_path))
+        self.voices[voice_name] = voice
+        return voice
+
+    def _clean_text(self, text: str) -> str:
+        # Remove bold/italic markdown formatting and code blocks
+        text = re.sub(r"```.*?```", " Code block omitted. ", text, flags=re.DOTALL)
+        text = re.sub(r"`.*?`", "", text)
+        text = re.sub(r"\*\*|\*|__|_", "", text)
+        text = re.sub(r"\[(.*?)\]\(.*?\)", r"\1", text) # links
+        text = re.sub(r"\[.*?\]", "", text) # removing textual tags like [bold red]
+        text = text.replace("#", "").replace(">", "").replace("-", " ")
+        return text.strip()
+
+    def _worker_loop(self):
+        while self.is_running:
+            try:
+                item = self.queue.get(timeout=0.5)
+                if item is None:
+                    continue
+                    
+                agent_name, raw_text = item
+                if self.is_muted:
+                    continue
+                    
+                clean_text = self._clean_text(raw_text)
+                if not clean_text:
+                    continue
+                    
+                voice_name = self._get_voice_for_agent(agent_name)
+                
+                try:
+                    voice = self._get_piper_voice(voice_name)
+                    
+                    # Generate audio stream
+                    audio_stream = voice.synthesize_stream_raw(clean_text)
+                    
+                    # Piper synthesizes in chunks of bytes. We can accumulate or play streamingly.
+                    # Playing streamingly reduces time-to-first-audio.
+                    # Since Piper is fast, accumulating is also fine for short responses.
+                    audio_bytes = b"".join(audio_stream)
+                    
+                    if audio_bytes and not self.is_muted:
+                        # Piper outputs 16-bit mono PCM
+                        audio_array = np.frombuffer(audio_bytes, dtype=np.int16)
+                        sample_rate = voice.config.sample_rate
+                        
+                        sd.play(audio_array, samplerate=sample_rate)
+                        sd.wait() # Block thread until done
+                        
+                except Exception as e:
+                    logging.error(f"TTS Synthesis error for agent {agent_name}: {e}")
+            except queue.Empty:
+                pass
+            except Exception as e:
+                logging.error(f"TTS Worker Error: {e}")
+
+tts_manager = TTSManager()
