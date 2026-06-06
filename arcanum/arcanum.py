@@ -1263,8 +1263,7 @@ def render_card_mini(card):
 
 
 
-# ═══════════════════════════════════════════════════════════════
-#  OPENROUTER AI INTEGRATION
+
 # ═══════════════════════════════════════════════════════════════
 
 def ai_reading(spread_name, cards_with_positions, question, api_key, model="openai/gpt-4o"):
