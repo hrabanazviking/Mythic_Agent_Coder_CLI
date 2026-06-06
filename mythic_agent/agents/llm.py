@@ -341,7 +341,16 @@ class AgentManager:
         subscribe("ui_chat_request", self.handle_chat_request)
         subscribe("ui_ghost_chat_request", self.handle_ghost_chat_request)
         subscribe("config_reload_requested", self._on_config_reload)
+        subscribe("system_command_executed", self._on_system_command)
         
+    def _on_system_command(self, command: str, args: str):
+        if command == "/stop":
+            for name, agent in list(AGENT_REGISTRY.items()):
+                agent.inbox.put(None)
+                publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[bold red]✦ Terminating agent {name}...[/bold red]\n")
+                if "[Ghost]" in name:
+                    del AGENT_REGISTRY[name]
+                    
     def _on_config_reload(self, config: dict):
         for name, agent in AGENT_REGISTRY.items():
             agent.config = config

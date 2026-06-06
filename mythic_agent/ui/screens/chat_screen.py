@@ -169,6 +169,7 @@ class MainChatScreen(Screen):
                 yield Label("[green]/flirt[/green]   - Flirt with the Agent")
                 yield Label("[green]/btw[/green]    - Add silent context")
                 yield Label("[green]/steer[/green]  - Steer the AI")
+                yield Label("[green]/stop[/green]   - Stop all agents")
                 yield Label("[green]/tutorial[/green] - Vibe coding guide")
                 yield Label("[green]/quit[/green]   - Exit")
                 yield Label("\n[dim]Press F2 to quickly access setup.[/dim]")
@@ -385,7 +386,14 @@ class MainChatScreen(Screen):
             display_name = agent_name
             if agent_name == "Primary":
                 display_name = config.get("primary_agent_name", "Primary Agent")
-            chat_log.write(f"\n[bold cyan]⚔️ You are now speaking directly with {display_name}![/bold cyan]")
+                
+            if "[Ghost]" in agent_name:
+                chat_log.write(f"\n[bold magenta]✦ You have entered a subagent Ghost Session with {display_name.replace('[Ghost]', '').strip()}.[/bold magenta]")
+                chat_log.write("[bold yellow]This is a temporary clone of the working agent. It is answering your messages instantly without interrupting its main workflow.[/bold yellow]")
+                chat_log.write("[bold white]→ Press ESC to exit this subagent and return to the original agent.[/bold white]\n")
+            else:
+                chat_log.write(f"\n[bold cyan]⚔️ You are now speaking directly with {display_name}![/bold cyan]")
+                
             self.update_agent_image(display_name)
 
     def update_agent_image(self, agent_name: str) -> None:
@@ -480,21 +488,53 @@ class MainChatScreen(Screen):
         elif cmd == "/setup":
             self.action_setup()
         elif cmd == "/help":
-            chat_log.write("[bold cyan]Runic Commands:[/bold cyan]")
-            chat_log.write("  [green]/setup[/green]  - Open Setup Wizard (F2)")
-            chat_log.write("  [green]/add[/green]    - Explicitly add a file to the LLM context")
-            chat_log.write("  [green]/commit[/green] - Auto-commit and push changes to GitHub")
-            chat_log.write("  [green]/issue[/green]  - Create a GitHub issue")
-            chat_log.write("  [green]/pr[/green]     - Create a GitHub Pull Request")
-            chat_log.write("  [green]/status[/green] - Check Git status")
-            chat_log.write("  [green]/gh[/green]      - Run native GitHub CLI command")
-            chat_log.write("  [green]/test[/green]    - Run tests natively")
-            chat_log.write("  [green]/undo[/green]    - Roll back the last agent file edit (Git reset)")
-            chat_log.write("  [green]/doctor[/green]  - Auto-fix a command output")
-            chat_log.write("  [green]/flirt[/green]   - Flirt with the Agent")
-            chat_log.write("  [green]/btw[/green]    - Add context without forcing an immediate response")
-            chat_log.write("  [green]/steer[/green]  - Give the AI a strong steering instruction (system prompt)")
-            chat_log.write("  [green]/quit[/green]   - Leave Valhalla (Exit)")
+            if not args:
+                chat_log.write("[bold cyan]Runic Commands (Type /help <cmd> for details):[/bold cyan]")
+                chat_log.write("  [green]/setup[/green]    - Open Setup Wizard (F2)")
+                chat_log.write("  [green]/add[/green]      - Add a file to the LLM context")
+                chat_log.write("  [green]/commit[/green]   - Commit and push to GitHub")
+                chat_log.write("  [green]/issue[/green]    - Create a GitHub issue")
+                chat_log.write("  [green]/pr[/green]       - Create a GitHub PR")
+                chat_log.write("  [green]/status[/green]   - Check Git status")
+                chat_log.write("  [green]/gh[/green]        - Run GitHub CLI")
+                chat_log.write("  [green]/test[/green]      - Run tests")
+                chat_log.write("  [green]/undo[/green]      - Roll back last file edit")
+                chat_log.write("  [green]/doctor[/green]    - Auto-fix a command output")
+                chat_log.write("  [green]/flirt[/green]     - Flirt with the Agent")
+                chat_log.write("  [green]/btw[/green]      - Add silent context to an agent")
+                chat_log.write("  [green]/steer[/green]    - Give the AI a strong steering instruction")
+                chat_log.write("  [green]/stop[/green]     - Stop all currently active agents")
+                chat_log.write("  [green]/tutorial[/green] - Vibe coding guide")
+                chat_log.write("  [green]/quit[/green]     - Leave Valhalla (Exit)")
+            else:
+                target_cmd = args.strip().lower()
+                if not target_cmd.startswith("/"):
+                    target_cmd = "/" + target_cmd
+                    
+                help_dict = {
+                    "/setup": "Opens the Setup Wizard allowing you to configure APIs, subagents, and preferences.",
+                    "/add": "Usage: /add <file_path>\nReads the file and explicitly adds its contents to the LLM's working memory.",
+                    "/commit": "Usage: /commit [message]\nAutomatically stages all changes, generates a commit message if none provided, and pushes to GitHub.",
+                    "/issue": "Usage: /issue <title>\nCreates a new GitHub issue using the gh CLI tool.",
+                    "/pr": "Usage: /pr\nCreates a Pull Request using the gh CLI tool.",
+                    "/status": "Usage: /status\nShows current git status and recent commits.",
+                    "/gh": "Usage: /gh <args>\nRuns arbitrary native GitHub CLI commands.",
+                    "/test": "Usage: /test\nRuns pytest natively in the repository.",
+                    "/undo": "Usage: /undo\nRolls back the last file edit made by the agent by running `git reset --hard` and checking out the last stable state.",
+                    "/doctor": "Usage: /doctor\nExamines the output of the last failed command and automatically generates a fix.",
+                    "/flirt": "Usage: /flirt <message>\nSpawns a temporary Ghost session to flirt with the current agent. Does not interrupt the agent's main workflow.",
+                    "/btw": "Usage: /btw <message>\nAdds context or notes to the agent via a Ghost session without forcing an immediate context break. Useful for side-chatter or corrections while it thinks.",
+                    "/steer": "Usage: /steer <instruction>\nDirectly alters the ongoing task of the current active agent. Will immediately be appended to the active agent's prompt.",
+                    "/stop": "Usage: /stop\nSends a kill signal to all currently active agents and subagents. Clears the background task queues.",
+                    "/tutorial": "Usage: /tutorial\nDisplays a comprehensive guide to Vibe Coding and agent management.",
+                    "/quit": "Usage: /quit\nImmediately terminates the Mythic Agent CLI interface."
+                }
+                
+                if target_cmd in help_dict:
+                    chat_log.write(f"\n[bold cyan]Help for {target_cmd}:[/bold cyan]")
+                    chat_log.write(help_dict[target_cmd])
+                else:
+                    chat_log.write(f"[red]No detailed help available for {target_cmd}.[/red]")
         elif cmd == "/add":
             if not args:
                 chat_log.write("[red]Usage: /add <file_path>[/red]")
@@ -528,7 +568,7 @@ class MainChatScreen(Screen):
                 self.on_agent_selected(f"[Ghost] {active}")
             SecureAPI.publish_ghost_chat_request(f"*flirts with you* {args}", target_agent=active)
             chat_log.write(f"[magenta]*Flirts with ghost agent...*[/magenta] {args}")
-        elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr"]:
+        elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr", "/stop"]:
             SecureAPI.publish_system_command(cmd, args)
         else:
             chat_log.write(f"[red]Unknown command:[/red] {cmd}")
