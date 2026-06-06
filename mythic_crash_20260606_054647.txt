@@ -1,0 +1,19 @@
+=== MYTHIC AGENT CRASH REPORT ===
+Date: 2026-06-06T05:46:47.510936
+Python Version: 3.14.4 (main, Apr  8 2026, 04:02:31) [GCC 15.2.0]
+Platform: Linux-7.0.0-15-generic-x86_64-with-glibc2.43
+
+=== TRACEBACK ===
+Traceback (most recent call last):
+  File "/home/volmarr/.gemini/antigravity/scratch/mythic-agent/mythic_agent/cli.py", line 23, in main
+    engine.initialize()
+    ~~~~~~~~~~~~~~~~~^^
+  File "/home/volmarr/.gemini/antigravity/scratch/mythic-agent/mythic_agent/core/engine.py", line 45, in initialize
+    primary_agent = Agent(name="Primary")
+  File "/home/volmarr/.gemini/antigravity/scratch/mythic-agent/mythic_agent/agents/llm.py", line 38, in __init__
+    self.rebuild_system_prompt()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/volmarr/.gemini/antigravity/scratch/mythic-agent/mythic_agent/agents/llm.py", line 81, in rebuild_system_prompt
+    with self._lock:
+         ^^^^^^^^^^
+AttributeError: 'Agent' object has no attribute '_lock'

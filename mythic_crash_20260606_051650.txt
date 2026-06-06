@@ -1,0 +1,57 @@
+=== MYTHIC AGENT CRASH REPORT ===
+Date: 2026-06-06T05:16:50.254280
+Python Version: 3.14.4 (main, Apr  8 2026, 04:02:31) [GCC 15.2.0]
+Platform: Linux-7.0.0-15-generic-x86_64-with-glibc2.43
+
+=== TRACEBACK ===
+Traceback (most recent call last):
+  File "/home/volmarr/.gemini/antigravity/scratch/mythic-agent/mythic_agent/cli.py", line 25, in main
+    app.run()
+    ~~~~~~~^^
+  File "/home/volmarr/.gemini/antigravity/scratch/mythic-agent/.venv/lib/python3.14/site-packages/textual/app.py", line 2350, in run
+    return asyncio.run(run_app())
+           ~~~~~~~~~~~^^^^^^^^^^^
+  File "/usr/lib/python3.14/asyncio/runners.py", line 204, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.14/asyncio/runners.py", line 127, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.14/asyncio/base_events.py", line 719, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "/home/volmarr/.gemini/antigravity/scratch/mythic-agent/.venv/lib/python3.14/site-packages/textual/app.py", line 2336, in run_app
+    return await self.run_async(
+           ^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "/home/volmarr/.gemini/antigravity/scratch/mythic-agent/.venv/lib/python3.14/site-packages/textual/app.py", line 2300, in run_async
+    await asyncio.shield(app._shutdown())
+  File "/home/volmarr/.gemini/antigravity/scratch/mythic-agent/.venv/lib/python3.14/site-packages/textual/app.py", line 3744, in _shutdown
+    await self._close_all()
+  File "/home/volmarr/.gemini/antigravity/scratch/mythic-agent/.venv/lib/python3.14/site-packages/textual/app.py", line 3726, in _close_all
+    await self._prune(stack_screen)
+  File "/home/volmarr/.gemini/antigravity/scratch/mythic-agent/.venv/lib/python3.14/site-packages/textual/await_remove.py", line 43, in await_prune
+    await gather(*tasks)
+  File "/home/volmarr/.gemini/antigravity/scratch/mythic-agent/.venv/lib/python3.14/site-packages/textual/message_pump.py", line 582, in _process_messages
+    await self._message_loop_exit()
+  File "/home/volmarr/.gemini/antigravity/scratch/mythic-agent/.venv/lib/python3.14/site-packages/textual/screen.py", line 1303, in _message_loop_exit
+    await super()._message_loop_exit()
+  File "/home/volmarr/.gemini/antigravity/scratch/mythic-agent/.venv/lib/python3.14/site-packages/textual/widget.py", line 4525, in _message_loop_exit
+    await self._dispatch_message(events.Unmount())
+  File "/home/volmarr/.gemini/antigravity/scratch/mythic-agent/.venv/lib/python3.14/site-packages/textual/message_pump.py", line 727, in _dispatch_message
+    await self.on_event(message)
+  File "/home/volmarr/.gemini/antigravity/scratch/mythic-agent/.venv/lib/python3.14/site-packages/textual/message_pump.py", line 808, in on_event
+    await self._on_message(event)
+  File "/home/volmarr/.gemini/antigravity/scratch/mythic-agent/.venv/lib/python3.14/site-packages/textual/message_pump.py", line 829, in _on_message
+    await invoke(method, message)
+  File "/home/volmarr/.gemini/antigravity/scratch/mythic-agent/.venv/lib/python3.14/site-packages/textual/_callback.py", line 96, in invoke
+    return await _invoke(callback, *params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/volmarr/.gemini/antigravity/scratch/mythic-agent/.venv/lib/python3.14/site-packages/textual/_callback.py", line 56, in _invoke
+    result = callback(*params[:parameter_count])
+  File "/home/volmarr/.gemini/antigravity/scratch/mythic-agent/mythic_agent/ui/screens/chat_screen.py", line 411, in on_unmount
+    self.app.pet_timer.stop()
+    ^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'stop'

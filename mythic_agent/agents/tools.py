@@ -236,6 +236,11 @@ def auto_git_commit(root_path: Path, file_path: Path, message: str) -> None:
         import logging
         logging.exception(f"auto_git_commit failed: {e}")
 
+def truncate_output(output: str, max_length: int = 20000) -> str:
+    if len(output) > max_length:
+        return output[:max_length] + f"\n\n... [TRUNCATED: Output exceeded {max_length} characters]"
+    return output
+
 def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None = None, tui_app: Any = None, agent: Any = None) -> str:
     root_path = project_root if project_root is not None else Path.cwd()
     if agent:
@@ -244,7 +249,7 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
     if name == "read_file":
         path = root_path / arguments.get("path", "")
         try:
-            return path.read_text(encoding="utf-8")
+            return truncate_output(path.read_text(encoding="utf-8"))
         except Exception as exc:
             return f"Failed to read file: {exc}"
             
@@ -270,7 +275,7 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
                 command, shell=True, cwd=str(root_path),  # nosec B602
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
             )
-            return result.stdout or f"Command executed with exit code {result.returncode}"
+            return truncate_output(result.stdout or f"Command executed with exit code {result.returncode}")
         except Exception as exc:
             return f"Command failed: {exc}"
             
@@ -321,7 +326,7 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
                                 results.append(f"{p.relative_to(root_path)}:{i}:{line.strip()}")
                     except UnicodeDecodeError:
                         pass
-            return "\n".join(results) if results else "No matches found."
+            return truncate_output("\n".join(results) if results else "No matches found.")
         except Exception as exc:
             return f"Search failed: {exc}"
             
@@ -344,7 +349,7 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                 env=env
             )
-            return result.stdout or f"GitHub command executed with exit code {result.returncode}"
+            return truncate_output(result.stdout or f"GitHub command executed with exit code {result.returncode}")
         except Exception as exc:
             return f"GitHub command failed: {exc}"
 
@@ -423,15 +428,20 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
         from .llm import AGENT_REGISTRY, agent_manager
         from ..core.secure_api import publish_sync
         
-        if recipient not in AGENT_REGISTRY:
+        target_agent = None
+        if recipient.lower() == "primary":
+            # Primary handles messages via the TUI event loop, not the daemon thread
+            pass
+        elif recipient not in AGENT_REGISTRY:
             target_agent = agent_manager.spawn_subagent(recipient, root_path)
             if not target_agent:
                 return f"Error: Agent {recipient} not found or not active."
         else:
             target_agent = AGENT_REGISTRY[recipient]
             
-        # Push message directly to their inbox
-        target_agent.inbox.put(f"Message from {sender}:\n{message}")
+        # Push message directly to their inbox if they are a subagent
+        if target_agent and hasattr(target_agent, "inbox"):
+            target_agent.inbox.put(f"Message from {sender}:\n{message}")
         
         publish_sync("subagent_message_received", sender=sender, recipient=recipient, message=message)
             

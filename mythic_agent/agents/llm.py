@@ -171,7 +171,14 @@ class Agent:
             def print_tool(text: str):
                 publish_sync("agent_chat_tool", agent_name=self.name, text=text)
             
+            internal_loops = 0
             while True:
+                internal_loops += 1
+                if internal_loops > 15:
+                    print_chunk("\n[bold red][!] Infinite tool loop detected. Forcing break.[/bold red]")
+                    self.messages.append({"role": "system", "content": "Error: Maximum internal tool loops exceeded. You must stop using tools and reply to the user directly."})
+                    break
+
                 max_retries = 10
                 retry_count = 0
                 response = None
@@ -182,7 +189,8 @@ class Agent:
                             model=self.config.get("model", config_manager.DEFAULT_MODEL),
                             messages=self.messages,
                             tools=get_agent_tools(),
-                            stream=False
+                            stream=False,
+                            timeout=120.0
                         )
                         break
                     except Exception as e:
@@ -213,26 +221,28 @@ class Agent:
                         args_str = tool_call.function.arguments
                         try:
                             args = json.loads(args_str)
-                        except json.JSONDecodeError:
-                            args = {}
                             
-                        logging.info(f"Tool executing: {name}({args})")
-                        
-                        if name == "write_file":
-                            file_path = args.get("path", "unknown")
-                            target_file = (self.project_root / file_path) if self.project_root else Path.cwd() / file_path
-                            if target_file.exists():
-                                print_tool(f"\n[bold yellow][~] Edited {file_path}[/bold yellow]")
+                            logging.info(f"Tool executing: {name}({args})")
+                            
+                            if name == "write_file":
+                                file_path = args.get("path", "unknown")
+                                target_file = (self.project_root / file_path) if self.project_root else Path.cwd() / file_path
+                                if target_file.exists():
+                                    print_tool(f"\n[bold yellow][~] Edited {file_path}[/bold yellow]")
+                                else:
+                                    print_tool(f"\n[bold green][+] Created {file_path}[/bold green]")
+                            elif name == "read_file":
+                                file_path = args.get("path", "unknown")
+                                print_tool(f"\n> Reading {file_path} ...")
                             else:
-                                print_tool(f"\n[bold green][+] Created {file_path}[/bold green]")
-                        elif name == "read_file":
-                            file_path = args.get("path", "unknown")
-                            print_tool(f"\n> Reading {file_path} ...")
-                        else:
-                            print_tool(f"\n> Executing {name} ...")
+                                print_tool(f"\n> Executing {name} ...")
+                                
+                            # Notice we pass agent=self to enable recursion tracking
+                            result = execute_tool(name, args, self.project_root, None, agent=self)
+                        except json.JSONDecodeError as je:
+                            logging.error(f"JSONDecodeError parsing tool args: {je}")
+                            result = f"Error parsing JSON arguments for tool {name}: {je}. Please fix your JSON syntax and try again."
                             
-                        # Notice we pass agent=self to enable recursion tracking
-                        result = execute_tool(name, args, self.project_root, None, agent=self)
                         logging.info(f"Tool result: {result}")
                         
                         self.messages.append({
@@ -295,19 +305,26 @@ class AgentManager:
     def _run_agent_loop(self, agent: "Agent"):
         while True:
             try:
-                prompt = agent.inbox.get()
-                if prompt is None:
-                    break
-                    
-                publish_sync("agent_status_changed", agent_name=agent.name, is_active=True)
-                agent.chat(prompt)
-                publish_sync("agent_chat_complete", agent_name=agent.name)
-            except Exception as e:
-                logging.exception(f"Error in chat execution for {agent.name}: {e}")
-                publish_sync("agent_chat_error", agent_name=agent.name, error=str(e))
-            finally:
-                publish_sync("agent_status_changed", agent_name=agent.name, is_active=False)
-                agent.inbox.task_done()
+                while True:
+                    try:
+                        prompt = agent.inbox.get()
+                        if prompt is None:
+                            return # Cleanly exit thread
+                            
+                        publish_sync("agent_status_changed", agent_name=agent.name, is_active=True)
+                        agent.chat(prompt)
+                        publish_sync("agent_chat_complete", agent_name=agent.name)
+                    except Exception as e:
+                        logging.exception(f"Error in chat execution for {agent.name}: {e}")
+                        publish_sync("agent_chat_error", agent_name=agent.name, error=str(e))
+                    finally:
+                        publish_sync("agent_status_changed", agent_name=agent.name, is_active=False)
+                        if hasattr(agent.inbox, "task_done"):
+                            agent.inbox.task_done()
+            except Exception as outer_e:
+                logging.critical(f"FATAL THREAD ERROR in {agent.name}: {outer_e}. Resurrecting thread...")
+                import time
+                time.sleep(2)
 
 # Instantiate the singleton router
 agent_manager = AgentManager()

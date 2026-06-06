@@ -15,9 +15,17 @@ from mythic_agent.constants import DEFAULT_GLOBAL_RULES, DEFAULT_PRIMARY_NAME, D
 import random
 
 try:
+    from PIL import Image
+    def get_flattened_data(self):
+        return self.getdata()
+    if not hasattr(Image.Image, "get_flattened_data"):
+        Image.Image.get_flattened_data = get_flattened_data
+        
     from textual_image.widget import Image as TextualImage
     HAS_IMAGE_WIDGET = True
-except Exception:
+except Exception as e:
+    import logging
+    logging.error(f"Failed to load textual_image: {e}")
     HAS_IMAGE_WIDGET = False
 
 from textual import events
@@ -331,8 +339,8 @@ class MainChatScreen(Screen):
             return
 
         matches = []
-        for f in chars_dir.glob(f"{prefix}*.*"):
-            if f.suffix.lower() in [".jpg", ".jpeg", ".png"]:
+        for f in chars_dir.glob(f"{prefix}*"):
+            if f.suffix.lower() in [".jpg", ".jpeg", ".png", ".gif"]:
                 matches.append(f)
 
         if not matches:
