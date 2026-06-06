@@ -190,10 +190,18 @@ class SubAgentForm(Static):
         with Collapsible(title=self.init_name if self.init_name else "Warrior Configuration", collapsed=True, classes="subagent-collapsible"):
             with Vertical(classes="subagent-form-content"):
                 yield Horizontal(
-                    Input(placeholder="Warrior Name (e.g. Shield-Maiden)", classes="subagent-name", value=self.init_name),
+                    Input(placeholder="Warrior Name (e.g. Shield-Maiden)", classes="subagent-name"),
                     Button("X", variant="error", classes="del-subagent-btn")
                 )
-                yield TextArea(classes="subagent-prompt", text=self.init_prompt if self.init_prompt else "You are a helpful sub-agent.")
+                yield TextArea(classes="subagent-prompt")
+
+    def on_mount(self) -> None:
+        if self.init_name:
+            self.query_one(".subagent-name", Input).value = self.init_name
+        if self.init_prompt:
+            self.query_one(".subagent-prompt", TextArea).text = self.init_prompt
+        else:
+            self.query_one(".subagent-prompt", TextArea).text = "You are a helpful sub-agent."
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.has_class("subagent-name"):
