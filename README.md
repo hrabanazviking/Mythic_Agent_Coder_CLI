@@ -128,5 +128,11 @@ See [LEGAL-NOTICE.md](LEGAL-NOTICE.md) for details.
 
 ---
 
+![https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/image-23-RuneForgeAI.jpg](https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/image-23-RuneForgeAI.jpg)
 
+---
+
+![https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/IMG_0407.jpeg](https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/IMG_0407.jpeg)
+
+---
 
