@@ -645,7 +645,9 @@ class MainChatScreen(Screen):
                 chat_log.write(f"[bold yellow]Steering instruction applied: {args}[/bold yellow]")
         elif cmd in ["/flirt", "/lick", "/hug", "/kiss", "/snuggle", "/cuddle", "/tickle", "/wink", "/rose", "/mead", "/ale", "/beer", "/cookies", "/candy", "/love"]:
             active = getattr(self.app, "active_chat_agent", "Primary")
-            if "[Ghost]" not in active:
+            is_busy = active in getattr(self, "active_subagents", [])
+            
+            if is_busy and "[Ghost]" not in active:
                 self.on_agent_selected(f"[Ghost] {active}")
                 
             action_text = {
@@ -666,7 +668,10 @@ class MainChatScreen(Screen):
                 "/love": "*User gives you positive love energy*"
             }[cmd]
             
-            SecureAPI.publish_ghost_chat_request(f"{action_text} {args}", target_agent=active)
+            if is_busy:
+                SecureAPI.publish_ghost_chat_request(f"{action_text} {args}", target_agent=active)
+            else:
+                SecureAPI.publish_chat_request(f"{action_text} {args}", target_agent=active)
             chat_log.write(f"[magenta]{action_text}[/magenta] {args}")
         elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr", "/stop", "/clear", "/compact", "/cost", "/review"]:
             SecureAPI.publish_system_command(cmd, args)
