@@ -327,8 +327,9 @@ class MainChatScreen(Screen):
         try:
             chat_log = self.query_one("#chat-log", RichLog)
             chat_log.write(Markdown(f"**[Raven from {sender}]:**\n\n{message}"))
-            # Optionally trigger the Primary agent to read it
-            self.run_agent_query(None)
+            # Notify the primary agent about the incoming subagent message
+            # Do NOT call run_agent_query(None) — None would be stringified and corrupt context
+            self.run_agent_query(f"[Subagent Message from {sender}]: {message}")
         except Exception as e:
             import logging
             logging.exception(f"Error in _notify_subagent_message: {e}")
@@ -433,7 +434,8 @@ class MainChatScreen(Screen):
         else:
             prefix = agent_name.split("-")[0].strip()
 
-        chars_dir = Path("default_agent_characters")
+        # Use a path relative to this source file so it works regardless of CWD
+        chars_dir = Path(__file__).parent.parent.parent / "default_agent_characters"
         if not chars_dir.exists():
             return
 

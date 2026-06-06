@@ -80,6 +80,7 @@ class LightweightJSONVectorDB:
                     logging.error(f"Failed to load vector memory: {e}")
 
     def _atomic_save(self) -> None:
+        temp_path = None
         try:
             fd, temp_path = tempfile.mkstemp(dir=self.memory_dir, prefix=f"{self.agent_name}_", suffix=".tmp")
             with os.fdopen(fd, 'w', encoding='utf-8') as f:
@@ -87,10 +88,11 @@ class LightweightJSONVectorDB:
             os.replace(temp_path, self.memory_file)
         except Exception as e:
             logging.error(f"Failed to atomic save vector memory: {e}")
-            try:
-                os.remove(temp_path)
-            except OSError:
-                pass
+            if temp_path is not None:
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
 
     def save(self) -> None:
         with self._lock:

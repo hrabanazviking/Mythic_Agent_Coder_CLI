@@ -45,6 +45,7 @@ class CoreMemoryManager:
 
     def _atomic_save(self) -> None:
         """Internal lock-assumed atomic save."""
+        temp_path = None
         try:
             # Create a temporary file in the same directory
             fd, temp_path = tempfile.mkstemp(dir=self.memory_dir, prefix=f"{self.agent_name}_", suffix=".tmp")
@@ -55,10 +56,11 @@ class CoreMemoryManager:
         except Exception as e:
             logging.error(f"Failed to atomic save core memory for {self.agent_name}: {e}")
             # Cleanup temp file if possible
-            try:
-                os.remove(temp_path)
-            except OSError:
-                pass
+            if temp_path is not None:
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
 
     def save(self) -> None:
         with self._lock:
