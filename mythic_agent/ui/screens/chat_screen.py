@@ -17,7 +17,7 @@ import random
 try:
     from textual_image.widget import Image as TextualImage
     HAS_IMAGE_WIDGET = True
-except ImportError:
+except Exception:
     HAS_IMAGE_WIDGET = False
 
 from mythic_agent.core.secure_api import publish_sync, subscribe, SecureAPI
@@ -98,7 +98,6 @@ class MainChatScreen(Screen):
     }
     #agent-image {
         width: 100%;
-        height: auto;
     }
     """
     
