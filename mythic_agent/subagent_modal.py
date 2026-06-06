@@ -23,7 +23,8 @@ class SubagentSelectionModal(ModalScreen[str]):
             yield Label("[bold cyan]⚔️ Select Target Warrior (Agent)[/bold cyan]\n")
             
             sub_agents = self.app.agent.config.get("sub_agents", [])
-            options = [("Primary Agent", "Primary")]
+            primary_name = self.app.agent.config.get("primary_agent_name", "Primary Agent")
+            options = [(primary_name, "Primary")]
             for sa in sub_agents:
                 options.append((sa["name"], sa["name"]))
                 
