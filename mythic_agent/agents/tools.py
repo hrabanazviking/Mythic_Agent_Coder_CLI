@@ -374,9 +374,12 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
         try:
             result = subprocess.run(
                 command, shell=True, cwd=str(root_path),  # nosec B602
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                timeout=300
             )
             return truncate_output(result.stdout or f"Command executed with exit code {result.returncode}")
+        except subprocess.TimeoutExpired as exc:
+            return f"Command timed out after 300 seconds:\n{truncate_output(exc.stdout or exc.stderr or '')}"
         except Exception as exc:
             return f"Command failed: {exc}"
             
@@ -418,20 +421,25 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
         try:
             pattern = re.compile(query)
             results = []
+            files_to_search = []
             if path.is_file():
                 files_to_search = [path]
             else:
-                files_to_search = path.rglob("*")
+                exclude_dirs = {".git", ".venv", "node_modules", "__pycache__"}
+                for root, dirs, files in os.walk(path):
+                    dirs[:] = [d for d in dirs if not d.startswith(".") and d not in exclude_dirs]
+                    for f in files:
+                        if not f.startswith("."):
+                            files_to_search.append(Path(root) / f)
                 
             for p in files_to_search:
-                if p.is_file() and not p.name.startswith("."):
-                    try:
-                        content = p.read_text(encoding="utf-8")
-                        for i, line in enumerate(content.splitlines(), 1):
-                            if pattern.search(line):
-                                results.append(f"{p.relative_to(root_path)}:{i}:{line.strip()}")
-                    except UnicodeDecodeError:
-                        pass
+                try:
+                    content = p.read_text(encoding="utf-8")
+                    for i, line in enumerate(content.splitlines(), 1):
+                        if pattern.search(line):
+                            results.append(f"{p.relative_to(root_path)}:{i}:{line.strip()}")
+                except UnicodeDecodeError:
+                    pass
             return truncate_output("\n".join(results) if results else "No matches found.")
         except Exception as exc:
             return f"Search failed: {exc}"
