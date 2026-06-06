@@ -15,12 +15,23 @@ try:
 except ImportError:
     HAS_TTS = False
 
+try:
+    from chatterbox.tts import ChatterboxTTS
+    HAS_CHATTERBOX = True
+except ImportError:
+    HAS_CHATTERBOX = False
+
 class TTSManager:
     def __init__(self):
         self.queue = queue.Queue()
         self.voices: Dict[str, PiperVoice] = {}
         self.voice_dir = Path.home() / ".local" / "share" / "mythic-agent" / "voices"
         self.voice_dir.mkdir(parents=True, exist_ok=True)
+        
+        self.voice_samples_dir = Path.home() / ".local" / "share" / "mythic-agent" / "voice_samples"
+        self.voice_samples_dir.mkdir(parents=True, exist_ok=True)
+        
+        self.chatterbox_model = None
         self.is_running = False
         self.thread: Optional[threading.Thread] = None
         self.is_muted = False
@@ -142,28 +153,47 @@ class TTSManager:
                 clean_text = self._clean_text(raw_text)
                 if not clean_text:
                     continue
-                    
-                voice_name = self._get_voice_for_agent(agent_name)
                 
+                custom_wav = self.voice_samples_dir / f"{agent_name}.wav"
+                fallback_wav = self.voice_samples_dir / "default.wav"
+                
+                audio_sample_path = None
+                if custom_wav.exists():
+                    audio_sample_path = custom_wav
+                elif fallback_wav.exists():
+                    audio_sample_path = fallback_wav
+                    
                 try:
-                    voice = self._get_piper_voice(voice_name)
-                    
-                    # Generate audio stream
-                    audio_stream = voice.synthesize_stream_raw(clean_text)
-                    
-                    # Piper synthesizes in chunks of bytes. We can accumulate or play streamingly.
-                    # Playing streamingly reduces time-to-first-audio.
-                    # Since Piper is fast, accumulating is also fine for short responses.
-                    audio_bytes = b"".join(audio_stream)
-                    
-                    if audio_bytes and not self.is_muted:
-                        # Piper outputs 16-bit mono PCM
-                        audio_array = np.frombuffer(audio_bytes, dtype=np.int16)
-                        sample_rate = voice.config.sample_rate
+                    if audio_sample_path and HAS_CHATTERBOX:
+                        if self.chatterbox_model is None:
+                            import torch
+                            device = "cuda" if torch.cuda.is_available() else "cpu"
+                            logging.info(f"Loading Chatterbox model on {device}...")
+                            self.chatterbox_model = ChatterboxTTS.from_pretrained(device=device)
+                            
+                        logging.info(f"Generating Chatterbox audio using reference {audio_sample_path}")
+                        wav = self.chatterbox_model.generate(clean_text, audio_prompt_path=str(audio_sample_path))
                         
-                        sd.play(audio_array, samplerate=sample_rate)
-                        sd.wait() # Block thread until done
+                        if not self.is_muted:
+                            audio_array = wav.squeeze().cpu().numpy()
+                            if audio_array.ndim > 1:
+                                audio_array = audio_array.T
+                            sd.play(audio_array, samplerate=self.chatterbox_model.sr)
+                            sd.wait()
+                    else:
+                        voice_name = self._get_voice_for_agent(agent_name)
+                        voice = self._get_piper_voice(voice_name)
                         
+                        # Generate audio stream
+                        audio_stream = voice.synthesize_stream_raw(clean_text)
+                        audio_bytes = b"".join(audio_stream)
+                        
+                        if audio_bytes and not self.is_muted:
+                            audio_array = np.frombuffer(audio_bytes, dtype=np.int16)
+                            sample_rate = voice.config.sample_rate
+                            sd.play(audio_array, samplerate=sample_rate)
+                            sd.wait()
+                            
                 except Exception as e:
                     logging.error(f"TTS Synthesis error for agent {agent_name}: {e}")
             except queue.Empty:
