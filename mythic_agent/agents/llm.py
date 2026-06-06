@@ -54,6 +54,39 @@ class Agent:
         
         self.inject_mythic_agents()
         
+        # Subscribe to Parity Commands
+        subscribe("agent_clear_history", self._handle_clear_history)
+        subscribe("agent_compact_history", self._handle_compact_history)
+        
+    def _handle_clear_history(self, target_agent: str):
+        if target_agent == self.name:
+            with self._lock:
+                # Keep only the system prompt
+                if self.messages and self.messages[0].get("role") == "system":
+                    self.messages = [self.messages[0]]
+                else:
+                    self.messages = []
+                publish_sync("agent_chat_chunk", agent_name=self.name, text="\n[bold green]Memory cleared. Context window is empty.[/bold green]\n")
+
+    def _handle_compact_history(self, target_agent: str):
+        if target_agent == self.name:
+            with self._lock:
+                if len(self.messages) > 10:
+                    forgotten_chunk = self.messages[1:11]
+                    if hasattr(self, "vector_db"):
+                        try:
+                            archive_text = "Archived Context Chunk:\n" + "\n".join(
+                                f"{m.get('role', 'unknown').upper()}: {m.get('content', '')}" for m in forgotten_chunk
+                            )
+                            self.vector_db.insert(archive_text)
+                        except Exception as e:
+                            logging.error(f"Auto-Archival failed during manual compact: {e}")
+                    
+                    self.messages = [self.messages[0]] + self.messages[11:]
+                    publish_sync("agent_chat_chunk", agent_name=self.name, text="\n[bold yellow]Context Compacted manually. Oldest 10 messages archived to VectorDB.[/bold yellow]\n")
+                else:
+                    publish_sync("agent_chat_chunk", agent_name=self.name, text="\n[dim]Context is already small. Compaction not necessary.[/dim]\n")
+
     def get_user_context(self) -> str:
         user_name = self.config.get("user_name", "").strip()
         user_data = self.config.get("user_data", "").strip()

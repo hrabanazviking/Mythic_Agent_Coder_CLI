@@ -149,27 +149,44 @@ class LightweightJSONVectorDB:
             })
         return results
 
-# Stubs for the user's custom systems
-class OpenVikingProvider:
-    def insert(self, text: str, metadata: dict[str, Any] | None = None) -> None:
-        logging.warning("OpenVikingProvider insert not implemented.")
-    def search(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
-        logging.warning("OpenVikingProvider search not implemented.")
-        return []
+import requests
 
-class MemPalaceProvider:
+class RemoteRAGProvider:
+    def __init__(self, name: str, default_url: str):
+        self.name = name
+        self.config = config_manager.load_config()
+        # Allows user to override the URL in config: e.g. "yggdrasil_url"
+        self.base_url = self.config.get(f"{name.lower()}_url", default_url).rstrip("/")
+        
     def insert(self, text: str, metadata: dict[str, Any] | None = None) -> None:
-        logging.warning("MemPalaceProvider insert not implemented.")
-    def search(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
-        logging.warning("MemPalaceProvider search not implemented.")
-        return []
+        try:
+            payload = {"text": text, "metadata": metadata or {}}
+            response = requests.post(f"{self.base_url}/insert", json=payload, timeout=10.0)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            logging.warning(f"{self.name} Provider insert failed: {e}")
 
-class YggdrasilProvider:
-    def insert(self, text: str, metadata: dict[str, Any] | None = None) -> None:
-        logging.warning("YggdrasilProvider insert not implemented.")
     def search(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
-        logging.warning("YggdrasilProvider search not implemented.")
-        return []
+        try:
+            payload = {"query": query, "top_k": top_k}
+            response = requests.post(f"{self.base_url}/search", json=payload, timeout=15.0)
+            response.raise_for_status()
+            return response.json().get("results", [])
+        except requests.exceptions.RequestException as e:
+            logging.warning(f"{self.name} Provider search failed: {e}")
+            return []
+
+class OpenVikingProvider(RemoteRAGProvider):
+    def __init__(self):
+        super().__init__("OpenViking", "http://localhost:8081/v1")
+
+class MemPalaceProvider(RemoteRAGProvider):
+    def __init__(self):
+        super().__init__("MemPalace", "http://localhost:8082/v1")
+
+class YggdrasilProvider(RemoteRAGProvider):
+    def __init__(self):
+        super().__init__("Yggdrasil", "http://localhost:8083/v1")
 
 def get_vector_provider(provider_name: str, agent_name: str, base_url: str | None = None, api_key: str | None = None) -> VectorProvider:
     if provider_name == "open-viking":
