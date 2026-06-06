@@ -349,6 +349,9 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
                 else:
                     sub_system_prompt += f"\n\nGLOBAL RULES:\n- {status_rule}"
                     
+                from .llm import get_user_context
+                sub_system_prompt += get_user_context(config)
+                    
                 sub_agent.messages = [{"role": "system", "content": sub_system_prompt}]
                 sub_agent.tui_app = tui
                 AGENT_REGISTRY[sub_name] = sub_agent

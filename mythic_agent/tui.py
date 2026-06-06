@@ -268,14 +268,20 @@ class SetupScreen(Screen):
             yield Label("4. The Battlefield (Working Directory):", classes="step")
             yield Input(placeholder="e.g. /home/user/projects (Leave blank to use current folder)", id="working-dir-input", classes="step")
             
-            yield Label("5. The Jarl's Identity (Primary Agent Name & Prompt):", classes="step")
+            yield Label("5. Who is the Master? (User Name - Optional):", classes="step")
+            yield Input(placeholder="Your Name (e.g. Volmarr)", id="user-name-input", classes="step")
+            
+            yield Label("6. The Master's Lore (User Data - Optional):", classes="step")
+            yield TextArea(id="user-data-input", classes="step")
+            
+            yield Label("7. The Jarl's Identity (Primary Agent Name & Prompt):", classes="step")
             yield Input(id="primary-agent-name", placeholder="e.g. Mythic", classes="step")
             yield TextArea(id="system-prompt-input", classes="step")
             
-            yield Label("6. The Elder's Laws (Global Rules applied to ALL):", classes="step")
+            yield Label("8. The Elder's Laws (Global Rules applied to ALL):", classes="step")
             yield TextArea(id="global-rules-input", classes="step")
             
-            yield Label("7. Summon Shield-Maidens & Warriors (Sub-Agents):", classes="step")
+            yield Label("9. Summon Shield-Maidens & Warriors (Sub-Agents):", classes="step")
             yield Button("+ Summon Warrior", id="add-subagent-btn", variant="primary", classes="step")
             yield Vertical(id="subagents-list")
             
@@ -313,6 +319,12 @@ class SetupScreen(Screen):
         wd = config.get("working_directory", "")
         self.query_one("#working-dir-input", Input).value = wd
             
+        user_name = config.get("user_name", "")
+        self.query_one("#user-name-input", Input).value = user_name
+        
+        user_data = config.get("user_data", "")
+        self.query_one("#user-data-input", TextArea).text = user_data
+        
         sys_prompt = config.get("system_prompt")
         if sys_prompt:
             self.query_one("#system-prompt-input", TextArea).text = sys_prompt
@@ -414,6 +426,8 @@ class SetupScreen(Screen):
         primary_name = self.query_one("#primary-agent-name", Input).value.strip() or "Mythic"
         global_rules = self.query_one("#global-rules-input", TextArea).text
         working_dir = self.query_one("#working-dir-input", Input).value.strip()
+        user_name = self.query_one("#user-name-input", Input).value.strip()
+        user_data = self.query_one("#user-data-input", TextArea).text.strip()
         
         # Collect subagents
         sub_agents = []
@@ -433,6 +447,8 @@ class SetupScreen(Screen):
         self.app.agent.config["system_prompt"] = sys_prompt
         self.app.agent.config["global_rules"] = global_rules
         self.app.agent.config["working_directory"] = working_dir
+        self.app.agent.config["user_name"] = user_name
+        self.app.agent.config["user_data"] = user_data
         self.app.agent.config["sub_agents"] = sub_agents
         
         if working_dir:
@@ -922,6 +938,9 @@ class MainChatScreen(Screen):
                             sub_system_prompt += f"\n\nGLOBAL RULES (You must strictly follow these):\n{global_rules}\n- {status_rule}"
                         else:
                             sub_system_prompt += f"\n\nGLOBAL RULES:\n- {status_rule}"
+                            
+                        from .llm import get_user_context
+                        sub_system_prompt += get_user_context(config)
                             
                         sub_agent.messages = [{"role": "system", "content": sub_system_prompt}]
                         sub_agent.tui_app = self.app

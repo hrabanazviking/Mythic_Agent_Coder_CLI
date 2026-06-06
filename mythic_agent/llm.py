@@ -39,6 +39,19 @@ def save_config(config: dict[str, Any]) -> None:
     CONFIG_FILE.write_text(json.dumps(config, indent=2))
     CONFIG_FILE.chmod(0o600)
 
+def get_user_context(config: dict[str, Any]) -> str:
+    user_name = config.get("user_name", "").strip()
+    user_data = config.get("user_data", "").strip()
+    if not user_name and not user_data:
+        return ""
+    
+    context = "\n\nUSER CONTEXT:\n"
+    if user_name:
+        context += f"The user's name is {user_name}.\n"
+    if user_data:
+        context += f"Data about the user:\n{user_data}\n"
+    return context
+
 class Agent:
     def __init__(self, project_root: Path | None = None):
         self.config = load_config()
@@ -71,6 +84,8 @@ class Agent:
             system_prompt += "\n2. MD Protocol: Markdown as living memory (README.md, ARCHITECTURE.md, etc)."
             system_prompt += "\n3. ALWAYS delegate and consult your 6 included Sub-Agents (Skald, Architect, Forge Worker, Auditor, Cartographer, Scribe) using the delegate_task tool when tackling large problems."
             system_prompt += "\n4. Reality outranks theory. Refactor by ownership. Invariants matter."
+            
+        system_prompt += get_user_context(self.config)
             
         self.messages = [
             {"role": "system", "content": system_prompt}
