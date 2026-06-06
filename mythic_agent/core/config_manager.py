@@ -128,9 +128,9 @@ class ConfigManager:
             changed = True
 
         # 3. Upgrade version schema
-        self.CURRENT_CONFIG_VERSION = 2
-        if version < self.CURRENT_CONFIG_VERSION:
-            config["config_version"] = self.CURRENT_CONFIG_VERSION
+        TARGET_CONFIG_VERSION = 2
+        if version < TARGET_CONFIG_VERSION:
+            config["config_version"] = TARGET_CONFIG_VERSION
             changed = True
             
         if changed:

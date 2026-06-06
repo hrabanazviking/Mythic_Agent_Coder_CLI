@@ -164,7 +164,7 @@ class TTSManager:
             try:
                 item = self.queue.get(timeout=0.5)
                 if item is None:
-                    continue
+                    return  # Stop sentinel received — exit worker thread cleanly
                     
                 agent_name, raw_text = item
                 if self.is_muted:
