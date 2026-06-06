@@ -608,6 +608,9 @@ class MainChatScreen(Screen):
             chat_log.write("  [green]/undo[/green]    - Roll back the last agent file edit (Git reset)")
             chat_log.write("  [green]/doctor[/green]  - Auto-fix a command output")
             chat_log.write("  [green]/copy[/green]   - Copy the last AI response to your clipboard")
+            chat_log.write("  [green]/btw[/green]    - Add context without forcing an immediate response")
+            chat_log.write("  [green]/steer[/green]  - Give the AI a strong steering instruction (system prompt)")
+            chat_log.write("  [green]/flirt[/green]  - Flirt with your Viking coder")
             chat_log.write("  [green]/quit[/green]   - Leave Valhalla (Exit)")
         elif cmd == "/clear":
             self.app.agent.messages = self.app.agent.messages[:1]
@@ -636,6 +639,22 @@ class MainChatScreen(Screen):
                     chat_log.write(f"[green]Added {args} to context.[/green]")
                 except Exception as e:
                     chat_log.write(f"[red]Error reading {args}: {e}[/red]")
+        elif cmd == "/btw":
+            if not args:
+                chat_log.write("[red]Usage: /btw <message>[/red]")
+            else:
+                self.app.agent.messages.append({"role": "user", "content": f"By the way (for your context, no need to act on this alone unless asked): {args}"})
+                self.app.agent.messages.append({"role": "assistant", "content": "Acknowledged."})
+                chat_log.write(f"[green]Added to context: {args}[/green]")
+        elif cmd == "/steer":
+            if not args:
+                chat_log.write("[red]Usage: /steer <instruction>[/red]")
+            else:
+                self.app.agent.messages.append({"role": "system", "content": f"USER STEERING INSTRUCTION (Priority): {args}"})
+                chat_log.write(f"[bold yellow]Steering instruction applied: {args}[/bold yellow]")
+        elif cmd == "/flirt":
+            chat_log.write("[magenta]Sending flirty vibes...[/magenta]")
+            self.run_agent_query("*winks and flirts with you playfully*")
         elif cmd == "/gh":
             if not args:
                 chat_log.write("[red]Usage: /gh <command>[/red]")
