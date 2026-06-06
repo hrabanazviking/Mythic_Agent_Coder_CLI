@@ -12,9 +12,11 @@ dependencies = [
     "openai>=1.40",
     "prompt_toolkit>=3.0",
     "rich>=13.0",
-    "textual>=0.80.0",
-    "rich-pixels>=3.0.0",
-    "pillow>=10.0.0"
+    "textual>=0.82.7",
+    "pyyaml>=6.0.2",
+    "litellm>=1.52.2",
+    "textual-image>=0.13.2",
+    "pillow>=10.4.0"
 ]
 
 [project.scripts]
