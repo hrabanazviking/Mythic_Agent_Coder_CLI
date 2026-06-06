@@ -15,11 +15,10 @@ from mythic_agent.constants import DEFAULT_GLOBAL_RULES, DEFAULT_PRIMARY_NAME, D
 import random
 
 try:
-    from PIL import Image as PILImage
-    from rich_pixels import Pixels
-    HAS_PIXELS = True
+    from textual_image.widget import Image as TextualImage
+    HAS_IMAGE_WIDGET = True
 except ImportError:
-    HAS_PIXELS = False
+    HAS_IMAGE_WIDGET = False
 
 from mythic_agent.core.secure_api import publish_sync, subscribe, SecureAPI
 from mythic_agent.core.config_manager import config_manager
@@ -134,7 +133,10 @@ class MainChatScreen(Screen):
                 yield Label("\n[bold yellow]⚔️ Active Warriors[/bold yellow]\n[dim]None[/dim]", id="active-agents-label")
                 yield Checkbox("Mythic Engineering Mode", id="mythic-engineering-checkbox")
                 yield Checkbox("Auto-accept security permissions", id="auto-accept-checkbox")
-                yield Static("", id="agent-image")
+                if HAS_IMAGE_WIDGET:
+                    yield TextualImage(None, id="agent-image")
+                else:
+                    yield Static("", id="agent-image")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -233,15 +235,11 @@ class MainChatScreen(Screen):
             self.update_agent_image(display_name)
 
     def update_agent_image(self, agent_name: str) -> None:
-        if not HAS_PIXELS:
+        if not HAS_IMAGE_WIDGET:
             return
             
-        # Do not display if terminal color system is too basic
-        if self.app.console.color_system not in ("256", "truecolor"):
-            return
-
         try:
-            agent_image_widget = self.query_one("#agent-image", Static)
+            agent_image_widget = self.query_one("#agent-image")
         except Exception:
             return
 
@@ -266,21 +264,19 @@ class MainChatScreen(Screen):
                 matches.append(f)
 
         if not matches:
-            agent_image_widget.update("")
+            if hasattr(agent_image_widget, "image"):
+                agent_image_widget.image = None
+            else:
+                agent_image_widget.update("")
             return
 
         image_path = random.choice(matches)
         
         try:
-            with PILImage.open(image_path) as img:
-                width = 33
-                aspect_ratio = img.height / img.width
-                height = int(width * aspect_ratio)
-                if height == 0:
-                    height = 1
-                img = img.resize((width, height))
-                pixels = Pixels.from_image(img)
-                agent_image_widget.update(pixels)
+            if hasattr(agent_image_widget, "image"):
+                agent_image_widget.image = str(image_path)
+            else:
+                agent_image_widget.update("")
         except Exception as e:
             import logging
             logging.error(f"Failed to render image {image_path}: {e}")
