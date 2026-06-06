@@ -585,10 +585,25 @@ class MainChatScreen(Screen):
             chat_log.write("  [green]/test[/green]    - Run tests natively")
             chat_log.write("  [green]/undo[/green]    - Roll back the last agent file edit (Git reset)")
             chat_log.write("  [green]/doctor[/green]  - Auto-fix a command output")
+            chat_log.write("  [green]/copy[/green]   - Copy the last AI response to your clipboard")
             chat_log.write("  [green]/quit[/green]   - Leave Valhalla (Exit)")
         elif cmd == "/clear":
             self.app.agent.messages = self.app.agent.messages[:1]
             chat_log.write("[green]Conversation cleared.[/green]")
+        elif cmd == "/copy":
+            last_msg = None
+            for m in reversed(self.app.agent.messages):
+                if m.get("role") == "assistant" and m.get("content"):
+                    last_msg = m["content"]
+                    break
+            if last_msg:
+                try:
+                    self.app.copy_to_clipboard(last_msg)
+                    chat_log.write("[green]Copied last response to clipboard![/green]")
+                except Exception as e:
+                    chat_log.write(f"[red]Failed to copy to clipboard: {e}[/red]")
+            else:
+                chat_log.write("[red]No recent response found to copy.[/red]")
         elif cmd == "/add":
             if not args:
                 chat_log.write("[red]Usage: /add <file_path>[/red]")
