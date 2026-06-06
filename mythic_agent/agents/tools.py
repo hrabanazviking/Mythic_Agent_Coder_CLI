@@ -162,6 +162,44 @@ def get_agent_tools() -> list[dict[str, Any]]:
                     "additionalProperties": False,
                 }
             }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "clear_context",
+                "description": "Wipe your own short-term memory / chat history after completing a massive task to prevent LLM context bloat.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": False,
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "delegate_parallel_tasks",
+                "description": "Delegate tasks to MULTIPLE sub-agents simultaneously. They will process in parallel.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "delegations": {
+                            "type": "array",
+                            "description": "A list of delegations",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "sub_agent_name": {"type": "string"},
+                                    "task_description": {"type": "string"}
+                                },
+                                "required": ["sub_agent_name", "task_description"]
+                            }
+                        }
+                    },
+                    "required": ["delegations"],
+                    "additionalProperties": False,
+                }
+            }
         }
     ]
 
@@ -324,20 +362,47 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
         except Exception as e:
             return f"Failed to save status: {e}"
 
+    if name == "delegate_parallel_tasks":
+        delegations = arguments.get("delegations", [])
+        sender = agent.name if agent else "Primary"
+        
+        if agent:
+            depth = getattr(agent, "_delegation_depth", 0)
+            if depth > 5:
+                return "Error: Maximum delegation recursion depth exceeded."
+        else:
+            depth = 0
+            
+        from .llm import agent_manager
+        
+        successes = []
+        for d in delegations:
+            sub_name = d.get("sub_agent_name")
+            task = d.get("task_description")
+            
+            sub_agent = agent_manager.spawn_subagent(sub_name, root_path)
+            if not sub_agent:
+                successes.append(f"Failed to spawn {sub_name}.")
+                continue
+                
+            sub_agent._delegation_depth = depth + 1
+            sub_agent.inbox.put(f"Task from {sender}:\n{task}")
+            successes.append(f"Delegated to {sub_name}.")
+            
+        return "\n".join(successes)
+
     if name == "delegate_task":
         sub_name = arguments.get("sub_agent_name", "")
         task = arguments.get("task_description", "")
         sender = arguments.get("sender", agent.name if agent else "Primary")
         
         if agent:
-            # Prevent infinite recursion depth
             depth = getattr(agent, "_delegation_depth", 0)
             if depth > 5:
                 return "Error: Maximum delegation recursion depth exceeded. You cannot delegate this task any further. You must complete it yourself."
         else:
             depth = 0
             
-        import threading
         from .llm import agent_manager
         
         sub_agent = agent_manager.spawn_subagent(sub_name, root_path)
@@ -346,29 +411,38 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             
         sub_agent._delegation_depth = depth + 1
             
-        threading.Thread(target=agent_manager._run_agent_chat, args=(sub_agent, f"Task from {sender}:\n{task}"), daemon=True).start()
+        sub_agent.inbox.put(f"Task from {sender}:\n{task}")
         
         return f"Task delegated to {sub_name} in the background. It will message you when done."
 
     if name == "send_message":
         recipient = arguments.get("recipient", "")
         message = arguments.get("message", "")
-        sender = arguments.get("sender", "Unknown")
+        sender = arguments.get("sender", agent.name if agent else "Unknown")
         
         from .llm import AGENT_REGISTRY, agent_manager
         from ..core.secure_api import publish_sync
         
         if recipient not in AGENT_REGISTRY:
-            agent = agent_manager.spawn_subagent(recipient, root_path)
-            if not agent:
+            target_agent = agent_manager.spawn_subagent(recipient, root_path)
+            if not target_agent:
                 return f"Error: Agent {recipient} not found or not active."
         else:
-            agent = AGENT_REGISTRY[recipient]
+            target_agent = AGENT_REGISTRY[recipient]
             
-        agent.messages.append({"role": "user", "content": f"Message from {sender}:\n{message}"})
+        # Push message directly to their inbox
+        target_agent.inbox.put(f"Message from {sender}:\n{message}")
         
         publish_sync("subagent_message_received", sender=sender, recipient=recipient, message=message)
             
         return f"Message sent to {recipient}."
+        
+    if name == "clear_context":
+        if agent:
+            with agent._lock:
+                if len(agent.messages) > 0:
+                    agent.messages = [agent.messages[0]]
+            return "Context cleared. Memory wiped successfully."
+        return "Context clear failed."
 
     return f"Error: Unknown tool {name}"
