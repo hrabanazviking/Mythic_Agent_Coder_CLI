@@ -163,6 +163,7 @@ class MainChatScreen(Screen):
         yield Footer()
 
     def on_mount(self) -> None:
+        self.active_subagents = []
         chat_log = self.query_one("#chat-log", RichLog)
         chat_log.write("Welcome to the Viking Mythic Agent! Press F2 to configure your team.\n")
         chat_log.write("[dim]Type /help for a list of runic commands.[/dim]")
@@ -183,6 +184,8 @@ class MainChatScreen(Screen):
         subscribe("agent_chat_complete", self._on_chat_complete)
         subscribe("agent_chat_error", self._on_chat_error)
         subscribe("agent_token_update", self._on_token_update)
+        subscribe("agent_status_changed", self._on_agent_status_changed)
+        subscribe("subagent_message_received", self._on_subagent_message_received)
         
         # Load initial agent image
         primary_name = config.get("primary_agent_name", "Primary")
@@ -203,6 +206,48 @@ class MainChatScreen(Screen):
 
     def _on_token_update(self, agent_name: str, total_tokens: int):
         self.app.call_from_thread(self.app.update_token_count, total_tokens)
+
+    def _on_agent_status_changed(self, agent_name: str, is_active: bool):
+        self.app.call_from_thread(self._update_agent_status_ui, agent_name, is_active)
+        
+    def _update_agent_status_ui(self, agent_name: str, is_active: bool):
+        try:
+            if is_active:
+                if agent_name not in self.active_subagents:
+                    self.active_subagents.append(agent_name)
+            else:
+                if agent_name in self.active_subagents:
+                    self.active_subagents.remove(agent_name)
+                
+            from ..agents.llm import AGENT_REGISTRY
+            lbl = self.query_one("#active-agents-label", Label)
+            
+            active_list = []
+            for aname, agent in AGENT_REGISTRY.items():
+                if aname == "Primary": continue
+                status_color = "green" if aname in self.active_subagents else "dim"
+                active_list.append(f"[{status_color}]● {aname}[/{status_color}]")
+                
+            if not active_list:
+                active_list = ["[dim]None[/dim]"]
+                
+            lbl.update("\n[bold yellow]⚔️ Active Warriors[/bold yellow]\n" + "\n".join(active_list))
+        except Exception as e:
+            import logging
+            logging.exception(f"Error in _update_agent_status_ui: {e}")
+
+    def _on_subagent_message_received(self, sender: str, recipient: str, message: str):
+        self.app.call_from_thread(self._notify_subagent_message, sender, message)
+        
+    def _notify_subagent_message(self, sender: str, message: str):
+        try:
+            chat_log = self.query_one("#chat-log", RichLog)
+            chat_log.write(Markdown(f"**[Raven from {sender}]:**\n\n{message}"))
+            # Optionally trigger the Primary agent to read it
+            self.run_agent_query(None)
+        except Exception as e:
+            import logging
+            logging.exception(f"Error in _notify_subagent_message: {e}")
 
     def _write_to_log(self, text: str, markdown: bool = False, dim: bool = False):
         try:

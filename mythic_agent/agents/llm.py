@@ -59,8 +59,7 @@ class Agent:
         
         self.inject_mythic_agents()
         
-        # Subscribe to chat requests
-        subscribe("ui_chat_request", self._handle_chat_request)
+        self.inject_mythic_agents()
         
     def get_user_context(self) -> str:
         user_name = self.config.get("user_name", "").strip()
@@ -138,20 +137,7 @@ class Agent:
         except Exception as e:
             raise RuntimeError(f"Failed to fetch models: {e}")
 
-    def _handle_chat_request(self, user_input: str, target_agent: str = "Primary"):
-        """Event handler for chat requests. Spawns thread to avoid blocking EventBus."""
-        if target_agent != self.name:
-            return
-            
-        threading.Thread(target=self._run_chat, args=(user_input,)).start()
 
-    def _run_chat(self, prompt: str | None):
-        try:
-            self.chat(prompt)
-            publish_sync("agent_chat_complete", agent_name=self.name)
-        except Exception as e:
-            logging.exception(f"Error in chat execution: {e}")
-            publish_sync("agent_chat_error", agent_name=self.name, error=str(e))
 
     def chat(self, prompt: str | None) -> str:
         if prompt:
@@ -236,3 +222,67 @@ class Agent:
                 break
                 
         return ""
+
+class AgentManager:
+    """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
+    def __init__(self):
+        subscribe("ui_chat_request", self.handle_chat_request)
+        
+    def spawn_subagent(self, name: str, project_root: Path | None = None) -> Agent | None:
+        if name in AGENT_REGISTRY:
+            return AGENT_REGISTRY[name]
+            
+        config = config_manager.load_config()
+        sub_agents = config.get("sub_agents", [])
+        sub_config = next((s for s in sub_agents if s.get("name") == name), None)
+        
+        if not sub_config:
+            logging.error(f"Cannot spawn unknown subagent: {name}")
+            return None
+            
+        logging.info(f"Dynamically spawning subagent: {name}")
+        sub_agent = Agent(project_root=project_root)
+        sub_agent.name = name
+        
+        sub_system_prompt = sub_config.get("prompt", "You are a helpful sub-agent.")
+        global_rules = config.get("global_rules", "").strip()
+        status_rule = "You MUST use the `update_status` tool to autosave your current project status and keep track of what is going on."
+        if global_rules:
+            sub_system_prompt += f"\n\nGLOBAL RULES (You must strictly follow these):\n{global_rules}\n- {status_rule}"
+        else:
+            sub_system_prompt += f"\n\nGLOBAL RULES:\n- {status_rule}"
+            
+        sub_system_prompt += sub_agent.get_user_context()
+            
+        sub_agent.messages = [{"role": "system", "content": sub_system_prompt}]
+        AGENT_REGISTRY[name] = sub_agent
+        return sub_agent
+
+    def handle_chat_request(self, user_input: str, target_agent: str = "Primary"):
+        agent = AGENT_REGISTRY.get(target_agent)
+        
+        if not agent and target_agent != "Primary":
+            primary = AGENT_REGISTRY.get("Primary")
+            root = primary.project_root if primary else None
+            agent = self.spawn_subagent(target_agent, root)
+            
+        if not agent:
+            logging.error(f"Target agent {target_agent} could not be resolved.")
+            publish_sync("agent_chat_error", agent_name=target_agent, error=f"Agent {target_agent} not found.")
+            return
+            
+        threading.Thread(target=self._run_agent_chat, args=(agent, user_input), daemon=True).start()
+        
+    def _run_agent_chat(self, agent: Agent, prompt: str):
+        try:
+            publish_sync("agent_status_changed", agent_name=agent.name, is_active=True)
+            agent.chat(prompt)
+            publish_sync("agent_chat_complete", agent_name=agent.name)
+        except Exception as e:
+            logging.exception(f"Error in chat execution for {agent.name}: {e}")
+            publish_sync("agent_chat_error", agent_name=agent.name, error=str(e))
+        finally:
+            publish_sync("agent_status_changed", agent_name=agent.name, is_active=False)
+
+# Instantiate the singleton router
+agent_manager = AgentManager()

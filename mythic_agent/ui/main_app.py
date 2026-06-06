@@ -43,7 +43,6 @@ class MythicTUI(App):
         self.active_chat_agent = "Primary"
         self.pet_active = False
         self.pet_timer = None
-        self.active_subagents = []
         
         # Subscribe to UI notifications
         subscribe("ui_notification", self._handle_notification)
@@ -73,37 +72,5 @@ class MythicTUI(App):
         except Exception as e:
             self.notify(f"Clipboard error: {e}", severity="error")
 
-    def update_agent_status(self, name: str, is_active: bool) -> None:
-        try:
-            if is_active:
-                if name not in self.active_subagents:
-                    self.active_subagents.append(name)
-            else:
-                if name in self.active_subagents:
-                    self.active_subagents.remove(name)
-                
-            from .llm import AGENT_REGISTRY
-            chat_screen = self.query_one(MainChatScreen)
-            lbl = chat_screen.query_one("#active-agents-label", Label)
-            
-            active_list = []
-            for aname, agent in AGENT_REGISTRY.items():
-                if aname == "Primary": continue
-                status_color = "green" if aname in self.active_subagents else "dim"
-                active_list.append(f"[{status_color}]● {aname}[/{status_color}]")
-                
-            lbl.update("\n[bold yellow]⚔️ Active Warriors[/bold yellow]\n" + "\n".join(active_list))
-        except Exception as e:
-            import logging
-            logging.exception(f"Error in update_agent_status: {e}")
 
-    def notify_message(self, message: str, sender: str):
-        try:
-            chat_screen = self.query_one(MainChatScreen)
-            chat_log = chat_screen.query_one("#chat-log", RichLog)
-            chat_log.write(Markdown(f"**[Raven from {sender}]:**\n\n{message}"))
-            chat_screen.run_agent_query(None)
-        except Exception as e:
-            import logging
-            logging.exception(f"Error in notify_message: {e}")
 
