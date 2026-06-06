@@ -98,6 +98,10 @@ You can type these at any time in the chat input:
 
 ---
 
+![https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/Viking_Apache_V2_1.jpg](https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/Viking_Apache_V2_1.jpg)
+
+---
+
 ## ⚖️ License
 
 Copyright (c) 2026 Volmarr Wyrd
