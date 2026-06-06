@@ -324,6 +324,7 @@ class Agent:
                 if message.content:
                     logging.info(f"Agent response: {message.content}")
                     print_chunk(message.content)
+                    publish_sync("agent_chat_spoken", agent_name=self.name, text=message.content)
                     self.messages.append({"role": "assistant", "content": message.content})
                     
                 if message.tool_calls:
