@@ -126,11 +126,14 @@ class TTSManager:
                 url = base_url + ext
                 dest = self.voice_dir / f"{voice_name}{ext}"
                 try:
-                    resp = requests.get(url, stream=True)
+                    resp = requests.get(url, stream=True, timeout=15)
                     resp.raise_for_status()
                     with open(dest, "wb") as f:
                         for chunk in resp.iter_content(chunk_size=8192):
                             f.write(chunk)
+                except requests.exceptions.RequestException as e:
+                    logging.error(f"Network error downloading voice {voice_name}{ext} from {url}: {e}")
+                    raise
                 except Exception as e:
                     logging.error(f"Failed to download voice {voice_name}{ext} from {url}: {e}")
                     raise
@@ -194,21 +197,24 @@ class TTSManager:
                         # Assume OpenAI compatible format by default
                         payload = {"model": "moss-tts-v1.5", "input": clean_text, "voice": moss_tts_voice}
                         
-                        resp = requests.post(moss_tts_url, headers=headers, json=payload)
-                        if resp.status_code == 200 and not self.is_muted:
-                            from pydub import AudioSegment
-                            import io
-                            
-                            audio_seg = AudioSegment.from_file(io.BytesIO(resp.content))
-                            audio_array = np.array(audio_seg.get_array_of_samples(), dtype=np.int16)
-                            
-                            if audio_seg.channels == 2:
-                                audio_array = audio_array.reshape((-1, 2))
+                        try:
+                            resp = requests.post(moss_tts_url, headers=headers, json=payload, timeout=30)
+                            if resp.status_code == 200 and not self.is_muted:
+                                from pydub import AudioSegment
+                                import io
                                 
-                            sd.play(audio_array, samplerate=audio_seg.frame_rate)
-                            sd.wait()
-                        else:
-                            logging.error(f"MOSS-TTS failed: {resp.status_code} {resp.text}")
+                                audio_seg = AudioSegment.from_file(io.BytesIO(resp.content))
+                                audio_array = np.array(audio_seg.get_array_of_samples(), dtype=np.int16)
+                                
+                                if audio_seg.channels == 2:
+                                    audio_array = audio_array.reshape((-1, 2))
+                                    
+                                sd.play(audio_array, samplerate=audio_seg.frame_rate)
+                                sd.wait()
+                            else:
+                                logging.error(f"MOSS-TTS failed: {resp.status_code} {resp.text}")
+                        except requests.exceptions.RequestException as e:
+                            logging.error(f"MOSS-TTS network error: {e}")
                     elif backend == "novelai" and novelai_key:
                         voice_seed = self._get_novelai_voice_for_agent(agent_name)
                         logging.info(f"Generating NovelAI audio using seed {voice_seed}")
@@ -216,21 +222,24 @@ class TTSManager:
                         headers = {"Authorization": f"Bearer {novelai_key}"}
                         payload = {"text": clean_text, "voice": -1, "seed": voice_seed, "opus": "false", "version": "v2"}
                         
-                        resp = requests.get("https://api.novelai.net/ai/generate-voice", headers=headers, params=payload)
-                        if resp.status_code == 200 and not self.is_muted:
-                            from pydub import AudioSegment
-                            import io
-                            
-                            audio_seg = AudioSegment.from_file(io.BytesIO(resp.content))
-                            audio_array = np.array(audio_seg.get_array_of_samples(), dtype=np.int16)
-                            
-                            if audio_seg.channels == 2:
-                                audio_array = audio_array.reshape((-1, 2))
+                        try:
+                            resp = requests.get("https://api.novelai.net/ai/generate-voice", headers=headers, params=payload, timeout=30)
+                            if resp.status_code == 200 and not self.is_muted:
+                                from pydub import AudioSegment
+                                import io
                                 
-                            sd.play(audio_array, samplerate=audio_seg.frame_rate)
-                            sd.wait()
-                        else:
-                            logging.error(f"NovelAI TTS failed: {resp.status_code} {resp.text}")
+                                audio_seg = AudioSegment.from_file(io.BytesIO(resp.content))
+                                audio_array = np.array(audio_seg.get_array_of_samples(), dtype=np.int16)
+                                
+                                if audio_seg.channels == 2:
+                                    audio_array = audio_array.reshape((-1, 2))
+                                    
+                                sd.play(audio_array, samplerate=audio_seg.frame_rate)
+                                sd.wait()
+                            else:
+                                logging.error(f"NovelAI TTS failed: {resp.status_code} {resp.text}")
+                        except requests.exceptions.RequestException as e:
+                            logging.error(f"NovelAI TTS network error: {e}")
                     elif audio_sample_path and HAS_CHATTERBOX:
                         if self.chatterbox_model is None:
                             import torch
