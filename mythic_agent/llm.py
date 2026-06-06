@@ -73,8 +73,7 @@ class Agent:
             {"role": "system", "content": system_prompt}
         ]
         
-        if self.config.get("mythic_engineering_mode"):
-            self.inject_mythic_agents()
+        self.inject_mythic_agents()
             
     def inject_mythic_agents(self) -> None:
         """Inject the 6 core Mythic Engineering sub-agents if they don't exist."""
