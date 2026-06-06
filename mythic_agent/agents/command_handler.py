@@ -50,6 +50,14 @@ class CommandHandler:
                 self._handle_pr(args)
             elif cmd == "/tutorial":
                 self._handle_tutorial()
+            elif cmd == "/clear":
+                self._handle_clear()
+            elif cmd == "/compact":
+                self._handle_compact()
+            elif cmd == "/cost":
+                self._handle_cost()
+            elif cmd == "/review":
+                self._handle_review(args)
         except Exception as e:
             logging.error(f"Command Execution Error: {e}", exc_info=True)
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[bold red]System Command Error: {e}[/bold red]\n")
@@ -181,6 +189,41 @@ Vibe coding is the art of steering autonomous AI agents using natural language i
 [dim]Press F2 to adjust your team of subagents. Happy coding![/dim]
 """
         publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n{tutorial_text}\n")
+
+    def _handle_clear(self):
+        # We broadcast the clear signal to the Primary agent
+        publish_sync("agent_clear_history", target_agent="Primary")
+
+    def _handle_compact(self):
+        # Broadcast compact signal
+        publish_sync("agent_compact_history", target_agent="Primary")
+
+    def _handle_cost(self):
+        # Dynamically import AGENT_REGISTRY to avoid circular imports if any
+        from .llm import AGENT_REGISTRY
+        agent = AGENT_REGISTRY.get("Primary")
+        if agent:
+            tokens = agent.total_tokens
+            # Rough estimate: Claude 3 Haiku costs ~$0.25 / 1M input + ~$1.25 / 1M output
+            # We'll just provide a blended rough estimate of $0.50 per 1M tokens.
+            cost_est = (tokens / 1_000_000) * 0.50
+            cost_str = f"${cost_est:.4f}" if cost_est > 0.001 else "< $0.001"
+            text = f"\n[bold cyan]Token Usage & Cost (Primary Agent)[/bold cyan]\nTotal Tokens: {tokens:,}\nEstimated Cost: {cost_str}\n"
+        else:
+            text = "\n[dim]Agent is not initialized yet.[/dim]\n"
+        publish_sync("agent_chat_chunk", agent_name="Primary", text=text)
+
+    def _handle_review(self, args: str):
+        result = subprocess.run(["git", "diff", "HEAD"], capture_output=True, text=True, cwd=str(self.project_root))
+        diff_output = result.stdout
+        if not diff_output.strip():
+            publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[dim]No uncommitted changes to review.[/dim]\n")
+            return
+            
+        publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[dim]> /review[/dim]\n[blue]Submitting current working diff for autonomous code review...[/blue]\n")
+        
+        context = f"Please do a thorough code review of my uncommitted changes. Point out any logic errors, aesthetic improvements, or architectural issues:\n\n```diff\n{diff_output}\n```\n"
+        publish_sync("ui_chat_request", user_input=context, target_agent="Primary")
 
 # Global singleton
 command_handler = CommandHandler()

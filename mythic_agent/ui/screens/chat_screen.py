@@ -153,7 +153,7 @@ class MainChatScreen(Screen):
                 with Horizontal(id="chat-input-container"):
                     yield Label(" [bold yellow]ᛟ❯[/bold yellow] ", id="prompt-label")
                     from textual.suggester import SuggestFromList
-                    COMMANDS = ["/setup", "/add", "/commit", "/issue", "/pr", "/status", "/gh", "/test", "/undo", "/doctor", "/flirt", "/lick", "/hug", "/kiss", "/snuggle", "/cuddle", "/tickle", "/wink", "/rose", "/mead", "/ale", "/beer", "/cookies", "/candy", "/love", "/btw", "/steer", "/stop", "/tutorial", "/quit", "/help", "/exit"]
+                    COMMANDS = ["/setup", "/add", "/commit", "/issue", "/pr", "/status", "/gh", "/test", "/undo", "/doctor", "/clear", "/compact", "/cost", "/review", "/flirt", "/lick", "/hug", "/kiss", "/snuggle", "/cuddle", "/tickle", "/wink", "/rose", "/mead", "/ale", "/beer", "/cookies", "/candy", "/love", "/btw", "/steer", "/stop", "/tutorial", "/quit", "/help", "/exit"]
                     yield Input(placeholder="Speak to the Seer... (Press Enter to send)", id="chat-input", suggester=SuggestFromList(COMMANDS))
             with VerticalScroll(id="sidebar"):
                 yield Label("[bold cyan]Instructions[/bold cyan]\n")
@@ -472,7 +472,7 @@ class MainChatScreen(Screen):
         try:
             lbl = self.query_one("#autocomplete-suggestions", Label)
             if val.startswith("/"):
-                COMMANDS = ["/setup", "/add", "/commit", "/issue", "/pr", "/status", "/gh", "/test", "/undo", "/doctor", "/flirt", "/lick", "/hug", "/kiss", "/snuggle", "/cuddle", "/tickle", "/wink", "/rose", "/mead", "/ale", "/beer", "/cookies", "/candy", "/love", "/btw", "/steer", "/stop", "/tutorial", "/quit", "/help", "/exit"]
+                COMMANDS = ["/setup", "/add", "/commit", "/issue", "/pr", "/status", "/gh", "/test", "/undo", "/doctor", "/clear", "/compact", "/cost", "/review", "/flirt", "/lick", "/hug", "/kiss", "/snuggle", "/cuddle", "/tickle", "/wink", "/rose", "/mead", "/ale", "/beer", "/cookies", "/candy", "/love", "/btw", "/steer", "/stop", "/tutorial", "/quit", "/help", "/exit"]
                 matches = [c for c in COMMANDS if c.startswith(val.lower())]
                 if matches:
                     formatted = []
@@ -534,6 +534,10 @@ class MainChatScreen(Screen):
                 chat_log.write("  [green]/test[/green]      - Run tests")
                 chat_log.write("  [green]/undo[/green]      - Roll back last file edit")
                 chat_log.write("  [green]/doctor[/green]    - Auto-fix a command output")
+                chat_log.write("  [green]/clear[/green]     - Clear agent memory")
+                chat_log.write("  [green]/compact[/green]   - Compact agent memory")
+                chat_log.write("  [green]/cost[/green]      - Estimate token cost")
+                chat_log.write("  [green]/review[/green]    - Auto-review git diff")
                 chat_log.write("  [green]/flirt[/green]     - Flirt with the Agent")
                 chat_log.write("  [green]/lick[/green]      - Lick the Agent")
                 chat_log.write("  [green]/hug[/green]       - Hug the Agent")
@@ -570,6 +574,10 @@ class MainChatScreen(Screen):
                     "/test": "Usage: /test\nRuns pytest natively in the repository.",
                     "/undo": "Usage: /undo\nRolls back the last file edit made by the agent by running `git reset --hard` and checking out the last stable state.",
                     "/doctor": "Usage: /doctor\nExamines the output of the last failed command and automatically generates a fix.",
+                    "/clear": "Usage: /clear\nClears the agent's memory window (except the system prompt).",
+                    "/compact": "Usage: /compact\nForces the LLM's context pruner to run early, archiving old messages to the VectorDB.",
+                    "/cost": "Usage: /cost\nComputes and displays the token cost of the current session.",
+                    "/review": "Usage: /review\nRuns `git diff` and injects the output into the agent's context for an autonomous code review.",
                     "/flirt": "Usage: /flirt <message>\nSpawns a temporary Ghost session to flirt with the current agent. Does not interrupt the agent's main workflow.",
                     "/lick": "Usage: /lick <message>\nSpawns a temporary Ghost session and explicitly sends the action *User licks you*. Fun alternative to /flirt.",
                     "/hug": "Usage: /hug <message>\nSpawns a temporary Ghost session and explicitly sends the action *User hugs you*.",
@@ -649,7 +657,7 @@ class MainChatScreen(Screen):
             
             SecureAPI.publish_ghost_chat_request(f"{action_text} {args}", target_agent=active)
             chat_log.write(f"[magenta]{action_text}[/magenta] {args}")
-        elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr", "/stop"]:
+        elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr", "/stop", "/clear", "/compact", "/cost", "/review"]:
             SecureAPI.publish_system_command(cmd, args)
         else:
             chat_log.write(f"[red]Unknown command:[/red] {cmd}")
