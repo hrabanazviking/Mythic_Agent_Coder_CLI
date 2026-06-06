@@ -34,10 +34,16 @@ class SubagentSelectionModal(ModalScreen[str]):
                 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "confirm-subagent":
-            selection = self.query_one("#target-agent-select", Select).value
-            if selection and selection != getattr(Select, "BLANK", None):
+            select_widget = self.query_one("#target-agent-select", Select)
+            selection = select_widget.value
+            if selection is not None and selection is not False and selection != Select.BLANK:
                 self.dismiss(str(selection))
             else:
                 self.dismiss(None)
         elif event.button.id == "cancel-subagent":
             self.dismiss(None)
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        """Auto-confirm when user picks from the dropdown."""
+        if event.value is not None and event.value is not False and event.value != Select.BLANK:
+            self.dismiss(str(event.value))

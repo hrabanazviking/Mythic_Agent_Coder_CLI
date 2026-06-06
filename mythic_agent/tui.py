@@ -865,66 +865,75 @@ class MainChatScreen(Screen):
 
     @work(exclusive=True, thread=True)
     def run_agent_query(self, user_input: str | None) -> None:
+        import logging
         chat_log = self.query_one("#chat-log", RichLog)
         
-        target_name = getattr(self.app, "active_chat_agent", "Primary")
-        if target_name == "Primary":
-            agent = self.app.agent
-        else:
-            from mythic_agent.llm import AGENT_REGISTRY, Agent
-            if target_name not in AGENT_REGISTRY:
-                config = self.app.agent.config
-                sub_agents = config.get("sub_agents", [])
-                sub_config = next((s for s in sub_agents if s.get("name") == target_name), None)
-                if not sub_config:
-                    self.app.call_from_thread(self.query_one("#loading-indicator").__setattr__, "display", False)
-                    return
-                
-                sub_agent = Agent(project_root=self.app.agent.project_root)
-                sub_agent.name = target_name
-                sub_agent.config = dict(config)
-                
-                sub_system_prompt = sub_config.get("prompt", "You are a helpful sub-agent.")
-                global_rules = config.get("global_rules", "").strip()
-                status_rule = "You MUST use the `update_status` tool to autosave your current project status and keep track of what is going on."
-                if global_rules:
-                    sub_system_prompt += f"\n\nGLOBAL RULES (You must strictly follow these):\n{global_rules}\n- {status_rule}"
-                else:
-                    sub_system_prompt += f"\n\nGLOBAL RULES:\n- {status_rule}"
-                    
-                sub_agent.messages = [{"role": "system", "content": sub_system_prompt}]
-                sub_agent.tui_app = self.app
-                AGENT_REGISTRY[target_name] = sub_agent
-            agent = AGENT_REGISTRY[target_name]
-
-        self.app.call_from_thread(self.query_one("#loading-indicator").__setattr__, "display", True)
-        
         def set_loading(state: bool):
-            self.query_one("#loading-indicator").display = state
-            
+            try:
+                self.query_one("#loading-indicator").display = state
+            except Exception:
+                pass
+        
         self.app.call_from_thread(set_loading, True)
-
-        def print_chunk(text: str):
-            try:
-                self.app.call_from_thread(chat_log.write, Markdown(text))
-            except Exception:
-                from rich.text import Text
-                self.app.call_from_thread(chat_log.write, Text(text))
-            
-        def print_tool(text: str):
-            from rich.markup import escape
-            try:
-                if "[+]" in text or "[~]" in text or "[-]" in text:
-                    self.app.call_from_thread(chat_log.write, text)
-                else:
-                    self.app.call_from_thread(chat_log.write, f"[dim]{escape(text)}[/dim]")
-            except Exception:
-                from rich.text import Text
-                self.app.call_from_thread(chat_log.write, Text(text))
-            
+        
         try:
+            target_name = getattr(self.app, "active_chat_agent", "Primary")
+            
+            if target_name == "Primary":
+                agent = self.app.agent
+            else:
+                from mythic_agent.llm import AGENT_REGISTRY, Agent
+                if target_name not in AGENT_REGISTRY:
+                    config = self.app.agent.config
+                    sub_agents = config.get("sub_agents", [])
+                    sub_config = next((s for s in sub_agents if s.get("name") == target_name), None)
+                    if not sub_config:
+                        self.app.call_from_thread(chat_log.write, f"\n[bold red]Error: Sub-agent '{target_name}' not found in config. Falling back to Primary.[/bold red]")
+                        self.app.active_chat_agent = "Primary"
+                        agent = self.app.agent
+                    else:
+                        sub_agent = Agent(project_root=self.app.agent.project_root)
+                        sub_agent.name = target_name
+                        sub_agent.config = dict(config)
+                        
+                        sub_system_prompt = sub_config.get("prompt", "You are a helpful sub-agent.")
+                        global_rules = config.get("global_rules", "").strip()
+                        status_rule = "You MUST use the `update_status` tool to autosave your current project status and keep track of what is going on."
+                        if global_rules:
+                            sub_system_prompt += f"\n\nGLOBAL RULES (You must strictly follow these):\n{global_rules}\n- {status_rule}"
+                        else:
+                            sub_system_prompt += f"\n\nGLOBAL RULES:\n- {status_rule}"
+                            
+                        sub_agent.messages = [{"role": "system", "content": sub_system_prompt}]
+                        sub_agent.tui_app = self.app
+                        AGENT_REGISTRY[target_name] = sub_agent
+                        agent = sub_agent
+                else:
+                    agent = AGENT_REGISTRY[target_name]
+                    
+                self.app.call_from_thread(chat_log.write, f"[dim italic]→ Routing to {target_name}...[/dim italic]")
+
+            def print_chunk(text: str):
+                try:
+                    self.app.call_from_thread(chat_log.write, Markdown(text))
+                except Exception:
+                    from rich.text import Text
+                    self.app.call_from_thread(chat_log.write, Text(text))
+                
+            def print_tool(text: str):
+                from rich.markup import escape
+                try:
+                    if "[+]" in text or "[~]" in text or "[-]" in text:
+                        self.app.call_from_thread(chat_log.write, text)
+                    else:
+                        self.app.call_from_thread(chat_log.write, f"[dim]{escape(text)}[/dim]")
+                except Exception:
+                    from rich.text import Text
+                    self.app.call_from_thread(chat_log.write, Text(text))
+                
             agent.chat(user_input, print_chunk, print_tool)
         except Exception as exc:
+            logging.exception(f"run_agent_query error: {exc}")
             self.app.call_from_thread(chat_log.write, f"\n[bold red]Error: {exc}[/bold red]")
         finally:
             self.app.call_from_thread(set_loading, False)
