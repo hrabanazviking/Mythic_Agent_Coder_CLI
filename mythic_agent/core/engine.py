@@ -39,11 +39,16 @@ class MythicEngine:
         self.config = config_manager.load_config()
         
         # Initialize Primary Agent and subscribe to events
-        from mythic_agent.agents.llm import Agent, AGENT_REGISTRY
+        from mythic_agent.agents.llm import Agent, AGENT_REGISTRY, agent_manager
         from mythic_agent.agents.command_handler import command_handler # Ensure it's imported to subscribe
+        import threading
         
         primary_agent = Agent(name="Primary")
         AGENT_REGISTRY["Primary"] = primary_agent
+        
+        # Start the inbox processing thread for the Primary agent
+        t = threading.Thread(target=agent_manager._run_agent_loop, args=(primary_agent,), daemon=True)
+        t.start()
         
         logging.info("Engine initialization complete.")
 

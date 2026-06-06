@@ -19,16 +19,16 @@ class SubagentEditorWidget(Widget):
     }
     #subagent-editor {
         margin-bottom: 0;
-        height: auto;
+        height: 1fr;
     }
     #subagent-buttons {
         height: 3;
         margin-bottom: 1;
     }
     #active-subagent-prompt {
-        min-height: 4;
-        height: auto;
-        border: solid $accent;
+        height: 1fr;
+        min-height: 10;
+        border: none;
     }
     """
     
@@ -92,15 +92,13 @@ class SubagentEditorWidget(Widget):
                 prompt_ta.load_text(prompt_text)
             else:
                 prompt_ta.text = prompt_text
-            prompt_ta.styles.height = max(4, prompt_ta.document.line_count + 1)
         except Exception:
             pass
         finally:
             self._loading_ui = False
             
     def on_text_area_changed(self, event: TextArea.Changed):
-        if event.text_area.id == "active-subagent-prompt":
-            event.text_area.styles.height = max(4, event.text_area.document.line_count + 1)
+        pass
             
     def on_select_changed(self, event: Select.Changed):
         if getattr(self, "_loading_ui", False) or event.select.id != "subagent-select":
@@ -122,6 +120,7 @@ class SubagentEditorWidget(Widget):
                 
                 prompt_ta = self.query_one("#active-subagent-prompt", TextArea)
                 self.current_subagents[idx]["prompt"] = prompt_ta.text.strip()
+                self.current_subagents[idx]["customized"] = True
                 
                 self.update_subagent_dropdown(idx)
                 self.app.notify("Warrior updates saved locally!", severity="information", timeout=3)

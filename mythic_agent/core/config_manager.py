@@ -88,13 +88,21 @@ class ConfigManager:
                     if isinstance(sa, dict) and "name" in sa and "prompt" in sa:
                         prompt = sa.get("prompt", "")
                         name = sa.get("name", "")
+                        is_customized = sa.get("customized", False)
                         
-                        # Auto-heal default agents if their prompt is suspiciously short (legacy cache)
+                        # Auto-heal default agents if their prompt doesn't match the latest (stale cache)
                         default_match = next((d for d in DEFAULT_SUBAGENTS if d["name"] == name), None)
-                        if default_match and len(prompt) < 200:
-                            valid_subs.append(copy.deepcopy(default_match))
-                            changed = True
+                        if default_match:
+                            if not is_customized and prompt != default_match["prompt"]:
+                                healed = copy.deepcopy(default_match)
+                                healed["customized"] = False
+                                valid_subs.append(healed)
+                                changed = True
+                            else:
+                                sa["customized"] = is_customized
+                                valid_subs.append(sa)
                         else:
+                            sa["customized"] = True
                             valid_subs.append(sa)
                     else:
                         changed = True  # Discard malformed subagent entries
