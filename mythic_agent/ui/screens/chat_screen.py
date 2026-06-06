@@ -320,7 +320,15 @@ class MainChatScreen(Screen):
         try:
             chat_log = self.query_one("#chat-log", RichLog)
             if markdown:
-                chat_log.write(Markdown(text))
+                from rich.markdown import Markdown
+                files_header = "[bold cyan]Files Changed:[/bold cyan]"
+                if files_header in text:
+                    parts = text.split(files_header)
+                    if parts[0].strip():
+                        chat_log.write(Markdown(parts[0]))
+                    chat_log.write(files_header + parts[1])
+                else:
+                    chat_log.write(Markdown(text))
             else:
                 from rich.markup import escape
                 if "[+]" in text or "[~]" in text or "[-]" in text or "[red]" in text or "[green]" in text or "[dim]" in text:
