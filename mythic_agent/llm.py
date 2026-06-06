@@ -100,18 +100,33 @@ class Agent:
         except Exception as e:
             raise RuntimeError(f"Failed to fetch models: {e}")
 
-    def chat(self, prompt: str, print_chunk: Callable[[str], None], print_tool: Callable[[str], None]) -> str:
-        self.messages.append({"role": "user", "content": prompt})
+    def chat(self, prompt: str | None, print_chunk: Callable[[str], None], print_tool: Callable[[str], None]) -> str:
+        if prompt:
+            self.messages.append({"role": "user", "content": prompt})
         client = self.get_client()
         
         while True:
-            response = client.chat.completions.create(
-                model=self.config.get("model", DEFAULT_MODEL),
-                messages=self.messages,
-                tools=get_agent_tools(),
-                stream=False
-            )
+            max_retries = 3
+            retry_count = 0
+            response = None
             
+            while True:
+                try:
+                    response = client.chat.completions.create(
+                        model=self.config.get("model", DEFAULT_MODEL),
+                        messages=self.messages,
+                        tools=get_agent_tools(),
+                        stream=False
+                    )
+                    break
+                except Exception as e:
+                    retry_count += 1
+                    if retry_count > max_retries:
+                        raise e
+                    import time
+                    print_tool(f"\n[bold red][!] API Error: {e}. Retrying {retry_count}/{max_retries}...[/bold red]")
+                    time.sleep(2)
+                    
             choice = response.choices[0]
             message = choice.message
             
