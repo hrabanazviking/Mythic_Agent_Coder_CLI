@@ -81,15 +81,18 @@ class SetupScreen(Screen):
         margin-right: 2;
     }
     #system-prompt-input {
-        height: 8;
+        min-height: 4;
+        height: auto;
         border: solid $accent;
     }
     #user-data-input {
-        height: 6;
+        min-height: 4;
+        height: auto;
         border: solid $accent;
     }
     #global-rules-input {
-        height: 6;
+        min-height: 4;
+        height: auto;
         border: solid yellow;
     }
     #subagents-header {
@@ -113,17 +116,14 @@ class SetupScreen(Screen):
         margin-bottom: 1;
     }
     #active-subagent-prompt {
-        height: 6;
+        min-height: 4;
+        height: auto;
     }
     #subagent-buttons {
         height: 3;
         margin-bottom: 1;
     }
     #global-rules-label {
-    }
-    #global-rules-input {
-        height: 6;
-        border: solid yellow;
     }
     #primary-header {
         height: 3;
