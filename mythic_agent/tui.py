@@ -510,6 +510,7 @@ class MainChatScreen(Screen):
                 yield Label("\n[bold yellow]⚔️ Active Warriors[/bold yellow]\n[dim]None[/dim]", id="active-agents-label")
                 yield Button("Configure GitHub", id="github-config-btn", variant="primary")
                 yield Checkbox("Mythic Engineering Mode", id="mythic-engineering-checkbox")
+                yield Checkbox("Auto-accept security permissions", id="auto-accept-checkbox")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -521,9 +522,12 @@ class MainChatScreen(Screen):
         self.update_model_status()
         self.app.set_interval(5.0, self.update_model_status)
         
-        # Load Mythic Engineering mode state
+        # Load Checkbox states
         is_mythic = self.app.agent.config.get("mythic_engineering_mode", False)
         self.query_one("#mythic-engineering-checkbox", Checkbox).value = is_mythic
+        
+        is_auto = self.app.agent.config.get("auto_accept_permissions", False)
+        self.query_one("#auto-accept-checkbox", Checkbox).value = is_auto
 
     def update_model_status(self) -> None:
         config = self.app.agent.config
@@ -546,12 +550,18 @@ class MainChatScreen(Screen):
         self.app.switch_screen("setup_wizard")
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        chat_log = self.query_one("#chat-log", RichLog)
+        status = "enabled" if event.value else "disabled"
+        
         if event.checkbox.id == "mythic-engineering-checkbox":
             self.app.agent.config["mythic_engineering_mode"] = event.value
             self.app.agent.save_config()
-            chat_log = self.query_one("#chat-log", RichLog)
-            status = "enabled" if event.value else "disabled"
             chat_log.write(f"[bold magenta]Mythic Engineering Mode {status}![/bold magenta]")
+            
+        elif event.checkbox.id == "auto-accept-checkbox":
+            self.app.agent.config["auto_accept_permissions"] = event.value
+            self.app.agent.save_config()
+            chat_log.write(f"[bold red]Auto-accept security permissions {status}![/bold red]")
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         import logging
