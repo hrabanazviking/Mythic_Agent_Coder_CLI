@@ -1,3 +1,9 @@
+---
+
+![https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-fac0e110-eb29-4de6-9b3f-33ce69fe3309.png](https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-fac0e110-eb29-4de6-9b3f-33ce69fe3309.png)
+
+---
+
 # ⚔️ Mythic Agent CLI ⚔️
 
 Welcome to **Mythic Agent**, an ultra-advanced, Viking-themed AI coding assistant right in your terminal. Designed with both intuition and rigorous architecture in mind, Mythic Agent is more than just a chatbot—it is a complete, multi-agent forge capable of managing entire repositories, running shell commands, coordinating sub-agents, and embracing the true spirit of the **Mythic Engineering** protocol.
