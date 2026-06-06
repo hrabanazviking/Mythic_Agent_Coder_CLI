@@ -68,7 +68,9 @@ class Agent:
         self.total_tokens = 0
         if "api_keys" not in self.config:
             self.config["api_keys"] = {}
-        system_prompt = self.config.get("system_prompt", "You are Mythic, an expert AI programming assistant. You have access to local tools. ALWAYS use tools to accomplish tasks (e.g. read_file, write_file, replace_file_content, run_command). Do not tell the user to run commands; run them yourself.")
+            
+        from .constants import DEFAULT_SYSTEM_PROMPT
+        system_prompt = self.config.get("system_prompt", DEFAULT_SYSTEM_PROMPT)
         
         global_rules = self.config.get("global_rules", "").strip()
         status_rule = "You MUST use the `update_status` tool to autosave your current project status and keep track of what is going on."

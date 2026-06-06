@@ -11,7 +11,7 @@ from textual.binding import Binding
 
 from .llm import Agent
 from .subagent_modal import SubagentSelectionModal
-from .constants import DEFAULT_GLOBAL_RULES
+from .constants import DEFAULT_GLOBAL_RULES, DEFAULT_PRIMARY_NAME, DEFAULT_SYSTEM_PROMPT
 
 PROVIDERS = [
     ("OpenRouter (Global)", "https://openrouter.ai/api/v1"),
@@ -264,6 +264,14 @@ class SetupScreen(Screen):
         width: 1fr;
         content-align: left middle;
     }
+    #primary-header {
+        height: 3;
+        margin-bottom: 1;
+    }
+    #primary-label {
+        width: 1fr;
+        content-align: left middle;
+    }
     """
 
     def compose(self) -> ComposeResult:
@@ -292,8 +300,10 @@ class SetupScreen(Screen):
             yield Label("6. The User's Lore (User Data - Optional):", classes="step")
             yield TextArea(id="user-data-input", classes="step")
             
-            yield Label("7. The Jarl's Identity (Primary Agent Name & Prompt):", classes="step")
-            yield Input(id="primary-agent-name", placeholder="e.g. Mythic", classes="step")
+            with Horizontal(id="primary-header"):
+                yield Label("7. The Jarl's Identity (Primary Agent Name & Prompt):", id="primary-label")
+                yield Button("Reset to Default", id="reset-primary-btn", variant="primary")
+            yield Input(id="primary-agent-name", placeholder="e.g. Runa Gridweaver", classes="step")
             yield TextArea(id="system-prompt-input", classes="step")
             
             with Horizontal(id="global-rules-header"):
@@ -346,12 +356,12 @@ class SetupScreen(Screen):
         self.query_one("#user-data-input", TextArea).text = user_data
         
         sys_prompt = config.get("system_prompt")
-        if sys_prompt:
+        if sys_prompt is not None:
             self.query_one("#system-prompt-input", TextArea).text = sys_prompt
         else:
-            self.query_one("#system-prompt-input", TextArea).text = "You are Mythic, an expert AI programming assistant. You embody the spirit of a super smart, pretty, modern Viking female coder. You have access to local tools. ALWAYS use tools to accomplish tasks (e.g. read_file, write_file, replace_file_content, run_command). Do not tell the user to run commands; run them yourself."
+            self.query_one("#system-prompt-input", TextArea).text = DEFAULT_SYSTEM_PROMPT
             
-        primary_name = config.get("primary_agent_name", "Mythic")
+        primary_name = config.get("primary_agent_name", DEFAULT_PRIMARY_NAME)
         self.query_one("#primary-agent-name", Input).value = primary_name
             
         global_rules = config.get("global_rules")
@@ -390,6 +400,9 @@ class SetupScreen(Screen):
             self.query_one("#subagents-list").mount(SubAgentForm())
         elif event.button.id == "reset-rules-btn":
             self.query_one("#global-rules-input", TextArea).text = DEFAULT_GLOBAL_RULES
+        elif event.button.id == "reset-primary-btn":
+            self.query_one("#primary-agent-name", Input).value = DEFAULT_PRIMARY_NAME
+            self.query_one("#system-prompt-input", TextArea).text = DEFAULT_SYSTEM_PROMPT
             
     async def handle_fetch(self) -> None:
         provider_url = self.query_one("#provider-select", Select).value
