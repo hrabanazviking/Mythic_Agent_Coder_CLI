@@ -328,18 +328,24 @@ class SetupScreen(Screen):
         try:
             if not getattr(self, 'current_subagents', None):
                 self.current_subagents = copy.deepcopy(DEFAULT_SUBAGENTS)
+            
             select = self.query_one("#subagent-select", Select)
-            options = [(sa["name"], i) for i, sa in enumerate(self.current_subagents)]
+            options = [(sa.get("name", f"Warrior {i}"), i) for i, sa in enumerate(self.current_subagents)]
             
             self._loading_subagent = True
-            select.set_options(options)
-            if select_index is not None:
-                select.value = select_index
-            elif options:
-                select.value = 0
-            self._loading_subagent = False
+            try:
+                select.set_options(options)
+                if select_index is not None and 0 <= select_index < len(options):
+                    select.value = select_index
+                elif options:
+                    select.value = 0
+            except Exception as e:
+                import logging
+                logging.error(f"Select widget error: {e}")
+            finally:
+                self._loading_subagent = False
             
-            if select_index is not None:
+            if select_index is not None and 0 <= select_index < len(self.current_subagents):
                 self.load_subagent(select_index)
             elif options:
                 self.load_subagent(0)
@@ -351,15 +357,16 @@ class SetupScreen(Screen):
         if getattr(self, '_loading_subagent', False):
             return
         try:
-            val = event.value
-            if event.select.id == "subagent-select" and val is not None and str(val) != "Select.BLANK":
+            if event.select.id == "subagent-select" and event.value is not None:
+                val = event.value
                 if hasattr(val, "value"):  # Handle textual version differences
                     val = val.value
-                try:
-                    idx = int(val)
-                    self.load_subagent(idx)
-                except ValueError:
-                    pass
+                if str(val) != "Select.BLANK":
+                    try:
+                        idx = int(val)
+                        self.load_subagent(idx)
+                    except ValueError:
+                        pass
         except Exception as e:
             self.app.notify(f"Error handling selection: {str(e)}", severity="error", timeout=5)
 
@@ -371,37 +378,55 @@ class SetupScreen(Screen):
             sub_agent = self.current_subagents[index]
             
             self._loading_subagent = True
-            self.query_one("#active-subagent-name", Input).value = sub_agent["name"]
-            self.query_one("#active-subagent-prompt", TextArea).text = sub_agent["prompt"]
-            self._loading_subagent = False
+            
+            name_input = self.query_one("#active-subagent-name", Input)
+            name_input.value = sub_agent.get("name", "") or ""
+            
+            prompt_ta = self.query_one("#active-subagent-prompt", TextArea)
+            prompt_text = sub_agent.get("prompt", "") or ""
+            if hasattr(prompt_ta, "load_text"):
+                prompt_ta.load_text(prompt_text)
+            else:
+                prompt_ta.text = prompt_text
+                
         except Exception as e:
-            self._loading_subagent = False
             self.app.notify(f"Error loading subagent: {str(e)}", severity="error", timeout=5)
+        finally:
+            self._loading_subagent = False
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if getattr(self, '_loading_subagent', False):
             return
         try:
             if event.input.id == "active-subagent-name" and hasattr(self, 'active_subagent_index'):
-                self.current_subagents[self.active_subagent_index]["name"] = event.value
+                idx = self.active_subagent_index
+                if 0 <= idx < len(self.current_subagents):
+                    self.current_subagents[idx]["name"] = event.value or ""
         except Exception as e:
-            self.app.notify(f"Error handling input: {str(e)}", severity="error", timeout=5)
+            pass
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         if getattr(self, '_loading_subagent', False):
             return
         try:
             if event.text_area.id == "active-subagent-prompt" and hasattr(self, 'active_subagent_index'):
-                self.current_subagents[self.active_subagent_index]["prompt"] = event.text_area.text
+                idx = self.active_subagent_index
+                if 0 <= idx < len(self.current_subagents):
+                    self.current_subagents[idx]["prompt"] = event.text_area.text or ""
         except Exception as e:
-            self.app.notify(f"Error handling text area: {str(e)}", severity="error", timeout=5)
+            pass
 
     def reset_active_subagent(self) -> None:
         try:
             idx = getattr(self, 'active_subagent_index', 0)
             if not getattr(self, 'current_subagents', None) or idx >= len(self.current_subagents):
                 return
-            default = next((sa for sa in DEFAULT_SUBAGENTS if sa["name"] == self.current_subagents[idx]["name"]), {"name": "New Warrior", "prompt": "You are a helpful warrior."})
+            current_name = self.current_subagents[idx].get("name", "")
+            default = next((sa for sa in DEFAULT_SUBAGENTS if sa["name"] == current_name), None)
+            if not default:
+                # Try partial match
+                default = next((sa for sa in DEFAULT_SUBAGENTS if current_name in sa["name"]), {"name": "New Warrior", "prompt": "You are a helpful warrior."})
+            
             self.current_subagents[idx] = copy.deepcopy(default)
             self.load_subagent(idx)
         except Exception as e:
@@ -411,7 +436,7 @@ class SetupScreen(Screen):
         try:
             if getattr(self, 'current_subagents', None) and len(self.current_subagents) > 1:
                 idx = getattr(self, 'active_subagent_index', 0)
-                if idx < len(self.current_subagents):
+                if 0 <= idx < len(self.current_subagents):
                     del self.current_subagents[idx]
                     self.update_subagent_dropdown(0)
         except Exception as e:
