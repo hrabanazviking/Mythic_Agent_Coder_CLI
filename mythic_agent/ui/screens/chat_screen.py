@@ -12,6 +12,14 @@ import copy
 
 from mythic_agent.ui.components.subagent_modal import SubagentSelectionModal
 from mythic_agent.constants import DEFAULT_GLOBAL_RULES, DEFAULT_PRIMARY_NAME, DEFAULT_SYSTEM_PROMPT, DEFAULT_SUBAGENTS
+import random
+
+try:
+    from PIL import Image as PILImage
+    from rich_pixels import Pixels
+    HAS_PIXELS = True
+except ImportError:
+    HAS_PIXELS = False
 
 from mythic_agent.core.secure_api import publish_sync, subscribe, SecureAPI
 from mythic_agent.core.config_manager import config_manager
@@ -126,6 +134,7 @@ class MainChatScreen(Screen):
                 yield Label("\n[bold yellow]⚔️ Active Warriors[/bold yellow]\n[dim]None[/dim]", id="active-agents-label")
                 yield Checkbox("Mythic Engineering Mode", id="mythic-engineering-checkbox")
                 yield Checkbox("Auto-accept security permissions", id="auto-accept-checkbox")
+                yield Static("", id="agent-image")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -149,6 +158,10 @@ class MainChatScreen(Screen):
         subscribe("agent_chat_complete", self._on_chat_complete)
         subscribe("agent_chat_error", self._on_chat_error)
         subscribe("agent_token_update", self._on_token_update)
+        
+        # Load initial agent image
+        primary_name = config.get("primary_agent_name", "Primary")
+        self.update_agent_image(primary_name)
 
     def _on_chat_chunk(self, agent_name: str, text: str):
         self.app.call_from_thread(self._write_to_log, text, markdown=True)
@@ -217,6 +230,60 @@ class MainChatScreen(Screen):
             if agent_name == "Primary":
                 display_name = config.get("primary_agent_name", "Primary Agent")
             chat_log.write(f"\n[bold cyan]⚔️ You are now speaking directly with {display_name}![/bold cyan]")
+            self.update_agent_image(display_name)
+
+    def update_agent_image(self, agent_name: str) -> None:
+        if not HAS_PIXELS:
+            return
+            
+        # Do not display if terminal color system is too basic
+        if self.app.console.color_system not in ("256", "truecolor"):
+            return
+
+        try:
+            agent_image_widget = self.query_one("#agent-image", Static)
+        except Exception:
+            return
+
+        agent_name_lower = agent_name.lower()
+        prefix = ""
+        if "runa" in agent_name_lower or "primary" in agent_name_lower:
+            prefix = "Runa_Gridweaver_Freyasdottir"
+        elif "forge" in agent_name_lower:
+            prefix = "Forge_Worker"
+        elif "thor" in agent_name_lower:
+            prefix = "Thor"
+        else:
+            prefix = agent_name.split("-")[0].strip()
+
+        chars_dir = Path("default_agent_characters")
+        if not chars_dir.exists():
+            return
+
+        matches = []
+        for f in chars_dir.glob(f"{prefix}*.*"):
+            if f.suffix.lower() in [".jpg", ".jpeg", ".png"]:
+                matches.append(f)
+
+        if not matches:
+            agent_image_widget.update("")
+            return
+
+        image_path = random.choice(matches)
+        
+        try:
+            with PILImage.open(image_path) as img:
+                width = 33
+                aspect_ratio = img.height / img.width
+                height = int(width * aspect_ratio)
+                if height == 0:
+                    height = 1
+                img = img.resize((width, height))
+                pixels = Pixels.from_image(img)
+                agent_image_widget.update(pixels)
+        except Exception as e:
+            import logging
+            logging.error(f"Failed to render image {image_path}: {e}")
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
         chat_log = self.query_one("#chat-log", RichLog)
