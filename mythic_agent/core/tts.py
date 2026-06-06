@@ -184,7 +184,32 @@ class TTSManager:
                 novelai_key = config.get("novelai_api_key", "")
                 
                 try:
-                    if backend == "novelai" and novelai_key:
+                    if backend == "moss_tts":
+                        moss_tts_url = config.get("moss_tts_url", "http://localhost:8000/v1/audio/speech")
+                        moss_tts_voice = config.get("moss_tts_voice", "default")
+                        
+                        logging.info(f"Generating MOSS-TTS audio using {moss_tts_url}")
+                        
+                        headers = {"Content-Type": "application/json"}
+                        # Assume OpenAI compatible format by default
+                        payload = {"model": "moss-tts-v1.5", "input": clean_text, "voice": moss_tts_voice}
+                        
+                        resp = requests.post(moss_tts_url, headers=headers, json=payload)
+                        if resp.status_code == 200 and not self.is_muted:
+                            from pydub import AudioSegment
+                            import io
+                            
+                            audio_seg = AudioSegment.from_file(io.BytesIO(resp.content))
+                            audio_array = np.array(audio_seg.get_array_of_samples(), dtype=np.int16)
+                            
+                            if audio_seg.channels == 2:
+                                audio_array = audio_array.reshape((-1, 2))
+                                
+                            sd.play(audio_array, samplerate=audio_seg.frame_rate)
+                            sd.wait()
+                        else:
+                            logging.error(f"MOSS-TTS failed: {resp.status_code} {resp.text}")
+                    elif backend == "novelai" and novelai_key:
                         voice_seed = self._get_novelai_voice_for_agent(agent_name)
                         logging.info(f"Generating NovelAI audio using seed {voice_seed}")
                         
