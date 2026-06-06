@@ -77,10 +77,12 @@ class Agent:
 
         global_rules = self.config.get("global_rules", "").strip()
         status_rule = "You MUST use the `update_status` tool to autosave your current project status and keep track of what is going on."
+        diff_rule = "CRITICAL: If you modify any files during your turn, you MUST include a summary of the files changed at the very end of your final response, explicitly showing the (+X, -Y) lines added and removed. The write_file and replace_file_content tools will tell you these numbers upon success. Format it exactly like this:\n[bold cyan]Files Changed:[/bold cyan]\n[green]+ X[/green] [red]- Y[/red] path/to/file.py"
+        
         if global_rules:
-            system_prompt += f"\n\nGLOBAL RULES (You must strictly follow these):\n{global_rules}\n- {status_rule}"
+            system_prompt += f"\n\nGLOBAL RULES (You must strictly follow these):\n{global_rules}\n- {status_rule}\n- {diff_rule}"
         else:
-            system_prompt += f"\n\nGLOBAL RULES:\n- {status_rule}"
+            system_prompt += f"\n\nGLOBAL RULES:\n- {status_rule}\n- {diff_rule}"
 
         if self.config.get("mythic_engineering_mode"):
             system_prompt += "\n\n=== MYTHIC ENGINEERING MODE PROTOCOL ACTIVATED ===\n"

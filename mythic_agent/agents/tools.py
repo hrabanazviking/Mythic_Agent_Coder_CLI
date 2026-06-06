@@ -319,11 +319,18 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
     if name == "write_file":
         path = root_path / arguments.get("path", "")
         try:
+            import difflib
+            old_content = path.read_text(encoding="utf-8") if path.exists() else ""
+            new_content = arguments.get("content", "")
+            diff = list(difflib.unified_diff(old_content.splitlines(), new_content.splitlines()))
+            added = sum(1 for line in diff[2:] if line.startswith("+") and not line.startswith("+++"))
+            removed = sum(1 for line in diff[2:] if line.startswith("-") and not line.startswith("---"))
+            
             auto_git_commit(root_path, path, f"Auto-backup before write_file to {path.name}")
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(arguments.get("content", ""), encoding="utf-8")
+            path.write_text(new_content, encoding="utf-8")
             auto_git_commit(root_path, path, f"Agent wrote {path.name}")
-            return f"Successfully wrote to {path}"
+            return f"Successfully wrote to {path} (+{added} lines, -{removed} lines)"
         except Exception as exc:
             return f"Failed to write file: {exc}"
             
@@ -361,11 +368,16 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             if content.count(target) > 1:
                 return "Error: target_content found multiple times. Please provide a more unique block."
             
-            auto_git_commit(root_path, path, f"Auto-backup before replace_file_content in {path.name}")
+            import difflib
             new_content = content.replace(target, replacement)
+            diff = list(difflib.unified_diff(content.splitlines(), new_content.splitlines()))
+            added = sum(1 for line in diff[2:] if line.startswith("+") and not line.startswith("+++"))
+            removed = sum(1 for line in diff[2:] if line.startswith("-") and not line.startswith("---"))
+            
+            auto_git_commit(root_path, path, f"Auto-backup before replace_file_content in {path.name}")
             path.write_text(new_content, encoding="utf-8")
             auto_git_commit(root_path, path, f"Agent replaced content in {path.name}")
-            return f"Successfully replaced content in {path}"
+            return f"Successfully replaced content in {path} (+{added} lines, -{removed} lines)"
         except Exception as exc:
             return f"Failed to replace content: {exc}"
             
