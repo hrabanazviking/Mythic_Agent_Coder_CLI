@@ -1262,6 +1262,66 @@ def render_card_mini(card):
 
 
 # ═══════════════════════════════════════════════════════════════
+#  CELTIC CROSS VISUAL LAYOUT
+# ═══════════════════════════════════════════════════════════════
+
+def render_celtic_cross_layout(cards_with_positions):
+    """Render the Celtic Cross in a beautiful visual layout."""
+    
+    def fmt(idx):
+        if idx < len(cards_with_positions):
+            c = cards_with_positions[idx]["card"]
+            sc = suit_color(c.suit)
+            rev = "[ill_dignified]↯[/ill_dignified]" if c.is_reversed else "[dignified]↑[/dignified]"
+            name = c.name
+            if len(name) > 18:
+                name = name[:16] + "…"
+            pos_name = cards_with_positions[idx]["position_name"]
+            short_names = {
+                "The Significator's Present": "Present",
+                "The Crossing Card": "Crossing",
+                "The Crown": "Crown",
+                "The Foundation": "Foundation",
+                "The Past": "Past",
+                "The Future": "Future",
+                "The Querent's Self": "Self",
+                "The Environment": "Environment",
+                "Hopes and Fears": "Hopes/Fears",
+                "The Outcome": "Outcome",
+            }
+            short = short_names.get(pos_name, pos_name)
+            return f"[{sc}]{name}[/{sc}] {rev}\n[muted]{short}[/muted]"
+        return ""
+
+    # Cross section
+    lines = []
+    lines.append("[heading]✦ The Cross of the Elements[/heading]")
+    lines.append("")
+    lines.append(f"                          ┌──────────────┐")
+    lines.append(f"                          │ {fmt(2):^28s} │")
+    lines.append(f"                          └──────────────┘")
+    lines.append(f"  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐")
+    lines.append(f"  │ {fmt(4):^26s} │  │ {fmt(0):^28s} │  │ {fmt(5):^28s} │")
+    lines.append(f"  └──────────────┘  │ {fmt(1):^28s} │  └──────────────┘")
+    lines.append(f"                    └──────────────┘")
+    lines.append(f"                          ┌──────────────┐")
+    lines.append(f"                          │ {fmt(3):^28s} │")
+    lines.append(f"                          └──────────────┘")
+    
+    # Staff section
+    lines.append("")
+    lines.append("[heading]✦ The Staff of the Spirit[/heading]")
+    lines.append("")
+    staff_parts = []
+    for i in range(6, 10):
+        if i < len(cards_with_positions):
+            staff_parts.append(fmt(i))
+    lines.append("  ──  ".join(staff_parts))
+    
+    return "\n".join(lines)
+
+
+# ═══════════════════════════════════════════════════════════════
 #  OPENROUTER AI INTEGRATION
 # ═══════════════════════════════════════════════════════════════
 
