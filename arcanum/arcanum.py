@@ -1260,41 +1260,68 @@ def render_card_mini(card):
 
 
 def render_celtic_cross_layout(cards_with_positions):
-    """Render the Celtic Cross in a visual layout."""
-    # positions: 1=center, 2=crossing, 3=above, 4=below, 5=behind, 6=ahead, 7-10=staff
-    # Visual layout:
-    #          [3]
-    #     [5] [1/2] [6]
-    #          [4]
-    #
-    #     [7] [8] [9] [10]
-
-    def card_cell(card_wp, idx):
+    """Render the Celtic Cross in a beautiful visual layout using Rich Table."""
+    
+    def fmt(idx):
         if idx < len(cards_with_positions):
             c = cards_with_positions[idx]["card"]
             sc = suit_color(c.suit)
-            rev = "↯" if c.is_reversed else "↑"
+            rev = "[ill_dignified]↯[/ill_dignified]" if c.is_reversed else "[dignified]↑[/dignified]"
             name = c.name
-            # Truncate if too long
-            if len(name) > 16:
-                name = name[:14] + "…"
-            return f"[{sc}]{name}[/{sc}]\n[{'ill_dignified' if c.is_reversed else 'dignified'}]{rev}[/{'ill_dignified' if c.is_reversed else 'dignified'}]"
+            if len(name) > 18:
+                name = name[:16] + "…"
+            return f"[{sc}]{name}[/{sc}] {rev}"
         return ""
 
-    # Build the cross visually
-    cross_lines = []
-    cross_lines.append(f"              ┌─────────────┐")
-    cross_lines.append(f"              │  {card_cell(cards_with_positions, 2):^25s} │")  # Crown (3)
-    cross_lines.append(f"              └─────────────┘")
-    cross_lines.append(f"  ┌─────────┐  ┌─────────────┐  ┌─────────────┐")
-    cross_lines.append(f"  │ {card_cell(cards_with_positions, 4):^15s} │  │  {card_cell(cards_with_positions, 0):^25s} │  │  {card_cell(cards_with_positions, 5):^25s} │")  # Past, Present, Future
-    cross_lines.append(f"  └─────────┘  │  {card_cell(cards_with_positions, 1):^25s} │  └─────────────┘")  # Crossing
-    cross_lines.append(f"               └─────────────┘")
-    cross_lines.append(f"              ┌─────────────┐")
-    cross_lines.append(f"              │  {card_cell(cards_with_positions, 3):^25s} │")  # Foundation (4)
-    cross_lines.append(f"              └─────────────┘")
-
-    return "\n".join(cross_lines)
+    # Build the cross as a table
+    table = Table(show_header=False, show_lines=False, box=None, padding=(0, 1), expand=False)
+    
+    # 5 rows x 5 cols for the cross
+    for _ in range(5):
+        table.add_column(width=20, justify="center")
+    
+    # Row 0: Crown (position 3, index 2)
+    table.add_row("", "", fmt(2), "", "")
+    # Row 1: Past(4) | Center(0) + Crossing(1) | Future(5)
+    table.add_row("", fmt(4), fmt(0), fmt(5), "")
+    # Row 2: Foundation (position 4, index 3) 
+    table.add_row("", "", fmt(1), "", "")  # crossing card
+    # Row 3: Foundation
+    table.add_row("", "", fmt(3), "", "")
+    # Row 4: empty
+    table.add_row("", "", "", "", "")
+    
+    result = table
+    
+    # Staff section (positions 7-10, indices 6-9)
+    staff_table = Table(show_header=False, show_lines=False, box=None, padding=(0, 2), expand=False)
+    staff_table.add_column(width=20, justify="center")
+    staff_table.add_column(width=20, justify="center")
+    staff_table.add_column(width=20, justify="center")
+    staff_table.add_column(width=20, justify="center")
+    
+    staff_labels = []
+    for i in range(6, 10):
+        if i < len(cards_with_positions):
+            c = cards_with_positions[i]["card"]
+            sc = suit_color(c.suit)
+            rev = "[ill_dignified]↯[/ill_dignified]" if c.is_reversed else "[dignified]↑[/dignified]"
+            name = c.name
+            if len(name) > 16:
+                name = name[:14] + "…"
+            pos_name = cards_with_positions[i]["position_name"].split("—")[-1].strip() if "—" in cards_with_positions[i]["position_name"] else cards_with_positions[i]["position_name"]
+            staff_labels.append(f"[{sc}]{name}[/{sc}] {rev}\n[muted]{pos_name}[/muted]")
+        else:
+            staff_labels.append("")
+    
+    staff_table.add_row(*staff_labels)
+    
+    return Panel(
+        f"[heading]✦ The Cross[/heading]\n\n{result}\n\n[heading]✦ The Staff[/heading]\n\n{staff_table}",
+        border_style="dark_goldenrod",
+        box=MINIMAL,
+        padding=(0, 2),
+    )
 
 # ═══════════════════════════════════════════════════════════════
 #  OPENROUTER AI INTEGRATION
