@@ -339,6 +339,7 @@ class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
         subscribe("ui_chat_request", self.handle_chat_request)
+        subscribe("ui_ghost_chat_request", self.handle_ghost_chat_request)
         subscribe("config_reload_requested", self._on_config_reload)
         
     def _on_config_reload(self, config: dict):
@@ -369,6 +370,54 @@ class AgentManager:
         # Publish creation message to UI
         publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[bold green]✦ A new subagent has been awakened: {name}[/bold green]\n")
         return sub_agent
+
+    def spawn_ghost_agent(self, original_agent: Agent) -> Agent:
+        ghost_name = f"[Ghost] {original_agent.name}"
+        if ghost_name in AGENT_REGISTRY:
+            return AGENT_REGISTRY[ghost_name]
+            
+        logging.info(f"Dynamically spawning ghost agent: {ghost_name}")
+        ghost_agent = Agent(project_root=original_agent.project_root)
+        ghost_agent.name = ghost_name
+        
+        # Inherit memory context completely
+        import copy
+        ghost_agent.messages = copy.deepcopy(original_agent.messages)
+        # Re-build system prompt if needed, but it's copied in messages
+        
+        AGENT_REGISTRY[ghost_name] = ghost_agent
+        threading.Thread(target=self._run_agent_loop, args=(ghost_agent,), daemon=True).start()
+        
+        # Publish creation message to UI
+        publish_sync("agent_chat_chunk", agent_name=original_agent.name, text=f"\n[bold magenta]✦ A ghost thread has been spun up to assist you: {ghost_name}[/bold magenta]\n")
+        return ghost_agent
+
+    def handle_ghost_chat_request(self, user_input: str, target_agent: str = "Primary"):
+        original = AGENT_REGISTRY.get(target_agent)
+        if not original:
+            # Fallback to normal if it doesn't exist yet
+            self.handle_chat_request(user_input, target_agent)
+            return
+            
+        ghost = self.spawn_ghost_agent(original)
+        
+        # Give the ghost agent awareness of what the original agent is currently doing
+        latest_work = [m for m in original.messages if m["role"] in ("assistant", "tool")][-3:]
+        if latest_work:
+            import json
+            awareness = []
+            for m in latest_work:
+                if m["role"] == "tool":
+                    awareness.append(f"Tool Result: {str(m.get('content'))[:200]}...")
+                elif "tool_calls" in m and m["tool_calls"]:
+                    awareness.append(f"Agent called tools: {[t.function.name for t in m['tool_calls']]}")
+                elif "content" in m:
+                    awareness.append(f"Agent thought: {str(m['content'])[:200]}...")
+                    
+            awareness_text = "\n".join(awareness)
+            user_input = f"[SYSTEM: For your awareness, your original working copy is currently doing this in the background:\n{awareness_text}]\n\n{user_input}"
+            
+        ghost.inbox.put(user_input)
 
     def handle_chat_request(self, user_input: str, target_agent: str = "Primary"):
         agent = AGENT_REGISTRY.get(target_agent)

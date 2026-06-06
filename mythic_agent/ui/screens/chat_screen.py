@@ -139,6 +139,7 @@ class MainChatScreen(Screen):
         Binding("ctrl+q", "quit", "Quit", show=True),
         Binding("f2", "setup", "Setup", show=True),
         Binding("f3", "select_agent", "Select Agent", show=True),
+        Binding("escape", "exit_ghost", "Exit Ghost Session", show=True),
     ]
 
     def compose(self) -> ComposeResult:
@@ -370,6 +371,12 @@ class MainChatScreen(Screen):
     def action_select_agent(self) -> None:
         self.app.push_screen(SubagentSelectionModal(), self.on_agent_selected)
         
+    def action_exit_ghost(self) -> None:
+        current = getattr(self.app, "active_chat_agent", "Primary")
+        if "[Ghost]" in current:
+            original_agent = current.replace("[Ghost] ", "").strip()
+            self.on_agent_selected(original_agent)
+            
     def on_agent_selected(self, agent_name: str | None) -> None:
         if agent_name:
             self.app.active_chat_agent = agent_name
@@ -502,17 +509,25 @@ class MainChatScreen(Screen):
             if not args:
                 chat_log.write("[red]Usage: /btw <message>[/red]")
             else:
-                SecureAPI.publish_chat_request(f"By the way (for your context, no need to act on this alone unless asked): {args}")
-                chat_log.write(f"[green]Added to context: {args}[/green]")
+                active = getattr(self.app, "active_chat_agent", "Primary")
+                if "[Ghost]" not in active:
+                    self.on_agent_selected(f"[Ghost] {active}")
+                SecureAPI.publish_ghost_chat_request(f"By the way (for your context, no need to act on this alone unless asked): {args}", target_agent=active)
+                chat_log.write(f"[magenta]Passed to ghost agent: {args}[/magenta]")
         elif cmd == "/steer":
             if not args:
                 chat_log.write("[red]Usage: /steer <instruction>[/red]")
             else:
-                SecureAPI.publish_chat_request(f"USER STEERING INSTRUCTION (Priority): {args}")
+                # Steer explicitly still goes to the working original agent
+                active = getattr(self.app, "active_chat_agent", "Primary")
+                SecureAPI.publish_chat_request(f"USER STEERING INSTRUCTION (Priority): {args}", target_agent=active)
                 chat_log.write(f"[bold yellow]Steering instruction applied: {args}[/bold yellow]")
         elif cmd == "/flirt":
-            SecureAPI.publish_chat_request(f"*flirts with you* {args}")
-            chat_log.write(f"[magenta]*Flirts...*[/magenta] {args}")
+            active = getattr(self.app, "active_chat_agent", "Primary")
+            if "[Ghost]" not in active:
+                self.on_agent_selected(f"[Ghost] {active}")
+            SecureAPI.publish_ghost_chat_request(f"*flirts with you* {args}", target_agent=active)
+            chat_log.write(f"[magenta]*Flirts with ghost agent...*[/magenta] {args}")
         elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr"]:
             SecureAPI.publish_system_command(cmd, args)
         else:

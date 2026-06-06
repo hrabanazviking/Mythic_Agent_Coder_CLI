@@ -90,5 +90,9 @@ class SecureAPI:
         publish_sync("ui_chat_request", user_input=user_input, target_agent=target_agent)
         
     @staticmethod
+    def publish_ghost_chat_request(user_input: str, target_agent: str = "Primary"):
+        publish_sync("ui_ghost_chat_request", user_input=user_input, target_agent=target_agent)
+        
+    @staticmethod
     def publish_system_command(command: str, args: str):
         publish_sync("system_command_executed", command=command, args=args)
