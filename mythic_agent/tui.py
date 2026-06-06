@@ -412,7 +412,7 @@ class SetupScreen(Screen):
         
         # Collect subagents
         sub_agents = []
-        for form in self.query(".subagent-form"):
+        for form in self.query(SubAgentForm):
             name = form.query_one(".subagent-name", Input).value.strip()
             prompt = form.query_one(".subagent-prompt", TextArea).text.strip()
             if name and prompt:
