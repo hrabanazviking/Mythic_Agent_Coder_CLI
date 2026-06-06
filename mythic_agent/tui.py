@@ -888,13 +888,22 @@ class MainChatScreen(Screen):
         self.app.call_from_thread(set_loading, True)
 
         def print_chunk(text: str):
-            self.app.call_from_thread(chat_log.write, Markdown(text))
+            try:
+                self.app.call_from_thread(chat_log.write, Markdown(text))
+            except Exception:
+                from rich.text import Text
+                self.app.call_from_thread(chat_log.write, Text(text))
             
         def print_tool(text: str):
-            if "[+]" in text or "[~]" in text or "[-]" in text:
-                self.app.call_from_thread(chat_log.write, text)
-            else:
-                self.app.call_from_thread(chat_log.write, f"[dim]{text}[/dim]")
+            from rich.markup import escape
+            try:
+                if "[+]" in text or "[~]" in text or "[-]" in text:
+                    self.app.call_from_thread(chat_log.write, text)
+                else:
+                    self.app.call_from_thread(chat_log.write, f"[dim]{escape(text)}[/dim]")
+            except Exception:
+                from rich.text import Text
+                self.app.call_from_thread(chat_log.write, Text(text))
             
         try:
             agent.chat(user_input, print_chunk, print_tool)
