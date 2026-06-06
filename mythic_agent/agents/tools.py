@@ -311,7 +311,8 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
     if name == "update_status":
         project = arguments.get("project", "default")
         status = arguments.get("status", "")
-        status_dir = Path.home() / ".mythic" / "status"
+        from ..core.config_manager import config_manager
+        status_dir = config_manager.MYTHIC_DIR / "status"
         status_dir.mkdir(parents=True, exist_ok=True)
         safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', project)
         status_file = status_dir / f"{safe_name}.md"
