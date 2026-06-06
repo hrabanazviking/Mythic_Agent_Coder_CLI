@@ -21,13 +21,13 @@ except Exception:
     HAS_IMAGE_WIDGET = False
 
 from textual import events
+from textual.containers import Vertical
 
-if HAS_IMAGE_WIDGET:
-    class AspectRatioImage(TextualImage):
-        def on_resize(self, event: events.Resize) -> None:
-            # Character terminals are inherently ~2:1 vertical rectangles.
-            # To render a 1:1 square image proportionally, height in lines should be width / 2.
-            self.styles.height = max(1, event.size.width // 2)
+class AspectRatioContainer(Vertical):
+    def on_resize(self, event: events.Resize) -> None:
+        # Character terminals are inherently ~2:1 vertical rectangles.
+        # To render a 1:1 square image proportionally, height in lines should be width / 2.
+        self.styles.height = max(1, event.size.width // 2)
 
 from mythic_agent.core.secure_api import publish_sync, subscribe, SecureAPI
 from mythic_agent.core.config_manager import config_manager
@@ -105,8 +105,12 @@ class MainChatScreen(Screen):
         background: $accent;
         color: $text;
     }
+    #agent-image-container {
+        width: 100%;
+    }
     #agent-image {
         width: 100%;
+        height: 100%;
     }
     """
     
@@ -150,7 +154,8 @@ class MainChatScreen(Screen):
                 yield Checkbox("Mythic Engineering Mode", id="mythic-engineering-checkbox")
                 yield Checkbox("Auto-accept security permissions", id="auto-accept-checkbox")
                 if HAS_IMAGE_WIDGET:
-                    yield AspectRatioImage(None, id="agent-image")
+                    with AspectRatioContainer(id="agent-image-container"):
+                        yield TextualImage(None, id="agent-image")
                 else:
                     yield Static("", id="agent-image")
         yield Footer()
