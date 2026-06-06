@@ -268,10 +268,10 @@ class SetupScreen(Screen):
             yield Label("4. The Battlefield (Working Directory):", classes="step")
             yield Input(placeholder="e.g. /home/user/projects (Leave blank to use current folder)", id="working-dir-input", classes="step")
             
-            yield Label("5. Who is the Master? (User Name - Optional):", classes="step")
+            yield Label("5. Who is the User? (User Name - Optional):", classes="step")
             yield Input(placeholder="Your Name (e.g. Volmarr)", id="user-name-input", classes="step")
             
-            yield Label("6. The Master's Lore (User Data - Optional):", classes="step")
+            yield Label("6. The User's Lore (User Data - Optional):", classes="step")
             yield TextArea(id="user-data-input", classes="step")
             
             yield Label("7. The Jarl's Identity (Primary Agent Name & Prompt):", classes="step")
