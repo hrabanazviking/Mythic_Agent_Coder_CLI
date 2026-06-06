@@ -3,6 +3,8 @@ import os
 import time
 import logging
 import threading
+import queue
+import random
 from pathlib import Path
 from typing import Any, Callable
 
@@ -35,6 +37,7 @@ class Agent:
             self.config["api_keys"] = {}
             
         self.messages = []
+        self.inbox = queue.Queue()
         self._lock = threading.Lock()
         self.rebuild_system_prompt()
         
@@ -169,7 +172,7 @@ class Agent:
                 publish_sync("agent_chat_tool", agent_name=self.name, text=text)
             
             while True:
-                max_retries = 3
+                max_retries = 10
                 retry_count = 0
                 response = None
                 
@@ -186,8 +189,9 @@ class Agent:
                         retry_count += 1
                         if retry_count > max_retries:
                             raise e
-                        print_tool(f"\n[bold red][!] API Error: {e}. Retrying {retry_count}/{max_retries}...[/bold red]")
-                        time.sleep(2)
+                        sleep_time = min(60, (2 ** retry_count) + random.uniform(0, 1))
+                        print_tool(f"\n[bold red][!] API Error: {e}. Retrying in {sleep_time:.1f}s ({retry_count}/{max_retries})...[/bold red]")
+                        time.sleep(sleep_time)
                         
                 choice = response.choices[0]
                 message = choice.message
@@ -270,6 +274,7 @@ class AgentManager:
         sub_agent.name = name
         sub_agent.rebuild_system_prompt()
         AGENT_REGISTRY[name] = sub_agent
+        threading.Thread(target=self._run_agent_loop, args=(sub_agent,), daemon=True).start()
         return sub_agent
 
     def handle_chat_request(self, user_input: str, target_agent: str = "Primary"):
@@ -285,18 +290,24 @@ class AgentManager:
             publish_sync("agent_chat_error", agent_name=target_agent, error=f"Agent {target_agent} not found.")
             return
             
-        threading.Thread(target=self._run_agent_chat, args=(agent, user_input), daemon=True).start()
+        agent.inbox.put(user_input)
         
-    def _run_agent_chat(self, agent: Agent, prompt: str):
-        try:
-            publish_sync("agent_status_changed", agent_name=agent.name, is_active=True)
-            agent.chat(prompt)
-            publish_sync("agent_chat_complete", agent_name=agent.name)
-        except Exception as e:
-            logging.exception(f"Error in chat execution for {agent.name}: {e}")
-            publish_sync("agent_chat_error", agent_name=agent.name, error=str(e))
-        finally:
-            publish_sync("agent_status_changed", agent_name=agent.name, is_active=False)
+    def _run_agent_loop(self, agent: "Agent"):
+        while True:
+            try:
+                prompt = agent.inbox.get()
+                if prompt is None:
+                    break
+                    
+                publish_sync("agent_status_changed", agent_name=agent.name, is_active=True)
+                agent.chat(prompt)
+                publish_sync("agent_chat_complete", agent_name=agent.name)
+            except Exception as e:
+                logging.exception(f"Error in chat execution for {agent.name}: {e}")
+                publish_sync("agent_chat_error", agent_name=agent.name, error=str(e))
+            finally:
+                publish_sync("agent_status_changed", agent_name=agent.name, is_active=False)
+                agent.inbox.task_done()
 
 # Instantiate the singleton router
 agent_manager = AgentManager()
