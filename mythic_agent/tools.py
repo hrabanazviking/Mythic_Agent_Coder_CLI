@@ -192,10 +192,11 @@ def auto_git_commit(root_path: Path, file_path: Path, message: str) -> None:
     if not (root_path / ".git").exists():
         return
     try:
-        subprocess.run(f"git add {file_path}", shell=True, cwd=str(root_path), capture_output=True)
-        subprocess.run(f"git commit -m '{message}'", shell=True, cwd=str(root_path), capture_output=True)
-    except Exception:
-        pass
+        subprocess.run(["git", "add", str(file_path)], cwd=str(root_path), capture_output=True, check=True)
+        subprocess.run(["git", "commit", "-m", message], cwd=str(root_path), capture_output=True, check=True)
+    except Exception as e:
+        import logging
+        logging.exception(f"auto_git_commit failed: {e}")
 
 def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None = None, tui_app: Any = None) -> str:
     root_path = project_root if project_root is not None else Path.cwd()
@@ -226,7 +227,7 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
                 return f"Command execution REJECTED by the user."
         try:
             result = subprocess.run(
-                command, shell=True, cwd=str(root_path), 
+                command, shell=True, cwd=str(root_path),  # nosec B602
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
             )
             return result.stdout or f"Command executed with exit code {result.returncode}"
@@ -297,8 +298,10 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             if gh_token:
                 env["GH_TOKEN"] = gh_token
                 
+            import shlex
+            cmd_list = shlex.split(command)
             result = subprocess.run(
-                command, shell=True, cwd=str(root_path), 
+                cmd_list, cwd=str(root_path), 
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                 env=env
             )
