@@ -310,8 +310,8 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             return f"GitHub command failed: {exc}"
 
     if name == "update_status":
-        project = args.get("project", "default")
-        status = args.get("status", "")
+        project = arguments.get("project", "default")
+        status = arguments.get("status", "")
         status_dir = Path.home() / ".mythic" / "status"
         status_dir.mkdir(parents=True, exist_ok=True)
         safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', project)
