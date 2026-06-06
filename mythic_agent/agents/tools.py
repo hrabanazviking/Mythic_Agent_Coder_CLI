@@ -140,10 +140,73 @@ def get_agent_tools() -> list[dict[str, Any]]:
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "recipient": {"type": "string", "description": "Name of the agent to receive the message (use 'Primary' for the main user agent)."},
-                        "message": {"type": "string", "description": "The message content."}
+                        "recipient": {"type": "string", "description": "The name of the agent to send the message to."},
+                        "message": {"type": "string", "description": "The message to send."}
                     },
                     "required": ["recipient", "message"],
+                    "additionalProperties": False,
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "core_memory_append",
+                "description": "Append text to a block in your Core OS Memory.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "block": {"type": "string", "enum": ["persona", "human", "project", "long_term_notes"], "description": "The memory block to append to."},
+                        "content": {"type": "string", "description": "The content to append."}
+                    },
+                    "required": ["block", "content"],
+                    "additionalProperties": False,
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "core_memory_replace",
+                "description": "Replace the entire content of a block in your Core OS Memory.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "block": {"type": "string", "enum": ["persona", "human", "project", "long_term_notes"], "description": "The memory block to replace."},
+                        "content": {"type": "string", "description": "The new content."}
+                    },
+                    "required": ["block", "content"],
+                    "additionalProperties": False,
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "archival_memory_insert",
+                "description": "Insert data into your Archival Vector Memory.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "text": {"type": "string", "description": "The text to archive."}
+                    },
+                    "required": ["text"],
+                    "additionalProperties": False,
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "archival_memory_search",
+                "description": "Search your Archival Vector Memory for relevant information.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "The search query."},
+                        "top_k": {"type": "integer", "description": "Number of results to return (default 5)."}
+                    },
+                    "required": ["query"],
                     "additionalProperties": False,
                 }
             }
@@ -454,5 +517,43 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
                     agent.messages = [agent.messages[0]]
             return "Context cleared. Memory wiped successfully."
         return "Context clear failed."
+
+    if name == "core_memory_append":
+        block = arguments.get("block")
+        content = arguments.get("content")
+        if agent and hasattr(agent, "core_memory"):
+            if agent.core_memory.append(block, content):
+                return f"Successfully appended to {block} block in core memory."
+            return f"Error: Block {block} not found."
+        return "Error: Core memory not initialized."
+
+    if name == "core_memory_replace":
+        block = arguments.get("block")
+        content = arguments.get("content")
+        if agent and hasattr(agent, "core_memory"):
+            if agent.core_memory.replace(block, content):
+                return f"Successfully replaced {block} block in core memory."
+            return f"Error: Block {block} not found."
+        return "Error: Core memory not initialized."
+
+    if name == "archival_memory_insert":
+        text = arguments.get("text")
+        if agent and hasattr(agent, "vector_db"):
+            agent.vector_db.insert(text)
+            return "Successfully inserted into archival memory."
+        return "Error: Archival memory not initialized."
+
+    if name == "archival_memory_search":
+        query = arguments.get("query")
+        top_k = arguments.get("top_k", 5)
+        if agent and hasattr(agent, "vector_db"):
+            results = agent.vector_db.search(query, top_k=top_k)
+            if not results:
+                return "No relevant memories found."
+            output = "Archival Search Results:\n"
+            for idx, r in enumerate(results):
+                output += f"{idx+1}. (Score: {r['score']:.2f}) {r['text']}\n"
+            return output
+        return "Error: Archival memory not initialized."
 
     return f"Error: Unknown tool {name}"
