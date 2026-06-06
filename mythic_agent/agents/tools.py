@@ -299,33 +299,48 @@ def get_agent_tools() -> list[dict[str, Any]]:
 
 def prompt_approval_sync(command: str, tui_app) -> bool:
     if not tui_app:
-        return True # Fallback if UI not connected
-        
-    if tui_app.agent.config.get("auto_accept_permissions", False):
-        return True
-        
+        return True  # Fallback if UI not connected
+
+    # tui_app is MythicTUI — check auto_accept via config_manager, not via a .agent attr
+    try:
+        from ..core.config_manager import config_manager
+        cfg = config_manager.load_config()
+        if cfg.get("auto_accept_permissions", False):
+            return True
+    except Exception:
+        pass
+
     import threading
     event = threading.Event()
     result = {"approved": False}
-    
+
     def on_approve():
         result["approved"] = True
         event.set()
-        
+
     def on_reject():
         result["approved"] = False
         event.set()
-        
+
     tui_app.call_from_thread(tui_app.action_request_approval, command, on_approve, on_reject)
-    event.wait()
+    event.wait(timeout=300)  # 5-minute hard timeout so LLM thread can't hang forever
     return result["approved"]
 
 def auto_git_commit(root_path: Path, file_path: Path, message: str) -> None:
     if not (root_path / ".git").exists():
         return
     try:
-        subprocess.run(["git", "add", str(file_path)], cwd=str(root_path), capture_output=True, check=True)
-        subprocess.run(["git", "commit", "-m", message], cwd=str(root_path), capture_output=True, check=True)
+        subprocess.run(
+            ["git", "add", str(file_path)],
+            cwd=str(root_path), capture_output=True, check=True, timeout=15
+        )
+        subprocess.run(
+            ["git", "commit", "-m", message],
+            cwd=str(root_path), capture_output=True, check=True, timeout=15
+        )
+    except subprocess.TimeoutExpired:
+        import logging
+        logging.warning(f"auto_git_commit timed out for {file_path}")
     except Exception as e:
         import logging
         logging.exception(f"auto_git_commit failed: {e}")
@@ -459,11 +474,15 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             import shlex
             cmd_list = shlex.split(command)
             result = subprocess.run(
-                cmd_list, cwd=str(root_path), 
+                cmd_list, cwd=str(root_path),
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                env=env
+                env=env, timeout=30
             )
             return truncate_output(result.stdout or f"GitHub command executed with exit code {result.returncode}")
+        except subprocess.TimeoutExpired:
+            return "Error: GitHub CLI command timed out after 30 seconds."
+        except FileNotFoundError:
+            return "Error: 'gh' CLI not found. Please install the GitHub CLI."
         except Exception as exc:
             return f"GitHub command failed: {exc}"
 
@@ -629,7 +648,9 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             if pwd_file.exists():
                 pwd = pwd_file.read_text().strip()
             else:
-                pwd = "mtcwauwkGfRVT8u7V6gWh0Qv"
+                pwd = os.environ.get("PG_KNOWLEDGE_PASSWORD", "")
+                if not pwd:
+                    return "Error: No database password found. Set PG_KNOWLEDGE_PASSWORD env var or create ~/.pg-knowledge-password"
                 
             conn_str = f"postgresql://volmarr:{pwd}@gungnir:5432/knowledge"
             
@@ -668,7 +689,9 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             if pwd_file.exists():
                 pwd = pwd_file.read_text().strip()
             else:
-                pwd = "mtcwauwkGfRVT8u7V6gWh0Qv"
+                pwd = os.environ.get("PG_KNOWLEDGE_PASSWORD", "")
+                if not pwd:
+                    return "Error: No database password found. Set PG_KNOWLEDGE_PASSWORD env var or create ~/.pg-knowledge-password"
                 
             conn_str = f"postgresql://volmarr:{pwd}@gungnir:5432/knowledge"
             
