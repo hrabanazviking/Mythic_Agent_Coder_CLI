@@ -18,8 +18,6 @@ class SubagentEditorWidget(Widget):
         margin-bottom: 1;
     }
     #subagent-editor {
-        border: heavy $primary;
-        padding: 1;
         margin-bottom: 1;
         height: auto;
     }
