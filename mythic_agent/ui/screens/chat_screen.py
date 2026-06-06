@@ -113,6 +113,19 @@ class MainChatScreen(Screen):
         background: $accent;
         color: $text;
     }
+    #footer-container {
+        dock: bottom;
+        height: 1;
+        width: 100%;
+        background: $primary-background;
+    }
+    Footer {
+        width: 1fr;
+    }
+    #footer-agents-status {
+        width: auto;
+        color: yellow;
+    }
     #agent-image-container {
         width: 100%;
     }
@@ -168,11 +181,17 @@ class MainChatScreen(Screen):
                 else:
                     yield Static("", id="agent-image")
                 yield Button("GitHub Repo", id="github-repo-btn", variant="primary")
-        yield Footer()
+        with Horizontal(id="footer-container"):
+            yield Footer()
+            yield Static(" | Active Agents: None", id="footer-agents-status")
 
     def on_mount(self) -> None:
         self.active_subagents = []
         chat_log = self.query_one("#chat-log", RichLog)
+        
+        config = config_manager.load_config()
+        self.set_interval(1.0, self._update_footer_agent_status)
+        
         chat_log.write("Welcome to the Viking Mythic Agent! Press F2 to configure your team.\n")
         chat_log.write("[dim]Type /help for a list of runic commands.[/dim]")
         self.query_one("#loading-indicator").display = False
@@ -207,10 +226,14 @@ class MainChatScreen(Screen):
         
     def _on_chat_error(self, agent_name: str, error: str):
         self.app.call_from_thread(self._write_to_log, f"\n[bold red]Error ({agent_name}): {error}[/bold red]")
-        self.app.call_from_thread(self._set_loading, False)
+        current_agent = getattr(self.app, "active_chat_agent", "Primary")
+        if agent_name == current_agent:
+            self.app.call_from_thread(self._set_loading, False)
 
     def _on_chat_complete(self, agent_name: str):
-        self.app.call_from_thread(self._set_loading, False)
+        current_agent = getattr(self.app, "active_chat_agent", "Primary")
+        if agent_name == current_agent:
+            self.app.call_from_thread(self._set_loading, False)
 
     def _on_token_update(self, agent_name: str, total_tokens: int):
         self.app.call_from_thread(self.app.update_token_count, total_tokens)
@@ -228,6 +251,12 @@ class MainChatScreen(Screen):
                     self.active_subagents.remove(agent_name)
                 
             from ..agents.llm import AGENT_REGISTRY
+            
+            # Update dots if we are viewing the agent whose status just changed
+            current_agent = getattr(self.app, "active_chat_agent", "Primary")
+            if agent_name == current_agent:
+                self._set_loading(is_active)
+            
             lbl = self.query_one("#active-agents-label", Label)
             
             active_list = []
@@ -243,6 +272,35 @@ class MainChatScreen(Screen):
         except Exception as e:
             import logging
             logging.exception(f"Error in _update_agent_status_ui: {e}")
+
+    def _update_footer_agent_status(self) -> None:
+        try:
+            from ..agents.llm import AGENT_REGISTRY
+            import time
+            
+            active_list = []
+            for aname, agent in AGENT_REGISTRY.items():
+                if aname == "Primary": continue
+                if aname in self.active_subagents and getattr(agent, "active_task_start_time", None):
+                    elapsed = int(time.time() - agent.active_task_start_time)
+                    
+                    if elapsed < 60:
+                        time_str = f"{elapsed}s"
+                    else:
+                        mins = elapsed // 60
+                        secs = elapsed % 60
+                        time_str = f"{mins}m {secs}s"
+                        
+                    active_list.append(f"{aname} ({time_str})")
+            
+            lbl = self.query_one("#footer-agents-status", Static)
+            if active_list:
+                lbl.update(f" | Active Agents: {', '.join(active_list)}")
+            else:
+                lbl.update(" | Active Agents: None")
+        except Exception as e:
+            import logging
+            logging.exception(f"Error in _update_footer_agent_status: {e}")
 
     def _on_subagent_message_received(self, sender: str, recipient: str, message: str):
         self.app.call_from_thread(self._notify_subagent_message, sender, message)
