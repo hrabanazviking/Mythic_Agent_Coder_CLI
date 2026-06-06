@@ -149,9 +149,12 @@ class MainChatScreen(Screen):
                 yield RichLog(id="chat-log", wrap=True, markup=True)
                 yield LoadingIndicator(id="loading-indicator")
                 yield Button("Loading model status...", id="model-status-btn")
+                yield Label("", id="autocomplete-suggestions", markup=True)
                 with Horizontal(id="chat-input-container"):
                     yield Label(" [bold yellow]ᛟ❯[/bold yellow] ", id="prompt-label")
-                    yield Input(placeholder="Speak to the Seer... (Press Enter to send)", id="chat-input")
+                    from textual.suggester import SuggestFromList
+                    COMMANDS = ["/setup", "/add", "/commit", "/issue", "/pr", "/status", "/gh", "/test", "/undo", "/doctor", "/flirt", "/btw", "/steer", "/stop", "/tutorial", "/quit", "/help", "/exit"]
+                    yield Input(placeholder="Speak to the Seer... (Press Enter to send)", id="chat-input", suggester=SuggestFromList(COMMANDS))
             with VerticalScroll(id="sidebar"):
                 yield Label("[bold cyan]Instructions[/bold cyan]\n")
                 yield Label("Welcome to Mythic Agent! Type naturally to code, or use these commands:\n")
@@ -460,6 +463,31 @@ class MainChatScreen(Screen):
             config_manager.save_config(config)
             chat_log.write(f"[bold red]Auto-accept security permissions {status}![/bold red]")
 
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id != "chat-input":
+            return
+            
+        val = event.value
+        try:
+            lbl = self.query_one("#autocomplete-suggestions", Label)
+            if val.startswith("/"):
+                COMMANDS = ["/setup", "/add", "/commit", "/issue", "/pr", "/status", "/gh", "/test", "/undo", "/doctor", "/flirt", "/btw", "/steer", "/stop", "/tutorial", "/quit", "/help", "/exit"]
+                matches = [c for c in COMMANDS if c.startswith(val.lower())]
+                if matches:
+                    formatted = []
+                    for i, m in enumerate(matches[:8]):
+                        if i == 0:
+                            formatted.append(f"[bold cyan]{m}[/bold cyan]")
+                        else:
+                            formatted.append(f"[dim]{m}[/dim]")
+                    lbl.update(" ".join(formatted))
+                else:
+                    lbl.update("")
+            else:
+                lbl.update("")
+        except Exception:
+            pass
+
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         import logging
         user_input = event.value.strip()
@@ -467,6 +495,11 @@ class MainChatScreen(Screen):
             return
             
         event.input.value = ""
+        try:
+            self.query_one("#autocomplete-suggestions", Label).update("")
+        except Exception:
+            pass
+            
         chat_log = self.query_one("#chat-log", RichLog)
 
         logging.info(f"User input: {user_input}")
