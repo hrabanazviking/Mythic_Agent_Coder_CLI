@@ -77,8 +77,11 @@ class TTSManager:
 
     def toggle_mute(self) -> bool:
         self.is_muted = not self.is_muted
-        if self.is_muted:
-            sd.stop() # stop any currently playing audio immediately
+        if self.is_muted and HAS_TTS:
+            try:
+                sd.stop()  # stop any currently playing audio immediately
+            except Exception:
+                pass
         return self.is_muted
 
     def speak(self, agent_name: str, text: str):

@@ -50,6 +50,16 @@ class EventBus:
         if event_type in self._subscribers:
             for callback in self._subscribers[event_type]:
                 try:
+                    if asyncio.iscoroutinefunction(callback):
+                        # Async subscribers cannot be awaited from a sync context.
+                        # Log a warning so the developer notices the mismatch —
+                        # silently calling it would return an unawaited coroutine.
+                        logger.warning(
+                            f"publish_sync: subscriber {callback.__qualname__} for event "
+                            f"'{event_type}' is async and will be skipped. "
+                            "Use an async subscriber or refactor to a sync callback."
+                        )
+                        continue
                     callback(**kwargs)
                 except Exception as e:
                     logger.error(f"Error in sync subscriber for event {event_type}: {e}", exc_info=True)
