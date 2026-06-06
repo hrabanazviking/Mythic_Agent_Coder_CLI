@@ -442,36 +442,53 @@ class SetupScreen(Screen):
     def update_subagent_dropdown(self, select_index: int | None = None) -> None:
         select = self.query_one("#subagent-select", Select)
         options = [(sa["name"], i) for i, sa in enumerate(self.current_subagents)]
+        
+        self._loading_subagent = True
         select.set_options(options)
         if select_index is not None:
             select.value = select_index
-            self.load_subagent(select_index)
         elif options:
             select.value = 0
+        self._loading_subagent = False
+        
+        if select_index is not None:
+            self.load_subagent(select_index)
+        elif options:
             self.load_subagent(0)
 
     def on_select_changed(self, event: Select.Changed) -> None:
+        if getattr(self, '_loading_subagent', False):
+            return
         if event.select.id == "subagent-select" and event.value is not None:
             self.load_subagent(event.value)
 
     def load_subagent(self, index: int) -> None:
         self.active_subagent_index = index
         sub_agent = self.current_subagents[index]
+        
+        self._loading_subagent = True
         self.query_one("#active-subagent-name", Input).value = sub_agent["name"]
         self.query_one("#active-subagent-prompt", TextArea).text = sub_agent["prompt"]
+        self._loading_subagent = False
 
     def on_input_changed(self, event: Input.Changed) -> None:
+        if getattr(self, '_loading_subagent', False):
+            return
         if event.input.id == "active-subagent-name" and hasattr(self, 'active_subagent_index'):
             self.current_subagents[self.active_subagent_index]["name"] = event.value
             
             # Update the dropdown label to reflect the new name dynamically
             select = self.query_one("#subagent-select", Select)
             options = [(sa["name"], i) for i, sa in enumerate(self.current_subagents)]
-            # Textual's Select doesn't trivially update a single option label, so we re-set all options
+            
+            self._loading_subagent = True
             select.set_options(options)
             select.value = self.active_subagent_index
+            self._loading_subagent = False
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        if getattr(self, '_loading_subagent', False):
+            return
         if event.text_area.id == "active-subagent-prompt" and hasattr(self, 'active_subagent_index'):
             self.current_subagents[self.active_subagent_index]["prompt"] = event.text_area.text
 
