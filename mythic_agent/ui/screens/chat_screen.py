@@ -153,7 +153,7 @@ class MainChatScreen(Screen):
                 with Horizontal(id="chat-input-container"):
                     yield Label(" [bold yellow]ᛟ❯[/bold yellow] ", id="prompt-label")
                     from textual.suggester import SuggestFromList
-                    COMMANDS = ["/setup", "/add", "/commit", "/issue", "/pr", "/status", "/gh", "/test", "/undo", "/doctor", "/flirt", "/btw", "/steer", "/stop", "/tutorial", "/quit", "/help", "/exit"]
+                    COMMANDS = ["/setup", "/add", "/commit", "/issue", "/pr", "/status", "/gh", "/test", "/undo", "/doctor", "/flirt", "/lick", "/btw", "/steer", "/stop", "/tutorial", "/quit", "/help", "/exit"]
                     yield Input(placeholder="Speak to the Seer... (Press Enter to send)", id="chat-input", suggester=SuggestFromList(COMMANDS))
             with VerticalScroll(id="sidebar"):
                 yield Label("[bold cyan]Instructions[/bold cyan]\n")
@@ -170,6 +170,7 @@ class MainChatScreen(Screen):
                 yield Label("[green]/undo[/green]    - Undo last file edit")
                 yield Label("[green]/doctor[/green]  - Auto-fix issues")
                 yield Label("[green]/flirt[/green]   - Flirt with the Agent")
+                yield Label("[green]/lick[/green]    - Lick the Agent")
                 yield Label("[green]/btw[/green]    - Add silent context")
                 yield Label("[green]/steer[/green]  - Steer the AI")
                 yield Label("[green]/stop[/green]   - Stop all agents")
@@ -471,7 +472,7 @@ class MainChatScreen(Screen):
         try:
             lbl = self.query_one("#autocomplete-suggestions", Label)
             if val.startswith("/"):
-                COMMANDS = ["/setup", "/add", "/commit", "/issue", "/pr", "/status", "/gh", "/test", "/undo", "/doctor", "/flirt", "/btw", "/steer", "/stop", "/tutorial", "/quit", "/help", "/exit"]
+                COMMANDS = ["/setup", "/add", "/commit", "/issue", "/pr", "/status", "/gh", "/test", "/undo", "/doctor", "/flirt", "/lick", "/btw", "/steer", "/stop", "/tutorial", "/quit", "/help", "/exit"]
                 matches = [c for c in COMMANDS if c.startswith(val.lower())]
                 if matches:
                     formatted = []
@@ -534,6 +535,7 @@ class MainChatScreen(Screen):
                 chat_log.write("  [green]/undo[/green]      - Roll back last file edit")
                 chat_log.write("  [green]/doctor[/green]    - Auto-fix a command output")
                 chat_log.write("  [green]/flirt[/green]     - Flirt with the Agent")
+                chat_log.write("  [green]/lick[/green]      - Lick the Agent")
                 chat_log.write("  [green]/btw[/green]      - Add silent context to an agent")
                 chat_log.write("  [green]/steer[/green]    - Give the AI a strong steering instruction")
                 chat_log.write("  [green]/stop[/green]     - Stop all currently active agents")
@@ -556,6 +558,7 @@ class MainChatScreen(Screen):
                     "/undo": "Usage: /undo\nRolls back the last file edit made by the agent by running `git reset --hard` and checking out the last stable state.",
                     "/doctor": "Usage: /doctor\nExamines the output of the last failed command and automatically generates a fix.",
                     "/flirt": "Usage: /flirt <message>\nSpawns a temporary Ghost session to flirt with the current agent. Does not interrupt the agent's main workflow.",
+                    "/lick": "Usage: /lick <message>\nSpawns a temporary Ghost session and explicitly sends the action *User licks you*. Fun alternative to /flirt.",
                     "/btw": "Usage: /btw <message>\nAdds context or notes to the agent via a Ghost session without forcing an immediate context break. Useful for side-chatter or corrections while it thinks.",
                     "/steer": "Usage: /steer <instruction>\nDirectly alters the ongoing task of the current active agent. Will immediately be appended to the active agent's prompt.",
                     "/stop": "Usage: /stop\nSends a kill signal to all currently active agents and subagents. Clears the background task queues.",
@@ -601,6 +604,12 @@ class MainChatScreen(Screen):
                 self.on_agent_selected(f"[Ghost] {active}")
             SecureAPI.publish_ghost_chat_request(f"*flirts with you* {args}", target_agent=active)
             chat_log.write(f"[magenta]*Flirts with ghost agent...*[/magenta] {args}")
+        elif cmd == "/lick":
+            active = getattr(self.app, "active_chat_agent", "Primary")
+            if "[Ghost]" not in active:
+                self.on_agent_selected(f"[Ghost] {active}")
+            SecureAPI.publish_ghost_chat_request(f"*User licks you* {args}", target_agent=active)
+            chat_log.write(f"[magenta]*Licks ghost agent...*[/magenta] {args}")
         elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr", "/stop"]:
             SecureAPI.publish_system_command(cmd, args)
         else:
