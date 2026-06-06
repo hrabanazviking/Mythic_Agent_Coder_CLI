@@ -378,41 +378,50 @@ class SetupScreen(Screen):
             cancel_btn.disabled = True
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "fetch-btn":
-            await self.handle_fetch()
-        elif event.button.id == "save-btn":
-            self.handle_save()
-        elif event.button.id == "cancel-btn":
-            self.app.switch_screen("main_chat")
-        elif event.button.id == "create-subagent-btn":
-            new_idx = len(self.current_subagents)
-            self.current_subagents.append({"name": "New Warrior", "prompt": "You are a helpful warrior."})
-            self.update_subagent_dropdown(new_idx)
-        elif event.button.id == "reset-active-subagent-btn":
-            self.reset_active_subagent()
-        elif event.button.id == "delete-active-subagent-btn":
-            self.delete_active_subagent()
-        elif event.button.id == "reset-rules-btn":
-            self.query_one("#global-rules-input", TextArea).text = DEFAULT_GLOBAL_RULES
-        elif event.button.id == "reset-primary-btn":
-            self.query_one("#primary-agent-name", Input).value = DEFAULT_PRIMARY_NAME
-            self.query_one("#system-prompt-input", TextArea).text = DEFAULT_SYSTEM_PROMPT
+        try:
+            if event.button.id == "fetch-btn":
+                await self.handle_fetch()
+            elif event.button.id == "save-btn":
+                self.handle_save()
+            elif event.button.id == "cancel-btn":
+                self.app.switch_screen("main_chat")
+            elif event.button.id == "create-subagent-btn":
+                new_idx = len(self.current_subagents)
+                self.current_subagents.append({"name": "New Warrior", "prompt": "You are a helpful warrior."})
+                self.update_subagent_dropdown(new_idx)
+            elif event.button.id == "reset-active-subagent-btn":
+                self.reset_active_subagent()
+            elif event.button.id == "delete-active-subagent-btn":
+                self.delete_active_subagent()
+            elif event.button.id == "reset-rules-btn":
+                self.query_one("#global-rules-input", TextArea).text = DEFAULT_GLOBAL_RULES
+            elif event.button.id == "reset-primary-btn":
+                self.query_one("#primary-agent-name", Input).value = DEFAULT_PRIMARY_NAME
+                self.query_one("#system-prompt-input", TextArea).text = DEFAULT_SYSTEM_PROMPT
+        except Exception as e:
+            self.app.notify(f"Error handling button press: {str(e)}", severity="error", timeout=5)
             
     async def handle_fetch(self) -> None:
-        provider_url = self.query_one("#provider-select", Select).value
-        api_key = self.query_one("#api-key-input", Input).value
-        error_msg = self.query_one("#error-msg", Label)
-        
-        if not provider_url or not api_key:
-            error_msg.update("[red]Please select a provider and enter an API key.[/red]")
-            error_msg.display = True
-            return
+        try:
+            provider_url = self.query_one("#provider-select", Select).value
+            api_key = self.query_one("#api-key-input", Input).value
+            error_msg = self.query_one("#error-msg", Label)
             
-        error_msg.display = False
-        self.query_one("#loading").display = True
-        self.query_one("#fetch-btn").disabled = True
-        
-        self.fetch_models_bg(provider_url, api_key)
+            if not provider_url or not api_key:
+                error_msg.update("[red]Please select a provider and enter an API key.[/red]")
+                error_msg.display = True
+                return
+                
+            error_msg.display = False
+            self.query_one("#loading").display = True
+            self.query_one("#fetch-btn").disabled = True
+            
+            self.fetch_models_bg(provider_url, api_key)
+        except Exception as e:
+            self.query_one("#loading").display = False
+            if self.query_one("#fetch-btn"):
+                self.query_one("#fetch-btn").disabled = False
+            self.app.notify(f"Error preparing fetch: {str(e)}", severity="error", timeout=5)
         
     @work(exclusive=True, thread=True)
     def fetch_models_bg(self, base_url: str, api_key: str) -> None:
@@ -440,113 +449,147 @@ class SetupScreen(Screen):
         error_msg.display = True
 
     def update_subagent_dropdown(self, select_index: int | None = None) -> None:
-        select = self.query_one("#subagent-select", Select)
-        options = [(sa["name"], i) for i, sa in enumerate(self.current_subagents)]
-        
-        self._loading_subagent = True
-        select.set_options(options)
-        if select_index is not None:
-            select.value = select_index
-        elif options:
-            select.value = 0
-        self._loading_subagent = False
-        
-        if select_index is not None:
-            self.load_subagent(select_index)
-        elif options:
-            self.load_subagent(0)
-
-    def on_select_changed(self, event: Select.Changed) -> None:
-        if getattr(self, '_loading_subagent', False):
-            return
-        if event.select.id == "subagent-select" and event.value is not None and event.value != getattr(Select, "BLANK", None):
-            self.load_subagent(int(event.value))
-
-    def load_subagent(self, index: int) -> None:
-        self.active_subagent_index = index
-        sub_agent = self.current_subagents[index]
-        
-        self._loading_subagent = True
-        self.query_one("#active-subagent-name", Input).value = sub_agent["name"]
-        self.query_one("#active-subagent-prompt", TextArea).text = sub_agent["prompt"]
-        self._loading_subagent = False
-
-    def on_input_changed(self, event: Input.Changed) -> None:
-        if getattr(self, '_loading_subagent', False):
-            return
-        if event.input.id == "active-subagent-name" and hasattr(self, 'active_subagent_index'):
-            self.current_subagents[self.active_subagent_index]["name"] = event.value
-            
-            # Update the dropdown label to reflect the new name dynamically
+        try:
+            if not getattr(self, 'current_subagents', None):
+                self.current_subagents = copy.deepcopy(DEFAULT_SUBAGENTS)
             select = self.query_one("#subagent-select", Select)
             options = [(sa["name"], i) for i, sa in enumerate(self.current_subagents)]
             
             self._loading_subagent = True
             select.set_options(options)
-            select.value = self.active_subagent_index
+            if select_index is not None:
+                select.value = select_index
+            elif options:
+                select.value = 0
             self._loading_subagent = False
+            
+            if select_index is not None:
+                self.load_subagent(select_index)
+            elif options:
+                self.load_subagent(0)
+        except Exception as e:
+            self._loading_subagent = False
+            self.app.notify(f"Error updating dropdown: {str(e)}", severity="error", timeout=5)
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if getattr(self, '_loading_subagent', False):
+            return
+        try:
+            if event.select.id == "subagent-select" and event.value is not None and event.value != getattr(Select, "BLANK", None):
+                self.load_subagent(int(event.value))
+        except Exception as e:
+            self.app.notify(f"Error handling selection: {str(e)}", severity="error", timeout=5)
+
+    def load_subagent(self, index: int) -> None:
+        try:
+            if not getattr(self, 'current_subagents', None) or index < 0 or index >= len(self.current_subagents):
+                return
+            self.active_subagent_index = index
+            sub_agent = self.current_subagents[index]
+            
+            self._loading_subagent = True
+            self.query_one("#active-subagent-name", Input).value = sub_agent["name"]
+            self.query_one("#active-subagent-prompt", TextArea).text = sub_agent["prompt"]
+            self._loading_subagent = False
+        except Exception as e:
+            self._loading_subagent = False
+            self.app.notify(f"Error loading subagent: {str(e)}", severity="error", timeout=5)
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if getattr(self, '_loading_subagent', False):
+            return
+        try:
+            if event.input.id == "active-subagent-name" and hasattr(self, 'active_subagent_index'):
+                self.current_subagents[self.active_subagent_index]["name"] = event.value
+                
+                # Update the dropdown label to reflect the new name dynamically
+                select = self.query_one("#subagent-select", Select)
+                options = [(sa["name"], i) for i, sa in enumerate(self.current_subagents)]
+                
+                self._loading_subagent = True
+                select.set_options(options)
+                select.value = self.active_subagent_index
+                self._loading_subagent = False
+        except Exception as e:
+            self._loading_subagent = False
+            self.app.notify(f"Error handling input: {str(e)}", severity="error", timeout=5)
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         if getattr(self, '_loading_subagent', False):
             return
-        if event.text_area.id == "active-subagent-prompt" and hasattr(self, 'active_subagent_index'):
-            self.current_subagents[self.active_subagent_index]["prompt"] = event.text_area.text
+        try:
+            if event.text_area.id == "active-subagent-prompt" and hasattr(self, 'active_subagent_index'):
+                self.current_subagents[self.active_subagent_index]["prompt"] = event.text_area.text
+        except Exception as e:
+            self.app.notify(f"Error handling text area: {str(e)}", severity="error", timeout=5)
 
     def reset_active_subagent(self) -> None:
-        idx = self.active_subagent_index
-        default = next((sa for sa in DEFAULT_SUBAGENTS if sa["name"] == self.current_subagents[idx]["name"]), {"name": "New Warrior", "prompt": "You are a helpful warrior."})
-        self.current_subagents[idx] = copy.deepcopy(default)
-        self.load_subagent(idx)
+        try:
+            idx = getattr(self, 'active_subagent_index', 0)
+            if not getattr(self, 'current_subagents', None) or idx >= len(self.current_subagents):
+                return
+            default = next((sa for sa in DEFAULT_SUBAGENTS if sa["name"] == self.current_subagents[idx]["name"]), {"name": "New Warrior", "prompt": "You are a helpful warrior."})
+            self.current_subagents[idx] = copy.deepcopy(default)
+            self.load_subagent(idx)
+        except Exception as e:
+            self.app.notify(f"Error resetting subagent: {str(e)}", severity="error", timeout=5)
 
     def delete_active_subagent(self) -> None:
-        if len(self.current_subagents) > 1:
-            del self.current_subagents[self.active_subagent_index]
-            self.update_subagent_dropdown(0)
+        try:
+            if getattr(self, 'current_subagents', None) and len(self.current_subagents) > 1:
+                idx = getattr(self, 'active_subagent_index', 0)
+                if idx < len(self.current_subagents):
+                    del self.current_subagents[idx]
+                    self.update_subagent_dropdown(0)
+        except Exception as e:
+            self.app.notify(f"Error deleting subagent: {str(e)}", severity="error", timeout=5)
 
     def handle_save(self) -> None:
-        # Sync active editor to memory
-        if hasattr(self, 'active_subagent_index'):
-            self.current_subagents[self.active_subagent_index]["name"] = self.query_one("#active-subagent-name", Input).value.strip()
-            self.current_subagents[self.active_subagent_index]["prompt"] = self.query_one("#active-subagent-prompt", TextArea).text.strip()
+        try:
+            # Sync active editor to memory
+            if hasattr(self, 'active_subagent_index'):
+                self.current_subagents[self.active_subagent_index]["name"] = self.query_one("#active-subagent-name", Input).value.strip()
+                self.current_subagents[self.active_subagent_index]["prompt"] = self.query_one("#active-subagent-prompt", TextArea).text.strip()
+                
+            base_url = self.query_one("#provider-select", Select).value
+            api_key = self.query_one("#api-key-input", Input).value
+            model_select = self.query_one("#model-select", Select)
+            model = model_select.value
+            sys_prompt = self.query_one("#system-prompt-input", TextArea).text
+            primary_name = self.query_one("#primary-agent-name", Input).value.strip() or "Mythic"
+            global_rules = self.query_one("#global-rules-input", TextArea).text
+            working_dir = self.query_one("#working-dir-input", Input).value.strip()
+            user_name = self.query_one("#user-name-input", Input).value.strip()
+            user_data = self.query_one("#user-data-input", TextArea).text.strip()
             
-        base_url = self.query_one("#provider-select", Select).value
-        api_key = self.query_one("#api-key-input", Input).value
-        model_select = self.query_one("#model-select", Select)
-        model = model_select.value
-        sys_prompt = self.query_one("#system-prompt-input", TextArea).text
-        primary_name = self.query_one("#primary-agent-name", Input).value.strip() or "Mythic"
-        global_rules = self.query_one("#global-rules-input", TextArea).text
-        working_dir = self.query_one("#working-dir-input", Input).value.strip()
-        user_name = self.query_one("#user-name-input", Input).value.strip()
-        user_data = self.query_one("#user-data-input", TextArea).text.strip()
-        
-        # Save current state of subagents
-        valid_sub_agents = []
-        for sa in self.current_subagents:
-            if sa.get("name") and sa.get("prompt"):
-                valid_sub_agents.append(sa)
-        self.app.agent.config["sub_agents"] = valid_sub_agents
-        
-        if model == getattr(Select, "BLANK", None) or not model:
-            error_msg = self.query_one("#error-msg", Label)
-            error_msg.update("[red]Please explicitly select a model from the dropdown first.[/red]")
-            error_msg.display = True
-            return
+            # Save current state of subagents
+            valid_sub_agents = []
+            for sa in self.current_subagents:
+                if sa.get("name") and sa.get("prompt"):
+                    valid_sub_agents.append(sa)
+            self.app.agent.config["sub_agents"] = valid_sub_agents
             
-        self.app.agent.config["primary_agent_name"] = primary_name
-        self.app.agent.config["system_prompt"] = sys_prompt
-        self.app.agent.config["global_rules"] = global_rules
-        self.app.agent.config["working_directory"] = working_dir
-        self.app.agent.config["user_name"] = user_name
-        self.app.agent.config["user_data"] = user_data
-        self.app.agent.config["sub_agents"] = sub_agents
-        
-        if working_dir:
-            from pathlib import Path
-            self.app.agent.project_root = Path(working_dir).expanduser().resolve()
-        
-        self.app.agent.set_model(str(model), str(base_url), str(api_key))
-        self.app.switch_screen("main_chat")
+            if model == getattr(Select, "BLANK", None) or not model:
+                error_msg = self.query_one("#error-msg", Label)
+                error_msg.update("[red]Please explicitly select a model from the dropdown first.[/red]")
+                error_msg.display = True
+                return
+                
+            self.app.agent.config["primary_agent_name"] = primary_name
+            self.app.agent.config["system_prompt"] = sys_prompt
+            self.app.agent.config["global_rules"] = global_rules
+            self.app.agent.config["working_directory"] = working_dir
+            self.app.agent.config["user_name"] = user_name
+            self.app.agent.config["user_data"] = user_data
+            
+            if working_dir:
+                from pathlib import Path
+                self.app.agent.project_root = Path(working_dir).expanduser().resolve()
+            
+            self.app.agent.set_model(str(model), str(base_url), str(api_key))
+            self.app.switch_screen("main_chat")
+        except Exception as e:
+            self.app.notify(f"Error saving configuration: {str(e)}", severity="error", timeout=5)
 
 
 
