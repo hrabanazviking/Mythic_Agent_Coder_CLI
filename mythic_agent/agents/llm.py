@@ -239,11 +239,11 @@ class Agent:
                 internal_loops += 1
                 if internal_loops > 15:
                     print_chunk("\n[bold red][!] Infinite tool loop detected. Forcing break.[/bold red]")
-                    print_chunk("\n[bold yellow][~] Auto-sending 'continue' to the model...[/bold yellow]")
-                    self.messages.append({"role": "user", "content": "continue"})
+                    print_chunk("\n[bold yellow][~] Auto-requesting progress update before continuing...[/bold yellow]")
+                    self.messages.append({"role": "user", "content": "Please give a brief update on the progress and then continue."})
                     internal_loops = 0
                     # Do not break, we auto-continue
-                    # The next iteration will call the API with the "continue" user message
+                    # The next iteration will call the API with the user message
 
                 max_retries = 10
                 retry_count = 0
