@@ -671,6 +671,22 @@ class MainChatScreen(Screen):
                 except Exception as e:
                     chat_log.write(f"[red]Error running gh: {e}[/red]")
         elif cmd == "/status":
+            chat_log.write("\n[bold cyan]⚔️ Warriors Status:[/bold cyan]")
+            from mythic_agent.llm import AGENT_REGISTRY
+            chat_log.write(f"  ● [bold]Primary Agent[/bold]: Active (Tokens: {self.app.agent.total_tokens})")
+            
+            sub_agents = self.app.agent.config.get("sub_agents", [])
+            for sa in sub_agents:
+                name = sa.get("name")
+                is_running = name in self.app.active_subagents
+                status_text = "[bold green]Running[/bold green]" if is_running else "[dim]Idle[/dim]"
+                tokens = AGENT_REGISTRY[name].total_tokens if name in AGENT_REGISTRY else 0
+                chat_log.write(f"  ● [bold]{name}[/bold]: {status_text} (Tokens: {tokens})")
+                    
+            if not sub_agents:
+                chat_log.write("  [dim]No sub-agents configured.[/dim]")
+                
+            chat_log.write("\n[bold cyan]Git Status:[/bold cyan]")
             import subprocess
             try:
                 result = subprocess.run("git status", shell=True, capture_output=True, text=True, cwd=str(self.app.agent.project_root))
@@ -821,6 +837,7 @@ class MythicTUI(App):
     def __init__(self, agent: Agent):
         super().__init__()
         self.agent = agent
+        self.active_subagents = set()
         self.agent.tui_app = self  # Give agent access to TUI for prompting
 
     def on_mount(self) -> None:
@@ -840,16 +857,19 @@ class MythicTUI(App):
 
     def update_agent_status(self, name: str, is_active: bool) -> None:
         try:
+            if is_active:
+                self.active_subagents.add(name)
+            else:
+                self.active_subagents.discard(name)
+                
             from .llm import AGENT_REGISTRY
             chat_screen = self.query_one(MainChatScreen)
-            # Update Active Agents label
             lbl = chat_screen.query_one("#active-agents-label", Label)
             
             active_list = []
             for aname, agent in AGENT_REGISTRY.items():
                 if aname == "Primary": continue
-                # We track active ones via the true/false is_active sent here
-                status_color = "green" if (aname == name and is_active) else "dim"
+                status_color = "green" if aname in self.active_subagents else "dim"
                 active_list.append(f"[{status_color}]● {aname}[/{status_color}]")
                 
             lbl.update("\n[bold yellow]⚔️ Active Warriors[/bold yellow]\n" + "\n".join(active_list))
