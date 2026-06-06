@@ -172,8 +172,8 @@ def auto_git_commit(root_path: Path, file_path: Path, message: str) -> None:
     if not (root_path / ".git").exists():
         return
     try:
-        subprocess.run(f"git add {file_path}", shell=True, cwd=str(root_path))
-        subprocess.run(f"git commit -m '{message}'", shell=True, cwd=str(root_path))
+        subprocess.run(f"git add {file_path}", shell=True, cwd=str(root_path), capture_output=True)
+        subprocess.run(f"git commit -m '{message}'", shell=True, cwd=str(root_path), capture_output=True)
     except Exception:
         pass
 
