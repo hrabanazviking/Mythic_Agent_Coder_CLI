@@ -175,9 +175,18 @@ class Agent:
                 self.messages.append({"role": "user", "content": prompt})
                 
             # Sliding window memory pruner to prevent LLM max_context crashes
-            # Keep the system prompt at index 0, and retain the last ~100 messages.
+            # Alert the agent right before compaction so it autosaves status
+            if len(self.messages) == 95:
+                self.messages.append({
+                    "role": "system", 
+                    "content": "[CRITICAL ALERT] Memory capacity approaching 100%. A context compaction event is imminent. You MUST use the `update_status` tool NOW to dump your current task list, open problems, and findings to disk, or they will be permanently forgotten."
+                })
+                publish_sync("agent_chat_chunk", agent_name=self.name, text="\n[bold yellow][!] Auto-Compaction Warning Triggered. Forcing state dump...[/bold yellow]\n")
+                
+            # Keep the system prompt at index 0, and retain the last 90 messages.
             if len(self.messages) > 100:
-                self.messages = [self.messages[0]] + self.messages[-99:]
+                publish_sync("agent_chat_chunk", agent_name=self.name, text="\n[bold red][!] Context Compacted.[/bold red]\n")
+                self.messages = [self.messages[0]] + self.messages[-90:]
             client = self.get_client()
             
             def print_chunk(text: str):
