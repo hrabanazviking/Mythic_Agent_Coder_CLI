@@ -50,6 +50,10 @@ Mythic Agent supports multiple LLM endpoints out of the box. Easily configure:
 
 ---
 
+![https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-e04bc550-a7a5-4423-ab48-33d912f0a27a.png](https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-e04bc550-a7a5-4423-ab48-33d912f0a27a.png)
+
+---
+
 ## 🚀 Installation & Setup
 
 1. **Clone the repository:**
