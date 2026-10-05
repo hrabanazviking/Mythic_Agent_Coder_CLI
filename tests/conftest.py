@@ -27,6 +27,8 @@ def agent(tmp_path, monkeypatch):
     monkeypatch.setattr(llm.config_manager, "save_config", lambda config: True)
     monkeypatch.setattr(llm, "get_vector_provider", lambda *args: OfflineMemory())
     instance = llm.Agent(project_root=tmp_path)
+    from mythic_agent.core.policy import ToolPolicy
+    instance.tool_policy = ToolPolicy("trusted")  # Fixtures explicitly authorize effects under test.
     yield instance
     unsubscribe("agent_clear_history", instance._handle_clear_history)
     unsubscribe("agent_compact_history", instance._handle_compact_history)

@@ -1,11 +1,18 @@
 import os
 import re
 import subprocess
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
 from ..core.workspace import resolve_file
 from ..core.edits import EditJournal
+from ..core.execution import run_process
+from ..core.policy import ToolPolicy
+from ..core.runtime import TurnCancelled, runtime_settings
+
+_approval_lock = threading.Lock()
 
 def get_agent_tools() -> list[dict[str, Any]]:
     return [
@@ -300,47 +307,57 @@ def get_agent_tools() -> list[dict[str, Any]]:
         }
     ]
 
-def prompt_approval_sync(command: str, tui_app) -> bool:
+def prompt_approval_sync(command: str, tui_app, cancel=None, timeout: float = 300) -> bool:
     if not tui_app:
-        return True  # Fallback if UI not connected
-
-    # tui_app is MythicTUI — check auto_accept via config_manager, not via a .agent attr
-    try:
-        from ..core.config_manager import config_manager
-        cfg = config_manager.load_config()
-        if cfg.get("auto_accept_permissions", False):
-            return True
-    except Exception:
-        pass
-
-    import threading
+        return False
+    cancel = cancel if cancel is not None else threading.Event()
+    deadline = time.monotonic() + timeout
+    while not _approval_lock.acquire(timeout=0.05):
+        if cancel.is_set():
+            raise TurnCancelled("Turn cancelled while waiting for approval")
+        if time.monotonic() >= deadline:
+            return False
     event = threading.Event()
-    result = {"approved": False}
+    result = {"approved": False, "active": True}
+    decision_lock = threading.Lock()
+    modal = None
+    def decide(approved):
+        with decision_lock:
+            if result["active"]:
+                result["approved"] = approved
+                event.set()
+    try:
+        if cancel.is_set():
+            raise TurnCancelled("Turn cancelled before approval")
+        modal = tui_app.call_from_thread(tui_app.action_request_approval, command,
+                                          lambda: decide(True), lambda: decide(False))
+        while not event.wait(0.05):
+            if cancel.is_set():
+                raise TurnCancelled("Turn cancelled during approval")
+            if time.monotonic() >= deadline:
+                return False
+        if cancel.is_set():
+            raise TurnCancelled("Turn cancelled during approval")
+        return result["approved"]
+    finally:
+        with decision_lock:
+            result["active"] = False
+        try:
+            if modal is not None and hasattr(tui_app, "action_cancel_approval"):
+                tui_app.call_from_thread(tui_app.action_cancel_approval, modal)
+        finally:
+            _approval_lock.release()
 
-    def on_approve():
-        result["approved"] = True
-        event.set()
-
-    def on_reject():
-        result["approved"] = False
-        event.set()
-
-    tui_app.call_from_thread(tui_app.action_request_approval, command, on_approve, on_reject)
-    event.wait(timeout=300)  # 5-minute hard timeout so LLM thread can't hang forever
-    return result["approved"]
-
-def auto_git_commit(root_path: Path, file_path: Path, message: str) -> None:
+def auto_git_commit(root_path: Path, file_path: Path, message: str, *, policy: ToolPolicy | None = None, cancel=None) -> str | None:
+    if not (policy or ToolPolicy("read-only")).authorize("git_commit", {"path": str(file_path), "message": message}):
+        return "Permission denied for git_commit; no operation was performed."
     if not (root_path / ".git").exists():
         return
     try:
-        subprocess.run(
-            ["git", "add", str(file_path)],
-            cwd=str(root_path), capture_output=True, check=True, timeout=15
-        )
-        subprocess.run(
-            ["git", "commit", "-m", message],
-            cwd=str(root_path), capture_output=True, check=True, timeout=15
-        )
+        for command in (["git", "add", str(file_path)], ["git", "commit", "-m", message]):
+            result = run_process(command, root_path, cancel=cancel, timeout=15)
+            if result.status != "completed":
+                return result.render()
     except subprocess.TimeoutExpired:
         import logging
         logging.warning(f"auto_git_commit timed out for {file_path}")
@@ -391,7 +408,7 @@ def validate_tool_arguments(name: str, arguments: dict[str, Any]) -> None:
     _validate_value(arguments, functions[name]["parameters"], name)
 
 
-def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None = None, tui_app: Any = None, agent: Any = None) -> str:
+def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None = None, tui_app: Any = None, agent: Any = None, *, policy: ToolPolicy | None = None) -> str:
     root_path = project_root if project_root is not None else Path.cwd()
     if agent:
         root_path = agent.project_root or root_path
@@ -400,6 +417,16 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
         validate_tool_arguments(name, arguments)
     except ValueError as exc:
         return f"Error: {exc}"
+    cancel = getattr(agent, "_cancel", None)
+    if cancel is not None and cancel.is_set():
+        raise TurnCancelled("Tool cancelled before execution")
+    effective_policy = policy or getattr(agent, "tool_policy", None) or ToolPolicy("read-only")
+    if not effective_policy.authorize(name, arguments):
+        from ..core.secure_api import publish_sync
+        publish_sync("agent_tool_denied", agent_name=getattr(agent, "name", "External"), tool_name=name)
+        return f"Permission denied for {name}; no operation was performed."
+    if cancel is not None and cancel.is_set():
+        raise TurnCancelled("Tool cancelled after approval")
 
     if name == "read_file":
         try:
@@ -424,19 +451,15 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
 
     if name == "run_command":
         command = arguments.get("command", "")
-        if tui_app:
-            approved = prompt_approval_sync(command, tui_app)
-            if not approved:
-                return f"Command execution REJECTED by the user."
         try:
-            result = subprocess.run(
-                command, shell=True, cwd=str(root_path),  # nosec B602
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                timeout=300
-            )
-            return truncate_output(result.stdout or f"Command executed with exit code {result.returncode}")
-        except subprocess.TimeoutExpired as exc:
-            return f"Command timed out after 300 seconds:\n{_timeout_output(exc)}"
+            settings = runtime_settings(getattr(agent, "config", {}))
+            from ..core.secure_api import publish_sync
+            def progress(text):
+                publish_sync("agent_command_output", agent_name=getattr(agent, "name", "External"), text=text)
+            result = run_process(command, root_path, shell=True, cancel=cancel,
+                                 timeout=settings["command_timeout"], grace=settings["process_kill_grace"],
+                                 progress=progress)
+            return result.render()
         except Exception as exc:
             return f"Command failed: {exc}"
             
@@ -500,8 +523,7 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
         if not command.startswith("gh "):
             return "Error: Command must start with 'gh '"
         try:
-            tui = getattr(tui_app, "app", tui_app)
-            config = tui.agent.config if tui else {}
+            config = getattr(agent, "config", {})
             gh_token = config.get("github", {}).get("token", "")
             env = os.environ.copy()
             if gh_token:
@@ -509,14 +531,10 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
                 
             import shlex
             cmd_list = shlex.split(command)
-            result = subprocess.run(
-                cmd_list, cwd=str(root_path),
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                env=env, timeout=30
-            )
-            return truncate_output(result.stdout or f"GitHub command executed with exit code {result.returncode}")
-        except subprocess.TimeoutExpired:
-            return "Error: GitHub CLI command timed out after 30 seconds."
+            settings = runtime_settings(config)
+            result = run_process(cmd_list, root_path, cancel=cancel, env=env,
+                                 timeout=settings["github_timeout"], grace=settings["process_kill_grace"])
+            return result.render()
         except FileNotFoundError:
             return "Error: 'gh' CLI not found. Please install the GitHub CLI."
         except Exception as exc:
@@ -554,7 +572,7 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             sub_name = d.get("sub_agent_name")
             task = d.get("task_description")
             
-            sub_agent = agent_manager.spawn_subagent(sub_name, root_path)
+            sub_agent = agent_manager.spawn_subagent(sub_name, root_path, policy=effective_policy, tui_app=tui_app)
             if not sub_agent:
                 successes.append(f"Failed to spawn {sub_name}.")
                 continue
@@ -579,7 +597,7 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             
         from .llm import agent_manager
         
-        sub_agent = agent_manager.spawn_subagent(sub_name, root_path)
+        sub_agent = agent_manager.spawn_subagent(sub_name, root_path, policy=effective_policy, tui_app=tui_app)
         if not sub_agent:
             return f"Error: No sub-agent named {sub_name} is configured or could be spawned."
             
@@ -602,7 +620,7 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             # Primary handles messages via the TUI event loop, not the daemon thread
             pass
         elif recipient not in AGENT_REGISTRY:
-            target_agent = agent_manager.spawn_subagent(recipient, root_path)
+            target_agent = agent_manager.spawn_subagent(recipient, root_path, policy=effective_policy, tui_app=tui_app)
             if not target_agent:
                 return f"Error: Agent {recipient} not found or not active."
         else:
@@ -618,10 +636,8 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
         
     if name == "clear_context":
         if agent:
-            with agent._lock:
-                if len(agent.messages) > 0:
-                    agent.messages = [agent.messages[0]]
-            return "Context cleared. Memory wiped successfully."
+            agent._handle_clear_history(agent.name)
+            return "Context clear requested; stored transcript retained."
         return "Context clear failed."
 
     if name == "core_memory_append":

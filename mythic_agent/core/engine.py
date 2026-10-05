@@ -39,7 +39,7 @@ class MythicEngine:
             logging.basicConfig(level=logging.INFO)
             logging.error(f"Failed to setup file logging: {e}")
 
-    def initialize(self, workspace=None, model=None, base_url=None, resume=None):
+    def initialize(self, workspace=None, model=None, base_url=None, resume=None, permission=None):
         """Initializes configuration and internal APIs."""
         logging.info("Loading configuration...")
         self.config = config_manager.load_config()
@@ -54,6 +54,7 @@ class MythicEngine:
         import threading
         
         primary_agent = Agent(project_root=workspace, name="Primary", config=self.config)
+        primary_agent._permission_override = permission
         self.primary_agent = primary_agent
         primary_agent.attach_session(resume=resume)
         AGENT_REGISTRY["Primary"] = primary_agent

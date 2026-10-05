@@ -6,9 +6,15 @@ from pathlib import Path
 
 import pytest
 
-from mythic_agent.agents.tools import execute_tool, truncate_output
+from mythic_agent.agents.tools import execute_tool as execute_authorized_tool, truncate_output
+from mythic_agent.core.policy import ToolPolicy
 from mythic_agent.core.edits import EditJournal
 from mythic_agent.core.workspace import resolve_workspace
+
+
+def execute_tool(*args, **kwargs):
+    """These containment/journal tests explicitly authorize the attempted operation."""
+    return execute_authorized_tool(*args, **kwargs, policy=ToolPolicy("trusted"))
 
 
 @pytest.mark.parametrize("tool,arguments", [
@@ -191,6 +197,7 @@ def test_slash_undo_never_executes_git_reset(agent, monkeypatch):
     journal.write("source.txt", "created")
     handler = CommandHandler.__new__(CommandHandler)
     handler.project_root = agent.project_root
+    handler.policy = ToolPolicy("trusted")
     def forbidden(*args, **kwargs):
         raise AssertionError("Undo must not invoke Git")
     monkeypatch.setattr(subprocess, "run", forbidden)

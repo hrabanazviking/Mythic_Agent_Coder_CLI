@@ -80,6 +80,10 @@ See [the human/machine CLI guide](docs/CLI.md) for permissions, stdin, JSONL and
 durable workspace sessions (`--resume`, `mythic sessions --export`), recovery and
 exit codes. Optional integrations are
 installed with the `mcp`, `knowledge`, `voice`, and `voice-cloning` extras.
+Human TUI/terminal and machine callers share tool permissions. Ctrl+C in terminal
+or `/stop` in TUI cancels active owned requests, approvals and commands; command
+results include exit status and captured output. Direct/machine effects require
+an explicit policy; delegated agents inherit the caller's mode.
 See [the development roadmap](ROADMAP.md) for active reliability work and
 [the developer guide](docs/DEVELOPMENT.md) for test/build commands. This is an
 alpha; roadmap features are only available once their implementation is recorded.

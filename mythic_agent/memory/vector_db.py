@@ -4,12 +4,12 @@ import math
 import os
 import threading
 import tempfile
-import time
 from pathlib import Path
 from typing import Any, Protocol
-from openai import OpenAI
 
 from ..core.config_manager import config_manager
+from ..core.execution import CancellableChatClient, cancellable_http_post
+from ..core.runtime import TurnCancelled, runtime_settings
 
 # Try to use numpy for 100x faster cosine similarity, fallback to standard library math
 try:
@@ -54,14 +54,22 @@ class LightweightJSONVectorDB:
         
         self.base_url = base_url or "https://api.openai.com/v1"
         self.api_key = api_key
+        self.cancel_event = threading.Event()
         
         # We only init the client if we have a key
         self.client = None
         if self.api_key:
-            self.client = OpenAI(base_url=self.base_url, api_key=self.api_key, timeout=60.0)
+            self.client = CancellableChatClient(self.base_url, self.api_key, self.cancel_event, 60)
             
         self.records: list[dict[str, Any]] = []
         self.load()
+
+    def bind_execution(self, cancel: threading.Event, config: dict) -> None:
+        self.cancel_event = cancel
+        settings = runtime_settings(config)
+        if self.api_key:
+            self.client = CancellableChatClient(self.base_url, self.api_key, cancel,
+                                                settings["request_timeout"], settings["cancellation_poll_interval"])
 
     def load(self) -> None:
         with self._lock:
@@ -105,18 +113,23 @@ class LightweightJSONVectorDB:
             
         max_retries = 3
         for attempt in range(max_retries):
+            if self.cancel_event.is_set():
+                raise TurnCancelled("Embedding request cancelled")
             try:
                 response = self.client.embeddings.create(
                     model="text-embedding-3-small",
                     input=text
                 )
                 return response.data[0].embedding
+            except TurnCancelled:
+                raise
             except Exception as e:
                 logging.warning(f"Embedding API attempt {attempt+1} failed: {e}")
                 if attempt == max_retries - 1:
                     logging.error(f"Failed to get embedding after {max_retries} attempts.")
                     return [0.0] * 1536
-                time.sleep(2 ** attempt)  # Exponential backoff
+                if self.cancel_event.wait(2 ** attempt):
+                    raise TurnCancelled("Embedding retry cancelled")
 
     def insert(self, text: str, metadata: dict[str, Any] | None = None) -> None:
         vector = self.get_embedding(text)
@@ -151,38 +164,40 @@ class LightweightJSONVectorDB:
             })
         return results
 
-try:
-    import requests as _requests
-except ImportError:
-    _requests = None  # type: ignore
-
 class RemoteRAGProvider:
     def __init__(self, name: str, default_url: str):
         self.name = name
         self.config = config_manager.load_config()
+        self.cancel_event = threading.Event()
+        self.request_timeout = runtime_settings(self.config)["request_timeout"]
+        self.cancellation_poll_interval = runtime_settings(self.config)["cancellation_poll_interval"]
         # Allows user to override the URL in config: e.g. "yggdrasil_url"
         self.base_url = self.config.get(f"{name.lower()}_url", default_url).rstrip("/")
+
+    def bind_execution(self, cancel: threading.Event, config: dict) -> None:
+        self.cancel_event = cancel
+        settings = runtime_settings(config)
+        self.request_timeout = settings["request_timeout"]
+        self.cancellation_poll_interval = settings["cancellation_poll_interval"]
         
     def insert(self, text: str, metadata: dict[str, Any] | None = None) -> None:
-        if _requests is None:
-            logging.warning(f"{self.name} Provider: 'requests' package not installed. Cannot insert.")
-            return
         try:
             payload = {"text": text, "metadata": metadata or {}}
-            response = _requests.post(f"{self.base_url}/insert", json=payload, timeout=10.0)
-            response.raise_for_status()
+            cancellable_http_post(f"{self.base_url}/insert", payload, self.cancel_event,
+                                  min(10, self.request_timeout), self.cancellation_poll_interval)
+        except TurnCancelled:
+            raise
         except Exception as e:
             logging.warning(f"{self.name} Provider insert failed: {e}")
 
     def search(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
-        if _requests is None:
-            logging.warning(f"{self.name} Provider: 'requests' package not installed. Cannot search.")
-            return []
         try:
             payload = {"query": query, "top_k": top_k}
-            response = _requests.post(f"{self.base_url}/search", json=payload, timeout=15.0)
-            response.raise_for_status()
-            return response.json().get("results", [])
+            response = cancellable_http_post(f"{self.base_url}/search", payload, self.cancel_event,
+                                             min(15, self.request_timeout), self.cancellation_poll_interval)
+            return response.get("results", [])
+        except TurnCancelled:
+            raise
         except Exception as e:
             logging.warning(f"{self.name} Provider search failed: {e}")
             return []

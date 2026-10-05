@@ -126,7 +126,7 @@ class SessionStore:
         validate_session_id(session_id)
         if session_id in self._leases:
             raise SessionBusy("Session already attached; close it before resuming")
-        lock = FileLock(str(self.root / f"{session_id}.lock"))
+        lock = FileLock(str(self.root / f"{session_id}.lock"), thread_local=False)
         try:
             lock.acquire(timeout=0)
         except Timeout as exc:

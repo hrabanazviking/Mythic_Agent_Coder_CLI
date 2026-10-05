@@ -14,9 +14,23 @@ from .core.config_manager import config_manager
 from .memory.core_memory import CoreMemoryManager
 from .memory.vector_db import get_vector_provider
 from .agents.llm import agent_manager
+from .core.policy import ToolPolicy, policy_mode
 
 # Initialize the MCP Server
 mcp = FastMCP("Mythic OS MCP Server")
+
+def machine_policy() -> ToolPolicy:
+    return ToolPolicy(policy_mode(config_manager.load_config(), machine=True))
+
+def _permission(name: str, arguments: dict, policy: ToolPolicy | None = None) -> str | None:
+    if not (policy or machine_policy()).authorize(name, arguments):
+        return f"Permission denied for {name}; no operation was performed. Configure an explicit trusted machine policy to allow mutations."
+    return None
+
+def _agent_name(value: str) -> str:
+    if not isinstance(value, str) or not re.fullmatch(r"[\w -]{1,80}", value):
+        raise ValueError("Invalid agent name")
+    return value
 
 def get_project_root() -> Path:
     from .core.workspace import resolve_workspace
@@ -25,7 +39,10 @@ def get_project_root() -> Path:
 @mcp.tool()
 def mythic_core_memory_read(agent_name: str = "Primary") -> str:
     """Read the Core OS Memory block for a specific Mythic agent (default: Primary)."""
-    core_memory = CoreMemoryManager(agent_name)
+    denied = _permission("core_memory_read", {"agent_name": agent_name})
+    if denied:
+        return denied
+    core_memory = CoreMemoryManager(_agent_name(agent_name))
     return core_memory.format_for_prompt()
 
 @mcp.tool()
@@ -34,7 +51,10 @@ def mythic_core_memory_append(block_name: str, content: str, agent_name: str = "
     Append text to a Core OS Memory block.
     Valid blocks: 'persona', 'human', 'project', 'long_term_notes'.
     """
-    core_memory = CoreMemoryManager(agent_name)
+    denied = _permission("core_memory_append", {"agent_name": agent_name, "block": block_name, "content": content})
+    if denied:
+        return denied
+    core_memory = CoreMemoryManager(_agent_name(agent_name))
     success = core_memory.append(block_name, content)
     if success:
         return f"Successfully appended to the {block_name} block for {agent_name}."
@@ -43,6 +63,10 @@ def mythic_core_memory_append(block_name: str, content: str, agent_name: str = "
 @mcp.tool()
 def mythic_archival_search(query: str, top_k: int = 5, agent_name: str = "Primary") -> str:
     """Search the Mythic Vector RAG Subconscious memory for semantic matches."""
+    denied = _permission("archival_memory_search", {"query": query, "top_k": top_k})
+    if denied:
+        return denied
+    agent_name = _agent_name(agent_name)
     config = config_manager.load_config()
     base_url = config.get("base_url", config_manager.DEFAULT_BASE_URL)
     api_keys = config.get("api_keys", {})
@@ -63,6 +87,10 @@ def mythic_archival_search(query: str, top_k: int = 5, agent_name: str = "Primar
 @mcp.tool()
 def mythic_archival_insert(text: str, agent_name: str = "Primary") -> str:
     """Insert a new persistent memory into the Mythic Vector RAG Subconscious."""
+    denied = _permission("archival_memory_insert", {"text": text, "agent_name": agent_name})
+    if denied:
+        return denied
+    agent_name = _agent_name(agent_name)
     config = config_manager.load_config()
     base_url = config.get("base_url", config_manager.DEFAULT_BASE_URL)
     api_keys = config.get("api_keys", {})
@@ -76,6 +104,9 @@ def mythic_archival_insert(text: str, agent_name: str = "Primary") -> str:
 @mcp.tool()
 def mythic_update_project_status(project_name: str, status_markdown: str) -> str:
     """Create or update a markdown status file for a specific project."""
+    denied = _permission("update_status", {"project": project_name, "status": status_markdown})
+    if denied:
+        return denied
     status_dir = config_manager.MYTHIC_DIR / "status"
     status_dir.mkdir(parents=True, exist_ok=True)
     safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', project_name)
@@ -92,8 +123,12 @@ def mythic_delegate_to_subagent(sub_agent_name: str, task_description: str, send
     Spawn a Mythic Sub-Agent (e.g. 'Skald', 'Architect', 'Forge Worker') in the background
     and assign them a task. They will run completely autonomously.
     """
+    policy = machine_policy()
+    denied = _permission("delegate_task", {"sub_agent_name": sub_agent_name, "task_description": task_description}, policy)
+    if denied:
+        return denied
     root_path = get_project_root()
-    sub_agent = agent_manager.spawn_subagent(sub_agent_name, root_path)
+    sub_agent = agent_manager.spawn_subagent(sub_agent_name, root_path, policy=policy)
     
     if not sub_agent:
         return f"Error: No sub-agent named '{sub_agent_name}' could be spawned."

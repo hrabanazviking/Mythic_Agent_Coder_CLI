@@ -17,6 +17,8 @@ from ..core.secure_api import publish_sync, subscribe
 from ..core.runtime import TurnCancelled, TurnResult, runtime_settings
 from ..core.redaction import SecretRedactor, protect_logging
 from ..core.sessions import SessionStore
+from ..core.policy import ToolPolicy, policy_mode
+from ..core.execution import CancellableChatClient
 from ..memory.core_memory import CoreMemoryManager
 from ..memory.vector_db import get_vector_provider
 
@@ -49,7 +51,8 @@ class Agent:
         self._closed = False
         self.last_result = TurnResult("idle")
         self.tui_app = None
-        self.tool_policy = None
+        self.tool_policy = ToolPolicy("read-only")
+        self._permission_override = None
         self.active_task_start_time = None
         self.rebuild_system_prompt()
         
@@ -60,6 +63,8 @@ class Agent:
         api_key = self.get_api_key(base_url)
         provider = self.config.get("vector_db_provider", "lightweight")
         self.vector_db = get_vector_provider(provider, self.name, base_url, api_key)
+        if hasattr(self.vector_db, "bind_execution"):
+            self.vector_db.bind_execution(self._cancel, self.config)
         
         self.inject_mythic_agents()
         
@@ -101,6 +106,17 @@ class Agent:
             self._closed = True
             unsubscribe("agent_clear_history", self._handle_clear_history)
             unsubscribe("agent_compact_history", self._handle_compact_history)
+
+    def bind_tui(self, app: Any, mode: str | None = None) -> None:
+        """Bind human approvals to this agent's cancellation event."""
+        from .tools import prompt_approval_sync
+        self.tui_app = app
+        mode = mode or policy_mode(self.config, override=self._permission_override)
+        def approve(name, arguments):
+            settings = runtime_settings(self.config)
+            description = self.redactor.text(name + ": " + json.dumps(arguments, ensure_ascii=False))
+            return prompt_approval_sync(description, app, self._cancel, settings["approval_timeout"])
+        self.tool_policy = ToolPolicy(mode, approve)
 
     def change_workspace(self, root: Path | str) -> None:
         """Switch only between turns; start isolated context and keep the old transcript."""
@@ -299,19 +315,16 @@ class Agent:
             
         return os.environ.get("OPENAI_API_KEY")
 
-    def get_client(self) -> OpenAI:
+    def get_client(self) -> CancellableChatClient:
         base_url = self.config.get("base_url", config_manager.DEFAULT_BASE_URL)
         api_key = self.get_api_key(base_url)
         
         if not api_key:
             logging.warning("No API key found for base URL %s", base_url)
             
-        return OpenAI(
-            base_url=base_url,
-            api_key=api_key or "sk-dummy",
-            max_retries=0,
-            timeout=runtime_settings(self.config)["request_timeout"],
-        )
+        settings = runtime_settings(self.config)
+        return CancellableChatClient(base_url, api_key or "sk-dummy", self._cancel,
+                                     settings["request_timeout"], settings["cancellation_poll_interval"])
         
     def set_model(self, model: str, base_url: str, api_key: str | None = None) -> None:
         import copy
@@ -333,10 +346,14 @@ class Agent:
         protect_logging(self.redactor)
 
     def fetch_models(self, base_url: str, api_key: str) -> list[str]:
-        client = OpenAI(base_url=base_url, api_key=api_key)
+        settings = runtime_settings(self.config)
+        client = CancellableChatClient(base_url, api_key, self._cancel,
+                                     settings["request_timeout"], settings["cancellation_poll_interval"])
         try:
             models_response = client.models.list()
             return [m.id for m in models_response.data]
+        except TurnCancelled:
+            raise
         except Exception as e:
             raise RuntimeError(f"Failed to fetch models: {e}")
 
@@ -404,6 +421,7 @@ class Agent:
         for _ in range(settings["max_tool_rounds"]):
             self._check_cancelled()
             response = self._request_response(client, settings)
+            self._check_cancelled()
             if not response.choices:
                 raise RuntimeError("Provider returned no response choices")
             message = self._normalize_message(response.choices[0].message)
@@ -441,6 +459,8 @@ class Agent:
             results = self.vector_db.search(prompt, top_k=2)
             if results:
                 return "\n\n[Archival memory]\n" + "\n".join(r["text"] for r in results)
+        except TurnCancelled:
+            raise
         except Exception:
             logging.exception("Archival recall failed; continuing without retrieval")
         return ""
@@ -488,19 +508,13 @@ class Agent:
             arguments = json.loads(call["function"]["arguments"])
             if not isinstance(arguments, dict):
                 return "Tool arguments must be a JSON object."
-            from .tools import validate_tool_arguments
-            validate_tool_arguments(name, arguments)
-            if self.tool_policy and not self.tool_policy.authorize(name, arguments):
-                publish_sync("agent_tool_denied", agent_name=self.name, tool_name=name)
-                return f"Permission denied for {name}; no operation was performed."
-            if name == "clear_context":
-                self._pending_history_action = "clear"
-                return "Conversation will clear after this turn completes."
             result = execute_tool(name, arguments, self.project_root, self.tui_app, agent=self)
             return result if isinstance(result, str) else json.dumps(result)
         except KeyboardInterrupt:
             self.cancel()
             return "Tool interrupted by user."
+        except TurnCancelled:
+            raise
         except Exception as exc:
             logging.warning("Tool %s failed: %s", name, type(exc).__name__)
             return f"Tool {name} failed: {exc}"
@@ -516,20 +530,43 @@ class AgentManager:
     def _on_system_command(self, command: str, args: str):
         if command == "/stop":
             for name, agent in list(AGENT_REGISTRY.items()):
-                agent.inbox.put(None)
-                publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[bold red]✦ Terminating agent {name}...[/bold red]\n")
-                if "[Ghost]" in name:
-                    del AGENT_REGISTRY[name]
+                agent.cancel()
+                # Keep the cancelled inputs available for lifecycle receipts in S08.
+                if not hasattr(agent, "cancelled_inputs"):
+                    agent.cancelled_inputs = []
+                while True:
+                    try:
+                        pending = agent.inbox.get_nowait()
+                    except queue.Empty:
+                        break
+                    agent.inbox.task_done()
+                    if pending is None:
+                        agent.inbox.put(None)
+                        break
+                    agent.cancelled_inputs.append(pending)
+                publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nStopped active work for {name}. You can continue.\n")
                     
     def _on_config_reload(self, config: dict):
         for name, agent in AGENT_REGISTRY.items():
             agent.config = config
             agent.rebuild_system_prompt()
+            if agent.tui_app:
+                agent.bind_tui(agent.tui_app)
             logging.info(f"Hot-reloaded config for live agent: {name}")
         
-    def spawn_subagent(self, name: str, project_root: Path | None = None) -> Agent | None:
+    def spawn_subagent(self, name: str, project_root: Path | None = None, *, policy: ToolPolicy | None = None, tui_app: Any = None) -> Agent | None:
         if name in AGENT_REGISTRY:
-            return AGENT_REGISTRY[name]
+            existing = AGENT_REGISTRY[name]
+            inherited = policy or ToolPolicy("read-only")
+            if existing._turn_lock.locked() or (project_root is not None and existing.project_root != Path(project_root).resolve()):
+                logging.warning("Agent is busy or belongs to another workspace; delegation refused")
+                return None
+            existing.tool_policy = inherited.fork()
+            existing._permission_override = inherited.mode
+            existing.tui_app = tui_app
+            if tui_app:
+                existing.bind_tui(tui_app, mode=inherited.mode)
+            return existing
             
         config = config_manager.load_config()
         sub_agents = config.get("sub_agents", [])
@@ -541,6 +578,10 @@ class AgentManager:
             
         logging.info(f"Dynamically spawning subagent: {name}")
         sub_agent = Agent(project_root=project_root, name=name)
+        sub_agent.tool_policy = (policy or ToolPolicy("read-only")).fork()
+        sub_agent._permission_override = sub_agent.tool_policy.mode
+        if tui_app:
+            sub_agent.bind_tui(tui_app, mode=sub_agent.tool_policy.mode)
         AGENT_REGISTRY[name] = sub_agent
         threading.Thread(target=self._run_agent_loop, args=(sub_agent,), daemon=True).start()
         
@@ -551,11 +592,20 @@ class AgentManager:
     def spawn_ghost_agent(self, original_agent: Agent) -> Agent:
         ghost_name = f"[Ghost] {original_agent.name}"
         if ghost_name in AGENT_REGISTRY:
-            return AGENT_REGISTRY[ghost_name]
+            existing = AGENT_REGISTRY[ghost_name]
+            existing.tool_policy = original_agent.tool_policy.fork()
+            existing._permission_override = existing.tool_policy.mode
+            if original_agent.tui_app:
+                existing.bind_tui(original_agent.tui_app, mode=existing.tool_policy.mode)
+            return existing
             
         logging.info(f"Dynamically spawning ghost agent: {ghost_name}")
         ghost_agent = Agent(project_root=original_agent.project_root)
         ghost_agent.name = ghost_name
+        ghost_agent.tool_policy = original_agent.tool_policy.fork()
+        ghost_agent._permission_override = ghost_agent.tool_policy.mode
+        if original_agent.tui_app:
+            ghost_agent.bind_tui(original_agent.tui_app, mode=ghost_agent.tool_policy.mode)
         
         # Inherit memory context completely
         import copy
@@ -609,7 +659,8 @@ class AgentManager:
         if not agent and target_agent != "Primary":
             primary = AGENT_REGISTRY.get("Primary")
             root = primary.project_root if primary else None
-            agent = self.spawn_subagent(target_agent, root)
+            agent = self.spawn_subagent(target_agent, root, policy=primary.tool_policy if primary else None,
+                                       tui_app=primary.tui_app if primary else None)
             
         if not agent:
             logging.error(f"Target agent {target_agent} could not be resolved.")
