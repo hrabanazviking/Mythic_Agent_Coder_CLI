@@ -63,7 +63,7 @@ Mythic Agent supports multiple LLM endpoints out of the box. Easily configure:
 
 2. **Install the CLI globally:**
    ```bash
-   pip install -e .
+    pip install -e '.[tui]'
    ```
 
 3. **Summon the Agent:**
@@ -72,6 +72,14 @@ Mythic Agent supports multiple LLM endpoints out of the box. Easily configure:
    ```
 
 ### First-Time Configuration
+
+Core-only installation uses `pip install -e .` and supports `mythic --help` and
+`mythic --version` without UI or speech packages. Optional integrations are
+installed with the `mcp`, `knowledge`, `voice`, and `voice-cloning` extras.
+See [the development roadmap](ROADMAP.md) for active reliability work and
+[the developer guide](docs/DEVELOPMENT.md) for test/build commands. This is an
+alpha; roadmap features are only available once their implementation is recorded.
+
 When you run `mythic` for the first time, press **`F2`** to open the **Setup Wizard**.
 Here, you can:
 - Select your Provider and enter your API Key.
@@ -178,4 +186,3 @@ Support is always appreciated, but never required. Using, sharing, testing, cont
 ![https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/IMG_0407.jpeg](https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/IMG_0407.jpeg)
 
 ---
-
