@@ -9,26 +9,49 @@ description = "A clean, affordable CLI AI coding agent."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "openai>=1.40",
+    "openai>=1.40,<4",
     "prompt_toolkit>=3.0",
     "rich>=13.0",
-    "textual>=0.82.7",
-    "pyyaml>=6.0.2",
-    "litellm>=1.52.2",
+    "pyyaml>=6.0.2"
+]
+
+[project.optional-dependencies]
+tui = [
+    "textual>=0.82.7,<9",
     "textual-image>=0.13.2",
     "pillow>=10.4.0",
-    "mcp>=1.0.0",
-    "psycopg[binary]>=3.0.0",
-    "requests>=2.0.0",
+    "pyperclip>=1.9"
+]
+mcp = ["mcp>=1.0.0"]
+knowledge = ["psycopg[binary]>=3.0.0", "requests>=2.0.0"]
+voice = [
     "sounddevice>=0.5.1",
     "numpy>=2.0.0",
     "scipy>=1.14.0",
     "piper-tts>=1.2.0",
-    "chatterbox-tts>=0.1.0",
-    "torchaudio>=2.0.0",
+    "requests>=2.0.0",
     "pydub>=0.25.1"
 ]
+voice-cloning = [
+    "chatterbox-tts>=0.1.0",
+    "torchaudio>=2.0.0"
+]
+dev = ["pytest>=8,<10", "build>=1.2", "hatchling>=1.26"]
 
 [project.scripts]
 mythic = "mythic_agent.cli:main"
 mythic-mcp = "mythic_agent.mcp_server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mythic_agent"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"default_agent_characters" = "mythic_agent/resources/characters"
+"Mythic-Engineering/Mythic-Engineering_SKILL.md" = "mythic_agent/resources/engineering.md"
+
+[tool.hatch.build.targets.sdist]
+include = ["mythic_agent/", "default_agent_characters/", "Mythic-Engineering/", "tests/", "docs/", "*.md", "pyproject.toml", "LICENSE", "NOTICE", ".github/"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
