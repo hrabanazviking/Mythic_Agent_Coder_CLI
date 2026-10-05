@@ -187,3 +187,26 @@ def test_default_tui_dependency_failure_is_actionable(monkeypatch, capsys):
     monkeypatch.setattr(builtins, "__import__", importing)
     assert main([]) == 2
     assert "tui extra" in capsys.readouterr().err
+
+
+def test_captured_stderr_prevents_inherited_console_approval(monkeypatch):
+    from unittest.mock import Mock
+    from mythic_agent.terminal import _approve
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(sys.stderr, "isatty", lambda: False)
+    approval_input = Mock()
+    monkeypatch.setattr("builtins.input", approval_input)
+    assert _approve("write_file", {}) is False
+    approval_input.assert_not_called()
+
+
+def test_approval_eof_is_a_recorded_denial(monkeypatch):
+    from unittest.mock import Mock
+    from mythic_agent.core.policy import ToolPolicy
+    from mythic_agent.terminal import _approve
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(sys.stderr, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", Mock(side_effect=EOFError))
+    policy = ToolPolicy("ask", _approve)
+    assert policy.authorize("write_file", {}) is False
+    assert policy.denials == ["write_file"]
