@@ -1,4 +1,3 @@
----
 
 ![https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-fac0e110-eb29-4de6-9b3f-33ce69fe3309.png](https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-fac0e110-eb29-4de6-9b3f-33ce69fe3309.png)
 
