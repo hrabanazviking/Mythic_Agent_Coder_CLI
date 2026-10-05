@@ -54,3 +54,17 @@ Do not equate local tests with real-provider or physical cross-platform testing.
   history preservation, budgets, cancellation/recovery and failure outcomes.
 - Active I/O cancellation, provider capability/token settings, policies and
   durable full sessions remain S05–S07 work. No live-provider claim.
+
+### Hosted receipts and urgent main repair
+
+- S01 portability repair `1abaab0c43a2041557fd1e3f538c87eb7c004d87` passed all six
+  jobs in hosted run `37258887547` (Linux/macOS/Windows, Python 3.10 and 3.13).
+- S02 `8fe242fe408b8a15634555b862b26d95a535ef47` passed all six jobs in hosted
+  run `37258957751`, including 24 tests, builds and installed-wheel smoke checks.
+- User's urgent screenshot showed main pulling the invalid colon filename.
+  Main's merged tree predated the development repair. Reproduced with a new
+  path regression check; preserved identical document bytes and pushed the main
+  repair `cb7d19b365064153f6f57a8acfa013d2cea9f98b`. Remote main was verified.
+  Four local main tests passed; main hosted run `37259244508` pending.
+- Added the tracked Windows-path regression check to development and enabled
+  main CI. User's physical GitHub Desktop retry is not claimed as tested.
