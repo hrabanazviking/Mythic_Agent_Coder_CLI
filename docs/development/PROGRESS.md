@@ -123,3 +123,10 @@ Do not equate local tests with real-provider or physical cross-platform testing.
   yields a recorded denial. Added deterministic regressions for both cases.
 - Integrated the user's main-to-development merge (`4329310`) with a normal merge
   before pushing, preserving their commits and the urgent main repair record.
+
+- Final S04 repair revision `2f5570a3c6c43f218a3408844bea07c61aed9d38` passed
+  all six hosted jobs in run `37260742450`. Local suite: 63 passed; wheel+sdist
+  passed; installed core wheel: 14 CLI tests passed outside checkout.
+- S05 work order is published. Temporary probes reproduced destructive config
+  read migration/custom-prompt healing and malformed version fallback; these are
+  pending repairs, not finished implementation.
