@@ -243,3 +243,19 @@ Do not equate local tests with real-provider or physical cross-platform testing.
   Regression exercises approved existing-recipient inheritance and busy refusal.
   Combined local suite: 164 passed; wheel/sdist built; installed core outside
   checkout: 163 passed, one optional Textual pilot skipped. Hosted gate pending.
+
+- Final S06 implementation `5d11529e2ea382a653a1c29d68ca5af00e662f16` passed
+  all six hosted jobs in [run 37267538036](https://github.com/hrabanazviking/Mythic_Agent_Coder_CLI/actions/runs/37267538036):
+  Linux/macOS/Windows, Python 3.10/3.13, maintained tests, distributions and
+  installed-core smoke checks. S06 is complete. Exact source/remote SHA verified;
+  physical GUI/provider testing is not claimed.
+
+## S07 — provider reliability and streaming (started)
+
+- Work order was published/remote-verified at
+  `d0708f3b1766d6b0b4c2f442e3b1563a5ebd10ae`; S06's final hosted gate is green.
+- Temporary-state/fake-client probe reproduced dummy credentials for missing
+  remote keys, unused output-token budget and disabled streaming. No network or
+  hosted credential was used. These remain pending S07 fixes.
+- Next: central provider admission/diagnostics, normalized streamed text/tools,
+  honest usage/cost and model discovery, with free localhost HTTP/SSE regressions.
