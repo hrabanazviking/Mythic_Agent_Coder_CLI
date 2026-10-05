@@ -2,6 +2,11 @@
 
 Created 2026-10-04 from revision `e197deff`. Status: implementation in progress.
 
+Verified progress as of 2026-10-05: S01–S05 implemented and pushed with passing
+local, installed-core and hosted platform gates. S06 work order is published;
+S06–S14 acceptance work remains. Exact receipts and limitations are maintained in
+[docs/development/PROGRESS.md](docs/development/PROGRESS.md).
+
 ## Intended experience
 
 Launch Mythic in a repository, converse naturally, inspect its work, approve

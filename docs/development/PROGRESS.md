@@ -174,3 +174,9 @@ Do not equate local tests with real-provider or physical cross-platform testing.
 - Repair local suite: 113 passed. All 16 config tests also passed against the
   unchanged installed core wheel outside checkout. No application code changed;
   hosted matrix retry is required before recording S05 fully complete.
+
+- Final S05 revision `84203036ecf7dc9b9e88ac1a7b1cd772c8a6d5ce` passed all six
+  hosted jobs in run `37262945417`: Linux/macOS/Windows, Python 3.10/3.13,
+  maintained suite, wheel/sdist builds and installed-core smoke checks. S05 is
+  complete; published S06 work order is next. Physical GUI/provider checks are
+  not claimed from these hosted/local fixture results.
