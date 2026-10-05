@@ -14,3 +14,8 @@ subscribers; those are skipped with a warning. UI adapters own thread marshaling
 JSON-serializable dictionary protocol data. Network, tools, and events run outside
 the history lock. Cancellation currently interrupts retries/loop boundaries;
 active I/O cancellation belongs to S06. Tool execution policy belongs to S03/S06.
+
+`ToolPolicy(mode, approval)` supports read-only/ask/trusted. Read-only tool names
+come from packaged `data/permissions.yaml`. Denial records a tool name and has no
+operation side effect. The runtime consults an attached policy before execution;
+CLI adapters attach it explicitly. S06 completes TUI/direct/MCP enforcement.

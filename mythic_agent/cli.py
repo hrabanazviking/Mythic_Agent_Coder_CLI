@@ -27,7 +27,24 @@ def main(argv: list[str] | None = None) -> int:
         prog="mythic", description="Mythic Agent: a local AI coding harness."
     )
     parser.add_argument("--version", action="version", version=package_version())
-    parser.parse_args(argv)
+    commands = parser.add_subparsers(dest="command")
+    for name, help_text in [("run", "Run one task for humans or AI callers"),
+                            ("chat", "Start the terminal conversation loop"),
+                            ("tui", "Start the optional Textual interface")]:
+        command = commands.add_parser(name, help=help_text)
+        command.add_argument("--workspace", type=str, help="Project directory (defaults to settings/current directory)")
+        command.add_argument("--model", help="Model override for this invocation")
+        command.add_argument("--base-url", help="OpenAI-compatible endpoint override")
+        if name != "tui":
+            command.add_argument("--permission", choices=["read-only", "ask", "trusted"],
+                                 help="Tool policy (run: read-only; chat: ask)")
+        if name == "run":
+            command.add_argument("prompt", nargs="?", help="Task prompt; omit to read stdin")
+            command.add_argument("--format", choices=["plain", "json", "jsonl"], default="plain")
+    args = parser.parse_args(argv)
+    if args.command in {"run", "chat"}:
+        from .terminal import chat_loop, run_once
+        return run_once(args) if args.command == "run" else chat_loop(args)
     try:
         from .ui.main_app import MythicTUI
     except ImportError as exc:
@@ -41,6 +58,15 @@ def main(argv: list[str] | None = None) -> int:
     from .core.engine import engine
     try:
         engine.initialize()
+        if args.command == "tui":
+            from .agents.llm import AGENT_REGISTRY
+            from .core.workspace import resolve_workspace
+            primary = AGENT_REGISTRY["Primary"]
+            primary.project_root = resolve_workspace(args.workspace, primary.config)
+            if args.model:
+                primary.config["model"] = args.model
+            if args.base_url:
+                primary.config["base_url"] = args.base_url
         app = MythicTUI()
         app.run()
     except Exception as e:

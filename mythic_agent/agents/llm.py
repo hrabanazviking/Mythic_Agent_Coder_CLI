@@ -22,8 +22,10 @@ from ..memory.vector_db import get_vector_provider
 AGENT_REGISTRY: dict[str, "Agent"] = {}
 
 class Agent:
-    def __init__(self, project_root: Path | None = None, name: str = "Primary"):
-        self.config = config_manager.load_config()
+    def __init__(self, project_root: Path | None = None, name: str = "Primary", config: dict[str, Any] | None = None):
+        import copy
+        self.config = copy.deepcopy(config) if config is not None else config_manager.load_config()
+        self._persist_defaults = config is None
         from ..core.workspace import resolve_workspace
         self.project_root = resolve_workspace(project_root, self.config)
         self.name = name
@@ -40,6 +42,7 @@ class Agent:
         self._pending_history_action = None
         self.last_result = TurnResult("idle")
         self.tui_app = None
+        self.tool_policy = None
         self.active_task_start_time = None
         self.rebuild_system_prompt()
         
@@ -100,6 +103,11 @@ class Agent:
         import copy
         with self._lock:
             return copy.deepcopy(self.messages)
+
+    def add_context(self, content: str) -> None:
+        """Add explicit user context between complete turns."""
+        with self._turn_lock, self._lock:
+            self.messages.append({"role": "user", "content": content})
 
     def get_user_context(self) -> str:
         user_name = self.config.get("user_name", "").strip()
@@ -177,7 +185,8 @@ class Agent:
                 
         if added:
             self.config["sub_agents"] = current_agents
-            self.save_config()
+            if self._persist_defaults:
+                self.save_config()
         
     def save_config(self) -> None:
         config_manager.save_config(self.config)
@@ -237,9 +246,14 @@ class Agent:
                 text = self._run_turn(prompt)
                 self.last_result = TurnResult("completed", text, total_tokens=self.total_tokens)
                 return text
-            except Exception as exc:
-                status = "cancelled" if isinstance(exc, TurnCancelled) else "failed"
+            except (Exception, KeyboardInterrupt) as exc:
+                cancelled = isinstance(exc, (TurnCancelled, KeyboardInterrupt))
+                status = "cancelled" if cancelled else "failed"
+                self._finish_pending_calls("Turn cancelled" if cancelled else "Turn failed")
                 self.last_result = TurnResult(status, error=str(exc), total_tokens=self.total_tokens)
+                if isinstance(exc, KeyboardInterrupt):
+                    self.cancel()
+                    raise TurnCancelled("Turn cancelled by user") from exc
                 raise
             finally:
                 action = self._pending_history_action
@@ -248,6 +262,17 @@ class Agent:
                     self._handle_clear_history(self.name, force=True)
                 elif action == "compact":
                     self._handle_compact_history(self.name, force=True)
+
+    def _finish_pending_calls(self, reason: str) -> None:
+        with self._lock:
+            pending = {}
+            for message in self.messages:
+                if message.get("role") == "assistant":
+                    pending.update({call["id"]: call for call in message.get("tool_calls", [])})
+                elif message.get("role") == "tool":
+                    pending.pop(message.get("tool_call_id"), None)
+            for call_id in pending:
+                self.messages.append({"role": "tool", "tool_call_id": call_id, "content": reason})
 
     def _run_turn(self, prompt: str | None) -> str:
         settings = runtime_settings(self.config)
@@ -345,11 +370,19 @@ class Agent:
             arguments = json.loads(call["function"]["arguments"])
             if not isinstance(arguments, dict):
                 return "Tool arguments must be a JSON object."
+            from .tools import validate_tool_arguments
+            validate_tool_arguments(name, arguments)
+            if self.tool_policy and not self.tool_policy.authorize(name, arguments):
+                publish_sync("agent_tool_denied", agent_name=self.name, tool_name=name)
+                return f"Permission denied for {name}; no operation was performed."
             if name == "clear_context":
                 self._pending_history_action = "clear"
                 return "Conversation will clear after this turn completes."
             result = execute_tool(name, arguments, self.project_root, self.tui_app, agent=self)
             return result if isinstance(result, str) else json.dumps(result)
+        except KeyboardInterrupt:
+            self.cancel()
+            return "Tool interrupted by user."
         except Exception as exc:
             logging.warning("Tool %s failed: %s", name, type(exc).__name__)
             return f"Tool {name} failed: {exc}"

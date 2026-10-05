@@ -127,6 +127,16 @@ def test_cancel_before_tools_yields_paired_results(agent):
     assert agent.chat("continue") == "Recovered"
 
 
+def test_keyboard_interrupt_closes_pending_tool_calls(agent, monkeypatch):
+    from mythic_agent.agents import llm
+    monkeypatch.setattr(llm, "execute_tool", Mock(side_effect=KeyboardInterrupt))
+    client_for(agent, reply(None, [tool_call(), tool_call(call_id="call-2")]))
+    with pytest.raises(TurnCancelled):
+        agent.chat("inspect")
+    assert [m["tool_call_id"] for m in agent.messages if m["role"] == "tool"] == ["call-1", "call-2"]
+    assert agent.last_result.status == "cancelled"
+
+
 def test_permanent_failure_is_not_retried(agent):
     create = client_for(agent, ValueError("bad request"))
     with pytest.raises(ValueError):
