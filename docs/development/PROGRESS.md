@@ -35,3 +35,22 @@ Do not equate local tests with real-provider or physical cross-platform testing.
   because textual-image 0.13+ requires Python 3.12.
 - Preserved the historical document with a Windows-compatible name and selected
   textual-image 0.12 for Python <3.12. Repair matrix pending its push.
+
+## S02 — shared runtime repair
+
+- Work order: `12af961a9989e712df101d9eb50256eef9ea18b1`, pushed and remote-verified.
+- Provider requests now run for ordinary first turns; final text is returned.
+- Assistant text+calls are one dictionary message; every tool has a matching result.
+  Invalid JSON/unknown tools/operation exceptions no longer break result ordering.
+- History/registry consumers use serializable snapshots. Turns serialize separately
+  from state locks; events/retrieval/provider/tools do not run under state locks.
+- No automatic message-count deletion. Manual compaction archives complete earlier
+  turns; clearing during a tool turn is deferred until completion.
+- Added typed outcomes, configurable finite tool/retry budgets, transient-status
+  retry classification and cancellation at loop/retry boundaries.
+- Local `python -m pytest`: 24 passed. `python -m build`: wheel+sdist passed.
+- Tests cover real SDK message normalization with fake responses, HTTP status
+  classification, multiple tools, concurrent turns, reentrant history callbacks,
+  history preservation, budgets, cancellation/recovery and failure outcomes.
+- Active I/O cancellation, provider capability/token settings, policies and
+  durable full sessions remain S05–S07 work. No live-provider claim.
