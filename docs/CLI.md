@@ -17,7 +17,7 @@ for approval when stdin is a real terminal. EOF/Ctrl+D or `/quit` leaves; Ctrl+C
 interrupts the current turn and returns to input. Active subprocess termination
 is being completed in S06, so boundary cancellation is the current guarantee.
 
-Supported commands: `/help`, `/clear`, `/model <name> [url]`, `/status`,
+Supported commands: `/help`, `/clear`, `/compact`, `/session`, `/model <name> [url]`, `/status`,
 `/add <path>`, `/stop`, `/undo`, `/quit`, `/exit`. Quote paths containing spaces.
 `/model` explicitly saves the selected model; invocation overrides remain temporary.
 `/add` supplies complete file text from the workspace. `/undo` restores only the
@@ -59,6 +59,7 @@ optional fields rather than interpreting terminal formatting.
 | `total_tokens` | Provider-reported cumulative token count; zero if unavailable |
 | `permission` | Effective CLI mode or null before initialization |
 | `denied_tools` | Tool names refused during the task |
+| `session_id` | Persistent workspace session ID, or null before attachment |
 
 | Exit | Meaning |
 | --- | --- |
@@ -76,9 +77,50 @@ run the relevant project gates. Autonomous completion receipts are S12.
 ## Portable state and optional TUI
 
 `MYTHIC_HOME` selects the application state directory (default `~/.mythic`). An
-explicit state directory does not import the legacy home configuration. Full
-atomic schema/recovery/session handling is S05. Credentials remain supplied by
+explicit state directory does not import the legacy home configuration. Credentials remain supplied by
 existing provider settings/environment; no key is created by CLI launch.
+
+Configuration reads normalize settings in memory and retain customized prompts
+and unknown fields. Reads never rewrite the source. Explicit saves use a private
+atomic write and process lock; an invalid/older original gets a recovery copy
+before replacement. Defaults live in packaged `data/config_defaults.yaml`.
+`MYTHIC_MODEL`, `MYTHIC_BASE_URL` and `MYTHIC_WORKSPACE` override loaded settings
+in memory. CLI flags take precedence; `/model` explicitly saves a preference.
+
+## Durable sessions
+
+Every terminal chat/run and primary TUI session receives a workspace-scoped ID.
+List or export without a provider request:
+
+```sh
+mythic sessions --workspace ./my-project
+mythic sessions --workspace ./my-project --export <session-id> > transcript.json
+mythic run --workspace ./my-project --resume <session-id> --format json "Continue the work"
+mythic chat --workspace ./my-project --resume <session-id>
+mythic tui --workspace ./my-project --resume <session-id>
+```
+
+Use `/session` in terminal chat to see its ID. Resume selects the current provider
+settings/CLI overrides and restores saved context/token totals; session metadata
+is descriptive and never restores credentials. IDs are 32 lowercase hexadecimal
+characters. Another workspace cannot load the ID, and another live client cannot
+resume it while its lease is held. Close the other client before resuming.
+
+SQLite transactions checkpoint user/assistant/tool messages and turn outcomes
+under `MYTHIC_HOME/sessions/<workspace-id>/`. Failed/cancelled turns remain
+available. After an abrupt exit, missing tool results become explicit interrupted
+diagnostics. Recovery never repeats a tool: inspect actual workspace state before
+asking the model to retry an interrupted edit or command.
+
+Exports include selected `context`, the latest `outcome`, and ordered append-only
+`events`. `/clear` and `/compact` change selected context and retain full historical
+events. The private local database keeps original text; exported data and logs
+redact configured/environment credentials, common token forms and URL credentials.
+This does not detect every possible secret embedded in arbitrary source text.
+POSIX files use mode 600 and session directories mode 700; Windows uses the user's
+application-state location and inherited account ACLs, not POSIX mode guarantees.
+Managed secondary-agent lifecycle/session integration remains S08, and workspace
+core/vector memory migration remains S11.
 
 ```sh
 mythic tui --workspace ./my-project

@@ -1,6 +1,7 @@
 """Shared turn outcomes and validated operational settings."""
 
 from dataclasses import dataclass
+import math
 from importlib.resources import files
 from typing import Any
 
@@ -33,6 +34,6 @@ def runtime_settings(config: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(f"{key} must be an integer >= {minimum}")
     for key in ("request_timeout", "retry_delay", "retry_delay_cap", "edit_lock_timeout"):
         value = values[key]
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
             raise ValueError(f"{key} must be a positive number")
     return values

@@ -110,7 +110,9 @@ class GithubConfigModal(ModalScreen[None]):
                 
             config["github"]["repo_url"] = repo
             config["github"]["token"] = token
-            config_manager.save_config(config)
+            if not config_manager.save_config(config):
+                self.app.notify("GitHub settings could not be saved.", severity="error")
+                return
             
             # Update running agents if needed
             from mythic_agent.agents.llm import AGENT_REGISTRY
@@ -118,4 +120,3 @@ class GithubConfigModal(ModalScreen[None]):
                 agent.config = config
                 
             self.dismiss()
-

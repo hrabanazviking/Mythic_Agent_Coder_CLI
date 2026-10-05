@@ -66,7 +66,8 @@ def invoke(tmp_path, endpoint, *arguments, input_text=None):
     env["MYTHIC_HOME"] = str(tmp_path / "app-state")
     env["NO_PROXY"] = "127.0.0.1,localhost"
     command = [sys.executable, "-m", "mythic_agent.cli", arguments[0],
-               "--workspace", str(tmp_path), "--base-url", url, "--model", "fixture-model",
+               "--workspace", str(tmp_path),
+               *(["--base-url", url, "--model", "fixture-model"] if arguments[0] != "sessions" else []),
                *arguments[1:]]
     return subprocess.run(command, input=input_text, capture_output=True, text=True, env=env, timeout=15)
 
@@ -210,3 +211,63 @@ def test_approval_eof_is_a_recorded_denial(monkeypatch):
     policy = ToolPolicy("ask", _approve)
     assert policy.authorize("write_file", {}) is False
     assert policy.denials == ["write_file"]
+
+
+def test_two_process_turns_resume_transcript_and_token_total(tmp_path, endpoint):
+    first = invoke(tmp_path, endpoint, "run", "hello", "--format", "json")
+    session_id = json.loads(first.stdout)["session_id"]
+    second = invoke(tmp_path, endpoint, "run", "again", "--resume", session_id, "--format", "json")
+    assert second.returncode == 0, second.stderr
+    result = json.loads(second.stdout)
+    assert result["session_id"] == session_id and result["total_tokens"] == 14
+    history = endpoint[1][-1]["messages"]
+    assert [m["role"] for m in history] == ["system", "user", "assistant", "user"]
+    assert history[1]["content"] == "hello"
+    listed = invoke(tmp_path, endpoint, "sessions")
+    assert listed.returncode == 0, listed.stderr
+    assert [s["id"] for s in json.loads(listed.stdout)["sessions"]] == [session_id]
+    exported = invoke(tmp_path, endpoint, "sessions", "--export", session_id)
+    assert exported.returncode == 0, exported.stderr
+    assert json.loads(exported.stdout)["outcome"]["text"] == "Reply: again"
+    assert len(endpoint[1]) == 2  # Listing/export never contact the provider.
+
+
+def test_resumed_completed_tools_are_not_executed_again(tmp_path, endpoint):
+    first = invoke(tmp_path, endpoint, "run", "write", "--permission", "trusted", "--format", "json")
+    assert first.returncode == 0, first.stderr
+    session_id = json.loads(first.stdout)["session_id"]
+    (tmp_path / "generated.py").write_text("human changed it")
+    second = invoke(tmp_path, endpoint, "run", "continue", "--resume", session_id, "--format", "json")
+    assert second.returncode == 0, second.stderr
+    assert (tmp_path / "generated.py").read_text() == "human changed it"
+    history = endpoint[1][-1]["messages"]
+    assert [m["role"] for m in history] == ["system", "user", "assistant", "tool", "assistant", "user"]
+    assert len(endpoint[1]) == 3
+
+
+def test_failed_session_can_resume_in_new_process(tmp_path, endpoint):
+    failed = invoke(tmp_path, endpoint, "run", "fail", "--format", "json")
+    assert failed.returncode == 1
+    session_id = json.loads(failed.stdout)["session_id"]
+    exported = invoke(tmp_path, endpoint, "sessions", "--export", session_id)
+    assert json.loads(exported.stdout)["status"] == "failed"
+    recovered = invoke(tmp_path, endpoint, "run", "recover", "--resume", session_id, "--format", "json")
+    assert recovered.returncode == 0, recovered.stderr
+    assert json.loads(recovered.stdout)["text"] == "Reply: recover"
+
+
+def test_cli_export_keeps_history_after_clear(tmp_path, endpoint):
+    result = invoke(tmp_path, endpoint, "chat", input_text="hello\n/clear\nagain\n/quit\n")
+    assert result.returncode == 0, result.stderr
+    listed = json.loads(invoke(tmp_path, endpoint, "sessions").stdout)
+    session_id = listed["sessions"][0]["id"]
+    exported = json.loads(invoke(tmp_path, endpoint, "sessions", "--export", session_id).stdout)
+    assert "Reply: hello" not in json.dumps(exported["context"])
+    assert "Reply: hello" in json.dumps(exported["events"])
+
+
+def test_invalid_resume_id_is_structured_failure_before_http(tmp_path, endpoint):
+    result = invoke(tmp_path, endpoint, "run", "hello", "--resume", "../../config", "--format", "json")
+    assert result.returncode == 1
+    assert "Session ID" in json.loads(result.stdout)["error"]
+    assert not endpoint[1]

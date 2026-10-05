@@ -297,17 +297,17 @@ class SetupScreen(Screen):
             if api_key:
                 config["api_keys"][str(base_url)] = str(api_key)
                 
-            config_manager.save_config(config)
+            if not config_manager.save_config(config):
+                self.app.notify("Settings could not be saved; previous settings were preserved.", severity="error")
+                return
             
             # Update the Primary Agent with the new config at runtime
             from mythic_agent.agents.llm import AGENT_REGISTRY
             if "Primary" in AGENT_REGISTRY:
                 AGENT_REGISTRY["Primary"].config = config
                 if working_dir:
-                    from pathlib import Path
-                    AGENT_REGISTRY["Primary"].project_root = Path(working_dir).expanduser().resolve()
+                    AGENT_REGISTRY["Primary"].change_workspace(working_dir)
             
             self.app.switch_screen("main_chat")
         except Exception as e:
             self.app.notify(f"Error saving configuration: {str(e)}", severity="error", timeout=5)
-

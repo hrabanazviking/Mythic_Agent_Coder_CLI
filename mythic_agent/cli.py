@@ -35,13 +35,20 @@ def main(argv: list[str] | None = None) -> int:
         command.add_argument("--workspace", type=str, help="Project directory (defaults to settings/current directory)")
         command.add_argument("--model", help="Model override for this invocation")
         command.add_argument("--base-url", help="OpenAI-compatible endpoint override")
+        command.add_argument("--resume", help="Resume a workspace session by ID")
         if name != "tui":
             command.add_argument("--permission", choices=["read-only", "ask", "trusted"],
                                  help="Tool policy (run: read-only; chat: ask)")
         if name == "run":
             command.add_argument("prompt", nargs="?", help="Task prompt; omit to read stdin")
             command.add_argument("--format", choices=["plain", "json", "jsonl"], default="plain")
+    sessions = commands.add_parser("sessions", help="List or export workspace sessions as JSON")
+    sessions.add_argument("--workspace", help="Project directory")
+    sessions.add_argument("--export", metavar="SESSION_ID", help="Export a complete redacted transcript")
     args = parser.parse_args(argv)
+    if args.command == "sessions":
+        from .terminal import session_command
+        return session_command(args)
     if args.command in {"run", "chat"}:
         from .terminal import chat_loop, run_once
         return run_once(args) if args.command == "run" else chat_loop(args)
@@ -57,21 +64,17 @@ def main(argv: list[str] | None = None) -> int:
 
     from .core.engine import engine
     try:
-        engine.initialize()
-        if args.command == "tui":
-            from .agents.llm import AGENT_REGISTRY
-            from .core.workspace import resolve_workspace
-            primary = AGENT_REGISTRY["Primary"]
-            primary.project_root = resolve_workspace(args.workspace, primary.config)
-            if args.model:
-                primary.config["model"] = args.model
-            if args.base_url:
-                primary.config["base_url"] = args.base_url
+        engine.initialize(workspace=getattr(args, "workspace", None),
+                          model=getattr(args, "model", None),
+                          base_url=getattr(args, "base_url", None),
+                          resume=getattr(args, "resume", None))
         app = MythicTUI()
         app.run()
     except Exception as e:
         engine.handle_crash(e)
         return 1
+    finally:
+        engine.close()
     return 0
 
 if __name__ == "__main__":

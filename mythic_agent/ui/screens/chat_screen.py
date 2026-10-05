@@ -470,12 +470,14 @@ class MainChatScreen(Screen):
         
         if event.checkbox.id == "mythic-engineering-checkbox":
             config["mythic_engineering_mode"] = event.value
-            config_manager.save_config(config)
+            if not config_manager.save_config(config):
+                return
             chat_log.write(f"[bold magenta]Mythic Engineering Mode {status}![/bold magenta]")
             
         elif event.checkbox.id == "auto-accept-checkbox":
             config["auto_accept_permissions"] = event.value
-            config_manager.save_config(config)
+            if not config_manager.save_config(config):
+                return
             chat_log.write(f"[bold red]Auto-accept security permissions {status}![/bold red]")
 
     def on_input_changed(self, event: Input.Changed) -> None:
