@@ -37,7 +37,7 @@ Forget switching contexts to authenticate or run raw git commands.
 Mythic Agent incorporates premium developer features:
 - **Command Approvals:** Any destructive or terminal command the AI wishes to run requires your explicit approval via a modal.
 - `/doctor` - Automatically catches terminal errors and fixes them.
-- `/undo` - Safely rolls back the last file edit (Git reset).
+- `/undo` - Restores the last unchanged agent file edit from its workspace journal.
 - `/add <file>` - Explicitly pull specific files into the agent's context.
 
 ### 🌐 Multi-Provider Divine Sources

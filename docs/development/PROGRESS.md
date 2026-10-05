@@ -68,3 +68,23 @@ Do not equate local tests with real-provider or physical cross-platform testing.
   Four local main tests passed; main hosted run `37259244508` pending.
 - Added the tracked Windows-path regression check to development and enabled
   main CI. User's physical GitHub Desktop retry is not claimed as tested.
+
+- Main repair run `37259244508` passed all six hosted platform/Python jobs,
+  including Windows checkout, tests, distributions and installed-wheel checks.
+
+## S03 — contained atomic edits and journal undo
+
+- Work order: `4742e21c3c6d5680adf91f6cc31523aa733cddb4`, pushed and remote-verified.
+- Explicit workspace wins over stored settings; default is the launching project.
+- File schemas/types are validated; traversal/foreign-drive/symlink escapes and
+  Git metadata writes are refused. Full file/search/command outputs are preserved.
+- File edits no longer auto-stage/commit. Atomic writes record before/after bytes
+  and modes in a workspace-scoped private SQLite journal protected by file locks.
+- Journal recovery reconciles prepared edit/undo receipts without erasing divergent
+  work. Undo checks current content/mode and preserves HEAD/index/unrelated files.
+- Updated slash undo, MCP workspace resolver and UI/README descriptions.
+- Local `python -m pytest`: 48 passed; wheel and sdist builds passed. Tests include
+  dirty/staged Git preservation, atomic failure, prepared-receipt recovery,
+  concurrent journals, stale undo, permissions, path escapes and full content.
+- Windows symlink/POSIX mode tests state platform limitations. Shell execution
+  remains a powerful non-sandboxed operation pending S06 policy/process work.

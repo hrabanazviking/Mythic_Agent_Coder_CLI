@@ -4,6 +4,9 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from ..core.workspace import resolve_file
+from ..core.edits import EditJournal
+
 def get_agent_tools() -> list[dict[str, Any]]:
     return [
         {
@@ -346,43 +349,79 @@ def auto_git_commit(root_path: Path, file_path: Path, message: str) -> None:
         logging.exception(f"auto_git_commit failed: {e}")
 
 def truncate_output(output: str, max_length: int = 20000) -> str:
-    if len(output) > max_length:
-        return output[:max_length] + f"\n\n... [TRUNCATED: Output exceeded {max_length} characters]"
+    """Compatibility wrapper: tool output is no longer silently truncated."""
     return output
+
+
+def _timeout_output(exc: subprocess.TimeoutExpired) -> str:
+    output = exc.stdout or exc.stderr or ""
+    return output.decode("utf-8", errors="replace") if isinstance(output, bytes) else output
+
+
+def _validate_value(value: Any, schema: dict[str, Any], label: str) -> None:
+    kind = schema.get("type")
+    valid = {
+        "string": isinstance(value, str), "object": isinstance(value, dict),
+        "array": isinstance(value, list),
+        "integer": isinstance(value, int) and not isinstance(value, bool),
+        "number": isinstance(value, (int, float)) and not isinstance(value, bool),
+        "boolean": isinstance(value, bool),
+    }
+    if kind and not valid.get(kind, False):
+        raise ValueError(f"{label} must be {kind}")
+    if kind == "object":
+        properties = schema.get("properties", {})
+        missing = set(schema.get("required", [])) - value.keys()
+        if missing:
+            raise ValueError(f"{label} missing required arguments: {', '.join(sorted(missing))}")
+        if schema.get("additionalProperties") is False and value.keys() - properties.keys():
+            raise ValueError(f"{label} contains unknown arguments")
+        for key, item in value.items():
+            if key in properties:
+                _validate_value(item, properties[key], f"{label}.{key}")
+    elif kind == "array" and "items" in schema:
+        for index, item in enumerate(value):
+            _validate_value(item, schema["items"], f"{label}[{index}]")
+
+
+def validate_tool_arguments(name: str, arguments: dict[str, Any]) -> None:
+    functions = {tool["function"]["name"]: tool["function"] for tool in get_agent_tools()}
+    if name not in functions:
+        raise ValueError(f"Unknown tool {name}")
+    _validate_value(arguments, functions[name]["parameters"], name)
+
 
 def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None = None, tui_app: Any = None, agent: Any = None) -> str:
     root_path = project_root if project_root is not None else Path.cwd()
     if agent:
         root_path = agent.project_root or root_path
-        
+    root_path = Path(root_path).resolve()
+    try:
+        validate_tool_arguments(name, arguments)
+    except ValueError as exc:
+        return f"Error: {exc}"
+
     if name == "read_file":
-        path = root_path / arguments.get("path", "")
         try:
-            return truncate_output(path.read_text(encoding="utf-8"))
+            path = resolve_file(root_path, arguments["path"])
+            return path.read_text(encoding="utf-8")
         except Exception as exc:
             return f"Failed to read file: {exc}"
             
     if name == "write_file":
-        file_arg = arguments.get("path", "").strip()
-        if not file_arg:
-            return "Error: 'path' argument is required and cannot be empty for write_file."
-        path = root_path / file_arg
         try:
-            import difflib
+            path = resolve_file(root_path, arguments["path"], write=True)
             old_content = path.read_text(encoding="utf-8") if path.exists() else ""
-            new_content = arguments.get("content", "")
-            diff = list(difflib.unified_diff(old_content.splitlines(), new_content.splitlines()))
-            added = sum(1 for line in diff[2:] if line.startswith("+") and not line.startswith("+++"))
-            removed = sum(1 for line in diff[2:] if line.startswith("-") and not line.startswith("---"))
-            
-            auto_git_commit(root_path, path, f"Auto-backup before write_file to {path.name}")
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(new_content, encoding="utf-8")
-            auto_git_commit(root_path, path, f"Agent wrote {path.name}")
+            new_content = arguments["content"]
+            import difflib
+            diff = list(difflib.ndiff(old_content.splitlines(), new_content.splitlines()))
+            added = sum(line.startswith("+ ") for line in diff)
+            removed = sum(line.startswith("- ") for line in diff)
+            EditJournal(root_path).write(arguments["path"], new_content)
             return f"Successfully wrote to {path} (+{added} lines, -{removed} lines)"
         except Exception as exc:
             return f"Failed to write file: {exc}"
-            
+
     if name == "run_command":
         command = arguments.get("command", "")
         if tui_app:
@@ -397,46 +436,39 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             )
             return truncate_output(result.stdout or f"Command executed with exit code {result.returncode}")
         except subprocess.TimeoutExpired as exc:
-            return f"Command timed out after 300 seconds:\n{truncate_output(exc.stdout or exc.stderr or '')}"
+            return f"Command timed out after 300 seconds:\n{_timeout_output(exc)}"
         except Exception as exc:
             return f"Command failed: {exc}"
             
     if name == "list_dir":
-        path = root_path / arguments.get("path", ".")
         try:
-            items = os.listdir(path)
-            return "\n".join(sorted(items))
+            path = resolve_file(root_path, arguments["path"])
+            return "\n".join(sorted(os.listdir(path)))
         except Exception as exc:
             return f"Failed to list directory: {exc}"
-            
+
     if name == "replace_file_content":
-        path = root_path / arguments.get("path", "")
-        target = arguments.get("target_content", "")
-        replacement = arguments.get("replacement_content", "")
         try:
+            path = resolve_file(root_path, arguments["path"], write=True)
             content = path.read_text(encoding="utf-8")
-            if target not in content:
-                return "Error: target_content not found in the file."
-            if content.count(target) > 1:
-                return "Error: target_content found multiple times. Please provide a more unique block."
-            
+            target = arguments["target_content"]
+            replacement = arguments["replacement_content"]
+            if not target or content.count(target) != 1:
+                return "Error: target_content must match exactly one nonempty block."
             import difflib
-            new_content = content.replace(target, replacement)
-            diff = list(difflib.unified_diff(content.splitlines(), new_content.splitlines()))
-            added = sum(1 for line in diff[2:] if line.startswith("+") and not line.startswith("+++"))
-            removed = sum(1 for line in diff[2:] if line.startswith("-") and not line.startswith("---"))
-            
-            auto_git_commit(root_path, path, f"Auto-backup before replace_file_content in {path.name}")
-            path.write_text(new_content, encoding="utf-8")
-            auto_git_commit(root_path, path, f"Agent replaced content in {path.name}")
+            new_content = content.replace(target, replacement, 1)
+            diff = list(difflib.ndiff(content.splitlines(), new_content.splitlines()))
+            added = sum(line.startswith("+ ") for line in diff)
+            removed = sum(line.startswith("- ") for line in diff)
+            EditJournal(root_path).replace(arguments["path"], target, replacement)
             return f"Successfully replaced content in {path} (+{added} lines, -{removed} lines)"
         except Exception as exc:
             return f"Failed to replace content: {exc}"
-            
+
     if name == "grep_search":
-        path = root_path / arguments.get("path", "")
-        query = arguments.get("query", "")
+        query = arguments["query"]
         try:
+            path = resolve_file(root_path, arguments["path"])
             pattern = re.compile(query)
             results = []
             files_to_search = []
@@ -452,13 +484,14 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
                 
             for p in files_to_search:
                 try:
+                    p = resolve_file(root_path, str(p))
                     content = p.read_text(encoding="utf-8")
                     for i, line in enumerate(content.splitlines(), 1):
                         if pattern.search(line):
                             results.append(f"{p.relative_to(root_path)}:{i}:{line.strip()}")
-                except UnicodeDecodeError:
-                    pass
-            return truncate_output("\n".join(results) if results else "No matches found.")
+                except (UnicodeDecodeError, ValueError, OSError):
+                    continue
+            return "\n".join(results) if results else "No matches found."
         except Exception as exc:
             return f"Search failed: {exc}"
             
