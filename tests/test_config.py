@@ -41,7 +41,7 @@ def test_malformed_source_preserved_until_explicit_save(tmp_path, content):
     assert manager.save_config(config)
     backups = list(tmp_path.glob("config.recovery.*.bak"))
     assert len(backups) == 1 and backups[0].read_bytes() == content
-    assert json.loads(manager.CONFIG_FILE.read_text())["model"] == manager.DEFAULT_MODEL
+    assert json.loads(manager.CONFIG_FILE.read_text(encoding="utf-8"))["model"] == manager.DEFAULT_MODEL
 
 
 def test_wrong_fields_and_malformed_recovery_do_not_discard_other_settings(tmp_path):
@@ -100,7 +100,7 @@ def test_serialized_process_saves_leave_complete_valid_json(tmp_path):
     with ThreadPoolExecutor(max_workers=3) as pool:
         results = list(pool.map(save, range(6)))
     assert all(result.returncode == 0 for result in results), [r.stderr for r in results]
-    assert json.loads((tmp_path / "config.json").read_text())["model"].startswith("process-")
+    assert json.loads((tmp_path / "config.json").read_text(encoding="utf-8"))["model"].startswith("process-")
     assert not list(tmp_path.glob(".mythic-state-*"))
 
 
