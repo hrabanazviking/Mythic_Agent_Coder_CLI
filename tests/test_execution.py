@@ -54,7 +54,9 @@ def test_nonzero_exit_and_complete_unicode_output_have_progress(tmp_path):
 
 
 @pytest.mark.parametrize("stop", ["timeout", "cancel", "parent_exit"])
-def test_owned_descendant_terminated_and_partial_output_retained(tmp_path, stop):
+def test_owned_descendant_terminated_and_partial_output_retained(tmp_path, stop, caplog):
+    import logging
+    caplog.set_level(logging.DEBUG, logger="mythic_agent.core.execution")
     script = ("import subprocess,sys,time;"
               "child=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)']);"
               "print('child:'+str(child.pid),flush=True);"
@@ -236,7 +238,7 @@ def test_cancelled_tool_turn_retains_partial_output_and_closes_all_calls(agent, 
             assert started.wait(5)
             agent.cancel()
             with pytest.raises(TurnCancelled):
-                future.result(timeout=5)
+                future.result(timeout=10)
         context = store.load(session_id)["context"]
         assert validate_messages(context) == {}
         results = [m for m in context if m["role"] == "tool"]

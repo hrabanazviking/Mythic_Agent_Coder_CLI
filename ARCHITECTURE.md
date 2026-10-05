@@ -17,7 +17,10 @@ contracts apply independently of the selected persona.
 | Runtime | `agents/llm.py` | Prompt, history, provider calls, agent registry/workers |
 | Tools | `agents/tools.py` | Schemas, files, commands, memory and integrations |
 | Commands | `agents/command_handler.py` | Human slash commands and Git workflows |
-| Config | `core/config_manager.py`, `constants.py` | Settings, defaults, persona profiles |
+| Policy/execution | `core/policy.py`, `core/execution.py` | Explicit decisions, owned processes/requests and cleanup |
+| Persistence | `core/sessions.py`, `core/edits.py`, `core/storage.py` | Leased transcripts, edit journal, atomic private writes |
+| Diagnostics | `core/redaction.py`, `core/runtime.py` | Redacted errors, outcomes and finite budgets |
+| Config | `core/config_manager.py`, packaged `data/*.yaml`, `constants.py` | Settings, defaults, persona profiles |
 | Events | `core/secure_api.py` | In-process publish/subscribe |
 | Memory | `memory/core_memory.py`, `memory/vector_db.py` | Core blocks and retrieval |
 | Human UI | `ui/main_app.py`, `ui/screens/`, `ui/components/` | Textual views and input |
