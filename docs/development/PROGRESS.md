@@ -204,3 +204,19 @@ Do not equate local tests with real-provider or physical cross-platform testing.
   import and Textual absent. Hosted checks pending. Windows Job Object behavior must pass before completion;
   physical GUI/provider/Windows testing is not claimed. S10 retains optional
   knowledge/database redesign, S13 retains the full MCP transport contract.
+
+- S06 implementation `665565af92d808475d2765326f1088ed72b74b95` is pushed and
+  remote HEAD verified. Hosted run `37265665689` in progress. S07 work order is
+  documented; implementation waits for S06's platform gates or their repair.
+
+### S06 hosted Windows cleanup follow-up
+
+- Run `37265665689`: all four Linux/macOS jobs passed. Windows jobs exposed
+  CRLF expectations and fake approval output attempting a real console. Fixtures
+  now assert native captured newlines and use a portable dummy prompt output.
+- Windows Python 3.13 additionally exposed asynchronous job termination after
+  parent exit. Cleanup now terminates the owned job and waits for zero active
+  processes with a finite deadline before closing its handle/returning. Descendant
+  assertions remain intact. Repair local suite: 160 passed; wheel/sdist built;
+  installed core outside checkout: 159 passed, one optional Textual pilot skipped.
+  Hosted repair matrix remains required before completion.

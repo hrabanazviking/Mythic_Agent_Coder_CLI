@@ -205,6 +205,30 @@ class _WindowsJob:
         if self.handle and not self.kernel.TerminateJobObject(self.handle, 1):
             raise ctypes.WinError(ctypes.get_last_error())
 
+    def wait_empty(self, timeout: float) -> None:
+        """Job termination starts asynchronously; await all owned process exits."""
+        import ctypes
+        from ctypes import wintypes
+        class Accounting(ctypes.Structure):
+            _fields_ = [(name, ctypes.c_int64) for name in
+                        ("user_time", "kernel_time", "period_user_time", "period_kernel_time")]
+            _fields_ += [(name, wintypes.DWORD) for name in
+                         ("page_faults", "total_processes", "active_processes", "terminated_processes")]
+        query = self.kernel.QueryInformationJobObject
+        query.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p,
+                          wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+        query.restype = wintypes.BOOL
+        deadline = time.monotonic() + timeout
+        while True:
+            info = Accounting()
+            if not query(self.handle, 1, ctypes.byref(info), ctypes.sizeof(info), None):
+                raise ctypes.WinError(ctypes.get_last_error())
+            if info.active_processes == 0:
+                return
+            if time.monotonic() >= deadline:
+                raise RuntimeError("Owned Windows job did not finish termination before cleanup deadline")
+            time.sleep(0.01)
+
     def close(self) -> None:
         if self.handle:
             self.kernel.CloseHandle(self.handle)
@@ -295,14 +319,20 @@ def run_process(command: str | list[str], workspace: Path, *, shell: bool = Fals
         process.wait(timeout=grace + 5)
         raise
     finally:
-        if job:
-            job.close()
-        elif os.name != "nt":
-            _stop_posix_group(process, grace)
-        if reader.ident is not None:
-            reader.join(timeout=grace + 5)
-        if not reader.is_alive():
-            process.stdout.close()
+        try:
+            if job:
+                try:
+                    job.terminate()
+                    job.wait_empty(grace + 5)
+                finally:
+                    job.close()
+            elif os.name != "nt":
+                _stop_posix_group(process, grace)
+        finally:
+            if reader.ident is not None:
+                reader.join(timeout=grace + 5)
+            if not reader.is_alive():
+                process.stdout.close()
     if reader.is_alive():
         raise RuntimeError("Detached process still holds command output; owned process was stopped")
     if reader_errors:
