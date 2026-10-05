@@ -116,6 +116,21 @@ def test_execution_budgets_reject_unbounded_values(setting):
             runtime_settings({"runtime": {setting: invalid}})
 
 
+@pytest.mark.parametrize("snapshot", ["zombie", "live", "unavailable"])
+def test_posix_permission_error_is_only_ignored_for_terminated_group(monkeypatch, snapshot):
+    from mythic_agent.core import execution
+    from unittest.mock import Mock
+    monkeypatch.setattr(execution.os, "killpg", Mock(side_effect=PermissionError("fixture EPERM")), raising=False)
+    result = subprocess.CompletedProcess([], 1 if snapshot == "unavailable" else 0,
+                                         f"123 987 {('Z' if snapshot == 'zombie' else 'S')}\n")
+    monkeypatch.setattr(execution.subprocess, "run", Mock(return_value=result))
+    if snapshot == "zombie":
+        assert execution._signal_posix_group(987, 15) is False
+    else:
+        with pytest.raises(PermissionError):
+            execution._signal_posix_group(987, 15)
+
+
 def test_async_operation_cancel_drains_cleanup_and_supports_embedding_loop():
     cancel, started, cleaned = threading.Event(), threading.Event(), threading.Event()
     async def operation():

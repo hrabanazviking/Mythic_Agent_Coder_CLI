@@ -619,12 +619,10 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
         if recipient.lower() == "primary":
             # Primary handles messages via the TUI event loop, not the daemon thread
             pass
-        elif recipient not in AGENT_REGISTRY:
+        else:
             target_agent = agent_manager.spawn_subagent(recipient, root_path, policy=effective_policy, tui_app=tui_app)
             if not target_agent:
                 return f"Error: Agent {recipient} not found or not active."
-        else:
-            target_agent = AGENT_REGISTRY[recipient]
             
         # Push message directly to their inbox if they are a subagent
         if target_agent and hasattr(target_agent, "inbox"):

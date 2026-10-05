@@ -229,3 +229,17 @@ Do not equate local tests with real-provider or physical cross-platform testing.
   cleanup/checkpoint overhead. Local full suite: 160 passed; execution follow-up:
   18 passed; distributions built; installed core outside checkout: 159 passed,
   one optional Textual pilot skipped. Hosted repair results pending.
+
+- Second repair `1942aa170f6abc7f9735f4c19025a875883f508b` passed both Windows
+  jobs, both Linux jobs and macOS Python 3.13 in run `37266715627`. macOS Python
+  3.10 exposed EPERM during final group signalling after parent exit. The next
+  repair only accepts EPERM after a finite process snapshot proves the group has
+  no live members; live/unavailable snapshots preserve the error. Three regression
+  cases cover this distinction. Local full suite: 163 passed; distributions built;
+  installed/hosted repair results pending.
+
+- Final routing review repaired messaging to already-registered secondary agents:
+  the sender policy is reapplied before queueing, and busy recipients are refused.
+  Regression exercises approved existing-recipient inheritance and busy refusal.
+  Combined local suite: 164 passed; wheel/sdist built; installed core outside
+  checkout: 163 passed, one optional Textual pilot skipped. Hosted gate pending.
