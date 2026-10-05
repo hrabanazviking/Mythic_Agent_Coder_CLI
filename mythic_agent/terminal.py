@@ -12,8 +12,10 @@ from .core.config_manager import config_manager
 from .core.edits import EditJournal
 from .core.policy import ToolPolicy
 from .core.runtime import TurnCancelled
+from .core.redaction import SecretRedactor, redact_text
+from .core.sessions import SessionStore
 from .core.secure_api import subscribe, unsubscribe
-from .core.workspace import resolve_file
+from .core.workspace import resolve_file, resolve_workspace
 
 
 def _approve(name: str, arguments: dict[str, Any]) -> bool:
@@ -35,12 +37,16 @@ def configured_agent(args: Any, default_permission: str) -> Agent:
             config[name] = value
     agent = Agent(project_root=args.workspace, config=config)
     agent.tool_policy = ToolPolicy(args.permission or default_permission, _approve)
+    try:
+        agent.attach_session(resume=getattr(args, "resume", None))
+    except Exception:
+        agent.close()
+        raise
     return agent
 
 
 def _release(agent: Agent) -> None:
-    unsubscribe("agent_clear_history", agent._handle_clear_history)
-    unsubscribe("agent_compact_history", agent._handle_compact_history)
+    agent.close()
 
 
 def _json_line(value: dict[str, Any]) -> None:
@@ -55,14 +61,14 @@ def _event_callbacks(agent: Agent) -> dict[str, Any]:
     for event, kind in names.items():
         def callback(_kind=kind, **payload):
             if payload.get("agent_name") == agent.name:
-                _json_line({"schema_version": 1, "type": _kind, **payload})
+                _json_line(agent.redactor.sanitize({"schema_version": 1, "type": _kind, **payload}))
         callbacks[event] = callback
         subscribe(event, callback)
     return callbacks
 
 
 def _result(agent: Agent | None, status: str, text: str = "", error: str | None = None) -> dict[str, Any]:
-    return {
+    result = {
         "schema_version": 1, "type": "result", "status": status,
         "text": text, "error": error,
         "workspace": str(agent.project_root) if agent else None,
@@ -70,7 +76,29 @@ def _result(agent: Agent | None, status: str, text: str = "", error: str | None 
         "total_tokens": agent.total_tokens if agent else 0,
         "permission": agent.tool_policy.mode if agent else None,
         "denied_tools": list(agent.tool_policy.denials) if agent else [],
+        "session_id": agent.session_id if agent else None,
     }
+    if agent:
+        return agent.redactor.sanitize(result)
+    if error:
+        result["error"] = redact_text(error)
+    return result
+
+
+def session_command(args: Any) -> int:
+    """Read-only listing/export without initializing an agent or provider client."""
+    try:
+        config = config_manager.load_config()
+        workspace = resolve_workspace(args.workspace, config)
+        store = SessionStore(workspace, config_manager.MYTHIC_DIR, SecretRedactor(config))
+        if args.export:
+            _json_line(store.export(args.export))
+        else:
+            _json_line({"schema_version": 1, "workspace": str(workspace), "sessions": store.list_sessions()})
+        return 0
+    except Exception as exc:
+        _json_line({"schema_version": 1, "status": "failed", "error": redact_text(str(exc))})
+        return 1
 
 
 def _render_result(result: dict[str, Any], output_format: str) -> int:
@@ -120,13 +148,18 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /model <name> [url] /status /add <path> /stop /undo /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /status /session /add <path> /stop /undo /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
         return True, False, "Conversation cleared."
     if command == "/stop":
         agent.cancel()
         return True, False, "Stopped. Use Ctrl+C to interrupt an active turn."
+    if command == "/compact":
+        agent._handle_compact_history(agent.name)
+        return True, False, "Earlier complete turns archived; transcript retained."
+    if command == "/session":
+        return True, False, f"Session: {agent.session_id}\nResume: mythic chat --workspace {shlex.quote(str(agent.project_root))} --resume {agent.session_id}"
     if command == "/model":
         values = shlex.split(arguments)
         if not values:
@@ -161,13 +194,14 @@ def chat_loop(args: Any) -> int:
     try:
         agent = configured_agent(args, "ask")
     except Exception as exc:
-        sys.stderr.write(str(exc) + "\n")
+        sys.stderr.write(redact_text(str(exc)) + "\n")
         return 1
     session = None
     if sys.stdin.isatty():
         from prompt_toolkit import PromptSession
         session = PromptSession()
     console.print(f"Mythic chat · {agent.project_root} · {agent.config['model']}")
+    console.print(f"Session: {agent.session_id}", markup=False)
     console.print("Use /help for commands, /quit or Ctrl+D to leave, Ctrl+C to interrupt.")
     try:
         while True:
@@ -181,13 +215,13 @@ def chat_loop(args: Any) -> int:
                 if line.startswith("/"):
                     _, quit_chat, text = _slash(agent, line)
                     if text:
-                        console.print(text, markup=False)
+                        console.print(agent.redactor.text(text), markup=False)
                     if quit_chat:
                         break
                     continue
                 agent.tool_policy.denials.clear()
                 text = agent.chat(line)
-                console.print(Markdown(text))
+                console.print(Markdown(agent.redactor.text(text)))
                 if agent.tool_policy.denials:
                     console.print("Tools denied: " + ", ".join(agent.tool_policy.denials), markup=False)
             except EOFError:
@@ -196,7 +230,7 @@ def chat_loop(args: Any) -> int:
                 agent.cancel()
                 console.print("Turn cancelled. You can continue or /quit.")
             except Exception as exc:
-                console.print(f"Error: {exc}", markup=False)
+                console.print(agent.redactor.text(f"Error: {exc}"), markup=False)
     finally:
         _release(agent)
     return 0

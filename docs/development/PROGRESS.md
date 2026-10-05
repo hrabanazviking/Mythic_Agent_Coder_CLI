@@ -130,3 +130,33 @@ Do not equate local tests with real-provider or physical cross-platform testing.
 - S05 work order is published. Temporary probes reproduced destructive config
   read migration/custom-prompt healing and malformed version fallback; these are
   pending repairs, not finished implementation.
+
+## S05 — durable sessions and configuration recovery
+
+- Configuration reads no longer rewrite files or replace untagged custom prompts.
+  Known fields normalize in memory; unknown data/invalid fields stay recoverable.
+  Current/default schema agree at 3; defaults are packaged YAML. Explicit root,
+  `MYTHIC_HOME` and temporary environment/CLI overrides are documented.
+- Explicit settings saves use unique private temporary files, fsync/atomic replace
+  and process locks. Invalid/old originals get recoverable byte-identical backups.
+  Failed saves preserve previous settings and UI/model callers no longer claim success.
+- Added workspace-scoped versioned SQLite session service with exclusive leases,
+  protocol validation and transactional context/outcome/transcript checkpoints.
+  Run/chat/primary TUI attach; CLI can list/export/resume. Failed/cancelled turns
+  survive restart. Interrupted missing tool results become diagnostic results,
+  without rerunning edits or commands that may already have completed.
+- Context clear/compaction retain historical transcript events. Failed context
+  persistence keeps live/durable context intact. Workspace switches start a new
+  session; direct workspace mutation is refused before provider/tool work.
+- Configured/environment credentials, token forms and URL credentials are redacted
+  from exports/CLI events/logs/crash reports. Raw local transcripts keep original
+  text in private application state. This is not an arbitrary-source secret scanner.
+- Local suite: 113 passed; wheel+sdist builds passed. All 113 tests also passed
+  against the installed core wheel outside checkout, with Textual verified absent.
+- New gates cover malformed config/transcripts, custom prompts, atomic failure,
+  process-concurrent saves, leases, abrupt exit/recovery, two-invocation resume,
+  tool completion preservation, list/export, failures/cancellation, workspace
+  rotation/isolation, complete history and diagnostic/export redaction.
+- Hosted receipt pending the implementation push. Managed secondary-agent session
+  lifecycle remains S08; workspace core/vector memory remains S11. All provider
+  fixtures were local/fake; no live-provider claim or credential provisioning.

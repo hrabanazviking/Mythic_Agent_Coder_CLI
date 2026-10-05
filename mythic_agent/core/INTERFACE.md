@@ -19,3 +19,24 @@ active I/O cancellation belongs to S06. Tool execution policy belongs to S03/S06
 come from packaged `data/permissions.yaml`. Denial records a tool name and has no
 operation side effect. The runtime consults an attached policy before execution;
 CLI adapters attach it explicitly. S06 completes TUI/direct/MCP enforcement.
+
+`ConfigManager(root=None).load_config()` preserves source bytes, unknown fields and
+custom prompts; it normalizes types/migrations in memory. Explicit root overrides
+`MYTHIC_HOME`, which overrides the home default. `save_config(dict)` returns bool,
+backs up originals requiring recovery, and uses private atomic writes/process
+locking. A failed save must not be presented as a saved setting. Packaged defaults
+and current schema version are identical. Runtime duration settings must be finite.
+
+`SessionStore(workspace, state_root, redactor)` owns a versioned private SQLite
+database per workspace. `create(context, metadata)` and `resume(id)` acquire an
+exclusive process lease retained until `release(id)`. `checkpoint` requires the
+lease and atomically records validated protocol context/outcome and a transcript
+event. `resume` closes pending tool groups with interrupted diagnostics, never
+executes tools. `list_sessions()` and `export(id)` are redacted read snapshots;
+export retains append-only history independently of selected context. Unknown
+storage versions/malformed checkpoints fail without replacing original data.
+
+`SecretRedactor(config)` redacts configured/environment credentials, token forms
+and URL credentials. `protect_logging` protects formatted records/tracebacks.
+Local transcripts intentionally retain original text; exports and diagnostics
+are redacted. Neither function is a general source-code secret scanner.

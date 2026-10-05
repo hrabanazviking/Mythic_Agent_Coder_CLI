@@ -77,6 +77,7 @@ Core-only installation uses `pip install -e .` and supports `mythic chat`,
 `mythic run`, `mythic --help`, and `mythic --version` without UI or speech packages.
 Use `mythic run --format json "your task"` for AI callers; it defaults to read-only.
 See [the human/machine CLI guide](docs/CLI.md) for permissions, stdin, JSONL and
+durable workspace sessions (`--resume`, `mythic sessions --export`), recovery and
 exit codes. Optional integrations are
 installed with the `mcp`, `knowledge`, `voice`, and `voice-cloning` extras.
 See [the development roadmap](ROADMAP.md) for active reliability work and

@@ -1,0 +1,15 @@
+config_version: 3
+model: deepseek-chat
+base_url: https://api.deepseek.com/v1
+api_keys: {}
+working_directory: ''
+user_name: ''
+user_data: ''
+global_rules: ''
+vector_db_provider: lightweight
+mythic_engineering_mode: false
+auto_accept_permissions: false
+runtime: {}
+github:
+  repo_url: ''
+  token: ''

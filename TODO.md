@@ -10,7 +10,7 @@ Read [ROADMAP.md](ROADMAP.md), [ARCHITECTURE.md](ARCHITECTURE.md), and
 - [x] S02: first-turn/runtime protocol repair and regression coverage.
 - [x] S03: workspace-safe journaled edits and undo without Git resets.
 - [x] S04: terminal chat, machine CLI and Windows approval/hosted gates.
-- [ ] S05: durable sessions and robust portable configuration.
+- [x] S05: durable sessions and robust portable configuration; local/installed gates passed, hosted receipt tracked in progress.
 - [ ] S06: unified permission policy and cancellation.
 - [ ] S07: provider diagnostics, streaming and retry reliability.
 - [ ] S08: controlled agent lifecycle and orchestration.
@@ -21,5 +21,5 @@ Read [ROADMAP.md](ROADMAP.md), [ARCHITECTURE.md](ARCHITECTURE.md), and
 - [ ] S13: versioned machine/MCP contracts and extensions.
 - [ ] S14: release checks, measured quality and complete documentation.
 
-Next: implement S05 durable sessions and robust configuration; its work order is published.
+Next: publish S06 permission/cancellation work order and implement its shared execution services.
 Progress receipts: [docs/development/PROGRESS.md](docs/development/PROGRESS.md).

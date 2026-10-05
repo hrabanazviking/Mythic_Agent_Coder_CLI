@@ -15,6 +15,8 @@ from ..core.config_manager import config_manager
 from ..constants import DEFAULT_SYSTEM_PROMPT
 from ..core.secure_api import publish_sync, subscribe
 from ..core.runtime import TurnCancelled, TurnResult, runtime_settings
+from ..core.redaction import SecretRedactor, protect_logging
+from ..core.sessions import SessionStore
 from ..memory.core_memory import CoreMemoryManager
 from ..memory.vector_db import get_vector_provider
 
@@ -25,7 +27,8 @@ class Agent:
     def __init__(self, project_root: Path | None = None, name: str = "Primary", config: dict[str, Any] | None = None):
         import copy
         self.config = copy.deepcopy(config) if config is not None else config_manager.load_config()
-        self._persist_defaults = config is None
+        self.redactor = SecretRedactor(self.config)
+        protect_logging(self.redactor)
         from ..core.workspace import resolve_workspace
         self.project_root = resolve_workspace(project_root, self.config)
         self.name = name
@@ -40,6 +43,10 @@ class Agent:
         self._turn_lock = threading.Lock()
         self._cancel = threading.Event()
         self._pending_history_action = None
+        self.session_id = None
+        self._session_store = None
+        self._session_status = "idle"
+        self._closed = False
         self.last_result = TurnResult("idle")
         self.tui_app = None
         self.tool_policy = None
@@ -59,39 +66,127 @@ class Agent:
         # Subscribe to Parity Commands
         subscribe("agent_clear_history", self._handle_clear_history)
         subscribe("agent_compact_history", self._handle_compact_history)
+
+    def attach_session(self, store: SessionStore | None = None, resume: str | None = None) -> str:
+        """Attach once; retain the lease until close so stale clients cannot overwrite."""
+        with self._turn_lock:
+            if self.session_id or self._closed:
+                raise RuntimeError("Agent already attached or closed")
+            store = store or SessionStore(self.project_root, config_manager.MYTHIC_DIR, self.redactor)
+            if store.workspace != self.project_root:
+                raise ValueError("Session store belongs to a different workspace")
+            if resume is not None:
+                data = store.resume(resume)
+                with self._lock:
+                    self.messages = data["context"]
+                self.total_tokens = data["total_tokens"]
+                self._session_status = data["status"]
+                outcome = data["outcome"] or {}
+                self.last_result = TurnResult(data["status"], outcome.get("text", ""),
+                                              outcome.get("error"), self.total_tokens)
+                session_id = resume
+            else:
+                session_id = store.create(self.history_snapshot(), {
+                    "agent_name": self.name, "model": self.config.get("model"),
+                    "base_url": self.config.get("base_url"),
+                })
+            self._session_store, self.session_id = store, session_id
+            return session_id
+
+    def close(self) -> None:
+        from ..core.secure_api import unsubscribe
+        with self._turn_lock:
+            if self._session_store and self.session_id:
+                self._session_store.release(self.session_id)
+            self._closed = True
+            unsubscribe("agent_clear_history", self._handle_clear_history)
+            unsubscribe("agent_compact_history", self._handle_compact_history)
+
+    def change_workspace(self, root: Path | str) -> None:
+        """Switch only between turns; start isolated context and keep the old transcript."""
+        from ..core.workspace import resolve_workspace
+        root = resolve_workspace(root)
+        if root == self.project_root:
+            return
+        if not self._turn_lock.acquire(blocking=False):
+            raise RuntimeError("Stop the current turn before changing workspace")
+        try:
+            if self._closed:
+                raise RuntimeError("Agent is closed")
+            messages = self.history_snapshot()[:1]
+            if self._session_store:
+                store = SessionStore(root, config_manager.MYTHIC_DIR, self.redactor)
+                new_id = store.create(messages, {"agent_name": self.name,
+                    "model": self.config.get("model"), "base_url": self.config.get("base_url")})
+                self._session_store.release(self.session_id)
+                self._session_store, self.session_id = store, new_id
+            self.project_root = root
+            with self._lock:
+                self.messages = messages
+            self.total_tokens = 0
+            self._session_status = "idle"
+            self.last_result = TurnResult("idle")
+        finally:
+            self._turn_lock.release()
+
+    def _checkpoint(self, event: dict[str, Any] | None = None, outcome: dict[str, Any] | None = None,
+                    context: list[dict[str, Any]] | None = None) -> None:
+        if self._session_store:
+            if self._session_store.workspace != self.project_root:
+                raise ValueError("Workspace changed without rotating the session")
+            self._session_store.checkpoint(self.session_id, context if context is not None else self.history_snapshot(),
+                                           self._session_status, self.total_tokens, outcome, event)
+
+    def _append_message(self, message: dict[str, Any]) -> None:
+        context = self.history_snapshot() + [message]
+        self._checkpoint({"type": "message", "message": message}, context=context)
+        with self._lock:
+            self.messages = context
         
     def _handle_clear_history(self, target_agent: str, force: bool = False) -> None:
         if target_agent != self.name:
             return
-        if self._turn_lock.locked() and not force:
+        if not force and not self._turn_lock.acquire(blocking=False):
             self._pending_history_action = "clear"
             return
-        with self._lock:
-            self.messages = self.messages[:1]
+        try:
+            context = self.history_snapshot()[:1]
+            self._checkpoint({"type": "context_cleared"}, context=context)
+            with self._lock:
+                self.messages = context
+        finally:
+            if not force:
+                self._turn_lock.release()
         publish_sync("agent_chat_chunk", agent_name=self.name,
                      text="\nConversation cleared.\n")
 
     def _handle_compact_history(self, target_agent: str, force: bool = False) -> None:
         if target_agent != self.name:
             return
-        if self._turn_lock.locked() and not force:
+        if not force and not self._turn_lock.acquire(blocking=False):
             self._pending_history_action = "compact"
             return
-        with self._lock:
-            boundaries = [i for i, message in enumerate(self.messages)
-                          if message.get("role") == "user"]
-            if len(boundaries) < 2:
-                return
-            boundary = boundaries[-1]
-            archived = self.messages[1:boundary]
-        # Huginn preserves complete turns before changing the selected context.
         try:
-            self.vector_db.insert("Archived Context: " + json.dumps(archived))
-        except Exception:
-            logging.exception("Archival failed; context preserved")
-            return
-        with self._lock:
-            self.messages = self.messages[:1] + self.messages[boundary:]
+            with self._lock:
+                boundaries = [i for i, message in enumerate(self.messages)
+                              if message.get("role") == "user"]
+                if len(boundaries) < 2:
+                    return
+                boundary = boundaries[-1]
+                archived = self.messages[1:boundary]
+            # Preserve complete turns before changing the selected context.
+            try:
+                self.vector_db.insert("Archived Context: " + json.dumps(archived))
+            except Exception:
+                logging.exception("Archival failed; context preserved")
+                return
+            context = self.history_snapshot()[:1] + self.history_snapshot()[boundary:]
+            self._checkpoint({"type": "context_compacted", "archived_messages": len(archived)}, context=context)
+            with self._lock:
+                self.messages = context
+        finally:
+            if not force:
+                self._turn_lock.release()
         publish_sync("agent_chat_chunk", agent_name=self.name,
                      text="\nOlder complete turns archived.\n")
 
@@ -106,8 +201,8 @@ class Agent:
 
     def add_context(self, content: str) -> None:
         """Add explicit user context between complete turns."""
-        with self._turn_lock, self._lock:
-            self.messages.append({"role": "user", "content": content})
+        with self._turn_lock:
+            self._append_message({"role": "user", "content": content})
 
     def get_user_context(self) -> str:
         user_name = self.config.get("user_name", "").strip()
@@ -169,6 +264,7 @@ class Agent:
                 self.messages[0]["content"] = system_prompt
             else:
                 self.messages.insert(0, {"role": "system", "content": system_prompt})
+        self._checkpoint({"type": "system_prompt_updated", "message": self.history_snapshot()[0]})
             
     def inject_mythic_agents(self) -> None:
         """Inject the core Mythic Engineering sub-agents if they don't exist."""
@@ -185,11 +281,9 @@ class Agent:
                 
         if added:
             self.config["sub_agents"] = current_agents
-            if self._persist_defaults:
-                self.save_config()
         
-    def save_config(self) -> None:
-        config_manager.save_config(self.config)
+    def save_config(self) -> bool:
+        return config_manager.save_config(self.config)
         
     def get_api_key(self, base_url: str) -> str | None:
         stored_key = self.config.get("api_keys", {}).get(base_url)
@@ -220,13 +314,23 @@ class Agent:
         )
         
     def set_model(self, model: str, base_url: str, api_key: str | None = None) -> None:
+        import copy
+        if not isinstance(model, str) or not model.strip() or not config_manager._valid_url(base_url):
+            raise ValueError("Model must be nonempty and endpoint must be an HTTP(S) URL")
+        if api_key is not None and not isinstance(api_key, str):
+            raise ValueError("API key must be text")
+        previous = copy.deepcopy(self.config)
         self.config["model"] = model
         self.config["base_url"] = base_url
         if "api_keys" not in self.config:
             self.config["api_keys"] = {}
         if api_key:
             self.config["api_keys"][base_url] = api_key
-        self.save_config()
+        if not self.save_config():
+            self.config = previous
+            raise RuntimeError("Model preference could not be saved; previous settings were preserved")
+        self.redactor = SecretRedactor(self.config)
+        protect_logging(self.redactor)
 
     def fetch_models(self, base_url: str, api_key: str) -> list[str]:
         client = OpenAI(base_url=base_url, api_key=api_key)
@@ -241,16 +345,30 @@ class Agent:
     def chat(self, prompt: str | None) -> str:
         """Execute one serialized turn and preserve the tool protocol."""
         with self._turn_lock:
+            if self._closed:
+                raise RuntimeError("Agent is closed")
             self._cancel.clear()
             try:
+                self._session_status = "running"
+                self._checkpoint({"type": "turn_started"})
                 text = self._run_turn(prompt)
                 self.last_result = TurnResult("completed", text, total_tokens=self.total_tokens)
+                self._session_status = "completed"
+                outcome = {"status": "completed", "text": text}
+                self._checkpoint({"type": "turn_finished", "outcome": outcome}, outcome)
                 return text
             except (Exception, KeyboardInterrupt) as exc:
                 cancelled = isinstance(exc, (TurnCancelled, KeyboardInterrupt))
                 status = "cancelled" if cancelled else "failed"
-                self._finish_pending_calls("Turn cancelled" if cancelled else "Turn failed")
                 self.last_result = TurnResult(status, error=str(exc), total_tokens=self.total_tokens)
+                self._session_status = status
+                try:
+                    self._finish_pending_calls(("Turn cancelled" if cancelled else "Turn failed")
+                                               + "; result unavailable. Inspect workspace before retrying.")
+                    outcome = {"status": status, "error": str(exc)}
+                    self._checkpoint({"type": "turn_finished", "outcome": outcome}, outcome)
+                except Exception:
+                    logging.exception("Failed to checkpoint interrupted turn; previous checkpoint preserved")
                 if isinstance(exc, KeyboardInterrupt):
                     self.cancel()
                     raise TurnCancelled("Turn cancelled by user") from exc
@@ -271,15 +389,17 @@ class Agent:
                     pending.update({call["id"]: call for call in message.get("tool_calls", [])})
                 elif message.get("role") == "tool":
                     pending.pop(message.get("tool_call_id"), None)
-            for call_id in pending:
-                self.messages.append({"role": "tool", "tool_call_id": call_id, "content": reason})
+        recovered = [{"role": "tool", "tool_call_id": call_id, "content": reason} for call_id in pending]
+        if recovered:
+            with self._lock:
+                self.messages.extend(recovered)
+            self._checkpoint({"type": "pending_calls_closed", "messages": recovered})
 
     def _run_turn(self, prompt: str | None) -> str:
         settings = runtime_settings(self.config)
         if prompt:
             recalled = self._recall(prompt)
-            with self._lock:
-                self.messages.append({"role": "user", "content": prompt + recalled})
+            self._append_message({"role": "user", "content": prompt + recalled})
         client = self.get_client()
         for _ in range(settings["max_tool_rounds"]):
             self._check_cancelled()
@@ -295,8 +415,7 @@ class Agent:
             calls = message.get("tool_calls", [])
             if not message.get("content") and not calls:
                 raise RuntimeError("Provider returned an empty assistant response")
-            with self._lock:
-                self.messages.append(message)
+            self._append_message(message)
             text = message.get("content") or ""
             if text:
                 publish_sync("agent_chat_chunk", agent_name=self.name, text=text)
@@ -308,9 +427,8 @@ class Agent:
                     result = "Tool cancelled before execution."
                 else:
                     result = self._execute_call(call)
-                with self._lock:
-                    self.messages.append({"role": "tool", "tool_call_id": call["id"],
-                                          "content": result})
+                self._append_message({"role": "tool", "tool_call_id": call["id"],
+                                      "content": result})
             self._check_cancelled()
         raise RuntimeError("Configured tool round budget exhausted; inspect progress and continue explicitly")
 

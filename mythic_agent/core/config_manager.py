@@ -1,162 +1,204 @@
+"""Non-mutating configuration reads and private, recoverable explicit saves."""
+
+import copy
 import json
-import shutil
 import logging
 import os
+import uuid
+from importlib.resources import files
 from pathlib import Path
 from typing import Any, Dict
+from urllib.parse import urlsplit
+
+import yaml
+from filelock import FileLock
+
+from .runtime import runtime_settings
 from .secure_api import publish_sync
+from .storage import atomic_private_json, atomic_private_write
+from .redaction import SecretRedactor, protect_logging
 
 logger = logging.getLogger("mythic_config_manager")
 
+
 class ConfigManager:
-    """
-    Secure and robust configuration manager.
-    Handles cross-platform paths using pathlib.
-    Implements Thor Guardian's principle of 'safe handling' for file operations.
-    """
-    def __init__(self):
-        self.MYTHIC_DIR = Path(os.environ.get("MYTHIC_HOME", Path.home() / ".mythic")).expanduser().resolve()
+    def __init__(self, root: Path | str | None = None):
+        configured = os.environ.get("MYTHIC_HOME")
+        self.MYTHIC_DIR = Path(root or configured or Path.home() / ".mythic").expanduser().resolve()
         self.CONFIG_FILE = self.MYTHIC_DIR / "config.json"
-        
-        self.DEFAULT_MODEL = "deepseek-chat"
-        self.DEFAULT_BASE_URL = "https://api.deepseek.com/v1"
-        self.CURRENT_CONFIG_VERSION = 1
-        
-        # Ensure directories exist
+        self._allow_legacy = root is None and not configured
+        self.defaults = yaml.safe_load(files("mythic_agent.data").joinpath(
+            "config_defaults.yaml").read_text(encoding="utf-8"))
+        self.DEFAULT_MODEL = self.defaults["model"]
+        self.DEFAULT_BASE_URL = self.defaults["base_url"]
+        self.CURRENT_CONFIG_VERSION = self.defaults["config_version"]
+        self.last_load_warning: str | None = None
         try:
-            self.MYTHIC_DIR.mkdir(exist_ok=True, parents=True)
-            (self.MYTHIC_DIR / "status").mkdir(exist_ok=True, parents=True)
-        except Exception as e:
-            logger.error(f"Failed to create mythic directories: {e}")
+            self.MYTHIC_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+            (self.MYTHIC_DIR / "status").mkdir(parents=True, exist_ok=True, mode=0o700)
+        except OSError as exc:
+            logger.error("State directory unavailable: %s", type(exc).__name__)
 
     def load_config(self) -> Dict[str, Any]:
-        """Safely loads configuration with fallback mechanisms."""
-        old_config = Path.home() / ".mythic_config.json"
-        
-        # Migration from legacy location
-        if not os.environ.get("MYTHIC_HOME") and old_config.exists() and not self.CONFIG_FILE.exists():
+        """Read/normalize in memory; preserve original bytes and customized prompts."""
+        self.last_load_warning = None
+        source = self.CONFIG_FILE
+        legacy = Path.home() / ".mythic_config.json"
+        if not source.exists() and self._allow_legacy and legacy.exists():
+            source = legacy
+        raw: dict[str, Any] = {}
+        if source.exists():
             try:
-                shutil.copy2(old_config, self.CONFIG_FILE)
-            except Exception as e:
-                logger.error(f"Failed to migrate old config: {e}")
-
-        if self.CONFIG_FILE.exists():
-            try:
-                content = self.CONFIG_FILE.read_text(encoding="utf-8")
-                config = json.loads(content)
-                config = self._upgrade_stale_data(config)
-                return config
-            except Exception as e:
-                logger.error(f"Failed to load or parse {self.CONFIG_FILE}: {e}. Falling back to default.")
-                
-        return {
-            "model": self.DEFAULT_MODEL, 
-            "base_url": self.DEFAULT_BASE_URL,
-            "api_keys": {},
-            "config_version": self.CURRENT_CONFIG_VERSION
-        }
-
-    def _upgrade_stale_data(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Self-healing function to upgrade stale or outdated cached data."""
-        version = config.get("config_version", 0)
-        changed = False
-        
-        # 1. Ensure root schema integrity
-        if "api_keys" not in config or not isinstance(config["api_keys"], dict):
-            config["api_keys"] = {}
-            changed = True
-            
-        if "model" not in config or not isinstance(config["model"], str):
-            config["model"] = self.DEFAULT_MODEL
-            changed = True
-            
-        if "base_url" not in config or not isinstance(config["base_url"], str):
-            config["base_url"] = self.DEFAULT_BASE_URL
-            changed = True
-            
-        # 2. Robust Subagent validation and stale-prompt auto-healing
-        from mythic_agent.constants import DEFAULT_SUBAGENTS
-        import copy
-        
-        if "sub_agents" in config:
-            subs = config["sub_agents"]
-            if not isinstance(subs, list):
-                config["sub_agents"] = copy.deepcopy(DEFAULT_SUBAGENTS)
-                changed = True
-            else:
-                valid_subs = []
-                for sa in subs:
-                    if isinstance(sa, dict) and "name" in sa and "prompt" in sa:
-                        prompt = sa.get("prompt", "")
-                        name = sa.get("name", "")
-                        is_customized = sa.get("customized", False)
-                        
-                        # Auto-heal default agents if their prompt doesn't match the latest (stale cache)
-                        default_match = next((d for d in DEFAULT_SUBAGENTS if d["name"] == name), None)
-                        if default_match:
-                            if not is_customized and prompt != default_match["prompt"]:
-                                healed = copy.deepcopy(default_match)
-                                healed["customized"] = False
-                                valid_subs.append(healed)
-                                changed = True
-                            else:
-                                sa["customized"] = is_customized
-                                valid_subs.append(sa)
-                        else:
-                            sa["customized"] = True
-                            valid_subs.append(sa)
-                    else:
-                        changed = True  # Discard malformed subagent entries
-                        
-                if not valid_subs:
-                    config["sub_agents"] = copy.deepcopy(DEFAULT_SUBAGENTS)
-                    changed = True
+                parsed = json.loads(source.read_text(encoding="utf-8"))
+                if not isinstance(parsed, dict):
+                    raise ValueError("Configuration root must be an object")
+                raw = parsed
+            except (OSError, ValueError) as exc:
+                self.last_load_warning = f"Settings unreadable ({type(exc).__name__}); original preserved."
+                logger.warning(self.last_load_warning)
+        config = self._upgrade_stale_data(raw)
+        overrides = {"MYTHIC_MODEL": "model", "MYTHIC_BASE_URL": "base_url",
+                     "MYTHIC_WORKSPACE": "working_directory"}
+        for environment, key in overrides.items():
+            value = os.environ.get(environment)
+            if value:
+                if key != "base_url" or self._valid_url(value):
+                    config[key] = value
                 else:
-                    # Append any missing default subagents (e.g. newly added ones)
-                    existing_names = {sa["name"] for sa in valid_subs}
-                    for default_sa in DEFAULT_SUBAGENTS:
-                        if default_sa["name"] not in existing_names:
-                            healed = copy.deepcopy(default_sa)
-                            healed["customized"] = False
-                            valid_subs.append(healed)
-                            changed = True
-
-                    if config["sub_agents"] != valid_subs:
-                        config["sub_agents"] = valid_subs
-                        changed = True
-        else:
-            config["sub_agents"] = copy.deepcopy(DEFAULT_SUBAGENTS)
-            changed = True
-
-        # 3. Upgrade version schema
-        TARGET_CONFIG_VERSION = 2
-        if version < TARGET_CONFIG_VERSION:
-            config["config_version"] = TARGET_CONFIG_VERSION
-            changed = True
-            
-        if changed:
-            self.save_config(config)
-            
+                    logger.warning("Invalid %s override ignored", environment)
+        protect_logging(SecretRedactor(config))
         return config
 
-    def save_config(self, config: Dict[str, Any]) -> bool:
-        """Safely saves configuration with 0600 permissions."""
+    @staticmethod
+    def _valid_url(value: Any) -> bool:
+        if not isinstance(value, str):
+            return False
         try:
-            # Járngreipr Principle: Save to temporary file first, then replace
-            temp_file = self.CONFIG_FILE.with_suffix('.tmp')
-            temp_file.write_text(json.dumps(config, indent=2))
-            
-            # Atomic replace
-            temp_file.replace(self.CONFIG_FILE)
-            
-            # Secure permissions
-            self.CONFIG_FILE.chmod(0o600)
-            logger.debug("Configuration saved securely.")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to save configuration securely: {e}")
-            publish_sync("ui_notification", title="Config Error", message=f"Failed to save settings: {e}", severity="error")
+            parsed = urlsplit(value)
+            return parsed.scheme in {"http", "https"} and bool(parsed.hostname)
+        except ValueError:
             return False
 
-# Singleton instance
+    def _upgrade_stale_data(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Preserve all unknown/custom data; recover invalid known fields separately."""
+        result = copy.deepcopy(config)
+        recovery = result.get("recovery")
+        recovery = copy.deepcopy(recovery) if isinstance(recovery, dict) else (
+            {"original_recovery": recovery} if "recovery" in result else {})
+        for key, default in self.defaults.items():
+            value = result.get(key, default)
+            valid = isinstance(value, type(default)) and not (
+                isinstance(default, int) and not isinstance(default, bool) and isinstance(value, bool))
+            if key == "model":
+                valid = valid and bool(value.strip())
+            if key == "base_url":
+                valid = self._valid_url(value)
+            if not valid:
+                recovery[key] = value
+                value = copy.deepcopy(default)
+            result[key] = copy.deepcopy(value)
+        for key in ("system_prompt", "primary_name"):
+            if key in result and not isinstance(result[key], str):
+                recovery[key] = result.pop(key)
+        if result["config_version"] < self.CURRENT_CONFIG_VERSION:
+            result["config_version"] = self.CURRENT_CONFIG_VERSION
+        self._repair_keys(result, recovery)
+        self._repair_runtime(result, recovery)
+        self._repair_subagents(result, recovery)
+        if recovery:
+            result["recovery"] = recovery
+        return result
+
+    def _repair_keys(self, result: dict[str, Any], recovery: dict[str, Any]) -> None:
+        keys = result["api_keys"]
+        valid = {key: value for key, value in keys.items()
+                 if isinstance(key, str) and isinstance(value, str)}
+        if valid != keys:
+            recovery["api_keys"] = keys
+            result["api_keys"] = valid
+        for key, default in self.defaults["github"].items():
+            if not isinstance(result["github"].get(key, default), str):
+                self._record_invalid(recovery, "github", key, result["github"][key])
+                result["github"][key] = default
+
+    def _repair_runtime(self, result: dict[str, Any], recovery: dict[str, Any]) -> None:
+        for key, value in list(result["runtime"].items()):
+            try:
+                runtime_settings({"runtime": {key: value}})
+            except ValueError:
+                self._record_invalid(recovery, "runtime", key, value)
+                result["runtime"].pop(key)
+
+    @staticmethod
+    def _record_invalid(recovery: dict[str, Any], group: str, key: str, value: Any) -> None:
+        if not isinstance(recovery.get(group, {}), dict):
+            recovery[f"original_{group}"] = recovery[group]
+            recovery[group] = {}
+        recovery.setdefault(group, {})[key] = value
+
+    def _repair_subagents(self, result: dict[str, Any], recovery: dict[str, Any]) -> None:
+        from ..constants import DEFAULT_SUBAGENTS
+        defaults = {entry["name"]: entry for entry in DEFAULT_SUBAGENTS}
+        raw = result.get("sub_agents", [])
+        if not isinstance(raw, list):
+            recovery["sub_agents"] = raw
+            raw = []
+        valid = []
+        seen = set()
+        invalid = []
+        for entry in raw:
+            if not isinstance(entry, dict) or not all(isinstance(entry.get(k), str) for k in ("name", "prompt")):
+                invalid.append(entry)
+                continue
+            if not entry["name"].strip() or entry["name"] in seen:
+                invalid.append(entry)
+                continue
+            seen.add(entry["name"])
+            entry = copy.deepcopy(entry)
+            default = defaults.get(entry["name"])
+            entry["customized"] = not default or entry["prompt"] != default["prompt"] or bool(entry.get("customized"))
+            valid.append(entry)
+        if invalid:
+            recovery["invalid_sub_agents"] = invalid
+        for name, entry in defaults.items():
+            if name not in seen:
+                valid.append({**copy.deepcopy(entry), "customized": False})
+        result["sub_agents"] = valid
+
+    def _preserve_original(self) -> None:
+        if not self.CONFIG_FILE.exists():
+            return
+        content = self.CONFIG_FILE.read_bytes()
+        try:
+            parsed = json.loads(content)
+            if isinstance(parsed, dict) and self._upgrade_stale_data(parsed) == parsed:
+                return
+        except (ValueError, UnicodeError):
+            pass
+        backup = self.MYTHIC_DIR / f"config.recovery.{uuid.uuid4().hex}.bak"
+        atomic_private_write(backup, content)
+
+    def save_config(self, config: Dict[str, Any]) -> bool:
+        """Explicit save; failures leave the original file intact/recoverable."""
+        try:
+            if not isinstance(config, dict):
+                raise ValueError("Configuration root must be an object")
+            normalized = self._upgrade_stale_data(config)
+            protect_logging(SecretRedactor(normalized))
+            json.dumps(normalized, allow_nan=False)  # Validate before touching any file.
+            self.MYTHIC_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+            timeout = runtime_settings(normalized)["edit_lock_timeout"]
+            with FileLock(str(self.CONFIG_FILE.with_suffix(".lock")), timeout=timeout):
+                if self.CONFIG_FILE.is_symlink():
+                    raise ValueError("Refusing to replace a symlink configuration file")
+                self._preserve_original()
+                atomic_private_json(self.CONFIG_FILE, normalized)
+            return True
+        except Exception as exc:
+            logger.error("Settings save failed: %s", type(exc).__name__)
+            publish_sync("ui_notification", title="Config Error",
+                         message="Settings could not be saved; previous settings were preserved.", severity="error")
+            return False
+
+
 config_manager = ConfigManager()
