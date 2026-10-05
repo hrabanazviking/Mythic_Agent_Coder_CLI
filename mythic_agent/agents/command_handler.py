@@ -2,10 +2,32 @@ import os
 import shlex
 import subprocess
 import logging
+import threading
+from functools import wraps
+from types import SimpleNamespace
 from pathlib import Path
 
 from ..core.secure_api import subscribe, publish_sync
 from ..core.config_manager import config_manager
+from ..core.policy import ToolPolicy
+from ..core.execution import run_process
+from ..core.runtime import TurnCancelled, runtime_settings
+
+
+def requires_permission(name):
+    """Guard private helpers too, so direct adapters cannot bypass the dispatcher."""
+    def decorate(method):
+        @wraps(method)
+        def guarded(self, args):
+            if not self._policy().authorize(name, {"arguments": args}):
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\nPermission denied for {name}; no operation was performed.\n")
+                return
+            if self._cancel_event().is_set():
+                raise TurnCancelled("Command cancelled before execution")
+            return method(self, args)
+        return guarded
+    return decorate
 
 class CommandHandler:
     """
@@ -13,9 +35,79 @@ class CommandHandler:
     in the background, returning context or results via the event bus.
     """
     def __init__(self):
-        subscribe("system_command_executed", self._handle_command)
+        self._command_lock = threading.Lock()
+        self._commands_lock = threading.Lock()
+        self._commands = {}
+        self._local = threading.local()
+        subscribe("system_command_executed", self._dispatch_command)
         from ..core.workspace import resolve_workspace
         self.project_root = resolve_workspace(config=config_manager.load_config())
+
+    def _dispatch_command(self, command: str, args: str):
+        if command.lower() == "/stop":
+            with self._commands_lock:
+                for cancel in self._commands.values():
+                    cancel.set()
+            return
+        token, cancel = object(), threading.Event()
+        with self._commands_lock:
+            self._commands[token] = cancel
+        def execute():
+            acquired = False
+            try:
+                while not cancel.is_set():
+                    acquired = self._command_lock.acquire(timeout=0.05)
+                    if acquired:
+                        break
+                self._local.cancel = cancel
+                if acquired and not cancel.is_set():
+                    self._handle_command(command, args)
+            finally:
+                if acquired:
+                    self._command_lock.release()
+                with self._commands_lock:
+                    self._commands.pop(token, None)
+        threading.Thread(target=execute, name="mythic-slash-command", daemon=True).start()
+
+    def _primary(self):
+        from .llm import AGENT_REGISTRY
+        return AGENT_REGISTRY.get("Primary")
+
+    def _cancel_event(self):
+        local = getattr(self, "_local", None)
+        return getattr(local, "cancel", None) or getattr(self, "cancel_event", None) or threading.Event()
+
+    def _policy(self):
+        if hasattr(self, "policy"):
+            return self.policy
+        primary = self._primary()
+        if primary and primary.tui_app:
+            from .tools import prompt_approval_sync
+            import json
+            def approve(name, arguments):
+                text = primary.redactor.text(name + ": " + json.dumps(arguments, ensure_ascii=False))
+                return prompt_approval_sync(text, primary.tui_app, self._cancel_event(),
+                                             runtime_settings(primary.config)["approval_timeout"])
+            return ToolPolicy(primary.tool_policy.mode, approve)
+        return primary.tool_policy if primary else ToolPolicy("read-only")
+
+    def _root(self):
+        primary = self._primary()
+        return primary.project_root if primary else self.project_root
+
+    def _run(self, command, *, timeout=300, env=None, check=False, **unused):
+        primary = self._primary()
+        settings = runtime_settings(primary.config if primary else {})
+        result = run_process(command, self._root(), cancel=self._cancel_event(),
+                             timeout=min(timeout, settings["command_timeout"]),
+                             grace=settings["process_kill_grace"], env=env,
+                             progress=lambda text: publish_sync("agent_command_output", agent_name="Primary", text=text))
+        if result.status == "cancelled":
+            raise TurnCancelled(result.render())
+        if check and result.status != "completed":
+            raise subprocess.CalledProcessError(result.returncode or 1, command, output=result.render())
+        return SimpleNamespace(returncode=result.returncode, stdout=result.render(), stderr="",
+                               status=result.status, output=result.output)
 
     def _handle_command(self, command: str, args: str):
         """Routes the slash commands from the UI."""
@@ -49,6 +141,8 @@ class CommandHandler:
                 self._handle_cost()
             elif cmd == "/review":
                 self._handle_review(args)
+        except TurnCancelled as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
             logging.error(f"Command Execution Error: {e}", exc_info=True)
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[bold red]System Command Error: {e}[/bold red]\n")
@@ -65,6 +159,7 @@ class CommandHandler:
         config = config_manager.load_config()
         return config.get("github", {}).get("repo_url", "")
 
+    @requires_permission("github_execute")
     def _handle_gh(self, args: str):
         if not args:
             publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]Usage: /gh <command>[/red]\n")
@@ -72,8 +167,8 @@ class CommandHandler:
             
         cmd_list = ["gh"] + shlex.split(args)
         try:
-            result = subprocess.run(cmd_list, capture_output=True, text=True, env=self._get_gh_env(), timeout=30)
-            output = result.stdout if result.returncode == 0 else result.stderr
+            result = self._run(cmd_list, capture_output=True, text=True, env=self._get_gh_env(), timeout=30)
+            output = result.stdout
         except subprocess.TimeoutExpired:
             output = "[red]Command timed out after 30 seconds.[/red]"
         except FileNotFoundError:
@@ -82,24 +177,25 @@ class CommandHandler:
 
     def _handle_status(self, args: str):
         try:
-            result = subprocess.run(["git", "status"], capture_output=True, text=True, cwd=str(self.project_root), timeout=15)
-            output = result.stdout if result.returncode == 0 else result.stderr
+            result = self._run(["git", "status"], capture_output=True, text=True, cwd=str(self.project_root), timeout=15)
+            output = result.stdout
         except subprocess.TimeoutExpired:
             output = "[red]git status timed out.[/red]"
         except FileNotFoundError:
             output = "[red]Error: 'git' not found. Is git installed?[/red]"
         publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[dim]> git status[/dim]\n{output.strip()}\n")
 
+    @requires_permission("git_commit")
     def _handle_commit(self, args: str):
         if not args:
             publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]Usage: /commit <message>[/red]\n")
             return
             
         try:
-            subprocess.run(["git", "add", "."], cwd=str(self.project_root), check=True, timeout=30)
-            subprocess.run(["git", "commit", "-m", args], cwd=str(self.project_root), check=True, timeout=30)
+            self._run(["git", "add", "."], cwd=str(self.project_root), check=True, timeout=30)
+            self._run(["git", "commit", "-m", args], cwd=str(self.project_root), check=True, timeout=30)
         except subprocess.CalledProcessError as e:
-            publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[red]Commit failed: {e}[/red]\n")
+            publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommit failed: {e}\n{e.output or chr(32)}\n")
             return
         except subprocess.TimeoutExpired:
             publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]Commit timed out.[/red]\n")
@@ -110,14 +206,15 @@ class CommandHandler:
         publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[green]Successfully committed: {args}[/green]\n[dim]Pushing to repository...[/dim]\n")
         
         try:
-            res = subprocess.run(["git", "push"], cwd=str(self.project_root), capture_output=True, text=True, env=self._get_gh_env(), timeout=60)
+            res = self._run(["git", "push"], cwd=str(self.project_root), capture_output=True, text=True, env=self._get_gh_env(), timeout=60)
             if res.returncode == 0:
                 publish_sync("agent_chat_chunk", agent_name="Primary", text="[green]Successfully pushed to remote.[/green]\n")
             else:
-                publish_sync("agent_chat_chunk", agent_name="Primary", text=f"[red]Push failed: {res.stderr}[/red]\n")
+                publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nPush failed: {res.stdout}\n")
         except subprocess.TimeoutExpired:
             publish_sync("agent_chat_chunk", agent_name="Primary", text="[red]git push timed out after 60 seconds.[/red]\n")
 
+    @requires_permission("run_command")
     def _handle_test(self, args: str):
         if not args:
             publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]Usage: /test <command>[/red]\n")
@@ -125,7 +222,7 @@ class CommandHandler:
             
         cmd_list = shlex.split(args)
         try:
-            result = subprocess.run(cmd_list, capture_output=True, text=True, cwd=str(self.project_root), timeout=120)
+            result = self._run(cmd_list, capture_output=True, text=True, cwd=str(self.project_root), timeout=120)
             output = result.stdout + "\n" + result.stderr
         except subprocess.TimeoutExpired:
             output = "Test command timed out after 120 seconds."
@@ -137,6 +234,7 @@ class CommandHandler:
         context = f"I ran tests using '{args}'. The output was:\n\n```\n{output}\n```\nDoes this output reveal any bugs? If so, please fix them."
         publish_sync("ui_chat_request", user_input=context, target_agent="Primary")
 
+    @requires_permission("run_command")
     def _handle_doctor(self, args: str):
         if not args:
             publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]Usage: /doctor <command>[/red]\n")
@@ -144,7 +242,7 @@ class CommandHandler:
             
         cmd_list = shlex.split(args)
         try:
-            result = subprocess.run(cmd_list, capture_output=True, text=True, cwd=str(self.project_root), timeout=60)
+            result = self._run(cmd_list, capture_output=True, text=True, cwd=str(self.project_root), timeout=60)
             output = result.stdout + "\n" + result.stderr
         except subprocess.TimeoutExpired:
             output = "Doctor command timed out after 60 seconds."
@@ -155,6 +253,7 @@ class CommandHandler:
         context = f"I ran '{args}' to check for issues. The output was:\n\n```\n{output}\n```\nPlease fix any errors shown in this output."
         publish_sync("ui_chat_request", user_input=context, target_agent="Primary")
 
+    @requires_permission("undo_edit")
     def _handle_undo(self, args: str):
         from ..core.edits import EditJournal
         from .llm import AGENT_REGISTRY
@@ -166,6 +265,7 @@ class CommandHandler:
             result = f"Undo failed; no Git reset was performed: {exc}"
         publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n{result}\n")
 
+    @requires_permission("github_execute")
     def _handle_issue(self, args: str):
         if not args:
             publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]Usage: /issue <title>[/red]\n")
@@ -178,14 +278,15 @@ class CommandHandler:
         cmd_list.extend(["--title", args, "--body", "Generated by Mythic Agent"])
         
         try:
-            result = subprocess.run(cmd_list, capture_output=True, text=True, env=self._get_gh_env(), timeout=30)
-            output = result.stdout if result.returncode == 0 else result.stderr
+            result = self._run(cmd_list, capture_output=True, text=True, env=self._get_gh_env(), timeout=30)
+            output = result.stdout
         except subprocess.TimeoutExpired:
             output = "[red]gh issue create timed out.[/red]"
         except FileNotFoundError:
             output = "[red]Error: 'gh' CLI not found.[/red]"
         publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[dim]> Create Issue[/dim]\n{output.strip()}\n")
 
+    @requires_permission("github_execute")
     def _handle_pr(self, args: str):
         if not args:
             publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]Usage: /pr <title>[/red]\n")
@@ -198,8 +299,8 @@ class CommandHandler:
         cmd_list.extend(["--title", args, "--body", "Generated by Mythic Agent"])
         
         try:
-            result = subprocess.run(cmd_list, capture_output=True, text=True, env=self._get_gh_env(), timeout=30)
-            output = result.stdout if result.returncode == 0 else result.stderr
+            result = self._run(cmd_list, capture_output=True, text=True, env=self._get_gh_env(), timeout=30)
+            output = result.stdout
         except subprocess.TimeoutExpired:
             output = "[red]gh pr create timed out.[/red]"
         except FileNotFoundError:
@@ -256,8 +357,11 @@ Vibe coding is the art of steering autonomous AI agents using natural language i
 
     def _handle_review(self, args: str):
         try:
-            result = subprocess.run(["git", "diff", "HEAD"], capture_output=True, text=True, cwd=str(self.project_root), timeout=15)
-            diff_output = result.stdout
+            result = self._run(["git", "diff", "HEAD"], capture_output=True, text=True, cwd=str(self.project_root), timeout=15)
+            if result.status != "completed":
+                publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nReview failed: {result.stdout}\n")
+                return
+            diff_output = result.output
         except subprocess.TimeoutExpired:
             publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]git diff timed out.[/red]\n")
             return

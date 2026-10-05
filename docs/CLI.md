@@ -12,10 +12,11 @@ mythic chat --workspace ./my-project --base-url http://localhost:1234/v1 --model
 ```
 
 Use configured provider settings or per-invocation model/endpoint overrides. The
-default chat permission mode is `ask`; file reads are allowed and other tools ask
-for approval when stdin is a real terminal. EOF/Ctrl+D or `/quit` leaves; Ctrl+C
-interrupts the current turn and returns to input. Active subprocess termination
-is being completed in S06, so boundary cancellation is the current guarantee.
+default human permission mode is `ask`; file and memory reads are allowed and other
+tools ask for approval when stdin and stderr are real terminals. A saved explicit
+auto-accept preference selects `trusted`; `--permission` overrides it. EOF/Ctrl+D
+or `/quit` leaves; Ctrl+C cancels the active request, approval or owned process and
+returns to input. Captured partial tool output remains in the session transcript.
 
 Supported commands: `/help`, `/clear`, `/compact`, `/session`, `/model <name> [url]`, `/status`,
 `/add <path>`, `/stop`, `/undo`, `/quit`, `/exit`. Quote paths containing spaces.
@@ -32,15 +33,34 @@ mythic run --workspace ./my-project --permission trusted --format json "Fix the 
 mythic run --workspace ./my-project --format jsonl < task.txt
 ```
 
-`run` accepts a positional prompt or full stdin when omitted. It defaults to
-`read-only`; writes/commands/delegation/external integrations are denied. `ask`
+`run` accepts a positional prompt or full stdin when omitted. Its machine policy
+defaults to `read-only`; writes/commands/delegation/external integrations are denied. `ask`
 without an interactive terminal produces a refusal instead of waiting.
 `trusted` is explicit authorization to invoke all configured tools, including
 shell commands. Workspace file containment is not an operating-system sandbox.
-S06 extends this CLI policy to the other front ends and direct integration paths.
+The same execution check covers TUI tools, direct calls, current MCP mutators,
+delegation and legacy mutating slash commands. Direct `Agent`/tool callers default
+to read-only and must attach an explicit policy to authorize effects.
+
+`permission_mode` configures human adapters; `machine_permission_mode` configures
+run/MCP independently. `MYTHIC_PERMISSION` overrides the machine preference in
+memory. A machine caller never inherits human auto-accept. `ask` without an approval
+callback refuses effects. Delegated/ghost agents inherit a policy snapshot with
+independent refusal receipts; unrelated loaded defaults cannot grant privileges.
+
+Runtime settings under `runtime` control `command_timeout` (300 seconds),
+`github_timeout` (30), `approval_timeout` (300), `process_kill_grace` (1),
+`request_timeout` (120), and `cancellation_poll_interval` (0.05). They must be finite,
+positive numbers. Legacy slash commands retain shorter operation-specific limits,
+bounded by `command_timeout`. Expired approvals refuse; late clicks do not execute.
+Processes report status and exit code even when they produce output, capture full
+combined output, and terminate their owned process group (POSIX) or job (Windows)
+on stop/timeout and on parent exit. Approved commands can create filesystem or
+external effects before cancellation; stop does not undo those effects. Programs
+that deliberately detach from the owned POSIX group require a separate OS sandbox.
 
 Plain output contains final response text; diagnostics go to stderr. JSON output
-is one result object. JSONL emits typed tool progress, text and usage events,
+is one result object. JSONL emits typed tool progress, command output, text and usage events,
 followed by one terminal result. Events currently arrive per provider response;
 streamed HTTP deltas are S07. Consumers must parse `type` and ignore unknown
 optional fields rather than interpreting terminal formatting.
@@ -127,4 +147,8 @@ mythic tui --workspace ./my-project
 ```
 
 Default `mythic` also launches the TUI. Setup preserves the existing provider
-choice. TUI keyboard/approval/lifecycle polish is tracked separately in S06/S09.
+choice. TUI shows the effective permission mode; an invocation override disables
+the auto-accept switch. Its `/stop` cancels active work and queued inputs so a fresh
+turn can follow. Cancelled queued inputs are retained in memory; durable typed task
+receipts and graceful secondary-agent shutdown are S08. Keyboard/layout/lifecycle
+polish beyond the tested approval dialog remains S09.

@@ -32,7 +32,9 @@ def runtime_settings(config: dict[str, Any]) -> dict[str, Any]:
         minimum = 0 if key == "max_retries" else 1
         if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
             raise ValueError(f"{key} must be an integer >= {minimum}")
-    for key in ("request_timeout", "retry_delay", "retry_delay_cap", "edit_lock_timeout"):
+    for key in ("request_timeout", "retry_delay", "retry_delay_cap", "edit_lock_timeout",
+                "command_timeout", "github_timeout", "approval_timeout", "process_kill_grace",
+                "cancellation_poll_interval"):
         value = values[key]
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
             raise ValueError(f"{key} must be a positive number")

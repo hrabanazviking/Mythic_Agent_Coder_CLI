@@ -1,8 +1,8 @@
 """Human and machine adapters over the shared Agent runtime."""
 
+import asyncio
 import json
 import shlex
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -10,22 +10,31 @@ from typing import Any
 from .agents.llm import Agent
 from .core.config_manager import config_manager
 from .core.edits import EditJournal
-from .core.policy import ToolPolicy
-from .core.runtime import TurnCancelled
+from .core.policy import ToolPolicy, policy_mode
+from .core.execution import run_cancellable_async, run_process
+from .core.runtime import TurnCancelled, runtime_settings
 from .core.redaction import SecretRedactor, redact_text
 from .core.sessions import SessionStore
 from .core.secure_api import subscribe, unsubscribe
 from .core.workspace import resolve_file, resolve_workspace
 
 
-def _approve(name: str, arguments: dict[str, Any]) -> bool:
+def _approve(name: str, arguments: dict[str, Any], cancel=None, timeout=300) -> bool:
     if not sys.stdin.isatty() or not sys.stderr.isatty():
         return False
     sys.stderr.write(f"\nApprove {name}: {json.dumps(arguments, ensure_ascii=False)} [y/N]? ")
     sys.stderr.flush()
     try:
-        return input().strip().lower() in {"y", "yes"}
-    except (EOFError, OSError):
+        if cancel is None:
+            return input().strip().lower() in {"y", "yes"}
+        from prompt_toolkit import PromptSession
+        from prompt_toolkit.output.defaults import create_output
+        async def answer():
+            session = PromptSession(output=create_output(stdout=sys.stderr))
+            return await asyncio.wait_for(session.prompt_async(""), timeout=timeout)
+        value = run_cancellable_async(answer, cancel)
+        return value.strip().lower() in {"y", "yes"}
+    except (EOFError, OSError, asyncio.TimeoutError):
         return False
 
 
@@ -36,7 +45,10 @@ def configured_agent(args: Any, default_permission: str) -> Agent:
         if value:
             config[name] = value
     agent = Agent(project_root=args.workspace, config=config)
-    agent.tool_policy = ToolPolicy(args.permission or default_permission, _approve)
+    mode = args.permission or policy_mode(config, machine=default_permission == "read-only")
+    agent.tool_policy = ToolPolicy(mode, lambda name, arguments: _approve(
+        name, agent.redactor.sanitize(arguments), agent._cancel,
+        runtime_settings(agent.config)["approval_timeout"]))
     try:
         agent.attach_session(resume=getattr(args, "resume", None))
     except Exception:
@@ -57,7 +69,8 @@ def _json_line(value: dict[str, Any]) -> None:
 def _event_callbacks(agent: Agent) -> dict[str, Any]:
     callbacks = {}
     names = {"agent_chat_chunk": "assistant_delta", "agent_chat_tool": "tool_progress",
-             "agent_tool_denied": "permission_denied", "agent_token_update": "usage"}
+             "agent_tool_denied": "permission_denied", "agent_token_update": "usage",
+             "agent_command_output": "command_output"}
     for event, kind in names.items():
         def callback(_kind=kind, **payload):
             if payload.get("agent_name") == agent.name:
@@ -169,9 +182,12 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         agent.set_model(values[0], values[1] if len(values) == 2 else agent.config["base_url"])
         return True, False, f"Model changed to {values[0]}."
     if command == "/status":
-        result = subprocess.run(["git", "status", "--short", "--branch"], cwd=agent.project_root,
-                                capture_output=True, text=True, timeout=15)
-        return True, False, result.stdout + result.stderr
+        agent._cancel.clear()
+        settings = runtime_settings(agent.config)
+        result = run_process(["git", "status", "--short", "--branch"], agent.project_root,
+                             cancel=agent._cancel, timeout=min(15, settings["command_timeout"]),
+                             grace=settings["process_kill_grace"])
+        return True, False, result.render()
     if command == "/add":
         values = shlex.split(arguments)
         if len(values) != 1:
@@ -181,8 +197,8 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         agent.add_context(f"File context ({path.relative_to(agent.project_root)}):\n{content}")
         return True, False, f"Added {values[0]} to context."
     if command == "/undo":
-        if agent.tool_policy.mode == "read-only":
-            return True, False, "Undo requires ask or trusted permission mode."
+        if not agent.tool_policy.authorize("undo_edit", {}):
+            return True, False, "Permission denied for undo_edit; no operation was performed."
         return True, False, EditJournal(agent.project_root).undo()
     return True, False, f"Unknown command: {command}. Use /help."
 

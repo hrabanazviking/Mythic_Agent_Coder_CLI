@@ -213,10 +213,17 @@ class MainChatScreen(Screen):
         config = config_manager.load_config()
         self.query_one("#mythic-engineering-checkbox", Checkbox).value = config.get("mythic_engineering_mode", False)
         self.query_one("#auto-accept-checkbox", Checkbox).value = config.get("auto_accept_permissions", False)
+        from mythic_agent.agents.llm import AGENT_REGISTRY
+        primary = AGENT_REGISTRY.get("Primary")
+        if primary:
+            primary.bind_tui(self.app)
+            chat_log.write(f"Permission mode: {primary.tool_policy.mode}")
+            self.query_one("#auto-accept-checkbox", Checkbox).disabled = primary._permission_override is not None
         
         # Subscribe to Pub/Sub events from Agents/Handlers
         subscribe("agent_chat_chunk", self._on_chat_chunk)
         subscribe("agent_chat_tool", self._on_chat_tool)
+        subscribe("agent_command_output", self._on_chat_tool)
         subscribe("agent_chat_complete", self._on_chat_complete)
         subscribe("agent_chat_spoken", self._on_agent_chat_spoken)
         subscribe("agent_chat_error", self._on_chat_error)
@@ -478,6 +485,11 @@ class MainChatScreen(Screen):
             config["auto_accept_permissions"] = event.value
             if not config_manager.save_config(config):
                 return
+            from mythic_agent.agents.llm import AGENT_REGISTRY
+            for agent in list(AGENT_REGISTRY.values()):
+                if agent.tui_app:
+                    agent.config["auto_accept_permissions"] = event.value
+                    agent.bind_tui(agent.tui_app)
             chat_log.write(f"[bold red]Auto-accept security permissions {status}![/bold red]")
 
     def on_input_changed(self, event: Input.Changed) -> None:

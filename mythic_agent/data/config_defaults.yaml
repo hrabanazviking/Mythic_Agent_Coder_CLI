@@ -9,6 +9,8 @@ global_rules: ''
 vector_db_provider: lightweight
 mythic_engineering_mode: false
 auto_accept_permissions: false
+permission_mode: ask
+machine_permission_mode: read-only
 runtime: {}
 github:
   repo_url: ''

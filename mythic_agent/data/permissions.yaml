@@ -3,3 +3,5 @@ read_only_tools:
   - read_file
   - list_dir
   - grep_search
+  - core_memory_read
+  - archival_memory_search

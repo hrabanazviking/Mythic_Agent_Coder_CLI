@@ -58,11 +58,13 @@ class ConfigManager:
                 logger.warning(self.last_load_warning)
         config = self._upgrade_stale_data(raw)
         overrides = {"MYTHIC_MODEL": "model", "MYTHIC_BASE_URL": "base_url",
-                     "MYTHIC_WORKSPACE": "working_directory"}
+                     "MYTHIC_WORKSPACE": "working_directory", "MYTHIC_PERMISSION": "machine_permission_mode"}
         for environment, key in overrides.items():
             value = os.environ.get(environment)
             if value:
-                if key != "base_url" or self._valid_url(value):
+                valid = (self._valid_url(value) if key == "base_url" else
+                         value in {"read-only", "ask", "trusted"} if key == "machine_permission_mode" else True)
+                if valid:
                     config[key] = value
                 else:
                     logger.warning("Invalid %s override ignored", environment)
@@ -93,6 +95,8 @@ class ConfigManager:
                 valid = valid and bool(value.strip())
             if key == "base_url":
                 valid = self._valid_url(value)
+            if key in {"permission_mode", "machine_permission_mode"}:
+                valid = valid and value in {"read-only", "ask", "trusted"}
             if not valid:
                 recovery[key] = value
                 value = copy.deepcopy(default)

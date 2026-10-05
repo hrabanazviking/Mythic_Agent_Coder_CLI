@@ -6,3 +6,8 @@ retry_delay_cap: 8.0
 max_tool_rounds: 64
 max_tokens: 127000
 edit_lock_timeout: 20.0
+command_timeout: 300.0
+github_timeout: 30.0
+approval_timeout: 300.0
+process_kill_grace: 1.0
+cancellation_poll_interval: 0.05

@@ -180,3 +180,27 @@ Do not equate local tests with real-provider or physical cross-platform testing.
   maintained suite, wheel/sdist builds and installed-core smoke checks. S05 is
   complete; published S06 work order is next. Physical GUI/provider checks are
   not claimed from these hosted/local fixture results.
+
+## S06 — shared permissions and active cancellation
+
+- Work order: `106f2ac644b0cf7e2e1f5250507c110658a873be`, pushed/remote-verified
+  before implementation. S05 final hosted gates were verified before proceeding.
+- Tools now check schemas and an explicit/attached policy once before effects;
+  direct default is read-only. TUI/CLI/current MCP and legacy mutating slash paths
+  refuse absent approval, with distinct human and machine defaults. Delegated
+  agents inherit mode without gaining privilege from loaded defaults/hot reload.
+- Cancellable finite approvals disable late callbacks; actual Textual pilot tests
+  approve once and cancel a second write. Missing/noninteractive UI refuses.
+- Added owned process/request services. Complete output/status/exit/progress are
+  retained; cancellation/timeout/parent exit clean owned groups/jobs and leave an
+  unrelated process alive. Local HTTP chat/embedding/retrieval fixtures verify
+  connection closure, durable cancellation and a fresh successful turn.
+- Stop now cancels active/queued agent/slash work, with queued inputs retained in
+  memory. Full typed task lifecycle/registry races/shutdown remain S08.
+- Integration reproduced/fixed the S05 session lease's thread-local bookkeeping;
+  a bootstrap-attached worker can now durably checkpoint partial cancellation.
+- Local suite: 160 passed; wheel/sdist built. Installed core wheel outside checkout:
+  159 passed, one optional Textual pilot skipped; verified site-packages execution
+  import and Textual absent. Hosted checks pending. Windows Job Object behavior must pass before completion;
+  physical GUI/provider/Windows testing is not claimed. S10 retains optional
+  knowledge/database redesign, S13 retains the full MCP transport contract.

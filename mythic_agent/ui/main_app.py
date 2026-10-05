@@ -51,10 +51,19 @@ class MythicTUI(App):
         self.call_from_thread(self.notify, message, title=title, severity=severity)
 
     def on_mount(self) -> None:
+        from mythic_agent.agents.llm import AGENT_REGISTRY
+        for agent in list(AGENT_REGISTRY.values()):
+            agent.bind_tui(self)
         self.push_screen(SplashScreen())
 
     def action_request_approval(self, command: str, on_approve, on_reject):
-        self.push_screen(CommandApproval(command, on_approve, on_reject))
+        modal = CommandApproval(command, on_approve, on_reject)
+        self.push_screen(modal)
+        return modal
+
+    def action_cancel_approval(self, modal):
+        if self.screen is modal:
+            modal.action_reject()
 
     def update_token_count(self, count: int) -> None:
         try:
@@ -71,6 +80,5 @@ class MythicTUI(App):
             pyperclip.copy(text)
         except Exception as e:
             self.notify(f"Clipboard error: {e}", severity="error")
-
 
 

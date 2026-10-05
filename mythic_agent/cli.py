@@ -36,9 +36,8 @@ def main(argv: list[str] | None = None) -> int:
         command.add_argument("--model", help="Model override for this invocation")
         command.add_argument("--base-url", help="OpenAI-compatible endpoint override")
         command.add_argument("--resume", help="Resume a workspace session by ID")
-        if name != "tui":
-            command.add_argument("--permission", choices=["read-only", "ask", "trusted"],
-                                 help="Tool policy (run: read-only; chat: ask)")
+        command.add_argument("--permission", choices=["read-only", "ask", "trusted"],
+                             help="Override configured policy (defaults: run read-only; chat/TUI ask)")
         if name == "run":
             command.add_argument("prompt", nargs="?", help="Task prompt; omit to read stdin")
             command.add_argument("--format", choices=["plain", "json", "jsonl"], default="plain")
@@ -67,7 +66,8 @@ def main(argv: list[str] | None = None) -> int:
         engine.initialize(workspace=getattr(args, "workspace", None),
                           model=getattr(args, "model", None),
                           base_url=getattr(args, "base_url", None),
-                          resume=getattr(args, "resume", None))
+                          resume=getattr(args, "resume", None),
+                          permission=getattr(args, "permission", None))
         app = MythicTUI()
         app.run()
     except Exception as e:

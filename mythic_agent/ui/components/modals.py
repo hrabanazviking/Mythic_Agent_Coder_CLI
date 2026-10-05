@@ -18,7 +18,8 @@ from mythic_agent.core.config_manager import config_manager
 
 
 class CommandApproval(ModalScreen[bool]):
-    """Modal dialog to approve bash commands."""
+    """One tool/operation approval; cancellation never grants permission."""
+    BINDINGS = [("escape", "reject", "Reject"), ("ctrl+c", "cancel_turn", "Stop turn")]
     
     CSS = """
     CommandApproval {
@@ -42,7 +43,7 @@ class CommandApproval(ModalScreen[bool]):
     def compose(self) -> ComposeResult:
         with Vertical(id="dialog"):
             yield Label("[bold red]⚠️  Security Approval Required[/bold red]\n")
-            yield Label(f"The agent wants to run the following command:\n\n[bold white]{self.command_text}[/bold white]\n")
+            yield Label("Requested operation:\n\n" + self.command_text + "\n", markup=False)
             with Horizontal():
                 yield Button("Allow", id="allow", variant="success")
                 yield Button("Reject", id="reject", variant="error")
@@ -52,8 +53,15 @@ class CommandApproval(ModalScreen[bool]):
             self.on_approve()
             self.dismiss(True)
         else:
-            self.on_reject()
-            self.dismiss(False)
+            self.action_reject()
+
+    def action_reject(self):
+        self.on_reject()
+        self.dismiss(False)
+
+    def action_cancel_turn(self):
+        publish_sync("system_command_executed", command="/stop", args="")
+        self.action_reject()
 
 class GithubConfigModal(ModalScreen[None]):
     """Modal dialog to configure GitHub settings."""
