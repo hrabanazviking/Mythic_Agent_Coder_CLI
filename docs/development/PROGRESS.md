@@ -220,3 +220,12 @@ Do not equate local tests with real-provider or physical cross-platform testing.
   assertions remain intact. Repair local suite: 160 passed; wheel/sdist built;
   installed core outside checkout: 159 passed, one optional Textual pilot skipped.
   Hosted repair matrix remains required before completion.
+
+- First repair run `37266105772` passed Linux/macOS again and fixed Windows
+  newline/console fixtures. Parent-exit cleanup remained failing; one durable
+  cancellation test's five-second waiter also expired inside the cleanup budget.
+  The next repair retains job-verified process handles before termination, awaits
+  their signals, closes them, then checks accounting. Its test waiter includes
+  cleanup/checkpoint overhead. Local full suite: 160 passed; execution follow-up:
+  18 passed; distributions built; installed core outside checkout: 159 passed,
+  one optional Textual pilot skipped. Hosted repair results pending.

@@ -2,6 +2,7 @@
 
 import asyncio
 import codecs
+import logging
 import os
 import signal
 import subprocess
@@ -137,6 +138,7 @@ class _WindowsJob:
         kernel.CloseHandle.argtypes = [wintypes.HANDLE]
         kernel.CloseHandle.restype = wintypes.BOOL
         self.kernel, self.handle = kernel, kernel.CreateJobObjectW(None, None)
+        self.wait_handles = []
         if not self.handle:
             raise ctypes.WinError(ctypes.get_last_error())
         owned = None
@@ -202,8 +204,56 @@ class _WindowsJob:
 
     def terminate(self) -> None:
         import ctypes
-        if self.handle and not self.kernel.TerminateJobObject(self.handle, 1):
-            raise ctypes.WinError(ctypes.get_last_error())
+        if self.handle:
+            self._retain_process_handles()
+            if not self.kernel.TerminateJobObject(self.handle, 1):
+                raise ctypes.WinError(ctypes.get_last_error())
+
+    def _retain_process_handles(self) -> None:
+        """Use job membership and handles, not PID ancestry or later PID lookups."""
+        import ctypes
+        from ctypes import wintypes
+        kernel = self.kernel
+        query = kernel.QueryInformationJobObject
+        query.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p,
+                          wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+        query.restype = wintypes.BOOL
+        capacity, deadline = 64, time.monotonic() + 5
+        while True:
+            class ProcessIds(ctypes.Structure):
+                _fields_ = [("assigned", wintypes.DWORD), ("count", wintypes.DWORD),
+                            ("ids", ctypes.c_size_t * capacity)]
+            info = ProcessIds()
+            if query(self.handle, 3, ctypes.byref(info), ctypes.sizeof(info), None):
+                break
+            error = ctypes.get_last_error()
+            if error != 234:
+                raise ctypes.WinError(error)
+            if time.monotonic() >= deadline:
+                raise RuntimeError("Owned job process inventory exceeded cleanup deadline")
+            capacity = max(capacity * 2, info.assigned)
+        logging.getLogger(__name__).debug("Owned Windows job inventory: assigned=%s ids=%s",
+                                         info.assigned, list(info.ids[:info.count]))
+        kernel.IsProcessInJob.argtypes = [wintypes.HANDLE, wintypes.HANDLE, ctypes.POINTER(wintypes.BOOL)]
+        kernel.IsProcessInJob.restype = wintypes.BOOL
+        for pid in info.ids[:info.count]:
+            handle = kernel.OpenProcess(0x00100000 | 0x1000, False, pid)
+            if not handle:
+                error = ctypes.get_last_error()
+                if error == 87:  # Process exited between inventory and handle acquisition.
+                    continue
+                raise ctypes.WinError(error)
+            member = wintypes.BOOL()
+            try:
+                if not kernel.IsProcessInJob(handle, self.handle, ctypes.byref(member)):
+                    raise ctypes.WinError(ctypes.get_last_error())
+                if member.value:
+                    logging.getLogger(__name__).debug("Retained owned Windows process %s", pid)
+                    self.wait_handles.append(handle)
+                    handle = None
+            finally:
+                if handle:
+                    kernel.CloseHandle(handle)
 
     def wait_empty(self, timeout: float) -> None:
         """Job termination starts asynchronously; await all owned process exits."""
@@ -219,6 +269,20 @@ class _WindowsJob:
                           wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
         query.restype = wintypes.BOOL
         deadline = time.monotonic() + timeout
+        self.kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        self.kernel.WaitForSingleObject.restype = wintypes.DWORD
+        try:
+            for handle in self.wait_handles:
+                remaining = max(0, int((deadline - time.monotonic()) * 1000))
+                result = self.kernel.WaitForSingleObject(handle, remaining)
+                if result == 258:
+                    raise RuntimeError("Owned Windows process did not signal termination before cleanup deadline")
+                if result != 0:
+                    raise ctypes.WinError(ctypes.get_last_error())
+        finally:
+            for handle in self.wait_handles:
+                self.kernel.CloseHandle(handle)
+            self.wait_handles.clear()
         while True:
             info = Accounting()
             if not query(self.handle, 1, ctypes.byref(info), ctypes.sizeof(info), None):
@@ -230,6 +294,9 @@ class _WindowsJob:
             time.sleep(0.01)
 
     def close(self) -> None:
+        for handle in self.wait_handles:
+            self.kernel.CloseHandle(handle)
+        self.wait_handles.clear()
         if self.handle:
             self.kernel.CloseHandle(self.handle)
             self.handle = None
