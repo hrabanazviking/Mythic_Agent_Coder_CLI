@@ -160,3 +160,7 @@ Do not equate local tests with real-provider or physical cross-platform testing.
 - Hosted receipt pending the implementation push. Managed secondary-agent session
   lifecycle remains S08; workspace core/vector memory remains S11. All provider
   fixtures were local/fake; no live-provider claim or credential provisioning.
+
+- S05 implementation `4c959c9eacc34f7d9ed738d0363bb072ecc62f22` pushed and remote
+  HEAD verified. Hosted run `37262624512` in progress. S06 work order records
+  direct/TUI/MCP permission bypasses and ineffective active stop as the next scope.
