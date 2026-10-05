@@ -11,7 +11,7 @@ Read [ROADMAP.md](ROADMAP.md), [ARCHITECTURE.md](ARCHITECTURE.md), and
 - [x] S03: workspace-safe journaled edits and undo without Git resets.
 - [x] S04: terminal chat, machine CLI and Windows approval/hosted gates.
 - [x] S05: durable sessions/config recovery, local/installed tests and all six hosted jobs.
-- [ ] S06: unified permission policy and cancellation.
+- [x] S06: unified permission policy, active cancellation and all six hosted jobs.
 - [ ] S07: provider diagnostics, streaming and retry reliability.
 - [ ] S08: controlled agent lifecycle and orchestration.
 - [ ] S09: tested, polished human TUI.
@@ -21,5 +21,5 @@ Read [ROADMAP.md](ROADMAP.md), [ARCHITECTURE.md](ARCHITECTURE.md), and
 - [ ] S13: versioned machine/MCP contracts and extensions.
 - [ ] S14: release checks, measured quality and complete documentation.
 
-Next: implement S06 shared permissions and active cancellation; its work order is published.
+Next: implement S07 provider diagnostics and streaming; its work order is published.
 Progress receipts: [docs/development/PROGRESS.md](docs/development/PROGRESS.md).
