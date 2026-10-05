@@ -17,11 +17,14 @@ from .core.workspace import resolve_file
 
 
 def _approve(name: str, arguments: dict[str, Any]) -> bool:
-    if not sys.stdin.isatty():
+    if not sys.stdin.isatty() or not sys.stderr.isatty():
         return False
     sys.stderr.write(f"\nApprove {name}: {json.dumps(arguments, ensure_ascii=False)} [y/N]? ")
     sys.stderr.flush()
-    return input().strip().lower() in {"y", "yes"}
+    try:
+        return input().strip().lower() in {"y", "yes"}
+    except (EOFError, OSError):
+        return False
 
 
 def configured_agent(args: Any, default_permission: str) -> Agent:

@@ -113,3 +113,13 @@ Do not equate local tests with real-provider or physical cross-platform testing.
 - Versioned result/exit contracts and examples are in `docs/CLI.md`. Durable
   resume, unified TUI/direct/MCP policy, active process stop and streamed HTTP are
   separate S05–S07/S13 work; current JSONL events are per provider response.
+
+### S04 hosted Windows approval repair
+
+- Run `37260418519`: all four Linux/macOS jobs passed; Windows jobs exposed
+  inherited console stdin with captured output and EOF during approval. The
+  failure was an incorrect completed/exit-0 result, not a file mutation.
+- Approval now requires interactive stdin and prompt stderr; EOF/closed input
+  yields a recorded denial. Added deterministic regressions for both cases.
+- Integrated the user's main-to-development merge (`4329310`) with a normal merge
+  before pushing, preserving their commits and the urgent main repair record.
