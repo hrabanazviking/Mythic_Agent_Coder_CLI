@@ -22,3 +22,11 @@ maintained tests pass; normal push to main succeeds and remote revision is verif
 After fetching current origin, GitHub Desktop can pull the fixed final tree without
 checking out the intervening invalid filename. Actual Desktop retry is on the
 user's Windows machine and must not be claimed as tested here.
+
+## Repair evidence
+
+The new regression check reproduced the exact invalid filename before repair.
+Renamed the document with identical contents and added the check to maintained
+tests. Also carried over the already-tested Python 3.10 image dependency selector
+so the restored six-job matrix can validate main. CI now runs for main pushes.
+All four local maintained checks pass after the repair; hosted evidence follows.
