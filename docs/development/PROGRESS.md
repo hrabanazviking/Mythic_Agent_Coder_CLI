@@ -164,3 +164,13 @@ Do not equate local tests with real-provider or physical cross-platform testing.
 - S05 implementation `4c959c9eacc34f7d9ed738d0363bb072ecc62f22` pushed and remote
   HEAD verified. Hosted run `37262624512` in progress. S06 work order records
   direct/TUI/MCP permission bypasses and ineffective active stop as the next scope.
+
+### S05 hosted test encoding follow-up
+
+- Run `37262624512` finished with all four Linux/macOS jobs green. Both Windows
+  jobs passed CLI/session tests but failed six config assertions because test
+  readers used default cp1252 for saved UTF-8 persona text. The service's own
+  explicit UTF-8 reads worked. Corrected both test read sites to specify UTF-8.
+- Repair local suite: 113 passed. All 16 config tests also passed against the
+  unchanged installed core wheel outside checkout. No application code changed;
+  hosted matrix retry is required before recording S05 fully complete.
