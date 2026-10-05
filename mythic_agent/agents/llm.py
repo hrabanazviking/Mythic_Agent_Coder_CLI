@@ -24,17 +24,10 @@ AGENT_REGISTRY: dict[str, "Agent"] = {}
 class Agent:
     def __init__(self, project_root: Path | None = None, name: str = "Primary"):
         self.config = config_manager.load_config()
-        self.project_root = project_root
+        from ..core.workspace import resolve_workspace
+        self.project_root = resolve_workspace(project_root, self.config)
         self.name = name
-        
-        working_dir_str = self.config.get("working_directory")
-        if working_dir_str:
-            self.project_root = Path(working_dir_str).expanduser().resolve()
-        elif not self.project_root:
-            default_wd = config_manager.MYTHIC_DIR / "mythic_longhall"
-            default_wd.mkdir(parents=True, exist_ok=True)
-            self.project_root = default_wd
-            
+
         self.total_tokens = 0
         if "api_keys" not in self.config:
             self.config["api_keys"] = {}

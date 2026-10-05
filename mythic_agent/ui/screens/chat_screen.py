@@ -586,7 +586,7 @@ class MainChatScreen(Screen):
                     "/status": "Usage: /status\nShows current git status and recent commits.",
                     "/gh": "Usage: /gh <args>\nRuns arbitrary native GitHub CLI commands.",
                     "/test": "Usage: /test\nRuns pytest natively in the repository.",
-                    "/undo": "Usage: /undo\nRolls back the last file edit made by the agent by running `git reset --hard` and checking out the last stable state.",
+                    "/undo": "Usage: /undo\nRestores the last unchanged agent edit from the workspace journal. Preserves Git history, staged changes and unrelated files.",
                     "/doctor": "Usage: /doctor\nExamines the output of the last failed command and automatically generates a fix.",
                     "/clear": "Usage: /clear\nClears the agent's memory window (except the system prompt).",
                     "/compact": "Usage: /compact\nForces the LLM's context pruner to run early, archiving old messages to the VectorDB.",
