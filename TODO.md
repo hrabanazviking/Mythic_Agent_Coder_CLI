@@ -7,9 +7,9 @@ Read [ROADMAP.md](ROADMAP.md), [ARCHITECTURE.md](ARCHITECTURE.md), and
 
 - [x] Inspect actual development source and publish complete roadmap.
 - [x] S01: lightweight packaging, safe automated suite, resources and CI.
-- [ ] S02: first-turn/runtime protocol repair and regression coverage.
-- [ ] S03: workspace-safe journaled edits and undo without Git resets.
-- [ ] S04: terminal chat and machine CLI with structured results.
+- [x] S02: first-turn/runtime protocol repair and regression coverage.
+- [x] S03: workspace-safe journaled edits and undo without Git resets.
+- [x] S04: terminal chat and machine CLI with structured results.
 - [ ] S05: durable sessions and robust portable configuration.
 - [ ] S06: unified permission policy and cancellation.
 - [ ] S07: provider diagnostics, streaming and retry reliability.
@@ -21,5 +21,5 @@ Read [ROADMAP.md](ROADMAP.md), [ARCHITECTURE.md](ARCHITECTURE.md), and
 - [ ] S13: versioned machine/MCP contracts and extensions.
 - [ ] S14: release checks, measured quality and complete documentation.
 
-Next: S02 runtime repair; S01 hosted CI results must be tracked separately.
+Next: S05 durable sessions and robust configuration; hosted CI receipts are tracked separately.
 Progress receipts: [docs/development/PROGRESS.md](docs/development/PROGRESS.md).

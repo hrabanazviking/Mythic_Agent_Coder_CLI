@@ -1,0 +1,8 @@
+# Operational budgets are configurable; transcripts are never truncated here.
+request_timeout: 120.0
+max_retries: 2
+retry_delay: 0.5
+retry_delay_cap: 8.0
+max_tool_rounds: 64
+max_tokens: 127000
+edit_lock_timeout: 20.0

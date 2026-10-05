@@ -12,6 +12,7 @@ dependencies = [
     "openai>=1.40,<4",
     "prompt_toolkit>=3.0",
     "rich>=13.0",
+    "filelock>=3.13",
     "pyyaml>=6.0.2"
 ]
 

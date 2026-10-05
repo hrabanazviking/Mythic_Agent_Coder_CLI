@@ -27,3 +27,89 @@ Do not equate local tests with real-provider or physical cross-platform testing.
   checks passed outside checkout; Textual and Torch verified absent.
 - Added Linux/macOS/Windows × Python 3.10/3.13 CI. Hosted results pending push.
 - This slice does not claim repaired chat execution; S02 owns that critical fix.
+
+### S01 portability follow-up
+
+- Hosted run `37258467107`: Linux/macOS Python 3.13 passed all gates. Windows
+  failed checkout on a historical filename colon; Python 3.10 failed resolution
+  because textual-image 0.13+ requires Python 3.12.
+- Preserved the historical document with a Windows-compatible name and selected
+  textual-image 0.12 for Python <3.12. Repair matrix pending its push.
+
+## S02 — shared runtime repair
+
+- Work order: `12af961a9989e712df101d9eb50256eef9ea18b1`, pushed and remote-verified.
+- Provider requests now run for ordinary first turns; final text is returned.
+- Assistant text+calls are one dictionary message; every tool has a matching result.
+  Invalid JSON/unknown tools/operation exceptions no longer break result ordering.
+- History/registry consumers use serializable snapshots. Turns serialize separately
+  from state locks; events/retrieval/provider/tools do not run under state locks.
+- No automatic message-count deletion. Manual compaction archives complete earlier
+  turns; clearing during a tool turn is deferred until completion.
+- Added typed outcomes, configurable finite tool/retry budgets, transient-status
+  retry classification and cancellation at loop/retry boundaries.
+- Local `python -m pytest`: 24 passed. `python -m build`: wheel+sdist passed.
+- Tests cover real SDK message normalization with fake responses, HTTP status
+  classification, multiple tools, concurrent turns, reentrant history callbacks,
+  history preservation, budgets, cancellation/recovery and failure outcomes.
+- Active I/O cancellation, provider capability/token settings, policies and
+  durable full sessions remain S05–S07 work. No live-provider claim.
+
+### Hosted receipts and urgent main repair
+
+- S01 portability repair `1abaab0c43a2041557fd1e3f538c87eb7c004d87` passed all six
+  jobs in hosted run `37258887547` (Linux/macOS/Windows, Python 3.10 and 3.13).
+- S02 `8fe242fe408b8a15634555b862b26d95a535ef47` passed all six jobs in hosted
+  run `37258957751`, including 24 tests, builds and installed-wheel smoke checks.
+- User's urgent screenshot showed main pulling the invalid colon filename.
+  Main's merged tree predated the development repair. Reproduced with a new
+  path regression check; preserved identical document bytes and pushed the main
+  repair `cb7d19b365064153f6f57a8acfa013d2cea9f98b`. Remote main was verified.
+  Four local main tests passed; main hosted run `37259244508` pending.
+- Added the tracked Windows-path regression check to development and enabled
+  main CI. User's physical GitHub Desktop retry is not claimed as tested.
+
+- Main repair run `37259244508` passed all six hosted platform/Python jobs,
+  including Windows checkout, tests, distributions and installed-wheel checks.
+
+## S03 — contained atomic edits and journal undo
+
+- Work order: `4742e21c3c6d5680adf91f6cc31523aa733cddb4`, pushed and remote-verified.
+- Explicit workspace wins over stored settings; default is the launching project.
+- File schemas/types are validated; traversal/foreign-drive/symlink escapes and
+  Git metadata writes are refused. Full file/search/command outputs are preserved.
+- File edits no longer auto-stage/commit. Atomic writes record before/after bytes
+  and modes in a workspace-scoped private SQLite journal protected by file locks.
+- Journal recovery reconciles prepared edit/undo receipts without erasing divergent
+  work. Undo checks current content/mode and preserves HEAD/index/unrelated files.
+- Updated slash undo, MCP workspace resolver and UI/README descriptions.
+- Local `python -m pytest`: 48 passed; wheel and sdist builds passed. Tests include
+  dirty/staged Git preservation, atomic failure, prepared-receipt recovery,
+  concurrent journals, stale undo, permissions, path escapes and full content.
+- Windows symlink/POSIX mode tests state platform limitations. Shell execution
+  remains a powerful non-sandboxed operation pending S06 policy/process work.
+
+- S03 revision `80afc0cbd492fe6f843b28af6b3e6ec584b5f259` passed all six hosted
+  jobs in run `37259636657` (48 tests, builds and installed-core smoke checks).
+
+## S04 — human terminal chat and machine task runs
+
+- Work order: `323ef28db40a22f2862e21eb87cd0192ad3514c4`, pushed and remote-verified.
+- Added `mythic chat`, `mythic run` and explicit `mythic tui`; default remains TUI.
+  Core works without optional UI/speech dependencies. Help/version stay import-light.
+- Run supports prompt/stdin, workspace/model/endpoint overrides, plain/JSON/JSONL
+  results and documented exits. Chat supports repeated turns and core slash commands.
+- CLI attaches explicit read-only/ask/trusted tool policy. Noninteractive approval
+  never blocks; denied tools return structured approval-required status and exit 3.
+- `MYTHIC_HOME` isolates state and skips legacy-home import. Invocation provider
+  overrides are temporary; explicit human `/model` remains a saved preference.
+- KeyboardInterrupt closes pending tool-call/result groups so another turn works.
+- Local maintained suite: 61 passed. Built wheel+sdist. Installed the core wheel
+  in an independent environment and ran all 12 CLI HTTP/subprocess tests from
+  outside checkout; Textual verified absent.
+- HTTP fixtures ran only on localhost and exercised actual SDK requests, tool
+  execution/refusal, stdin, output parsing, chat clear/add/undo, auth failure, and
+  settings preservation. No hosted-provider credentials or charges.
+- Versioned result/exit contracts and examples are in `docs/CLI.md`. Durable
+  resume, unified TUI/direct/MCP policy, active process stop and streamed HTTP are
+  separate S05–S07/S13 work; current JSONL events are per provider response.

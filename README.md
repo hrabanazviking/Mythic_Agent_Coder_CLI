@@ -37,7 +37,7 @@ Forget switching contexts to authenticate or run raw git commands.
 Mythic Agent incorporates premium developer features:
 - **Command Approvals:** Any destructive or terminal command the AI wishes to run requires your explicit approval via a modal.
 - `/doctor` - Automatically catches terminal errors and fixes them.
-- `/undo` - Safely rolls back the last file edit (Git reset).
+- `/undo` - Restores the last unchanged agent file edit from its workspace journal.
 - `/add <file>` - Explicitly pull specific files into the agent's context.
 
 ### 🌐 Multi-Provider Divine Sources
@@ -73,8 +73,11 @@ Mythic Agent supports multiple LLM endpoints out of the box. Easily configure:
 
 ### First-Time Configuration
 
-Core-only installation uses `pip install -e .` and supports `mythic --help` and
-`mythic --version` without UI or speech packages. Optional integrations are
+Core-only installation uses `pip install -e .` and supports `mythic chat`,
+`mythic run`, `mythic --help`, and `mythic --version` without UI or speech packages.
+Use `mythic run --format json "your task"` for AI callers; it defaults to read-only.
+See [the human/machine CLI guide](docs/CLI.md) for permissions, stdin, JSONL and
+exit codes. Optional integrations are
 installed with the `mcp`, `knowledge`, `voice`, and `voice-cloning` extras.
 See [the development roadmap](ROADMAP.md) for active reliability work and
 [the developer guide](docs/DEVELOPMENT.md) for test/build commands. This is an
