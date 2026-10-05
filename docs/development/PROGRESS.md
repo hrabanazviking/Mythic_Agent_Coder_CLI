@@ -27,3 +27,11 @@ Do not equate local tests with real-provider or physical cross-platform testing.
   checks passed outside checkout; Textual and Torch verified absent.
 - Added Linux/macOS/Windows × Python 3.10/3.13 CI. Hosted results pending push.
 - This slice does not claim repaired chat execution; S02 owns that critical fix.
+
+### S01 portability follow-up
+
+- Hosted run `37258467107`: Linux/macOS Python 3.13 passed all gates. Windows
+  failed checkout on a historical filename colon; Python 3.10 failed resolution
+  because textual-image 0.13+ requires Python 3.12.
+- Preserved the historical document with a Windows-compatible name and selected
+  textual-image 0.12 for Python <3.12. Repair matrix pending its push.
