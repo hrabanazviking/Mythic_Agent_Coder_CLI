@@ -223,6 +223,8 @@ def test_explicit_override_and_machine_default_do_not_gain_legacy_trust():
 def test_terminal_approval_timeout_and_cancel_release_prompt(monkeypatch):
     from mythic_agent.terminal import _approve
     import prompt_toolkit
+    from prompt_toolkit.output import defaults, DummyOutput
+    monkeypatch.setattr(defaults, "create_output", lambda **kwargs: DummyOutput())
     monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(sys.stderr, "isatty", lambda: True)
     started, cleaned = threading.Event(), threading.Event()

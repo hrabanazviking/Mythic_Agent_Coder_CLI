@@ -47,7 +47,7 @@ def test_nonzero_exit_and_complete_unicode_output_have_progress(tmp_path):
     progress = []
     result = run_process(python_command(script), tmp_path, progress=progress.append, timeout=10)
     assert result.status == "failed" and result.returncode == 7
-    assert result.output == "Sigrún 🦉\n" * 10000 + "diagnostic\n"
+    assert result.output == "Sigrún 🦉\n" * 10000 + "diagnostic" + os.linesep
     assert "".join(progress) == result.output
     assert result.raw_output == result.output.encode("utf-8")
     assert "exit code: 7" in result.render()
@@ -75,7 +75,7 @@ def test_owned_descendant_terminated_and_partial_output_retained(tmp_path, stop)
     pid = int(re.search(r"child:(\d+)", result.output)[1])
     assert not process_alive(pid), f"Owned child {pid} survived {stop}"
     assert not any(t.name == "mythic-process-output" for t in threading.enumerate())
-    assert run_process(python_command("print('recovered')"), tmp_path).output == "recovered\n"
+    assert run_process(python_command("print('recovered')"), tmp_path).output == "recovered" + os.linesep
 
 
 def test_cancelled_before_spawn_has_no_effect(tmp_path):
@@ -90,7 +90,7 @@ def test_broken_progress_callback_does_not_abandon_capture(tmp_path):
     def broken(text):
         raise ValueError("fixture adapter failed")
     result = run_process(python_command("print('complete')"), tmp_path, progress=broken)
-    assert result.output == "complete\n" and result.status == "completed"
+    assert result.output == "complete" + os.linesep and result.status == "completed"
 
 
 def test_timeout_leaves_unrelated_process_running(tmp_path):
@@ -98,7 +98,7 @@ def test_timeout_leaves_unrelated_process_running(tmp_path):
     try:
         result = run_process(python_command("import time;print('partial',flush=True);time.sleep(60)"),
                              tmp_path, timeout=0.5, grace=0.1)
-        assert result.status == "timed_out" and result.output == "partial\n"
+        assert result.status == "timed_out" and result.output == "partial" + os.linesep
         assert unrelated.poll() is None
     finally:
         unrelated.terminate()
