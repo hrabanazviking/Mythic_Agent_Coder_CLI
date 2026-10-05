@@ -122,15 +122,10 @@ class Agent:
             
             # Dynamically resolve the path to the skill file relative to the mythic_agent package
             # mythic-agent/mythic_agent/agents/llm.py -> parent.parent.parent -> mythic-agent
-            skill_file_path = Path(__file__).parent.parent.parent / "Mythic-Engineering" / "Mythic-Engineering_SKILL.md"
-            
             try:
-                if skill_file_path.exists():
-                    skill_content = skill_file_path.read_text(encoding="utf-8")
-                    system_prompt += "\n[CORE PROTOCOL LOADED FROM DISK]\n"
-                    system_prompt += skill_content
-                else:
-                    raise FileNotFoundError("Skill file missing")
+                from ..resources import engineering_protocol
+                system_prompt += "\n[CORE PROTOCOL LOADED FROM DISK]\n"
+                system_prompt += engineering_protocol()
             except Exception as e:
                 logging.error(f"Failed to load Mythic Engineering skill file: {e}. Using fallback.")
                 system_prompt += "\n[FALLBACK CORE PROTOCOL]\n"

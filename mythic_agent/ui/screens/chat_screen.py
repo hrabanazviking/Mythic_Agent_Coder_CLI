@@ -435,7 +435,8 @@ class MainChatScreen(Screen):
             prefix = agent_name.split("-")[0].strip()
 
         # Use a path relative to this source file so it works regardless of CWD
-        chars_dir = Path(__file__).parent.parent.parent / "default_agent_characters"
+        from mythic_agent.resources import character_directory
+        chars_dir = character_directory()
         if not chars_dir.exists():
             return
 
