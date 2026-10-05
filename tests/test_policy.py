@@ -139,6 +139,29 @@ def test_stop_cancels_active_agent_without_queuing_shutdown(agent, monkeypatch):
     assert llm.AGENT_REGISTRY[agent.name] is agent
 
 
+def test_message_to_existing_recipient_inherits_sender_policy_before_queueing(agent, monkeypatch):
+    from mythic_agent.agents import llm
+    name = next(entry["name"] for entry in agent.config["sub_agents"] if entry["name"].startswith("Architect"))
+    monkeypatch.setattr(llm, "AGENT_REGISTRY", {name: agent})
+    sender = ToolPolicy("ask", Mock(return_value=True))
+    assert agent.tool_policy.mode == "trusted"
+    result = execute_tool("send_message", {"recipient": name, "message": "fixture"},
+                          project_root=agent.project_root, policy=sender)
+    assert result == f"Message sent to {name}."
+    assert agent.tool_policy.mode == "ask" and agent._permission_override == "ask"
+    assert agent.inbox.get_nowait() == "Message from Unknown:\nfixture"
+    agent.inbox.task_done()
+    assert sender.approval.call_count == 1
+    agent._turn_lock.acquire()
+    try:
+        refused = execute_tool("send_message", {"recipient": name, "message": "blocked"},
+                               project_root=agent.project_root, policy=sender)
+        assert "not found or not active" in refused
+        assert agent.inbox.empty()
+    finally:
+        agent._turn_lock.release()
+
+
 def test_mcp_mutators_refuse_before_initializing_memory_or_agents(agent, monkeypatch):
     class FakeMCP:
         def __init__(self, *args):

@@ -302,20 +302,45 @@ class _WindowsJob:
             self.handle = None
 
 
-def _stop_posix_group(process: subprocess.Popen, grace: float) -> None:
+def _group_has_live_processes(group_id: int) -> bool:
+    """Conservative EPERM check: a zombie-only group has already terminated."""
     try:
-        os.killpg(process.pid, signal.SIGTERM)
+        result = subprocess.run(["ps", "-A", "-o", "pid=,pgid=,stat="],
+                                capture_output=True, text=True, timeout=3)
+        if result.returncode:
+            return True
+        for line in result.stdout.splitlines():
+            if not line.strip():
+                continue
+            pid, group, state = line.split()
+            if int(group) == group_id and not state.startswith("Z"):
+                return True
+        return False
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return True
+
+
+def _signal_posix_group(group_id: int, sig: int) -> bool:
+    try:
+        os.killpg(group_id, sig)
+        return True
     except ProcessLookupError:
+        return False
+    except PermissionError:
+        if not _group_has_live_processes(group_id):
+            return False
+        raise
+
+
+def _stop_posix_group(process: subprocess.Popen, grace: float) -> None:
+    if not _signal_posix_group(process.pid, signal.SIGTERM):
         return
     try:
         process.wait(timeout=grace)
     except subprocess.TimeoutExpired:
         pass
     # The parent may have exited while a child ignores SIGTERM.
-    try:
-        os.killpg(process.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
+    _signal_posix_group(process.pid, signal.SIGKILL)
 
 
 def run_process(command: str | list[str], workspace: Path, *, shell: bool = False,
