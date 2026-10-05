@@ -1,7 +1,7 @@
 name: Coding harness checks
 on:
   push:
-    branches: [development]
+    branches: [development, main]
   pull_request:
 permissions:
   contents: read
