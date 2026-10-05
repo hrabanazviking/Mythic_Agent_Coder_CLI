@@ -8,12 +8,13 @@ import random
 from pathlib import Path
 from typing import Any, Callable
 
-from openai import OpenAI
+from openai import OpenAI, APIConnectionError, APIStatusError
 
 from .tools import execute_tool, get_agent_tools
 from ..core.config_manager import config_manager
 from ..constants import DEFAULT_SYSTEM_PROMPT
 from ..core.secure_api import publish_sync, subscribe
+from ..core.runtime import TurnCancelled, TurnResult, runtime_settings
 from ..memory.core_memory import CoreMemoryManager
 from ..memory.vector_db import get_vector_provider
 
@@ -41,6 +42,11 @@ class Agent:
         self.messages = []
         self.inbox = queue.Queue()
         self._lock = threading.Lock()
+        self._turn_lock = threading.Lock()
+        self._cancel = threading.Event()
+        self._pending_history_action = None
+        self.last_result = TurnResult("idle")
+        self.tui_app = None
         self.active_task_start_time = None
         self.rebuild_system_prompt()
         
@@ -58,34 +64,49 @@ class Agent:
         subscribe("agent_clear_history", self._handle_clear_history)
         subscribe("agent_compact_history", self._handle_compact_history)
         
-    def _handle_clear_history(self, target_agent: str):
-        if target_agent == self.name:
-            with self._lock:
-                # Keep only the system prompt
-                if self.messages and self.messages[0].get("role") == "system":
-                    self.messages = [self.messages[0]]
-                else:
-                    self.messages = []
-                publish_sync("agent_chat_chunk", agent_name=self.name, text="\n[bold green]Memory cleared. Context window is empty.[/bold green]\n")
+    def _handle_clear_history(self, target_agent: str, force: bool = False) -> None:
+        if target_agent != self.name:
+            return
+        if self._turn_lock.locked() and not force:
+            self._pending_history_action = "clear"
+            return
+        with self._lock:
+            self.messages = self.messages[:1]
+        publish_sync("agent_chat_chunk", agent_name=self.name,
+                     text="\nConversation cleared.\n")
 
-    def _handle_compact_history(self, target_agent: str):
-        if target_agent == self.name:
-            with self._lock:
-                if len(self.messages) > 10:
-                    forgotten_chunk = self.messages[1:11]
-                    if hasattr(self, "vector_db"):
-                        try:
-                            archive_text = "Archived Context Chunk:\n" + "\n".join(
-                                f"{m.get('role', 'unknown').upper()}: {m.get('content', '')}" for m in forgotten_chunk
-                            )
-                            self.vector_db.insert(archive_text)
-                        except Exception as e:
-                            logging.error(f"Auto-Archival failed during manual compact: {e}")
-                    
-                    self.messages = [self.messages[0]] + self.messages[11:]
-                    publish_sync("agent_chat_chunk", agent_name=self.name, text="\n[bold yellow]Context Compacted manually. Oldest 10 messages archived to VectorDB.[/bold yellow]\n")
-                else:
-                    publish_sync("agent_chat_chunk", agent_name=self.name, text="\n[dim]Context is already small. Compaction not necessary.[/dim]\n")
+    def _handle_compact_history(self, target_agent: str, force: bool = False) -> None:
+        if target_agent != self.name:
+            return
+        if self._turn_lock.locked() and not force:
+            self._pending_history_action = "compact"
+            return
+        with self._lock:
+            boundaries = [i for i, message in enumerate(self.messages)
+                          if message.get("role") == "user"]
+            if len(boundaries) < 2:
+                return
+            boundary = boundaries[-1]
+            archived = self.messages[1:boundary]
+        # Huginn preserves complete turns before changing the selected context.
+        try:
+            self.vector_db.insert("Archived Context: " + json.dumps(archived))
+        except Exception:
+            logging.exception("Archival failed; context preserved")
+            return
+        with self._lock:
+            self.messages = self.messages[:1] + self.messages[boundary:]
+        publish_sync("agent_chat_chunk", agent_name=self.name,
+                     text="\nOlder complete turns archived.\n")
+
+    def cancel(self) -> None:
+        """Interrupt retry waits and stop at the next runtime boundary."""
+        self._cancel.set()
+
+    def history_snapshot(self) -> list[dict[str, Any]]:
+        import copy
+        with self._lock:
+            return copy.deepcopy(self.messages)
 
     def get_user_context(self) -> str:
         user_name = self.config.get("user_name", "").strip()
@@ -191,7 +212,9 @@ class Agent:
             
         return OpenAI(
             base_url=base_url,
-            api_key=api_key or "sk-dummy"
+            api_key=api_key or "sk-dummy",
+            max_retries=0,
+            timeout=runtime_settings(self.config)["request_timeout"],
         )
         
     def set_model(self, model: str, base_url: str, api_key: str | None = None) -> None:
@@ -214,154 +237,129 @@ class Agent:
 
 
     def chat(self, prompt: str | None) -> str:
-        with self._lock:
-            if prompt:
-                # Continuous Subconscious Recall (Auto-RAG)
-                recalled = ""
-                if hasattr(self, "vector_db"):
-                    try:
-                        results = self.vector_db.search(prompt, top_k=2)
-                        if results:
-                            recalled = "\n\n[Subconscious Recall (Archival Memory)]\n"
-                            for r in results:
-                                recalled += f"- {r['text']}\n"
-                    except Exception as e:
-                        logging.error(f"Auto-RAG search failed: {e}")
-                
-                enriched_prompt = f"{prompt}{recalled}"
-                self.messages.append({"role": "user", "content": enriched_prompt})
-                
-        # Emit the compaction warning BEFORE locking so subscribers can acquire the lock safely
-        if len(self.messages) == 95:
-            self.messages.append({
-                "role": "system",
-                "content": "[CRITICAL ALERT] Memory capacity approaching 100%. A context compaction event is imminent. You MUST use the `update_status` tool NOW to dump your current task list, open problems, and findings to disk, or they will be permanently forgotten."
-            })
-            publish_sync("agent_chat_chunk", agent_name=self.name, text="\n[bold yellow][!] Auto-Compaction Warning Triggered. Forcing state dump...[/bold yellow]\n")
+        """Execute one serialized turn and preserve the tool protocol."""
+        with self._turn_lock:
+            self._cancel.clear()
+            try:
+                text = self._run_turn(prompt)
+                self.last_result = TurnResult("completed", text, total_tokens=self.total_tokens)
+                return text
+            except Exception as exc:
+                status = "cancelled" if isinstance(exc, TurnCancelled) else "failed"
+                self.last_result = TurnResult(status, error=str(exc), total_tokens=self.total_tokens)
+                raise
+            finally:
+                action = self._pending_history_action
+                self._pending_history_action = None
+                if action == "clear":
+                    self._handle_clear_history(self.name, force=True)
+                elif action == "compact":
+                    self._handle_compact_history(self.name, force=True)
 
-        # Keep the system prompt at index 0, and retain the last 90 messages.
-        if len(self.messages) > 100:
-            publish_sync("agent_chat_chunk", agent_name=self.name, text="\n[bold red][!] Context Compacted & Archived.[/bold red]\n")
-
-            # Auto-Archival: Save the forgotten chunk to Vector DB
-            if hasattr(self, "vector_db"):
-                forgotten_chunk = self.messages[1:11]
-                try:
-                    archive_text = "Archived Context Chunk:\n" + "\n".join(
-                        f"{m.get('role', 'unknown').upper()}: {m.get('content', '')}" for m in forgotten_chunk
-                    )
-                    self.vector_db.insert(archive_text)
-                except Exception as e:
-                    logging.error(f"Auto-Archival failed: {e}")
-
-            self.messages = [self.messages[0]] + self.messages[-90:]
-                
-            client = self.get_client()
-            
-            def print_chunk(text: str):
+    def _run_turn(self, prompt: str | None) -> str:
+        settings = runtime_settings(self.config)
+        if prompt:
+            recalled = self._recall(prompt)
+            with self._lock:
+                self.messages.append({"role": "user", "content": prompt + recalled})
+        client = self.get_client()
+        for _ in range(settings["max_tool_rounds"]):
+            self._check_cancelled()
+            response = self._request_response(client, settings)
+            if not response.choices:
+                raise RuntimeError("Provider returned no response choices")
+            message = self._normalize_message(response.choices[0].message)
+            usage = getattr(response, "usage", None)
+            if usage:
+                self.total_tokens += getattr(usage, "total_tokens", 0) or 0
+                publish_sync("agent_token_update", agent_name=self.name,
+                             total_tokens=self.total_tokens)
+            calls = message.get("tool_calls", [])
+            if not message.get("content") and not calls:
+                raise RuntimeError("Provider returned an empty assistant response")
+            with self._lock:
+                self.messages.append(message)
+            text = message.get("content") or ""
+            if text:
                 publish_sync("agent_chat_chunk", agent_name=self.name, text=text)
-                
-            def print_tool(text: str):
-                publish_sync("agent_chat_tool", agent_name=self.name, text=text)
-            
-            internal_loops = 0
-            while True:
-                import queue
-                try:
-                    while True:
-                        queued_prompt = self.inbox.get_nowait()
-                        if queued_prompt is None:
-                            return  # Cleanly exit thread
-                        self.messages.append({"role": "user", "content": f"New queued message received while you were working:\n{queued_prompt}"})
-                        print_chunk(f"\n[dim italic]... received and processed a queued message mid-execution ...[/dim italic]\n")
-                except queue.Empty:
-                    pass
-                    
-                internal_loops += 1
-                if internal_loops > 15:
-                    print_chunk("\n[bold red][!] Infinite tool loop detected. Forcing break.[/bold red]")
-                    print_chunk("\n[bold yellow][~] Auto-requesting progress update before continuing...[/bold yellow]")
-                    self.messages.append({"role": "user", "content": "Please give a brief update on the progress and then continue."})
-                    internal_loops = 0
-                    # Do not break, we auto-continue
-                    # The next iteration will call the API with the user message
-
-                max_retries = 10
-                retry_count = 0
-                response = None
-                
-                while True:
-                    try:
-                        response = client.chat.completions.create(
-                            model=self.config.get("model", config_manager.DEFAULT_MODEL),
-                            messages=self.messages,
-                            tools=get_agent_tools(),
-                            stream=False,
-                            timeout=120.0
-                        )
-                        break
-                    except Exception as e:
-                        retry_count += 1
-                        if retry_count > max_retries:
-                            raise e
-                        sleep_time = min(60, (2 ** retry_count) + random.uniform(0, 1))
-                        print_tool(f"\n[bold red][!] API Error: {e}. Retrying in {sleep_time:.1f}s ({retry_count}/{max_retries})...[/bold red]")
-                        time.sleep(sleep_time)
-                        
-                choice = response.choices[0]
-                message = choice.message
-                
-                if hasattr(response, "usage") and response.usage:
-                    self.total_tokens += getattr(response.usage, "total_tokens", 0)
-                    publish_sync("agent_token_update", agent_name=self.name, total_tokens=self.total_tokens)
-                
-                if message.content:
-                    logging.info(f"Agent response: {message.content}")
-                    print_chunk(message.content)
-                    publish_sync("agent_chat_spoken", agent_name=self.name, text=message.content)
-                    self.messages.append({"role": "assistant", "content": message.content})
-                    
-                if message.tool_calls:
-                    self.messages.append(message)  # Add the assistant's tool calls to context
-                    
-                    for tool_call in message.tool_calls:
-                        name = tool_call.function.name
-                        args_str = tool_call.function.arguments
-                        try:
-                            args = json.loads(args_str)
-                            
-                            logging.info(f"Tool executing: {name}({args})")
-                            
-                            if name == "write_file":
-                                file_path = args.get("path", "unknown")
-                                target_file = (self.project_root / file_path) if self.project_root else Path.cwd() / file_path
-                                if target_file.exists():
-                                    print_tool(f"\n[bold yellow][~] Edited {file_path}[/bold yellow]")
-                                else:
-                                    print_tool(f"\n[bold green][+] Created {file_path}[/bold green]")
-                            elif name == "read_file":
-                                file_path = args.get("path", "unknown")
-                                print_tool(f"\n> Reading {file_path} ...")
-                            else:
-                                print_tool(f"\n> Executing {name} ...")
-                                
-                            # Notice we pass agent=self to enable recursion tracking
-                            result = execute_tool(name, args, self.project_root, None, agent=self)
-                        except json.JSONDecodeError as je:
-                            logging.error(f"JSONDecodeError parsing tool args: {je}")
-                            result = f"Error parsing JSON arguments for tool {name}: {je}. Please fix your JSON syntax and try again."
-                            
-                        logging.info(f"Tool result: {result}")
-                        
-                        self.messages.append({
-                            "role": "tool",
-                            "tool_call_id": tool_call.id,
-                            "content": result
-                        })
+                publish_sync("agent_chat_spoken", agent_name=self.name, text=text)
+            if not calls:
+                return text
+            for call in calls:
+                if self._cancel.is_set():
+                    result = "Tool cancelled before execution."
                 else:
-                    break
-                    
-            return ""
+                    result = self._execute_call(call)
+                with self._lock:
+                    self.messages.append({"role": "tool", "tool_call_id": call["id"],
+                                          "content": result})
+            self._check_cancelled()
+        raise RuntimeError("Configured tool round budget exhausted; inspect progress and continue explicitly")
+
+    def _check_cancelled(self) -> None:
+        if self._cancel.is_set():
+            raise TurnCancelled("Turn cancelled by user")
+
+    def _recall(self, prompt: str) -> str:
+        try:
+            results = self.vector_db.search(prompt, top_k=2)
+            if results:
+                return "\n\n[Archival memory]\n" + "\n".join(r["text"] for r in results)
+        except Exception:
+            logging.exception("Archival recall failed; continuing without retrieval")
+        return ""
+
+    def _request_response(self, client: OpenAI, settings: dict[str, Any]) -> Any:
+        for attempt in range(settings["max_retries"] + 1):
+            self._check_cancelled()
+            try:
+                return client.chat.completions.create(
+                    model=self.config.get("model", config_manager.DEFAULT_MODEL),
+                    messages=self.history_snapshot(), tools=get_agent_tools(),
+                    stream=False, timeout=settings["request_timeout"],
+                )
+            except (APIConnectionError, APIStatusError) as exc:
+                transient = isinstance(exc, APIConnectionError) or (
+                    exc.status_code in (408, 409, 429) or exc.status_code >= 500
+                )
+                if not transient or attempt == settings["max_retries"]:
+                    raise
+                delay = min(settings["retry_delay_cap"], settings["retry_delay"] * 2 ** attempt)
+                publish_sync("agent_chat_tool", agent_name=self.name,
+                             text=f"\nProvider temporarily unavailable; retry {attempt + 1}.\n")
+                if self._cancel.wait(delay):
+                    raise TurnCancelled("Turn cancelled during retry") from exc
+        raise RuntimeError("Provider retry budget exhausted")
+
+    @staticmethod
+    def _normalize_message(message: Any) -> dict[str, Any]:
+        raw = message if isinstance(message, dict) else message.model_dump(exclude_none=True)
+        normalized = {"role": "assistant", "content": raw.get("content")}
+        if raw.get("tool_calls"):
+            normalized["tool_calls"] = [
+                {"id": call["id"], "type": "function",
+                 "function": {"name": call["function"]["name"],
+                              "arguments": call["function"]["arguments"]}}
+                for call in raw["tool_calls"]
+            ]
+        return normalized
+
+    def _execute_call(self, call: dict[str, Any]) -> str:
+        name = call["function"]["name"]
+        publish_sync("agent_chat_tool", agent_name=self.name,
+                     text=f"\n> Executing {name} ...\n")
+        try:
+            arguments = json.loads(call["function"]["arguments"])
+            if not isinstance(arguments, dict):
+                return "Tool arguments must be a JSON object."
+            if name == "clear_context":
+                self._pending_history_action = "clear"
+                return "Conversation will clear after this turn completes."
+            result = execute_tool(name, arguments, self.project_root, self.tui_app, agent=self)
+            return result if isinstance(result, str) else json.dumps(result)
+        except Exception as exc:
+            logging.warning("Tool %s failed: %s", name, type(exc).__name__)
+            return f"Tool {name} failed: {exc}"
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
@@ -417,7 +415,7 @@ class AgentManager:
         
         # Inherit memory context completely
         import copy
-        ghost_agent.messages = copy.deepcopy(original_agent.messages)
+        ghost_agent.messages = original_agent.history_snapshot()
         # Re-build system prompt if needed, but it's copied in messages
         
         AGENT_REGISTRY[ghost_name] = ghost_agent
@@ -437,7 +435,7 @@ class AgentManager:
         ghost = self.spawn_ghost_agent(original)
         
         # Give the ghost agent awareness of what the original agent is currently doing
-        latest_work = [m for m in original.messages if m["role"] in ("assistant", "tool")][-3:]
+        latest_work = [m for m in original.history_snapshot() if m.get("role") in ("assistant", "tool")][-3:]
         if latest_work:
             import json
             awareness = []

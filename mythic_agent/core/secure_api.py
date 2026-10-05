@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import threading
 from typing import Callable, Dict, List, Any
 
 # Setup basic internal logger
@@ -17,25 +18,31 @@ class EventBus:
     """
     def __init__(self):
         self._subscribers: Dict[str, List[Callable]] = {}
+        self._lock = threading.RLock()
 
     def subscribe(self, event_type: str, callback: Callable):
         """Subscribe to an event."""
-        if event_type not in self._subscribers:
-            self._subscribers[event_type] = []
-        self._subscribers[event_type].append(callback)
+        with self._lock:
+            callbacks = self._subscribers.setdefault(event_type, [])
+            if callback not in callbacks:
+                callbacks.append(callback)
         logger.debug(f"Subscribed to event: {event_type}")
 
     def unsubscribe(self, event_type: str, callback: Callable):
         """Unsubscribe from an event."""
-        if event_type in self._subscribers:
-            if callback in self._subscribers[event_type]:
+        with self._lock:
+            if callback in self._subscribers.get(event_type, []):
                 self._subscribers[event_type].remove(callback)
+
+    def _callbacks(self, event_type: str) -> tuple[Callable, ...]:
+        with self._lock:
+            return tuple(self._subscribers.get(event_type, []))
 
     async def publish(self, event_type: str, **kwargs):
         """Asynchronously publish an event to all subscribers."""
         logger.debug(f"Publishing event: {event_type} with data: {kwargs}")
         if event_type in self._subscribers:
-            for callback in self._subscribers[event_type]:
+            for callback in self._callbacks(event_type):
                 try:
                     if asyncio.iscoroutinefunction(callback):
                         await callback(**kwargs)
@@ -48,7 +55,7 @@ class EventBus:
         """Synchronously publish an event to all subscribers."""
         logger.debug(f"Publishing sync event: {event_type} with data: {kwargs}")
         if event_type in self._subscribers:
-            for callback in self._subscribers[event_type]:
+            for callback in self._callbacks(event_type):
                 try:
                     if asyncio.iscoroutinefunction(callback):
                         # Async subscribers cannot be awaited from a sync context.
