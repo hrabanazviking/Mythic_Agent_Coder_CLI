@@ -88,3 +88,28 @@ Do not equate local tests with real-provider or physical cross-platform testing.
   concurrent journals, stale undo, permissions, path escapes and full content.
 - Windows symlink/POSIX mode tests state platform limitations. Shell execution
   remains a powerful non-sandboxed operation pending S06 policy/process work.
+
+- S03 revision `80afc0cbd492fe6f843b28af6b3e6ec584b5f259` passed all six hosted
+  jobs in run `37259636657` (48 tests, builds and installed-core smoke checks).
+
+## S04 — human terminal chat and machine task runs
+
+- Work order: `323ef28db40a22f2862e21eb87cd0192ad3514c4`, pushed and remote-verified.
+- Added `mythic chat`, `mythic run` and explicit `mythic tui`; default remains TUI.
+  Core works without optional UI/speech dependencies. Help/version stay import-light.
+- Run supports prompt/stdin, workspace/model/endpoint overrides, plain/JSON/JSONL
+  results and documented exits. Chat supports repeated turns and core slash commands.
+- CLI attaches explicit read-only/ask/trusted tool policy. Noninteractive approval
+  never blocks; denied tools return structured approval-required status and exit 3.
+- `MYTHIC_HOME` isolates state and skips legacy-home import. Invocation provider
+  overrides are temporary; explicit human `/model` remains a saved preference.
+- KeyboardInterrupt closes pending tool-call/result groups so another turn works.
+- Local maintained suite: 61 passed. Built wheel+sdist. Installed the core wheel
+  in an independent environment and ran all 12 CLI HTTP/subprocess tests from
+  outside checkout; Textual verified absent.
+- HTTP fixtures ran only on localhost and exercised actual SDK requests, tool
+  execution/refusal, stdin, output parsing, chat clear/add/undo, auth failure, and
+  settings preservation. No hosted-provider credentials or charges.
+- Versioned result/exit contracts and examples are in `docs/CLI.md`. Durable
+  resume, unified TUI/direct/MCP policy, active process stop and streamed HTTP are
+  separate S05–S07/S13 work; current JSONL events are per provider response.
