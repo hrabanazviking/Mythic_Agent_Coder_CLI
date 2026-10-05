@@ -1,6 +1,7 @@
 import json
 import shutil
 import logging
+import os
 from pathlib import Path
 from typing import Any, Dict
 from .secure_api import publish_sync
@@ -14,7 +15,7 @@ class ConfigManager:
     Implements Thor Guardian's principle of 'safe handling' for file operations.
     """
     def __init__(self):
-        self.MYTHIC_DIR = Path.home() / ".mythic"
+        self.MYTHIC_DIR = Path(os.environ.get("MYTHIC_HOME", Path.home() / ".mythic")).expanduser().resolve()
         self.CONFIG_FILE = self.MYTHIC_DIR / "config.json"
         
         self.DEFAULT_MODEL = "deepseek-chat"
@@ -33,7 +34,7 @@ class ConfigManager:
         old_config = Path.home() / ".mythic_config.json"
         
         # Migration from legacy location
-        if old_config.exists() and not self.CONFIG_FILE.exists():
+        if not os.environ.get("MYTHIC_HOME") and old_config.exists() and not self.CONFIG_FILE.exists():
             try:
                 shutil.copy2(old_config, self.CONFIG_FILE)
             except Exception as e:

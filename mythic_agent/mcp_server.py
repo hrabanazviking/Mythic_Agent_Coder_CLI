@@ -19,13 +19,8 @@ from .agents.llm import agent_manager
 mcp = FastMCP("Mythic OS MCP Server")
 
 def get_project_root() -> Path:
-    config = config_manager.load_config()
-    working_dir_str = config.get("working_directory")
-    if working_dir_str:
-        return Path(working_dir_str).expanduser().resolve()
-    default_wd = config_manager.MYTHIC_DIR / "mythic_longhall"
-    default_wd.mkdir(parents=True, exist_ok=True)
-    return default_wd
+    from .core.workspace import resolve_workspace
+    return resolve_workspace(config=config_manager.load_config())
 
 @mcp.tool()
 def mythic_core_memory_read(agent_name: str = "Primary") -> str:

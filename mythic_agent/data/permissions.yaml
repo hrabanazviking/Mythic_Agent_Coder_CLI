@@ -1,0 +1,5 @@
+# Read-only CLI mode excludes commands, delegation and external integrations.
+read_only_tools:
+  - read_file
+  - list_dir
+  - grep_search

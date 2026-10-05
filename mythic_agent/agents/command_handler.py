@@ -14,17 +14,8 @@ class CommandHandler:
     """
     def __init__(self):
         subscribe("system_command_executed", self._handle_command)
-        self.project_root = None
-        
-        # Load the initial project root from config
-        config = config_manager.load_config()
-        working_dir_str = config.get("working_directory")
-        if working_dir_str:
-            self.project_root = Path(working_dir_str).expanduser().resolve()
-        else:
-            default_wd = config_manager.MYTHIC_DIR / "mythic_longhall"
-            default_wd.mkdir(parents=True, exist_ok=True)
-            self.project_root = default_wd
+        from ..core.workspace import resolve_workspace
+        self.project_root = resolve_workspace(config=config_manager.load_config())
 
     def _handle_command(self, command: str, args: str):
         """Routes the slash commands from the UI."""
@@ -165,15 +156,15 @@ class CommandHandler:
         publish_sync("ui_chat_request", user_input=context, target_agent="Primary")
 
     def _handle_undo(self, args: str):
+        from ..core.edits import EditJournal
+        from .llm import AGENT_REGISTRY
+        primary = AGENT_REGISTRY.get("Primary")
+        root = primary.project_root if primary else self.project_root
         try:
-            subprocess.run(["git", "reset", "--hard", "HEAD~1"], cwd=str(self.project_root), check=True, timeout=30)
-            publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[green]Successfully rolled back to the previous state using git reset.[/green]\n")
-        except subprocess.CalledProcessError as e:
-            publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[red]Undo failed: {e.stderr or str(e)}[/red]\n")
-        except subprocess.TimeoutExpired:
-            publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]git reset timed out.[/red]\n")
-        except FileNotFoundError:
-            publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]Error: 'git' not found.[/red]\n")
+            result = EditJournal(root).undo()
+        except Exception as exc:
+            result = f"Undo failed; no Git reset was performed: {exc}"
+        publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n{result}\n")
 
     def _handle_issue(self, args: str):
         if not args:
