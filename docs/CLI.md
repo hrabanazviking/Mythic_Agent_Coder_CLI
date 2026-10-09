@@ -142,6 +142,17 @@ application-state location and inherited account ACLs, not POSIX mode guarantees
 Managed secondary-agent lifecycle/session integration remains S08, and workspace
 core/vector memory migration remains S11.
 
+## LLM response cache
+
+Identical prompts are answered from a disk cache (`MYTHIC_HOME/cache`, entries
+expire after 1 hour), saving latency and provider quota. Inspect or clear it:
+
+```sh
+mythic cache --stats   # entries, hits, misses, disk usage, TTL
+mythic cache --stats --json
+mythic cache --clear   # remove all cached responses
+```
+
 ```sh
 mythic tui --workspace ./my-project
 ```

@@ -9,6 +9,7 @@ _mythic() {
         'chat:Start the terminal conversation loop'
         'tui:Start the optional Textual interface'
         'sessions:List or export workspace sessions as JSON'
+        'doctor:Run system health checks'
     )
 
     local curcontext="$curcontext" state line

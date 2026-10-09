@@ -63,8 +63,18 @@ def invoke(tmp_path, endpoint, *arguments, input_text=None):
     env = os.environ.copy()
     for key in ("OPENAI_API_KEY", "DEEPSEEK_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY"):
         env.pop(key, None)
-    env["MYTHIC_HOME"] = str(tmp_path / "app-state")
+    # Slice 9 (test suite health): hermetic loopback. Proxy environment must
+    # not be able to break or reroute traffic to the fixture server: HTTP
+    # clients consult both cases, and a lowercase no_proxy defeats an
+    # uppercase-only NO_PROXY override (urllib.request.getproxies lets the
+    # lowercase entry win), which has stalled/broken these tests outright.
+    # Strip every proxy variable, then pin loopback bypass explicitly.
+    for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
+                "http_proxy", "https_proxy", "all_proxy", "no_proxy"):
+        env.pop(key, None)
     env["NO_PROXY"] = "127.0.0.1,localhost"
+    env["no_proxy"] = "127.0.0.1,localhost"
+    env["MYTHIC_HOME"] = str(tmp_path / "app-state")
     command = [sys.executable, "-m", "mythic_agent.cli", arguments[0],
                "--workspace", str(tmp_path),
                *(["--base-url", url, "--model", "fixture-model"] if arguments[0] != "sessions" else []),

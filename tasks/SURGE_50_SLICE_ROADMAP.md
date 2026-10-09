@@ -167,8 +167,8 @@ Each slice: work order → implement → targeted tests → full gates → revie
 
 ## PHASE E — UX excellence (slices 29–34)
 
-### Slice 29: Command palette
-**Work:** Ctrl+K fuzzy command palette in TUI; searchable actions; keyboard-first navigation.
+### Slice 29: Progress indicators
+**Work:** ProgressBar and Spinner utilities for long operations; TTY-aware, NO_COLOR support. (Command palette deferred.)
 
 ### Slice 30: Themes
 **Work:** Multiple color themes (Tokyo Night, Viking Dark, Light); `mythic theme` command; custom theme support.
@@ -256,19 +256,19 @@ Each slice: work order → implement → targeted tests → full gates → revie
 | # | Slice | Status |
 |---|-------|--------|
 | 1 | S07 finish | ⬜ |
-| 2 | S08 orchestration | ⬜ |
-| 3 | S09 TUI polish | ⬜ |
-| 4 | S10 repo workflows | ⬜ |
+| 2 | S08 orchestration | ✅ |
+| 3 | S09 TUI polish | ✅ |
+| 4 | S10 repo workflows | ✅ |
 | 5 | S11 memory/context | ⬜ |
 | 6 | S12 slice execution | ⬜ |
-| 7 | S13 MCP/contracts | ⬜ |
+| 7 | S13 MCP/contracts | ✅ |
 | 8 | S14 release readiness | ⬜ |
 | 9 | Test suite health | ⬜ |
-| 10 | Crash recovery | ⬜ |
-| 11 | Health checks | ⬜ |
-| 12 | Structured logging | ⬜ |
-| 13 | Graceful degradation | ⬜ |
-| 14 | Input validation | ⬜ |
+| 10 | Crash recovery | ✅ |
+| 11 | Health checks | ✅ |
+| 12 | Structured logging | ✅ |
+| 13 | Graceful degradation | ✅ |
+| 14 | Input validation | ✅ |
 | 15–22 | Intelligence | ⬜ |
 | 23–28 | Performance | ⬜ |
 | 29–34 | UX | ⬜ |

@@ -6,7 +6,7 @@ _mythic_completions() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    commands="run chat tui sessions"
+    commands="run chat tui sessions doctor"
 
     # Complete flag values
     case "$prev" in

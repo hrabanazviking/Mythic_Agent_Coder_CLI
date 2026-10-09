@@ -14,6 +14,7 @@ from typing import Any
 from filelock import FileLock, Timeout
 
 from .redaction import SecretRedactor
+from .journal import WriteAheadLog
 from .workspace import workspace_id
 
 
@@ -84,6 +85,11 @@ class SessionStore:
         self.path = self.root / "sessions.sqlite"
         self.redactor = redactor or SecretRedactor({})
         self._leases: dict[str, FileLock] = {}
+        self.journal = WriteAheadLog(self.root / "journal.log")
+        # Entries journaled but never committed: the previous process died
+        # mid-checkpoint.  They are NOT auto-applied here; the caller decides
+        # via check_recovery()/recover_pending() (auto-recover or prompt).
+        self._pending_recovery: list[dict[str, Any]] = self.journal.pending()
         with FileLock(str(self.root / "initialize.lock"), timeout=10):
             try:
                 descriptor = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
@@ -137,6 +143,50 @@ class SessionStore:
         lock = self._leases.pop(session_id, None)
         if lock:
             lock.release()
+
+    def check_recovery(self) -> list[dict[str, Any]]:
+        """Summaries of journaled checkpoints left uncommitted by a crashed process."""
+        return [{"journal_id": entry["journal_id"], "session_id": entry["session_id"],
+                 "recorded_at": entry["ts"],
+                 "status": entry["checkpoint"].get("status"),
+                 "total_tokens": entry["checkpoint"].get("total_tokens")}
+                for entry in self._pending_recovery]
+
+    def recover_pending(self) -> list[str]:
+        """Replay uncommitted journaled checkpoints; returns recovered session ids.
+
+        Replay is idempotent: it applies only the checkpoint state (context,
+        status, tokens, outcome) and records a ``recovered`` event instead of
+        re-inserting the original event, so a second replay changes nothing.
+        """
+        recovered: list[str] = []
+        for entry in self._pending_recovery:
+            journal_id = entry["journal_id"]
+            session_id = entry["session_id"]
+            checkpoint = entry["checkpoint"]
+            try:
+                with self._connection() as connection:
+                    cursor = connection.execute(
+                        "UPDATE sessions SET updated_at=?, status=?, context=?, total_tokens=?, outcome=? WHERE id=?",
+                        (_now(), checkpoint["status"],
+                         json.dumps(checkpoint["messages"], allow_nan=False),
+                         checkpoint["total_tokens"],
+                         json.dumps(checkpoint["outcome"], allow_nan=False)
+                         if checkpoint.get("outcome") is not None else None,
+                         session_id))
+                    if cursor.rowcount == 1:
+                        self._insert_event(connection, session_id,
+                                           {"type": "recovered", "journal_id": journal_id,
+                                            "note": "Replayed from write-ahead journal after unclean shutdown; "
+                                                    "no tool was re-executed."})
+                        recovered.append(session_id)
+            finally:
+                # Tombstone even when the session row is gone: there is nothing
+                # left to recover, and the entry must not haunt future startups.
+                self.journal.commit(journal_id)
+        self._pending_recovery = []
+        self.journal.vacuum()
+        return recovered
 
     def create(self, messages: list[dict[str, Any]], metadata: dict[str, Any]) -> str:
         validate_messages(messages)
@@ -209,20 +259,54 @@ class SessionStore:
         validate_messages(messages)
         if status not in self.STATUSES or isinstance(total_tokens, bool) or not isinstance(total_tokens, int) or total_tokens < 0:
             raise ValueError("Invalid session outcome")
-        context = json.dumps(messages, allow_nan=False)
-        encoded_outcome = json.dumps(outcome, allow_nan=False) if outcome is not None else None
-        with self._connection() as connection:
-            cursor = connection.execute("UPDATE sessions SET updated_at=?, status=?, context=?, total_tokens=?, outcome=? WHERE id=?",
-                                        (_now(), status, context, total_tokens, encoded_outcome, session_id))
-            if cursor.rowcount != 1:
-                raise ValueError("Session not found in this workspace")
-            if event:
-                self._insert_event(connection, session_id, event)
+        # Write-ahead: journal the mutation intent BEFORE touching SQLite, so a
+        # crash between here and the commit below is recoverable on next startup.
+        journal_id = self.journal.append_checkpoint(
+            session_id,
+            {"messages": messages, "status": status,
+             "total_tokens": total_tokens, "outcome": outcome},
+            event)
+        try:
+            context = json.dumps(messages, allow_nan=False)
+            encoded_outcome = json.dumps(outcome, allow_nan=False) if outcome is not None else None
+            with self._connection() as connection:
+                cursor = connection.execute("UPDATE sessions SET updated_at=?, status=?, context=?, total_tokens=?, outcome=? WHERE id=?",
+                                            (_now(), status, context, total_tokens, encoded_outcome, session_id))
+                if cursor.rowcount != 1:
+                    raise ValueError("Session not found in this workspace")
+                if event:
+                    self._insert_event(connection, session_id, event)
+        except Exception:
+            raise  # journal entry stays pending -> replayed by recover_pending()
+        self.journal.commit(journal_id)
 
     def list_sessions(self) -> list[dict[str, Any]]:
         with self._connection() as connection:
             rows = connection.execute("SELECT id, schema_version, created_at, updated_at, status, total_tokens, metadata FROM sessions ORDER BY updated_at DESC, id").fetchall()
         return self.redactor.sanitize([{**dict(row), "metadata": json.loads(row["metadata"])} for row in rows])
+
+    def session_event_counts(self, session_id: str) -> dict[str, int]:
+        """Count recorded events for a session by event type.
+
+        The "tasks" (or "turns") figure counts "turn_started" events; when
+        none exist it falls back to "turn_finished". Returns a dict with keys
+        "events", "tasks" and "turns" (turns is an alias of tasks).
+        """
+        validate_session_id(session_id)
+        with self._connection() as connection:
+            rows = connection.execute(
+                "SELECT payload FROM events WHERE session_id=?", (session_id,)).fetchall()
+        counts: dict[str, int] = {}
+        for row in rows:
+            try:
+                payload = json.loads(row["payload"])
+            except (ValueError, TypeError):
+                payload = {}
+            event_type = str(payload.get("type", "unknown")) if isinstance(payload, dict) else "unknown"
+            counts[event_type] = counts.get(event_type, 0) + 1
+        tasks = counts.get("turn_started", counts.get("turn_finished", 0))
+        return {"events": sum(counts.values()), "tasks": tasks, "turns": tasks,
+                "by_type": counts}
 
     def export(self, session_id: str) -> dict[str, Any]:
         validate_session_id(session_id)

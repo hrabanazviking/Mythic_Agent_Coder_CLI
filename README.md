@@ -47,6 +47,21 @@ Mythic Agent supports multiple LLM endpoints out of the box. Easily configure:
 - OpenAI
 - OpenCode Go
 
+### 🆕 Recent Features
+- **`mythic doctor`** — System health checks (config, providers, tools, sessions, disk, dependencies) with `--json` for machines, `--fix` for safe auto-repairs, and `--live` for opt-in live provider checks.
+- **Agent lifecycle & orchestration** — Typed task IDs with queued/running/completed/failed/cancelled states, delegation-cycle detection, cancellation propagation, and per-agent turn/tool budgets. Inspect via the MCP `mythic_task_status` / `mythic_task_cancel` tools.
+- **`mythic cache`** — Inspect or clear the LLM response cache (`--stats`, `--clear`) so you never pay twice for identical requests.
+- **`mythic costs`** — A model API cost ledger per workspace; unknown pricing is reported as unknown, never invented.
+- **`mythic metrics`** — Recorded timers, counters, gauges, and traces for the workspace.
+- **`mythic review`** — Static review of Python files with severity filtering and JSON output.
+- **`mythic theme`** — List and apply color themes for the interface.
+- **`mythic tutorial`** — Interactive first-run tutorial from any terminal.
+- **Shell completions** — Ready-made completions for bash, zsh, and fish in `completions/`.
+- **MCP server (`mythic-mcp`)** — External AI agents get the same workspace/policy/session/task services over stdio, with versioned tool contracts.
+- **`mythic sessions --search`** — Filter workspace sessions by id, status, model, or metadata.
+
+See the [User Guide](docs/USER_GUIDE.md) and [API reference](docs/API.md) for the full tour.
+
 ---
 
 ![https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-e04bc550-a7a5-4423-ab48-33d912f0a27a.png](https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-e04bc550-a7a5-4423-ab48-33d912f0a27a.png)

@@ -11,6 +11,7 @@ mythic_engineering_mode: false
 auto_accept_permissions: false
 permission_mode: ask
 machine_permission_mode: read-only
+streaming: false
 runtime: {}
 github:
   repo_url: ''

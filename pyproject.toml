@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mythic-agent"
-version = "0.1.0"
+dynamic = ["version"]
 description = "A clean, affordable CLI AI coding agent."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -38,11 +38,14 @@ voice-cloning = [
     "chatterbox-tts>=0.1.0",
     "torchaudio>=2.0.0"
 ]
-dev = ["pytest>=8,<10", "build>=1.2", "hatchling>=1.26"]
+dev = ["pytest>=8,<10", "pytest-timeout>=2.4", "build>=1.2", "hatchling>=1.26"]
 
 [project.scripts]
 mythic = "mythic_agent.cli:main"
 mythic-mcp = "mythic_agent.mcp_server:main"
+
+[tool.hatch.version]
+path = "mythic_agent/__version__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["mythic_agent"]
@@ -57,3 +60,7 @@ include = ["mythic_agent/", "default_agent_characters/", "Mythic-Engineering/", 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+# Slice 9 (test suite health): a per-test ceiling so a stalled test fails
+# loudly instead of hanging the suite indefinitely. 120s comfortably covers
+# the slowest subprocess-driven CLI tests (~35s on a loaded box).
+timeout = 120
