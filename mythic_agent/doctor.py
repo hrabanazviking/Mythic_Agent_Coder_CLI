@@ -9,10 +9,11 @@
 - Dependencies: optional packages report status (not failures)
 
 Usage:
-    mythic doctor           # run all checks
-    mythic doctor --fix     # auto-fix safe issues
-    mythic doctor --json    # JSON output for machines
-    mythic doctor --live    # include live provider connectivity (may cost $)
+    mythic doctor            # run all checks (offline; no network, no Agent)
+    mythic doctor --provider # provider diagnostics with a live connectivity check
+    mythic doctor --fix      # auto-fix safe issues
+    mythic doctor --json     # JSON output for machines
+    mythic doctor --live     # include live provider connectivity (may cost $)
 
 Each check returns a HealthResult(status, message, fix_hint).
 """
@@ -161,6 +162,87 @@ def check_dependencies() -> HealthResult:
                         "All optional dependencies present")
 
 
+@health_check("provider")
+def check_provider() -> HealthResult:
+    """Offline provider configuration diagnostics: no network, no Agent."""
+    try:
+        from mythic_agent.core.config_manager import config_manager
+        from mythic_agent.agents.llm import diagnose_provider
+        report = diagnose_provider(config_manager.load_config())
+    except Exception as exc:
+        return HealthResult("provider", HealthStatus.FAIL,
+                            f"Provider diagnostics failed: {exc}")
+    detail = (f"{report['model'] or 'no model'} @ {report['base_url']}"
+              + (" (loopback, no key needed)" if report["loopback"] else "")
+              + f", retries: {report['retry_budget']}"
+              + f", streaming: {'on' if report['streaming'] else 'off'}")
+    problems, hints = [], []
+    if not report["base_url_valid"]:
+        problems.append(f"base_url is not a valid HTTP(S) URL: {report['base_url']}")
+        hints.append("Set a valid base_url with /model <name> <url> or MYTHIC_BASE_URL.")
+    if not report["model_configured"]:
+        problems.append("no model configured")
+        hints.append("Set a model with /model <name> or MYTHIC_MODEL.")
+    if report["auth_required"] and not report["api_key_configured"]:
+        problems.append(f"no API key configured for {report['base_url']}")
+        hints.append("Store a key for this endpoint or export the provider's API key variable.")
+    if problems:
+        return HealthResult("provider", HealthStatus.FAIL,
+                            "; ".join(problems) + f" [{detail}]",
+                            fix_hint=" ".join(hints))
+    return HealthResult("provider", HealthStatus.OK,
+                        f"Provider configured [{detail}]")
+
+
+def check_provider_live(timeout: float = 15.0) -> HealthResult:
+    """Explicit live connectivity check: one metadata request, redacted errors.
+
+    Never runs implicitly; only via ``--live``/``--provider``. Reports
+    reachable/auth/failure outcomes honestly without inventing pricing or
+    capabilities.
+    """
+    import threading
+    import time
+
+    from mythic_agent.agents.llm import ProviderCredentialsError, build_provider_client
+    from mythic_agent.core.config_manager import config_manager
+    from mythic_agent.core.redaction import redact_text
+
+    config = config_manager.load_config()
+    base_url = config.get("base_url", "")
+    try:
+        client = build_provider_client(config, threading.Event())
+    except ProviderCredentialsError as exc:
+        return HealthResult("provider-live", HealthStatus.FAIL, str(exc),
+                            fix_hint="Configure a key for this endpoint to enable live checks.")
+    client.timeout = timeout  # Doctor probes stay short; turn timeouts are separate.
+    started = time.monotonic()
+    try:
+        models = client.models.list()
+    except Exception as exc:
+        kind = type(exc).__name__
+        if "Authentication" in kind or "401" in str(exc):
+            message, hint = "authentication rejected (401)", "Check the stored API key for this endpoint."
+        elif "Timeout" in kind or "timed out" in str(exc).lower():
+            message, hint = "request timed out", "Check the endpoint URL and network connectivity."
+        elif "Connection" in kind:
+            message, hint = "endpoint unreachable", "Check the endpoint URL and network connectivity."
+        else:
+            message, hint = f"live check failed ({kind})", "Check the endpoint URL and provider status."
+        return HealthResult("provider-live", HealthStatus.FAIL,
+                            f"{base_url}: {message}: {redact_text(str(exc))[:200]}",
+                            fix_hint=hint)
+    elapsed_ms = (time.monotonic() - started) * 1000
+    ids = [getattr(model, "id", "") for model in getattr(models, "data", []) or []]
+    configured = (config.get("model", "") or "").strip()
+    detail = f"{base_url} reachable in {elapsed_ms:.0f}ms, {len(ids)} model(s) discovered"
+    if configured and ids and configured not in ids:
+        return HealthResult("provider-live", HealthStatus.WARNING,
+                            f"{detail}; configured model '{configured}' not in discovery",
+                            fix_hint="Run /model to pick a discovered model id.")
+    return HealthResult("provider-live", HealthStatus.OK, detail)
+
+
 def run_checks(names: list[str] | None = None) -> list[HealthResult]:
     """Run health checks, optionally filtered by name."""
     results = []
@@ -205,17 +287,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--fix", action="store_true", help="Auto-fix safe issues")
     parser.add_argument("--live", action="store_true",
                         help="Include live provider checks (may incur cost)")
+    parser.add_argument("--provider", action="store_true",
+                        help="Provider diagnostics only, with a live connectivity check")
     parser.add_argument("--check", action="append", dest="checks",
                         help="Run only named checks")
     args = parser.parse_args(argv)
 
     print("Mythic Agent health check")
     print("=" * 40)
-    results = run_checks(args.checks)
-
-    if args.live:
-        # Placeholder for Slice 1's --provider live checks
-        print("  - live provider checks: not yet implemented (Slice 1)")
+    if args.provider:
+        results = [check_provider(), check_provider_live()]
+    else:
+        results = run_checks(args.checks)
+        if args.live:
+            results.append(check_provider_live())
 
     code = print_results(results, as_json=args.json)
     if code == 0:

@@ -12,6 +12,7 @@ except ImportError:
 
 from .core.config_manager import config_manager
 from .memory.core_memory import CoreMemoryManager
+from .memory.scopes import scope_for_root
 from .memory.vector_db import get_vector_provider
 from .agents.llm import agent_manager
 from .core.policy import ToolPolicy, policy_mode
@@ -36,13 +37,21 @@ def get_project_root() -> Path:
     from .core.workspace import resolve_workspace
     return resolve_workspace(config=config_manager.load_config())
 
+
+def _scoped_memory(agent_name: str) -> CoreMemoryManager:
+    """Core memory for an agent, namespaced to the current workspace."""
+    return CoreMemoryManager(
+        _agent_name(agent_name),
+        workspace_id=scope_for_root(get_project_root()).workspace_id,
+    )
+
 @mcp.tool()
 def mythic_core_memory_read(agent_name: str = "Primary") -> str:
     """Read the Core OS Memory block for a specific Mythic agent (default: Primary)."""
     denied = _permission("core_memory_read", {"agent_name": agent_name})
     if denied:
         return denied
-    core_memory = CoreMemoryManager(_agent_name(agent_name))
+    core_memory = _scoped_memory(agent_name)
     return core_memory.format_for_prompt()
 
 @mcp.tool()
@@ -54,7 +63,7 @@ def mythic_core_memory_append(block_name: str, content: str, agent_name: str = "
     denied = _permission("core_memory_append", {"agent_name": agent_name, "block": block_name, "content": content})
     if denied:
         return denied
-    core_memory = CoreMemoryManager(_agent_name(agent_name))
+    core_memory = _scoped_memory(agent_name)
     success = core_memory.append(block_name, content)
     if success:
         return f"Successfully appended to the {block_name} block for {agent_name}."
@@ -135,6 +144,77 @@ def mythic_delegate_to_subagent(sub_agent_name: str, task_description: str, send
         
     sub_agent.inbox.put(f"Task from {sender_name}:\n{task_description}")
     return f"Successfully spawned '{sub_agent_name}' in the background and assigned the task. It is now executing autonomously."
+
+
+# --- Slice 7 (S13): Task lifecycle + capabilities tools ---
+
+@mcp.tool()
+def mythic_task_status(task_id: str) -> str:
+    """Get the status of a task by ID. Returns state, parent, result/error if finished."""
+    denied = _permission("task_status", {"task_id": task_id})
+    if denied:
+        return denied
+    try:
+        from .agents.tasks import get_registry
+        task = get_registry().get(task_id)
+        if not task:
+            return f"Error: no task with ID '{task_id}'"
+        import json
+        return json.dumps({
+            "task_id": task.task_id,
+            "name": task.name,
+            "state": task.state.value,
+            "parent_id": task.parent_id,
+            "result": str(task.result)[:500] if task.result else None,
+            "error": task.error,
+        })
+    except ImportError:
+        return "Error: task registry not available"
+
+
+@mcp.tool()
+def mythic_task_cancel(task_id: str) -> str:
+    """Cancel a running task and its children."""
+    denied = _permission("task_cancel", {"task_id": task_id})
+    if denied:
+        return denied
+    try:
+        from .agents.tasks import get_registry
+        get_registry().cancel(task_id)
+        return f"Task '{task_id}' cancelled (children included)."
+    except ImportError:
+        return "Error: task registry not available"
+
+
+@mcp.tool()
+def mythic_capabilities() -> str:
+    """List Mythic Agent capabilities: version, interfaces, tools, providers."""
+    import json
+    try:
+        from importlib.metadata import version
+        ver = version("mythic-agent")
+    except Exception:
+        ver = "unknown"
+    try:
+        from .agents.tools import get_agent_tools
+        tools = get_agent_tools()
+        tool_names = []
+        for t in tools:
+            if isinstance(t, dict):
+                fn = t.get("function", {})
+                tool_names.append(fn.get("name", t.get("name", "?")))
+            else:
+                tool_names.append(getattr(t, "name", "?"))
+    except Exception:
+        tool_names = []
+    return json.dumps({
+        "version": ver,
+        "api_version": "1.0",
+        "interfaces": ["tui", "terminal-chat", "run-cli", "mcp-stdio"],
+        "tools": tool_names,
+        "features": ["sessions", "permissions", "tasks", "doctor", "completions"],
+    }, indent=2)
+
 
 def main():
     """Entry point for the MCP server."""

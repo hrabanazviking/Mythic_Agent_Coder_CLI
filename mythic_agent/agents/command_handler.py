@@ -39,6 +39,7 @@ class CommandHandler:
         self._commands_lock = threading.Lock()
         self._commands = {}
         self._local = threading.local()
+        self._pending_commit: str | None = None  # S10: message awaiting /commit --confirm
         subscribe("system_command_executed", self._dispatch_command)
         from ..core.workspace import resolve_workspace
         self.project_root = resolve_workspace(config=config_manager.load_config())
@@ -95,10 +96,26 @@ class CommandHandler:
         primary = self._primary()
         return primary.project_root if primary else self.project_root
 
-    def _run(self, command, *, timeout=300, env=None, check=False, **unused):
+    def _redact(self, text: str) -> str:
+        """Strip API keys/tokens from command output before it reaches logs or the UI.
+
+        Uses mythic_agent/core/redaction.py: configured secrets from the config
+        plus env vars, and common token shapes (sk-*, ghp_*, github_pat_*).
+        """
+        text = text or ""
+        try:
+            from ..core.redaction import SecretRedactor
+            return SecretRedactor(config_manager.load_config()).text(text)
+        except Exception:
+            from ..core.redaction import redact_text
+            return redact_text(text)
+
+    def _run(self, command, *, cwd=None, timeout=300, env=None, check=False, **unused):
         primary = self._primary()
         settings = runtime_settings(primary.config if primary else {})
-        result = run_process(command, self._root(), cancel=self._cancel_event(),
+        # S10: an explicit cwd is honored; the workspace is the default.
+        workspace = Path(cwd).expanduser() if cwd else self._root()
+        result = run_process(command, workspace, cancel=self._cancel_event(),
                              timeout=min(timeout, settings["command_timeout"]),
                              grace=settings["process_kill_grace"], env=env,
                              progress=lambda text: publish_sync("agent_command_output", agent_name="Primary", text=text))
@@ -167,8 +184,11 @@ class CommandHandler:
             
         cmd_list = ["gh"] + shlex.split(args)
         try:
-            result = self._run(cmd_list, capture_output=True, text=True, env=self._get_gh_env(), timeout=30)
-            output = result.stdout
+            # S10: gh always runs with the workspace as cwd.
+            result = self._run(cmd_list, capture_output=True, text=True,
+                               env=self._get_gh_env(), timeout=30,
+                               cwd=str(self.project_root))
+            output = self._redact(result.stdout)
         except subprocess.TimeoutExpired:
             output = "[red]Command timed out after 30 seconds.[/red]"
         except FileNotFoundError:
@@ -178,7 +198,7 @@ class CommandHandler:
     def _handle_status(self, args: str):
         try:
             result = self._run(["git", "status"], capture_output=True, text=True, cwd=str(self.project_root), timeout=15)
-            output = result.stdout
+            output = self._redact(result.stdout)
         except subprocess.TimeoutExpired:
             output = "[red]git status timed out.[/red]"
         except FileNotFoundError:
@@ -187,15 +207,54 @@ class CommandHandler:
 
     @requires_permission("git_commit")
     def _handle_commit(self, args: str):
+        """Two-step commit: preview the change set, then confirm.
+
+        ``/commit <message>`` shows ``git status --short`` and ``git diff --stat``
+        without staging anything and asks for confirmation; ``/commit --confirm``
+        stages, commits, and pushes. The permission gate stays on the entry
+        point so private mutators always consult the policy.
+        """
+        args = (args or "").strip()
+        if args.startswith("--confirm"):
+            message = args[len("--confirm"):].strip() or self._pending_commit
+            self._pending_commit = None
+            if not message:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text="\n[red]Nothing to confirm. Run /commit <message> first to preview the change set.[/red]\n")
+                return
+            self._commit_confirmed(message)
+            return
         if not args:
             publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]Usage: /commit <message>[/red]\n")
             return
-            
+        try:
+            status_result = self._run(["git", "status", "--short"], timeout=15)
+            diff_result = self._run(["git", "diff", "--stat"], timeout=15)
+        except subprocess.TimeoutExpired:
+            publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]Commit preview timed out.[/red]\n")
+            return
+        except FileNotFoundError:
+            publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]Error: 'git' not found.[/red]\n")
+            return
+        status_out = self._redact(status_result.stdout).strip()
+        diff_out = self._redact(diff_result.stdout).strip()
+        self._pending_commit = args
+        publish_sync("agent_chat_chunk", agent_name="Primary", text=(
+            "\n[bold cyan]Commit preview[/bold cyan] (nothing staged or committed yet)\n"
+            "[dim]> git status --short[/dim]\n" + (status_out or "[dim](working tree clean)[/dim]") + "\n"
+            "[dim]> git diff --stat[/dim]\n" + (diff_out or "[dim](no changes)[/dim]") + "\n"
+            f"\n[bold yellow]Proposed message:[/bold yellow] {args}\n"
+            "[yellow]Run [/yellow][bold]/commit --confirm[/bold][yellow] to stage, commit, and push.[/yellow]\n"))
+
+    @requires_permission("git_commit")
+    def _commit_confirmed(self, message: str):
+        """Stage, commit, and push after the user confirmed the preview."""
         try:
             self._run(["git", "add", "."], cwd=str(self.project_root), check=True, timeout=30)
-            self._run(["git", "commit", "-m", args], cwd=str(self.project_root), check=True, timeout=30)
+            self._run(["git", "commit", "-m", message], cwd=str(self.project_root), check=True, timeout=30)
         except subprocess.CalledProcessError as e:
-            publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommit failed: {e}\n{e.output or chr(32)}\n")
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\nCommit failed: {self._redact(str(e))}\n{self._redact(e.output or chr(32))}\n")
             return
         except subprocess.TimeoutExpired:
             publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]Commit timed out.[/red]\n")
@@ -203,14 +262,14 @@ class CommandHandler:
         except FileNotFoundError:
             publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[red]Error: 'git' not found.[/red]\n")
             return
-        publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[green]Successfully committed: {args}[/green]\n[dim]Pushing to repository...[/dim]\n")
-        
+        publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[green]Successfully committed: {message}[/green]\n[dim]Pushing to repository...[/dim]\n")
+
         try:
             res = self._run(["git", "push"], cwd=str(self.project_root), capture_output=True, text=True, env=self._get_gh_env(), timeout=60)
             if res.returncode == 0:
                 publish_sync("agent_chat_chunk", agent_name="Primary", text="[green]Successfully pushed to remote.[/green]\n")
             else:
-                publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nPush failed: {res.stdout}\n")
+                publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nPush failed: {self._redact(res.stdout)}\n")
         except subprocess.TimeoutExpired:
             publish_sync("agent_chat_chunk", agent_name="Primary", text="[red]git push timed out after 60 seconds.[/red]\n")
 
@@ -223,7 +282,7 @@ class CommandHandler:
         cmd_list = shlex.split(args)
         try:
             result = self._run(cmd_list, capture_output=True, text=True, cwd=str(self.project_root), timeout=120)
-            output = result.stdout + "\n" + result.stderr
+            output = self._redact(result.stdout + "\n" + result.stderr)
         except subprocess.TimeoutExpired:
             output = "Test command timed out after 120 seconds."
         except FileNotFoundError:
@@ -243,7 +302,7 @@ class CommandHandler:
         cmd_list = shlex.split(args)
         try:
             result = self._run(cmd_list, capture_output=True, text=True, cwd=str(self.project_root), timeout=60)
-            output = result.stdout + "\n" + result.stderr
+            output = self._redact(result.stdout + "\n" + result.stderr)
         except subprocess.TimeoutExpired:
             output = "Doctor command timed out after 60 seconds."
         except FileNotFoundError:
@@ -278,8 +337,11 @@ class CommandHandler:
         cmd_list.extend(["--title", args, "--body", "Generated by Mythic Agent"])
         
         try:
-            result = self._run(cmd_list, capture_output=True, text=True, env=self._get_gh_env(), timeout=30)
-            output = result.stdout
+            # S10: gh always runs with the workspace as cwd.
+            result = self._run(cmd_list, capture_output=True, text=True,
+                               env=self._get_gh_env(), timeout=30,
+                               cwd=str(self.project_root))
+            output = self._redact(result.stdout)
         except subprocess.TimeoutExpired:
             output = "[red]gh issue create timed out.[/red]"
         except FileNotFoundError:
@@ -299,8 +361,11 @@ class CommandHandler:
         cmd_list.extend(["--title", args, "--body", "Generated by Mythic Agent"])
         
         try:
-            result = self._run(cmd_list, capture_output=True, text=True, env=self._get_gh_env(), timeout=30)
-            output = result.stdout
+            # S10: gh always runs with the workspace as cwd.
+            result = self._run(cmd_list, capture_output=True, text=True,
+                               env=self._get_gh_env(), timeout=30,
+                               cwd=str(self.project_root))
+            output = self._redact(result.stdout)
         except subprocess.TimeoutExpired:
             output = "[red]gh pr create timed out.[/red]"
         except FileNotFoundError:
@@ -359,7 +424,7 @@ Vibe coding is the art of steering autonomous AI agents using natural language i
         try:
             result = self._run(["git", "diff", "HEAD"], capture_output=True, text=True, cwd=str(self.project_root), timeout=15)
             if result.status != "completed":
-                publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nReview failed: {result.stdout}\n")
+                publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nReview failed: {self._redact(result.stdout)}\n")
                 return
             diff_output = result.output
         except subprocess.TimeoutExpired:
@@ -374,7 +439,7 @@ Vibe coding is the art of steering autonomous AI agents using natural language i
             
         publish_sync("agent_chat_chunk", agent_name="Primary", text="\n[dim]> /review[/dim]\n[blue]Submitting current working diff for autonomous code review...[/blue]\n")
         
-        context = f"Please do a thorough code review of my uncommitted changes. Point out any logic errors, aesthetic improvements, or architectural issues:\n\n```diff\n{diff_output}\n```\n"
+        context = f"Please do a thorough code review of my uncommitted changes. Point out any logic errors, aesthetic improvements, or architectural issues:\n\n```diff\n{self._redact(diff_output)}\n```\n"
         publish_sync("ui_chat_request", user_input=context, target_agent="Primary")
 
 # Global singleton

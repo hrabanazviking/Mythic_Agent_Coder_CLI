@@ -11,6 +11,7 @@ from ..core.edits import EditJournal
 from ..core.execution import run_process
 from ..core.policy import ToolPolicy
 from ..core.runtime import TurnCancelled, runtime_settings
+from ..core.validation import ValidationError, validate_tool_args
 
 _approval_lock = threading.Lock()
 
@@ -375,37 +376,15 @@ def _timeout_output(exc: subprocess.TimeoutExpired) -> str:
     return output.decode("utf-8", errors="replace") if isinstance(output, bytes) else output
 
 
-def _validate_value(value: Any, schema: dict[str, Any], label: str) -> None:
-    kind = schema.get("type")
-    valid = {
-        "string": isinstance(value, str), "object": isinstance(value, dict),
-        "array": isinstance(value, list),
-        "integer": isinstance(value, int) and not isinstance(value, bool),
-        "number": isinstance(value, (int, float)) and not isinstance(value, bool),
-        "boolean": isinstance(value, bool),
-    }
-    if kind and not valid.get(kind, False):
-        raise ValueError(f"{label} must be {kind}")
-    if kind == "object":
-        properties = schema.get("properties", {})
-        missing = set(schema.get("required", [])) - value.keys()
-        if missing:
-            raise ValueError(f"{label} missing required arguments: {', '.join(sorted(missing))}")
-        if schema.get("additionalProperties") is False and value.keys() - properties.keys():
-            raise ValueError(f"{label} contains unknown arguments")
-        for key, item in value.items():
-            if key in properties:
-                _validate_value(item, properties[key], f"{label}.{key}")
-    elif kind == "array" and "items" in schema:
-        for index, item in enumerate(value):
-            _validate_value(item, schema["items"], f"{label}[{index}]")
-
-
 def validate_tool_arguments(name: str, arguments: dict[str, Any]) -> None:
-    functions = {tool["function"]["name"]: tool["function"] for tool in get_agent_tools()}
-    if name not in functions:
-        raise ValueError(f"Unknown tool {name}")
-    _validate_value(arguments, functions[name]["parameters"], name)
+    """Legacy entry point; delegates to :mod:`mythic_agent.core.validation`.
+
+    Kept for backward compatibility. Prefer
+    :func:`mythic_agent.core.validation.validate_tool_args`, which also
+    supports workspace sandbox checks and raises
+    :class:`mythic_agent.core.validation.ValidationError`.
+    """
+    validate_tool_args(name, arguments)
 
 
 def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None = None, tui_app: Any = None, agent: Any = None, *, policy: ToolPolicy | None = None) -> str:
@@ -414,8 +393,8 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
         root_path = agent.project_root or root_path
     root_path = Path(root_path).resolve()
     try:
-        validate_tool_arguments(name, arguments)
-    except ValueError as exc:
+        validate_tool_args(name, arguments, workspace=root_path)
+    except ValidationError as exc:
         return f"Error: {exc}"
     cancel = getattr(agent, "_cancel", None)
     if cancel is not None and cancel.is_set():

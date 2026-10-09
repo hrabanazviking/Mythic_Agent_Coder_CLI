@@ -39,6 +39,7 @@ class AspectRatioContainer(Vertical):
 
 from mythic_agent.core.secure_api import publish_sync, subscribe, SecureAPI
 from mythic_agent.core.config_manager import config_manager
+from mythic_agent.ui import ui_thread, terminal_too_small, small_terminal_warning
 
 
 PROVIDERS = [
@@ -205,6 +206,9 @@ class MainChatScreen(Screen):
         chat_log.write("[dim]Type /help for a list of runic commands.[/dim]")
         self.query_one("#loading-indicator").display = False
         self.query_one("#chat-input").focus()
+
+        # Adapt the layout for very small terminals (S09).
+        self._apply_terminal_layout()
         
         self.update_model_status()
         self.app.set_interval(5.0, self.update_model_status)
@@ -261,11 +265,39 @@ class MainChatScreen(Screen):
             self.app.call_from_thread(self._set_loading, False)
 
     def _on_token_update(self, agent_name: str, total_tokens: int):
-        self.app.call_from_thread(self.app.update_token_count, total_tokens)
+        # Fix (S09): the pub/sub path runs on a worker thread. Route through a
+        # screen method so the app lookup and widget touch happen on the UI thread.
+        self.app.call_from_thread(self._apply_token_update, total_tokens)
+
+    def _apply_token_update(self, total_tokens: int) -> None:
+        """Runs on the app thread; update_token_count touches widgets."""
+        self.app.update_token_count(total_tokens)
+
+    def on_resize(self, event: events.Resize) -> None:
+        self._apply_terminal_layout()
+
+    def _apply_terminal_layout(self) -> None:
+        """Hide the sidebar and simplify the layout on very small terminals."""
+        try:
+            too_small, (cols, rows) = terminal_too_small()
+            sidebar = self.query_one("#sidebar")
+            if too_small:
+                if not getattr(self, "_small_terminal_warned", False):
+                    self.query_one("#chat-log", RichLog).write(
+                        small_terminal_warning(cols, rows)
+                    )
+                    self._small_terminal_warned = True
+                sidebar.display = False
+            else:
+                self._small_terminal_warned = False
+                sidebar.display = True
+        except Exception:
+            pass
 
     def _on_agent_status_changed(self, agent_name: str, is_active: bool):
         self.app.call_from_thread(self._update_agent_status_ui, agent_name, is_active)
         
+    @ui_thread()
     def _update_agent_status_ui(self, agent_name: str, is_active: bool):
         try:
             if is_active:
@@ -330,6 +362,7 @@ class MainChatScreen(Screen):
     def _on_subagent_message_received(self, sender: str, recipient: str, message: str):
         self.app.call_from_thread(self._notify_subagent_message, sender, message)
         
+    @ui_thread()
     def _notify_subagent_message(self, sender: str, message: str):
         try:
             chat_log = self.query_one("#chat-log", RichLog)
@@ -594,7 +627,7 @@ class MainChatScreen(Screen):
                 help_dict = {
                     "/setup": "Opens the Setup Wizard allowing you to configure APIs, subagents, and preferences.",
                     "/add": "Usage: /add <file_path>\nReads the file and explicitly adds its contents to the LLM's working memory.",
-                    "/commit": "Usage: /commit [message]\nAutomatically stages all changes, generates a commit message if none provided, and pushes to GitHub.",
+                    "/commit": "Usage: /commit <message>\nShows a preview (git status --short, git diff --stat) of what would be committed, then run /commit --confirm to stage, commit, and push.",
                     "/issue": "Usage: /issue <title>\nCreates a new GitHub issue using the gh CLI tool.",
                     "/pr": "Usage: /pr\nCreates a Pull Request using the gh CLI tool.",
                     "/status": "Usage: /status\nShows current git status and recent commits.",
@@ -707,19 +740,27 @@ class MainChatScreen(Screen):
 
     @work(thread=True)
     def _transcribe_voice_task(self, wav_path: str) -> None:
+        # Fix (S09): this runs on a worker thread — never touch widgets here.
+        # Marshal the result back to the app thread with call_from_thread.
         from mythic_agent.core.audio import audio_recorder
-        chat_log = self.query_one("#chat-log", RichLog)
-        
+        transcript = None
+        error = None
         try:
             transcript = audio_recorder.transcribe(wav_path)
-            if transcript and transcript.strip():
-                self.app.call_from_thread(self._inject_voice_transcript, transcript.strip())
-            else:
-                self.app.call_from_thread(chat_log.write, "[dim]Could not transcribe audio or no speech detected.[/dim]")
         except Exception as e:
-            self.app.call_from_thread(chat_log.write, f"[red]Voice transcription error: {e}[/red]")
-        finally:
-            self.app.call_from_thread(self.query_one("#prompt-label").update, " [bold yellow]ᛟ❯[/bold yellow] ")
+            error = e
+        self.app.call_from_thread(self._finish_voice_transcript, transcript, error)
+
+    def _finish_voice_transcript(self, transcript, error) -> None:
+        """Runs on the app thread; safe to query and update widgets."""
+        chat_log = self.query_one("#chat-log", RichLog)
+        if error is not None:
+            chat_log.write(f"[red]Voice transcription error: {error}[/red]")
+        elif transcript and transcript.strip():
+            self._inject_voice_transcript(transcript.strip())
+        else:
+            chat_log.write("[dim]Could not transcribe audio or no speech detected.[/dim]")
+        self.query_one("#prompt-label").update(" [bold yellow]ᛟ❯[/bold yellow] ")
 
     def _inject_voice_transcript(self, text: str) -> None:
         chat_log = self.query_one("#chat-log", RichLog)

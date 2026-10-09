@@ -4,16 +4,38 @@ import logging
 import threading
 import tempfile
 from pathlib import Path
+from typing import Optional
 from ..core.config_manager import config_manager
+from .scopes import WorkspaceScope
 
 class CoreMemoryManager:
-    """Manages the AI OS Core Memory that persists across compactions and sessions."""
-    
-    def __init__(self, agent_name: str):
+    """Manages the AI OS Core Memory that persists across compactions and sessions.
+
+    Memory is namespaced by workspace ID (see
+    :class:`mythic_agent.memory.scopes.WorkspaceScope`) so agents with the same
+    name in different workspaces cannot see or mutate each other's memory.
+
+    Args:
+        agent_name: Name of the owning agent.
+        workspace_id: Stable workspace identity (see
+            :func:`mythic_agent.core.workspace.workspace_id`).  When omitted the
+            legacy un-namespaced file layout is used for backward
+            compatibility; passing an explicit workspace id is strongly
+            recommended.
+    """
+
+    def __init__(self, agent_name: str, workspace_id: Optional[str] = None):
         self.agent_name = agent_name
+        self.scope = WorkspaceScope(workspace_id)
         self.memory_dir = config_manager.MYTHIC_DIR / "memory" / "core"
         self.memory_dir.mkdir(parents=True, exist_ok=True)
-        self.memory_file = self.memory_dir / f"{self.agent_name}_core.json"
+        if self.scope.is_default:
+            # Legacy layout for callers that do not pass a workspace.
+            self.memory_file = self.memory_dir / f"{self.agent_name}_core.json"
+        else:
+            self.memory_file = (
+                self.memory_dir / f"{self.scope.safe_namespace(self.agent_name)}_core.json"
+            )
         self._lock = threading.Lock()
         
         self.memory_blocks = {

@@ -14,6 +14,7 @@ from mythic_agent.constants import DEFAULT_GLOBAL_RULES, DEFAULT_PRIMARY_NAME, D
 
 from mythic_agent.core.secure_api import publish_sync, subscribe
 from mythic_agent.core.config_manager import config_manager
+from mythic_agent.ui import register_app
 
 
 
@@ -51,6 +52,7 @@ class MythicTUI(App):
         self.call_from_thread(self.notify, message, title=title, severity=severity)
 
     def on_mount(self) -> None:
+        register_app(self)  # S09: record the app thread for ui_thread routing.
         from mythic_agent.agents.llm import AGENT_REGISTRY
         for agent in list(AGENT_REGISTRY.values()):
             agent.bind_tui(self)

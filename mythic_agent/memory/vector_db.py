@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from ..core.config_manager import config_manager
-from ..core.execution import CancellableChatClient, cancellable_http_post
+from ..core.execution import CancellableChatClient, cancellable_http_post, is_loopback_url
 from ..core.runtime import TurnCancelled, runtime_settings
 
 # Try to use numpy for 100x faster cosine similarity, fallback to standard library math
@@ -59,7 +59,8 @@ class LightweightJSONVectorDB:
         # We only init the client if we have a key
         self.client = None
         if self.api_key:
-            self.client = CancellableChatClient(self.base_url, self.api_key, self.cancel_event, 60)
+            self.client = CancellableChatClient(self.base_url, self.api_key, self.cancel_event, 60,
+                                                trust_env=not is_loopback_url(self.base_url))
             
         self.records: list[dict[str, Any]] = []
         self.load()
@@ -69,7 +70,8 @@ class LightweightJSONVectorDB:
         settings = runtime_settings(config)
         if self.api_key:
             self.client = CancellableChatClient(self.base_url, self.api_key, cancel,
-                                                settings["request_timeout"], settings["cancellation_poll_interval"])
+                                                settings["request_timeout"], settings["cancellation_poll_interval"],
+                                                trust_env=not is_loopback_url(self.base_url))
 
     def load(self) -> None:
         with self._lock:
@@ -184,7 +186,8 @@ class RemoteRAGProvider:
         try:
             payload = {"text": text, "metadata": metadata or {}}
             cancellable_http_post(f"{self.base_url}/insert", payload, self.cancel_event,
-                                  min(10, self.request_timeout), self.cancellation_poll_interval)
+                                  min(10, self.request_timeout), self.cancellation_poll_interval,
+                                  trust_env=not is_loopback_url(self.base_url))
         except TurnCancelled:
             raise
         except Exception as e:
@@ -194,7 +197,8 @@ class RemoteRAGProvider:
         try:
             payload = {"query": query, "top_k": top_k}
             response = cancellable_http_post(f"{self.base_url}/search", payload, self.cancel_event,
-                                             min(15, self.request_timeout), self.cancellation_poll_interval)
+                                             min(15, self.request_timeout), self.cancellation_poll_interval,
+                                             trust_env=not is_loopback_url(self.base_url))
             return response.get("results", [])
         except TurnCancelled:
             raise

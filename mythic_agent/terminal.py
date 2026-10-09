@@ -61,6 +61,43 @@ def _release(agent: Agent) -> None:
     agent.close()
 
 
+def recover_crashed_sessions(agent: Agent, interactive: bool = False,
+                             console: Any = None) -> list[str]:
+    """Startup crash check: replay journaled checkpoints left by a dead process.
+
+    When ``interactive`` and stdin is a TTY the user is asked first; otherwise
+    recovery is automatic.  Returns the recovered session ids.
+    """
+    store = getattr(agent, "_session_store", None)
+    if store is None:
+        return []
+    pending = store.check_recovery()
+    if not pending:
+        return []
+    notice = (f"[!] Detected {len(pending)} uncommitted checkpoint(s) from a "
+              "previous crash. Session state may otherwise be lost.")
+    if console is not None:
+        console.print(notice)
+    else:
+        sys.stderr.write(notice + "\n")
+    proceed = True
+    if interactive and sys.stdin.isatty():
+        try:
+            answer = input("Recover them now? [Y/n] ").strip().lower()
+        except (EOFError, OSError):
+            answer = "n"
+        proceed = answer in {"", "y", "yes"}
+    if not proceed:
+        return []
+    recovered = store.recover_pending()
+    done = f"[+] Recovered {len(recovered)} crashed session checkpoint(s)."
+    if console is not None:
+        console.print(done)
+    else:
+        sys.stderr.write(done + "\n")
+    return recovered
+
+
 def _json_line(value: dict[str, Any]) -> None:
     sys.stdout.write(json.dumps(value, ensure_ascii=False) + "\n")
     sys.stdout.flush()
@@ -98,6 +135,72 @@ def _result(agent: Agent | None, status: str, text: str = "", error: str | None 
     return result
 
 
+# Approximate blended USD cost per 1M tokens (in+out), used only when the
+# session metadata does not carry an exact figure.
+_DEFAULT_COST_PER_MTOK = 3.00
+_MODEL_COST_PER_MTOK = {
+    "gpt-4o": 3.75,
+    "gpt-4o-mini": 0.375,
+    "o1": 22.50,
+    "o3-mini": 1.65,
+}
+
+
+def _estimate_cost_usd(total_tokens: int, model: str | None) -> float:
+    """Estimate session cost; exact metadata figures win over the estimate."""
+    if not isinstance(total_tokens, int) or total_tokens <= 0:
+        return 0.0
+    rate = _DEFAULT_COST_PER_MTOK
+    if model:
+        lowered = model.lower()
+        for key, value in _MODEL_COST_PER_MTOK.items():
+            if key in lowered:
+                rate = value
+                break
+    return round(total_tokens / 1_000_000 * rate, 4)
+
+
+def _enrich_session(store: Any, session: dict[str, Any]) -> dict[str, Any]:
+    """Add model, cost, and task counts to a list_sessions row."""
+    metadata = session.get("metadata") or {}
+    model = metadata.get("model") or metadata.get("model_name")
+    cost = metadata.get("cost_usd")
+    if cost is None:
+        cost = _estimate_cost_usd(session.get("total_tokens", 0), model)
+    enriched = dict(session)
+    enriched["model"] = model
+    enriched["cost_usd"] = cost
+    enriched["cost_estimated"] = metadata.get("cost_usd") is None
+    try:
+        counts = store.session_event_counts(session["id"])
+    except Exception:
+        counts = {"events": 0, "tasks": 0, "turns": 0}
+    enriched["task_count"] = counts.get("tasks", 0)
+    enriched["turn_count"] = counts.get("turns", 0)
+    enriched["event_count"] = counts.get("events", 0)
+    return enriched
+
+
+def _session_matches(session: dict[str, Any], query: str) -> bool:
+    """Case-insensitive substring match across id, status, model, and metadata."""
+    needle = query.lower()
+
+    def _flatten(value: Any) -> str:
+        if isinstance(value, dict):
+            return " ".join(_flatten(v) for v in value.values())
+        if isinstance(value, (list, tuple)):
+            return " ".join(_flatten(v) for v in value)
+        return str(value) if value is not None else ""
+
+    haystack = " ".join([
+        str(session.get("id", "")),
+        str(session.get("status", "")),
+        str(session.get("model", "")),
+        _flatten(session.get("metadata", {})),
+    ]).lower()
+    return needle in haystack
+
+
 def session_command(args: Any) -> int:
     """Read-only listing/export without initializing an agent or provider client."""
     try:
@@ -107,7 +210,12 @@ def session_command(args: Any) -> int:
         if args.export:
             _json_line(store.export(args.export))
         else:
-            _json_line({"schema_version": 1, "workspace": str(workspace), "sessions": store.list_sessions()})
+            sessions = [_enrich_session(store, s) for s in store.list_sessions()]
+            query = getattr(args, "search", None)
+            if query:
+                sessions = [s for s in sessions if _session_matches(s, query)]
+            _json_line({"schema_version": 1, "workspace": str(workspace),
+                        "search": query, "sessions": sessions})
         return 0
     except Exception as exc:
         _json_line({"schema_version": 1, "status": "failed", "error": redact_text(str(exc))})
@@ -134,6 +242,7 @@ def run_once(args: Any) -> int:
         if not prompt.strip():
             return _render_result(_result(None, "invalid_input", error="A nonempty prompt is required."), args.format)
         agent = configured_agent(args, "read-only")
+        recover_crashed_sessions(agent, interactive=False)
         if args.format == "jsonl":
             callbacks = _event_callbacks(agent)
         text = agent.chat(prompt)
@@ -212,6 +321,7 @@ def chat_loop(args: Any) -> int:
     except Exception as exc:
         sys.stderr.write(redact_text(str(exc)) + "\n")
         return 1
+    recover_crashed_sessions(agent, interactive=True, console=console)
     session = None
     if sys.stdin.isatty():
         from prompt_toolkit import PromptSession

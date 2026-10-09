@@ -8,7 +8,7 @@ import random
 from pathlib import Path
 from typing import Any, Callable
 
-from openai import OpenAI, APIConnectionError, APIStatusError
+from openai import APIConnectionError, APIStatusError
 
 from .tools import execute_tool, get_agent_tools
 from ..core.config_manager import config_manager
@@ -18,12 +18,227 @@ from ..core.runtime import TurnCancelled, TurnResult, runtime_settings
 from ..core.redaction import SecretRedactor, protect_logging
 from ..core.sessions import SessionStore
 from ..core.policy import ToolPolicy, policy_mode
-from ..core.execution import CancellableChatClient
+from ..core.execution import CancellableChatClient, is_loopback_url
 from ..memory.core_memory import CoreMemoryManager
 from ..memory.vector_db import get_vector_provider
 
 # Global registry of live sub-agent instances keyed by name.
 AGENT_REGISTRY: dict[str, "Agent"] = {}
+
+# Placeholder credential for loopback endpoints. The OpenAI-compatible SDK
+# requires a non-empty key string, but local endpoints need no real
+# credential; this value is never sent to a remote host.
+_LOOPBACK_API_KEY = "local"
+
+
+class ProviderCredentialsError(RuntimeError):
+    """A remote endpoint needs a credential and none is configured.
+
+    Raised before any network request, with a redacted remedy. Loopback
+    endpoints never raise this: they may operate without auth.
+    """
+
+
+def _key_env_hint(base_url: str) -> str:
+    """Name the environment variable that carries this endpoint's key."""
+    if "deepseek" in base_url:
+        return "DEEPSEEK_API_KEY"
+    if "openrouter" in base_url:
+        return "OPENROUTER_API_KEY"
+    if "anthropic" in base_url:
+        return "ANTHROPIC_API_KEY"
+    return "OPENAI_API_KEY"
+
+
+def _missing_key_remedy(base_url: str) -> str:
+    return (
+        f"No API key configured for {base_url}. "
+        f"Store one for this endpoint in settings, or export {_key_env_hint(base_url)}. "
+        "Local loopback endpoints (127.0.0.1, localhost) need no key."
+    )
+
+
+def resolve_api_key(config: dict[str, Any], base_url: str) -> str | None:
+    """Return the configured credential for an endpoint, if any.
+
+    Checks the per-endpoint stored keys first, then the provider's
+    environment variable. Returns None when nothing is configured; it is
+    the caller's job to decide whether that is an error (remote) or fine
+    (loopback).
+    """
+    stored_key = config.get("api_keys", {}).get(base_url)
+    if stored_key:
+        return stored_key
+    return os.environ.get(_key_env_hint(base_url))
+
+
+def build_provider_client(config: dict[str, Any],
+                          cancel: threading.Event | None = None) -> CancellableChatClient:
+    """Construct the provider HTTP client honoring S07 admission rules.
+
+    Loopback endpoints operate without auth (an inert placeholder satisfies
+    the SDK) and never consult proxy environment. Remote endpoints without
+    a configured credential fail here, before any network request, with a
+    redacted remedy; invented dummy credentials are never substituted.
+    """
+    base_url = config.get("base_url", config_manager.DEFAULT_BASE_URL)
+    settings = runtime_settings(config)
+    cancel = cancel if cancel is not None else threading.Event()
+    if is_loopback_url(base_url):
+        api_key = resolve_api_key(config, base_url) or _LOOPBACK_API_KEY
+        return CancellableChatClient(base_url, api_key, cancel,
+                                     settings["request_timeout"],
+                                     settings["cancellation_poll_interval"],
+                                     trust_env=False)
+    api_key = resolve_api_key(config, base_url)
+    if not api_key:
+        raise ProviderCredentialsError(_missing_key_remedy(base_url))
+    return CancellableChatClient(base_url, api_key, cancel,
+                                 settings["request_timeout"],
+                                 settings["cancellation_poll_interval"])
+
+
+def diagnose_provider(config: dict[str, Any]) -> dict[str, Any]:
+    """Offline provider diagnostics: configuration only, no network.
+
+    Reports configured values separately from anything verified live, and
+    never includes key material.
+    """
+    base_url = config.get("base_url", config_manager.DEFAULT_BASE_URL)
+    model = config.get("model", "") or ""
+    loopback = is_loopback_url(base_url)
+    settings = runtime_settings(config)
+    return {
+        "base_url": base_url,
+        "base_url_valid": config_manager._valid_url(base_url),
+        "loopback": loopback,
+        "model": model,
+        "model_configured": bool(model.strip()),
+        "api_key_configured": bool(resolve_api_key(config, base_url)),
+        "auth_required": not loopback,
+        "streaming": bool(config.get("streaming", False)),
+        "retry_budget": settings["max_retries"],
+        "request_timeout": settings["request_timeout"],
+    }
+
+
+def _retry_after_seconds(exc: Exception) -> float | None:
+    """Bounded Retry-After hint in seconds, or None when absent/unparseable.
+
+    Only the numeric (delay-seconds) form is honored; HTTP-date forms are
+    ignored rather than misinterpreted.
+    """
+    try:
+        headers = getattr(getattr(exc, "response", None), "headers", None)
+        if not headers:
+            return None
+        value = headers.get("retry-after")
+        if value is None:
+            return None
+        return max(0.0, float(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _retry_delay(exc: Exception, attempt: int, settings: dict[str, Any]) -> float:
+    """Capped backoff for one retry: server Retry-After wins when present."""
+    cap = settings["retry_delay_cap"]
+    hinted = _retry_after_seconds(exc)
+    if hinted is not None:
+        return min(cap, hinted)
+    return min(cap, settings["retry_delay"] * 2 ** attempt)
+
+
+def _is_transient(exc: Exception) -> bool:
+    """Classify provider errors: retry connection issues and 408/409/429/5xx.
+
+    Auth (401/403), bad model (404), invalid requests (400/422), and
+    capability failures fail promptly and are never retried.
+    """
+    from openai import APIConnectionError, APIStatusError
+    if isinstance(exc, APIConnectionError):
+        return True
+    if isinstance(exc, APIStatusError):
+        return exc.status_code in (408, 409, 429) or exc.status_code >= 500
+    return False
+
+
+class _StreamAccumulator:
+    """Accumulate SSE text/tool deltas into one normalized assistant message.
+
+    Text fragments publish incrementally (each exactly once); indexed tool
+    name/argument fragments reassemble per tool-call index. Tools execute
+    only after the completed response validates: incomplete fragments or a
+    malformed stream raise before anything becomes executable.
+    """
+
+    def __init__(self, agent_name: str):
+        self._agent_name = agent_name
+        self.reset()
+
+    def reset(self) -> None:
+        self._content: list[str] = []
+        self._tool_calls: dict[int, dict[str, str]] = {}
+        self._finish_reason: str | None = None
+        self._usage: Any = None
+        self._chunks_seen = 0
+
+    @property
+    def emitted(self) -> bool:
+        """True once any chunk arrived: never retry after a partial response."""
+        return self._chunks_seen > 0
+
+    @property
+    def text(self) -> str:
+        return "".join(self._content)
+
+    def __call__(self, chunk: Any) -> None:
+        self._chunks_seen += 1
+        for choice in chunk.choices or []:
+            if choice.finish_reason:
+                self._finish_reason = choice.finish_reason
+            delta = choice.delta
+            if delta is None:
+                continue
+            content = getattr(delta, "content", None)
+            if content:
+                self._content.append(content)
+                publish_sync("agent_chat_chunk", agent_name=self._agent_name, text=content)
+            for call in getattr(delta, "tool_calls", None) or []:
+                index = getattr(call, "index", 0) or 0
+                slot = self._tool_calls.setdefault(index, {"id": "", "name": "", "arguments": ""})
+                if call.id:
+                    slot["id"] = call.id
+                function = call.function
+                if function is not None:
+                    if function.name:
+                        slot["name"] = function.name
+                    if function.arguments:
+                        slot["arguments"] += function.arguments
+        usage = getattr(chunk, "usage", None)
+        if usage is not None:
+            self._usage = usage
+
+    def message(self) -> dict[str, Any]:
+        """Return the normalized assistant message; raise on malformed streams."""
+        if not self._chunks_seen:
+            raise RuntimeError("Provider returned an empty stream")
+        calls = []
+        for index in sorted(self._tool_calls):
+            slot = self._tool_calls[index]
+            if not slot["id"] or not slot["name"]:
+                raise RuntimeError(
+                    "Provider stream ended with incomplete tool call fragments; "
+                    "refusing to execute partial calls")
+            calls.append({"id": slot["id"], "type": "function",
+                          "function": {"name": slot["name"], "arguments": slot["arguments"]}})
+        text = self.text
+        if not text and not calls:
+            raise RuntimeError("Provider returned an empty assistant response")
+        message: dict[str, Any] = {"role": "assistant", "content": text or None}
+        if calls:
+            message["tool_calls"] = calls
+        return message
 
 class Agent:
     def __init__(self, project_root: Path | None = None, name: str = "Primary", config: dict[str, Any] | None = None):
@@ -31,7 +246,7 @@ class Agent:
         self.config = copy.deepcopy(config) if config is not None else config_manager.load_config()
         self.redactor = SecretRedactor(self.config)
         protect_logging(self.redactor)
-        from ..core.workspace import resolve_workspace
+        from ..core.workspace import resolve_workspace, workspace_id
         self.project_root = resolve_workspace(project_root, self.config)
         self.name = name
 
@@ -56,7 +271,9 @@ class Agent:
         self.active_task_start_time = None
         self.rebuild_system_prompt()
         
-        self.core_memory = CoreMemoryManager(self.name)
+        self.core_memory = CoreMemoryManager(
+            self.name, workspace_id=workspace_id(self.project_root)
+        )
         
         # Initialize Vector DB
         base_url = self.config.get("base_url", config_manager.DEFAULT_BASE_URL)
@@ -302,29 +519,10 @@ class Agent:
         return config_manager.save_config(self.config)
         
     def get_api_key(self, base_url: str) -> str | None:
-        stored_key = self.config.get("api_keys", {}).get(base_url)
-        if stored_key:
-            return stored_key
-            
-        if "deepseek" in base_url:
-            return os.environ.get("DEEPSEEK_API_KEY")
-        if "openrouter" in base_url:
-            return os.environ.get("OPENROUTER_API_KEY")
-        if "anthropic" in base_url:
-            return os.environ.get("ANTHROPIC_API_KEY")
-            
-        return os.environ.get("OPENAI_API_KEY")
+        return resolve_api_key(self.config, base_url)
 
     def get_client(self) -> CancellableChatClient:
-        base_url = self.config.get("base_url", config_manager.DEFAULT_BASE_URL)
-        api_key = self.get_api_key(base_url)
-        
-        if not api_key:
-            logging.warning("No API key found for base URL %s", base_url)
-            
-        settings = runtime_settings(self.config)
-        return CancellableChatClient(base_url, api_key or "sk-dummy", self._cancel,
-                                     settings["request_timeout"], settings["cancellation_poll_interval"])
+        return build_provider_client(self.config, self._cancel)
         
     def set_model(self, model: str, base_url: str, api_key: str | None = None) -> None:
         import copy
@@ -347,8 +545,12 @@ class Agent:
 
     def fetch_models(self, base_url: str, api_key: str) -> list[str]:
         settings = runtime_settings(self.config)
-        client = CancellableChatClient(base_url, api_key, self._cancel,
-                                     settings["request_timeout"], settings["cancellation_poll_interval"])
+        loopback = is_loopback_url(base_url)
+        if not api_key and not loopback:
+            raise ProviderCredentialsError(_missing_key_remedy(base_url))
+        client = CancellableChatClient(base_url, api_key or _LOOPBACK_API_KEY, self._cancel,
+                                       settings["request_timeout"], settings["cancellation_poll_interval"],
+                                       trust_env=not loopback)
         try:
             models_response = client.models.list()
             return [m.id for m in models_response.data]
@@ -420,7 +622,7 @@ class Agent:
         client = self.get_client()
         for _ in range(settings["max_tool_rounds"]):
             self._check_cancelled()
-            response = self._request_response(client, settings)
+            response, streamed = self._request_response(client, settings)
             self._check_cancelled()
             if not response.choices:
                 raise RuntimeError("Provider returned no response choices")
@@ -435,8 +637,10 @@ class Agent:
                 raise RuntimeError("Provider returned an empty assistant response")
             self._append_message(message)
             text = message.get("content") or ""
-            if text:
+            if text and not streamed:
+                # Streaming already emitted each text delta exactly once.
                 publish_sync("agent_chat_chunk", agent_name=self.name, text=text)
+            if text:
                 publish_sync("agent_chat_spoken", agent_name=self.name, text=text)
             if not calls:
                 return text
@@ -465,7 +669,15 @@ class Agent:
             logging.exception("Archival recall failed; continuing without retrieval")
         return ""
 
-    def _request_response(self, client: OpenAI, settings: dict[str, Any]) -> Any:
+    def _request_response(self, client: CancellableChatClient,
+                          settings: dict[str, Any]) -> tuple[Any, bool]:
+        """Return ``(response, streamed)`` for one model call.
+
+        ``streamed`` is True when the response was assembled from SSE
+        deltas; callers must not re-emit its text as a single chunk.
+        """
+        if self.config.get("streaming"):
+            return self._request_streaming(client, settings), True
         for attempt in range(settings["max_retries"] + 1):
             self._check_cancelled()
             try:
@@ -473,18 +685,65 @@ class Agent:
                     model=self.config.get("model", config_manager.DEFAULT_MODEL),
                     messages=self.history_snapshot(), tools=get_agent_tools(),
                     stream=False, timeout=settings["request_timeout"],
-                )
+                ), False
             except (APIConnectionError, APIStatusError) as exc:
-                transient = isinstance(exc, APIConnectionError) or (
-                    exc.status_code in (408, 409, 429) or exc.status_code >= 500
-                )
-                if not transient or attempt == settings["max_retries"]:
+                if not _is_transient(exc) or attempt == settings["max_retries"]:
                     raise
-                delay = min(settings["retry_delay_cap"], settings["retry_delay"] * 2 ** attempt)
+                delay = _retry_delay(exc, attempt, settings)
                 publish_sync("agent_chat_tool", agent_name=self.name,
                              text=f"\nProvider temporarily unavailable; retry {attempt + 1}.\n")
                 if self._cancel.wait(delay):
                     raise TurnCancelled("Turn cancelled during retry") from exc
+        raise RuntimeError("Provider retry budget exhausted")
+
+    def _request_streaming(self, client: CancellableChatClient,
+                           settings: dict[str, Any]) -> Any:
+        """Assemble one normalized response from SSE text/tool deltas.
+
+        Retries apply only before the first chunk: once a partial response
+        is emitted the request is never retried. Malformed or incomplete
+        streams raise before any tool fragment becomes executable.
+        """
+        from types import SimpleNamespace
+        accumulator = _StreamAccumulator(self.name)
+        for attempt in range(settings["max_retries"] + 1):
+            self._check_cancelled()
+            accumulator.reset()
+            try:
+                client.stream_chat(
+                    accumulator,
+                    model=self.config.get("model", config_manager.DEFAULT_MODEL),
+                    messages=self.history_snapshot(), tools=get_agent_tools(),
+                    stream_options={"include_usage": True},
+                    timeout=settings["request_timeout"],
+                )
+            except TurnCancelled:
+                self._checkpoint({"type": "stream_interrupted",
+                                  "partial_text": accumulator.text})
+                raise
+            except (APIConnectionError, APIStatusError) as exc:
+                if not _is_transient(exc) or accumulator.emitted \
+                        or attempt == settings["max_retries"]:
+                    raise
+                delay = _retry_delay(exc, attempt, settings)
+                publish_sync("agent_chat_tool", agent_name=self.name,
+                             text=f"\nProvider temporarily unavailable; retry {attempt + 1}.\n")
+                if self._cancel.wait(delay):
+                    raise TurnCancelled("Turn cancelled during retry") from exc
+                continue
+            except Exception as exc:
+                raise RuntimeError(f"Provider stream failed: {exc}") from exc
+            message = accumulator.message()
+            usage = accumulator._usage
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=message,
+                                         finish_reason=accumulator._finish_reason)],
+                usage=SimpleNamespace(
+                    total_tokens=getattr(usage, "total_tokens", 0) or 0,
+                    prompt_tokens=getattr(usage, "prompt_tokens", 0) or 0,
+                    completion_tokens=getattr(usage, "completion_tokens", 0) or 0,
+                ) if usage is not None else None,
+            )
         raise RuntimeError("Provider retry budget exhausted")
 
     @staticmethod

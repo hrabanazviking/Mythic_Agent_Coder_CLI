@@ -7,9 +7,10 @@ import threading
 import traceback
 from typing import Any
 
+from .secrets_audit import mask_text as _mask_detected_secrets
+
 
 _sensitive_names = {"api_key", "api_keys", "token", "password", "secret", "authorization"}
-_token_pattern = re.compile(r"\b(?:sk-(?:proj-)?[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9]{12,}|github_pat_[A-Za-z0-9_]{12,})")
 _url_auth = re.compile(r"(https?://)[^\s/@]+:[^\s/@]+@")
 _url_secret = re.compile(r"([?&](?:api_key|token|key|password)=)[^&#\s]+", re.IGNORECASE)
 _known_secrets: set[str] = set()
@@ -34,7 +35,7 @@ def redact_text(text: str, secrets: set[str] | None = None) -> str:
             secrets = set(_known_secrets)
     for secret in sorted(secrets, key=len, reverse=True):
         text = text.replace(secret, "[REDACTED]")
-    text = _token_pattern.sub("[REDACTED]", text)
+    text = _mask_detected_secrets(text)
     return _url_secret.sub(r"\1[REDACTED]", _url_auth.sub(r"\1[REDACTED]@", text))
 
 

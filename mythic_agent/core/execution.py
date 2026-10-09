@@ -2,6 +2,7 @@
 
 import asyncio
 import codecs
+import ipaddress
 import logging
 import os
 import signal
@@ -12,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import urlsplit
 
 from .runtime import TurnCancelled
 
@@ -55,13 +57,34 @@ def run_cancellable_async(factory: Callable[[], Any], cancel: threading.Event,
             raise
 
 
+def is_loopback_url(url: str) -> bool:
+    """Return True when a provider URL targets this machine.
+
+    Loopback endpoints (local test fixtures, llama.cpp, Ollama, and similar)
+    never need a remote credential and must never be routed through an HTTP
+    proxy: proxy environment alone must not be able to break or reroute
+    local traffic.
+    """
+    try:
+        host = urlsplit(url).hostname or ""
+    except ValueError:
+        return False
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
 class CancellableChatClient:
     """Retain the injectable chat.completions.create seam, with owned async I/O."""
     def __init__(self, base_url: str, api_key: str, cancel: threading.Event,
-                 timeout: float, interval: float = 0.05):
+                 timeout: float, interval: float = 0.05, trust_env: bool = True):
         from types import SimpleNamespace
         self.base_url, self.api_key = base_url, api_key
         self.cancel, self.timeout, self.interval = cancel, timeout, interval
+        self.trust_env = trust_env
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
         self.embeddings = SimpleNamespace(create=lambda **kwargs: self._request("embeddings", "create", **kwargs))
         self.models = SimpleNamespace(list=lambda **kwargs: self._request("models", "list", **kwargs))
@@ -69,11 +92,43 @@ class CancellableChatClient:
     def create(self, **kwargs: Any) -> Any:
         return self._request("chat.completions", "create", **kwargs)
 
+    def stream_chat(self, on_chunk: Callable[[Any], None], **kwargs: Any) -> None:
+        """Consume one SSE chat stream inside the owned event loop.
+
+        Each decoded chunk is delivered to ``on_chunk`` synchronously; the
+        loop (and the connection) closes only after the stream is exhausted,
+        fails, or is cancelled. Cancellation raises :class:`TurnCancelled`.
+        """
+        async def consume():
+            async with self._make_openai_client() as client:
+                stream = await client.chat.completions.create(stream=True, **kwargs)
+                async for chunk in stream:
+                    if self.cancel.is_set():
+                        raise TurnCancelled("Turn cancelled during streaming")
+                    on_chunk(chunk)
+        return run_cancellable_async(consume, self.cancel, self.interval)
+
+    def _make_openai_client(self) -> Any:
+        """Build the SDK client honoring this endpoint's proxy policy.
+
+        Loopback endpoints ignore proxy environment entirely (``trust_env``
+        False): a malformed ``no_proxy`` entry must never break local
+        requests, and local traffic must never leave the machine.
+        """
+        from openai import AsyncOpenAI
+        extra: dict[str, Any] = {}
+        if not self.trust_env:
+            try:
+                import httpx2 as http
+            except ImportError:
+                import httpx as http
+            extra["http_client"] = http.AsyncClient(trust_env=False, timeout=self.timeout)
+        return AsyncOpenAI(base_url=self.base_url, api_key=self.api_key,
+                           max_retries=0, timeout=self.timeout, **extra)
+
     def _request(self, resource: str, method: str, **kwargs: Any) -> Any:
         async def request():
-            from openai import AsyncOpenAI
-            async with AsyncOpenAI(base_url=self.base_url, api_key=self.api_key,
-                                   max_retries=0, timeout=self.timeout) as client:
+            async with self._make_openai_client() as client:
                 endpoint = client
                 for name in resource.split("."):
                     endpoint = getattr(endpoint, name)
@@ -82,13 +137,13 @@ class CancellableChatClient:
 
 
 def cancellable_http_post(url: str, payload: dict[str, Any], cancel: threading.Event,
-                          timeout: float, interval: float = 0.05):
+                          timeout: float, interval: float = 0.05, trust_env: bool = True):
     async def request():
         try:
             import httpx2 as http
         except ImportError:
             import httpx as http
-        async with http.AsyncClient(timeout=timeout) as client:
+        async with http.AsyncClient(timeout=timeout, trust_env=trust_env) as client:
             response = await client.post(url, json=payload)
             response.raise_for_status()
             return response.json()
