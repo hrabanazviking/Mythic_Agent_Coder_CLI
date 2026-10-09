@@ -262,7 +262,7 @@ Each slice: work order → implement → targeted tests → full gates → revie
 | 5 | S11 memory/context | ⬜ |
 | 6 | S12 slice execution | ⬜ |
 | 7 | S13 MCP/contracts | ✅ |
-| 8 | S14 release readiness | ⬜ |
+| 8 | S14 release readiness | ✅ |
 | 9 | Test suite health | ⬜ |
 | 10 | Crash recovery | ✅ |
 | 11 | Health checks | ✅ |
