@@ -82,3 +82,5 @@ mythic_agent/core/config_manager.py:251:redacted_summary:function
 mythic_agent/core/determinism.py:77:step_names:method
 mythic_agent/core/thread_audit.py:113:forget:method
 mythic_agent/core/thread_audit.py:158:owner_ident:method
+mythic_agent/providers/llamacpp.py:68:health:method
+mythic_agent/providers/ollama.py:77:list_models:method
