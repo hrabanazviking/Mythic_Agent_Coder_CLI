@@ -7,7 +7,17 @@ Or: mythic bench (if wired into CLI)
 Results are printed as JSON for CI regression tracking.
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Path",
+    "bench_import",
+    "bench_memory",
+    "bench_startup",
+    "main",
+    "run_all",
+]
 
 import json
 import sys

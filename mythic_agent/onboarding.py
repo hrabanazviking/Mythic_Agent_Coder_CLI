@@ -6,7 +6,22 @@ that the environment is sane and returns a list of human-readable problems
 (empty means healthy).
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Any",
+    "Callable",
+    "ConfigManager",
+    "Iterable",
+    "Path",
+    "SetupIssue",
+    "Step",
+    "check_setup",
+    "dataclass",
+    "run_tutorial",
+    "tutorial_steps",
+]
 
 import os
 import shutil

@@ -8,7 +8,14 @@ All tool names below match the real tool schemas in
 :mod:`mythic_agent.agents.tools`.
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "CODING_SYSTEM_PROMPT",
+    "FEW_SHOT_EXAMPLES",
+    "for_provider",
+]
 
 # ---------------------------------------------------------------------------
 # System prompt

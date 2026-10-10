@@ -1,3 +1,7 @@
+
+__all__ = [
+    "TUTORIALS",
+]
 TUTORIALS = {
     "vibecoding": """# 🎸 The Art of Vibe Coding
 Vibe coding is the practice of programming with AI where you focus on the *intent* and *architecture* (the vibe) rather than the strict syntax. 

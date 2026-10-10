@@ -1,5 +1,14 @@
 """Portable workspace identity and contained file resolution."""
 
+__all__ = [
+    "Any",
+    "Path",
+    "PureWindowsPath",
+    "resolve_file",
+    "resolve_workspace",
+    "workspace_id",
+]
+
 import hashlib
 from pathlib import Path, PureWindowsPath
 from typing import Any

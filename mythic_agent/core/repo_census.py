@@ -49,7 +49,28 @@ The ``snapshot`` sub-command writes a JSON receipt instead::
         --out docs/REPO_CENSUS.json
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Any",
+    "Census",
+    "PACKAGE_NAME",
+    "Path",
+    "REPO_ROOT",
+    "SnapshotError",
+    "TESTS_DIR_NAME",
+    "TOOL_TAG",
+    "census",
+    "dataclass",
+    "datetime",
+    "field",
+    "main",
+    "render_receipt",
+    "snapshot",
+    "timezone",
+    "verify_snapshot",
+]
 
 import argparse
 import ast
@@ -60,6 +81,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .exceptions import MythicExecutionError
+
 PACKAGE_NAME = "mythic_agent"
 TESTS_DIR_NAME = "tests"
 TOOL_TAG = "repo_census/R-001"
@@ -69,7 +92,7 @@ TOOL_TAG = "repo_census/R-001"
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
 
-class SnapshotError(Exception):
+class SnapshotError(MythicExecutionError):
     """Raised when a snapshot file cannot be read or trusted."""
 
 

@@ -5,6 +5,16 @@
 cached and invalidated when a file's mtime changes.
 """
 
+__all__ = [
+    "Optional",
+    "Path",
+    "Symbol",
+    "SymbolIndex",
+    "dataclass",
+    "field",
+    "refresh_mtime",
+]
+
 import ast
 import re
 import time

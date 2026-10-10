@@ -6,7 +6,17 @@ takes effect everywhere the registry is consulted. ``docs/SHORTCUTS.md``
 documents the same table for humans.
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Any",
+    "Mapping",
+    "SHORTCUTS",
+    "effective_shortcuts",
+    "get_shortcut",
+    "list_actions",
+]
 
 from typing import Any, Mapping
 

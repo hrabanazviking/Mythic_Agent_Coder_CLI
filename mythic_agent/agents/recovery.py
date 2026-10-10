@@ -6,6 +6,17 @@ corrected arguments where a deterministic correction exists
 (e.g. a mistyped path resolved via fuzzy matching).
 """
 
+__all__ = [
+    "Any",
+    "Enum",
+    "Optional",
+    "Path",
+    "RecoveryStrategy",
+    "analyze_failure",
+    "fuzzy_find",
+    "suggest_fix",
+]
+
 from enum import Enum
 from pathlib import Path
 from typing import Any, Optional

@@ -5,7 +5,15 @@ Stdlib-only adapter for a locally running Ollama server
 third-party SDK; offline-first, matching Mythic's local model policy.
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Any",
+    "OllamaProvider",
+    "Provider",
+    "ProviderError",
+]
 
 import json
 import urllib.request

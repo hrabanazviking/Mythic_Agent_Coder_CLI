@@ -4,6 +4,15 @@ Slice 18: fuzzy filename matching, project-aware search that respects
 ``.gitignore``, and unified-diff edit previews.
 """
 
+__all__ = [
+    "Path",
+    "fuzzy_find",
+    "fuzzy_score",
+    "load_gitignore",
+    "preview_edit",
+    "respect_gitignore",
+]
+
 import difflib
 import fnmatch
 from pathlib import Path

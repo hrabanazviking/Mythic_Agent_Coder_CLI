@@ -43,7 +43,22 @@ Imports inside ``if TYPE_CHECKING:`` blocks are ignored -- they are type-only
 and never execute at runtime.
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "ACKNOWLEDGED_EXCEPTIONS",
+    "ENTRY_MODULES",
+    "Iterable",
+    "NamedTuple",
+    "Path",
+    "RULES",
+    "Rule",
+    "Violation",
+    "check",
+    "collect_imports",
+    "namedtuple",
+]
 
 import ast
 import fnmatch
