@@ -152,6 +152,10 @@ invented. Items are quarantined (recorded, not deleted) unless noted.
   (exercised by `tests/test_config_schema_v2.py`; available to
   external callers), same category as the test-only public API
   items above. Quarantined, not removed.
+- Added 2026-10-10 (Batch C follow-up, inventory 78 -> 81):
+  `step_names` (`core/determinism.py`), `forget` / `owner_ident`
+  (`core/thread_audit.py`) — registry/diagnostic API exercised by
+  their own test files; quarantined, not removed.
 
 ## Removed in this slice (not quarantined)
 
