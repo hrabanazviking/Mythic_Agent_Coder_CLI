@@ -17,7 +17,11 @@ from typing import Any
 from .secrets_audit import mask_text as _mask_detected_secrets
 
 
-_sensitive_names = {"api_key", "api_keys", "token", "password", "secret", "authorization"}
+_sensitive_names = {
+    "api_key", "api_keys", "token", "password", "secret", "authorization",
+    "client_secret", "api_secret", "access_token", "auth_token",
+    "refresh_token", "session_token", "private_key", "x_api_key", "x-api-key",
+}
 _url_auth = re.compile(r"(https?://)[^\s/@]+:[^\s/@]+@")
 _url_secret = re.compile(r"([?&](?:api_key|token|key|password)=)[^&#\s]+", re.IGNORECASE)
 _known_secrets: set[str] = set()
