@@ -84,12 +84,20 @@ class CommandHandler:
                     self._command_lock.release()
                 with self._commands_lock:
                     self._commands.pop(token, None)
+                try:
+                    from ..core.lifecycle import unregister_thread
+                    unregister_thread(threading.current_thread())
+                except Exception:
+                    pass
         from ..core.thread_audit import THREAD_REGISTRY
         command_thread = threading.Thread(
             target=execute, name=f"mythic-slash-command:{id(token):x}", daemon=True)
-        THREAD_REGISTRY.assert_single_owner(command_thread.name)
+        THREAD_REGISTRY.assert_single_owner(f"mythic-slash-command:{id(token):x}")
         command_thread.start()
-        THREAD_REGISTRY.register(command_thread)
+        THREAD_REGISTRY.register(command_thread, f"mythic-slash-command:{id(token):x}")
+        from ..core.lifecycle import register_thread
+        register_thread(command_thread, cancel,
+                        name=f"mythic-slash-command:{id(token):x}")
 
     def _primary(self):
         from .llm import AGENT_REGISTRY

@@ -94,6 +94,8 @@ def theme_command(args: "argparse.Namespace") -> int:
     return 0
 
 def main(argv: list[str] | None = None) -> int:
+    from .core.lifecycle import install_atexit
+    install_atexit()
     argv = sys.argv[1:] if argv is None else argv
     if argv and argv[0] == "doctor":
         # The doctor command owns its own flags (--provider, --live, --json).
@@ -201,8 +203,9 @@ def main(argv: list[str] | None = None) -> int:
         tracker = CostTracker(root)
         if args.json:
             import json as _json
+            # by_model() is insertion-ordered; machine output must be sorted.
             print(_json.dumps({"total_usd": tracker.total(),
-                               "by_model": tracker.by_model(),
+                               "by_model": dict(sorted(tracker.by_model().items())),
                                "unknown_models": sorted(tracker.unknown_models)}, indent=2))
         else:
             print(tracker.render())

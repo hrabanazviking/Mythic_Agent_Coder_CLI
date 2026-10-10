@@ -880,9 +880,13 @@ class AgentManager:
         from ..core.thread_audit import THREAD_REGISTRY
         sub_thread = threading.Thread(target=self._run_agent_loop, args=(sub_agent,),
                                       name=f"mythic-subagent-loop:{name}", daemon=True)
-        THREAD_REGISTRY.assert_single_owner(sub_thread.name)
+        THREAD_REGISTRY.assert_single_owner(f"mythic-subagent-loop:{name}")
         sub_thread.start()
-        THREAD_REGISTRY.register(sub_thread)
+        THREAD_REGISTRY.register(sub_thread, f"mythic-subagent-loop:{name}")
+        from ..core.lifecycle import register_thread
+        register_thread(sub_thread, threading.Event(),
+                        name=f"mythic-subagent-loop:{name}",
+                        on_stop=lambda: sub_agent.inbox.put(None))
         
         # Publish creation message to UI
         publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[bold green]✦ A new subagent has been awakened: {name}[/bold green]\n")
@@ -915,9 +919,13 @@ class AgentManager:
         from ..core.thread_audit import THREAD_REGISTRY
         ghost_thread = threading.Thread(target=self._run_agent_loop, args=(ghost_agent,),
                                         name=f"mythic-ghost-loop:{ghost_name}", daemon=True)
-        THREAD_REGISTRY.assert_single_owner(ghost_thread.name)
+        THREAD_REGISTRY.assert_single_owner(f"mythic-ghost-loop:{ghost_name}")
         ghost_thread.start()
-        THREAD_REGISTRY.register(ghost_thread)
+        THREAD_REGISTRY.register(ghost_thread, f"mythic-ghost-loop:{ghost_name}")
+        from ..core.lifecycle import register_thread
+        register_thread(ghost_thread, threading.Event(),
+                        name=f"mythic-ghost-loop:{ghost_name}",
+                        on_stop=lambda: ghost_agent.inbox.put(None))
         
         # Publish creation message to UI
         publish_sync("agent_chat_chunk", agent_name=original_agent.name, text=f"\n[bold magenta]✦ A ghost thread has been spun up to assist you: {ghost_name}[/bold magenta]\n")
@@ -981,6 +989,11 @@ class AgentManager:
                         prompt = agent.inbox.get()
                         if prompt is None:
                             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[bold red]✦ The subagent {agent.name} has been terminated and put to rest.[/bold red]\n")
+                            try:
+                                from ..core.lifecycle import unregister_thread
+                                unregister_thread(threading.current_thread())
+                            except Exception:
+                                pass
                             return # Cleanly exit thread
                             
                         agent.active_task_start_time = time.time()

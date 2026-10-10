@@ -27,6 +27,7 @@ class MythicEngine:
         self._setup_logging()
         self.config = None
         self.primary_agent = None
+        self.startup = None
 
     def _setup_logging(self) -> None:
         """Sets up robust cross-platform logging."""
@@ -50,12 +51,18 @@ class MythicEngine:
                      base_url: str | None = None, resume: str | None = None,
                      permission: str | None = None) -> None:
         """Initializes configuration and internal APIs."""
+        from .determinism import startup_sequence
+        from .lifecycle import install_atexit, register_thread
+        install_atexit()
+        self.startup = startup_sequence()
+        self.startup.record("logging")
         logging.info("Loading configuration...")
         self.config = config_manager.load_config()
         for key, value in (("model", model), ("base_url", base_url)):
             if value:
                 self.config[key] = value
         protect_logging(SecretRedactor(self.config))
+        self.startup.record("config")
         
         # Initialize Primary Agent and subscribe to events
         from mythic_agent.agents.llm import Agent, AGENT_REGISTRY, agent_manager
@@ -67,6 +74,7 @@ class MythicEngine:
         self.primary_agent = primary_agent
         primary_agent.attach_session(resume=resume)
         AGENT_REGISTRY["Primary"] = primary_agent
+        self.startup.record("agent", "Primary")
 
         # Crash recovery: replay any checkpoints journaled but never committed
         # by a previous process that died mid-write.
@@ -78,10 +86,15 @@ class MythicEngine:
                              len(recovered), recovered)
         except Exception:
             logging.exception("Crash recovery check failed; continuing without recovery.")
+        self.startup.record("recovery")
         
         # Start the inbox processing thread for the Primary agent
-        t = threading.Thread(target=agent_manager._run_agent_loop, args=(primary_agent,), daemon=True)
+        t = threading.Thread(target=agent_manager._run_agent_loop, args=(primary_agent,),
+                             name="mythic-primary-inbox", daemon=True)
         t.start()
+        register_thread(t, threading.Event(), name="mythic-primary-inbox",
+                        on_stop=lambda: primary_agent.inbox.put(None))
+        self.startup.record("inbox_thread", "mythic-primary-inbox")
         
         logging.info("Engine initialization complete.")
 
