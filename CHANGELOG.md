@@ -15,6 +15,48 @@ released.
 
 ### Added
 
+- **Forge 2026-10-10 dusk — roadmap slices 021–040 (Bedrock tail +
+  Provider Pantheon head).** Twenty slices, full suite
+  **1149 passed / 2 skipped / 0 failed**:
+  - R-021 Secret Redaction Audit: new `google_api_key` (AIza) and
+    `xai_key` scanner patterns; `_sensitive_names` extended
+    (client_secret, token variants, x-api-key); 20 adversarial gate
+    tests; audit finding — raw SDK exceptions leaked key material,
+    fixed by R-029/R-030.
+  - R-022 Static Analysis Gate: `scripts/static_gate.py` (stdlib-only;
+    compile + SyntaxWarning-as-error + no bare-except/eval/exec);
+    180 files, 0 hard findings.
+  - R-023 Test Taxonomy Rebuild: `TIER: unit/integration/live` lines in
+    all test modules; tier markers registered; live tier auto-skips
+    without `MYTHIC_LIVE_TESTS=1`; `docs/TEST_TAXONOMY.md`.
+  - R-024 Coverage Gap Assault: measured providers baseline (63%) in
+    `docs/COVERAGE_BASELINE.md`; closed the stable ollama gap;
+    subprocess coverage ratchet gate (now 66%).
+  - R-025 Bedrock Gate: receipt `docs/FORGE_RECEIPT_021_025.md`.
+  - R-026 Provider Contract V2: message validation, `ChatUsage` /
+    `ToolCall` dataclasses, `iter_chunks()` seam, definition-time
+    capability-flag validation, timeout/retry knobs.
+  - R-027/R-028 OpenAI + OpenAI-compatible local adapters (httpx2):
+    auth/error mapping, 429/5xx retry with backoff+jitter, header
+    redaction, fake-transport seams; `local-openai` preset.
+  - R-029 Anthropic hardening: SDK error mapping
+    (`AnthropicAuthError`/`AnthropicRateLimitError`, no key material);
+    fixed silently-dropped tool blocks (now `ProviderError`);
+    `tool_calling` flag corrected to False.
+  - R-030 Gemini hardening: safety-block diagnosis, empty-candidates
+    error, role-degradation policy documented, `configure` called once.
+  - R-031–R-036 OpenRouter / DeepSeek (reasoning_content fallback) /
+    Ollama hardening (fixed 2 real host-validation bugs) /
+    llama.cpp / vLLM (token-abc123 convention) / LM Studio adapters.
+  - R-037 Capability Discovery (live `/v1/models` probe, TTL cache,
+    graceful degradation); R-038 Model Capability Registry (18-pattern
+    table); R-039 Context-Window Discovery (registry → probe → 128k
+    default, message truncation); R-040 Tool-Call Negotiation
+    (OpenAI/Anthropic payload shapes, `ToolCall` normalization).
+  - Registry: 3 → 10 adapters with new aliases
+    (`gpt`, `llamacpp`/`llama-cpp`, `lm-studio`); R-017 protocol gate
+    extended to all 10.
+
 - **Forge 2026-10-10 dawn — Campaign I "Bedrock Truth" (roadmap slices
   001–020).** Twenty hardening slices, each with focused tests:
   - R-001 Repository Truth Census: `core/repo_census.py` (deterministic
