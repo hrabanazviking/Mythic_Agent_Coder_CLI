@@ -19,8 +19,6 @@ VALID_TIERS = {"unit", "integration", "live"}
 PENDING_TIER = {
     "test_openai_compat.py",
     "test_provider_contract_v2.py",
-    "test_anthropic_hardening.py",
-    "test_google_hardening.py",
 }
 
 
