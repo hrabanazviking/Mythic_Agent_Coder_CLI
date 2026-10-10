@@ -1,7 +1,7 @@
 """Schema validation and path sandboxing for agent tool arguments.
 
 Every tool call is validated against the JSON schema declared in its tool
-definition (see ``mythic_agent.agents.tools.get_agent_tools``) *before* it
+definition (see ``mythic_agent.core.tool_schemas.get_agent_tools``) *before* it
 executes. File-tool paths are additionally resolved against the workspace so
 traversal and symlink escapes are rejected at the validation layer, not just
 at execution time.
@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .workspace import resolve_file
+from .tool_schemas import get_agent_tools
 
 
 class ValidationError(ValueError):
@@ -38,8 +39,6 @@ _WRITE_TOOLS = {"write_file", "replace_file_content"}
 
 def _tool_schemas() -> dict[str, dict[str, Any]]:
     """JSON parameter schemas keyed by tool name, from the tool definitions."""
-    from ..agents.tools import get_agent_tools
-
     return {tool["function"]["name"]: tool["function"]["parameters"] for tool in get_agent_tools()}
 
 

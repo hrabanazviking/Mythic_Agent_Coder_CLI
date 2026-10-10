@@ -12,12 +12,12 @@ class MythicEngine:
     Central bootstrap engine for Mythic Agent.
     Ensures safe initialization order and catches unhandled exceptions.
     """
-    def __init__(self):
+    def __init__(self) -> None:
         self._setup_logging()
         self.config = None
         self.primary_agent = None
-        
-    def _setup_logging(self):
+
+    def _setup_logging(self) -> None:
         """Sets up robust cross-platform logging."""
         log_file = config_manager.MYTHIC_DIR / "agent.log"
         try:
@@ -35,7 +35,9 @@ class MythicEngine:
             logging.basicConfig(level=logging.INFO)
             logging.error(f"Failed to setup file logging: {e}")
 
-    def initialize(self, workspace=None, model=None, base_url=None, resume=None, permission=None):
+    def initialize(self, workspace: str | Path | None = None, model: str | None = None,
+                     base_url: str | None = None, resume: str | None = None,
+                     permission: str | None = None) -> None:
         """Initializes configuration and internal APIs."""
         logging.info("Loading configuration...")
         self.config = config_manager.load_config()
@@ -58,7 +60,7 @@ class MythicEngine:
         # Crash recovery: replay any checkpoints journaled but never committed
         # by a previous process that died mid-write.
         try:
-            from ..terminal import recover_crashed_sessions
+            from .recovery import recover_crashed_sessions
             recovered = recover_crashed_sessions(primary_agent, interactive=False)
             if recovered:
                 logging.info("Recovered %d crashed session checkpoint(s): %s",
@@ -72,14 +74,14 @@ class MythicEngine:
         
         logging.info("Engine initialization complete.")
 
-    def close(self):
+    def close(self) -> None:
         if self.primary_agent:
             self.primary_agent.cancel()
             self.primary_agent.inbox.put(None)
             self.primary_agent.close()
             self.primary_agent = None
 
-    def handle_crash(self, exc: Exception):
+    def handle_crash(self, exc: Exception) -> None:
         """Thor Guardian fallback: writes a structured JSON crash report."""
         logging.exception("Fatal error in Mythic Engine:")
 

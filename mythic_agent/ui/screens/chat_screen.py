@@ -307,7 +307,7 @@ class MainChatScreen(Screen):
                 if agent_name in self.active_subagents:
                     self.active_subagents.remove(agent_name)
                 
-            from ..agents.llm import AGENT_REGISTRY
+            from mythic_agent.agents.llm import AGENT_REGISTRY
             
             # Update dots if we are viewing the agent whose status just changed
             current_agent = getattr(self.app, "active_chat_agent", "Primary")
@@ -332,7 +332,7 @@ class MainChatScreen(Screen):
 
     def _update_footer_agent_status(self) -> None:
         try:
-            from ..agents.llm import AGENT_REGISTRY
+            from mythic_agent.agents.llm import AGENT_REGISTRY
             import time
             
             active_list = []

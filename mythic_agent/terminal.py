@@ -9,6 +9,7 @@ from typing import Any
 
 from .agents.llm import Agent
 from .core.config_manager import config_manager
+from .core.recovery import recover_crashed_sessions
 from .core.edits import EditJournal
 from .core.policy import ToolPolicy, policy_mode
 from .core.execution import run_cancellable_async, run_process
@@ -59,43 +60,6 @@ def configured_agent(args: Any, default_permission: str) -> Agent:
 
 def _release(agent: Agent) -> None:
     agent.close()
-
-
-def recover_crashed_sessions(agent: Agent, interactive: bool = False,
-                             console: Any = None) -> list[str]:
-    """Startup crash check: replay journaled checkpoints left by a dead process.
-
-    When ``interactive`` and stdin is a TTY the user is asked first; otherwise
-    recovery is automatic.  Returns the recovered session ids.
-    """
-    store = getattr(agent, "_session_store", None)
-    if store is None:
-        return []
-    pending = store.check_recovery()
-    if not pending:
-        return []
-    notice = (f"[!] Detected {len(pending)} uncommitted checkpoint(s) from a "
-              "previous crash. Session state may otherwise be lost.")
-    if console is not None:
-        console.print(notice)
-    else:
-        sys.stderr.write(notice + "\n")
-    proceed = True
-    if interactive and sys.stdin.isatty():
-        try:
-            answer = input("Recover them now? [Y/n] ").strip().lower()
-        except (EOFError, OSError):
-            answer = "n"
-        proceed = answer in {"", "y", "yes"}
-    if not proceed:
-        return []
-    recovered = store.recover_pending()
-    done = f"[+] Recovered {len(recovered)} crashed session checkpoint(s)."
-    if console is not None:
-        console.print(done)
-    else:
-        sys.stderr.write(done + "\n")
-    return recovered
 
 
 def _json_line(value: dict[str, Any]) -> None:
