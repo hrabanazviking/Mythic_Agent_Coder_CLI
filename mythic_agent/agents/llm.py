@@ -1,3 +1,37 @@
+
+__all__ = [
+    "AGENT_REGISTRY",
+    "APIConnectionError",
+    "APIStatusError",
+    "Agent",
+    "AgentManager",
+    "Any",
+    "Callable",
+    "CancellableChatClient",
+    "CoreMemoryManager",
+    "DEFAULT_SYSTEM_PROMPT",
+    "Path",
+    "ProviderCredentialsError",
+    "SecretRedactor",
+    "SessionStore",
+    "ToolPolicy",
+    "TurnCancelled",
+    "TurnResult",
+    "agent_manager",
+    "build_provider_client",
+    "config_manager",
+    "diagnose_provider",
+    "execute_tool",
+    "get_agent_tools",
+    "get_vector_provider",
+    "is_loopback_url",
+    "policy_mode",
+    "protect_logging",
+    "publish_sync",
+    "resolve_api_key",
+    "runtime_settings",
+    "subscribe",
+]
 import json
 import os
 import time
@@ -19,6 +53,7 @@ from ..core.redaction import SecretRedactor, protect_logging
 from ..core.sessions import SessionStore
 from ..core.policy import ToolPolicy, policy_mode
 from ..core.execution import CancellableChatClient, is_loopback_url
+from ..core.exceptions import MythicProviderError
 from ..memory.core_memory import CoreMemoryManager
 from ..memory.vector_db import get_vector_provider
 
@@ -31,7 +66,7 @@ AGENT_REGISTRY: dict[str, "Agent"] = {}
 _LOOPBACK_API_KEY = "local"
 
 
-class ProviderCredentialsError(RuntimeError):
+class ProviderCredentialsError(MythicProviderError, RuntimeError):
     """A remote endpoint needs a credential and none is configured.
 
     Raised before any network request, with a redacted remedy. Loopback

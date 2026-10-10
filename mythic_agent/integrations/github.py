@@ -17,7 +17,20 @@ To wire into ``mythic_agent.cli.main`` (one line, no other changes)::
     register_cli(commands)
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Any",
+    "GitHubCLIError",
+    "Optional",
+    "add_pr_comment",
+    "create_pr",
+    "get_actions_status",
+    "list_issues",
+    "main",
+    "register_cli",
+]
 
 import argparse
 import json
@@ -25,10 +38,12 @@ import subprocess
 import sys
 from typing import Any, Optional
 
+from ..core.exceptions import MythicIntegrationError
+
 _GH_TIMEOUT = 60
 
 
-class GitHubCLIError(RuntimeError):
+class GitHubCLIError(MythicIntegrationError, RuntimeError):
     """The ``gh`` CLI is missing, unauthenticated, or reported a failure."""
 
 

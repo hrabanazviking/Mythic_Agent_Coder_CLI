@@ -13,7 +13,18 @@ Usage:
     print(result.stdout)
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Any",
+    "Path",
+    "Sandbox",
+    "SandboxError",
+    "SandboxResult",
+    "dataclass",
+    "field",
+]
 
 import os
 import re
@@ -23,6 +34,8 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from .exceptions import MythicSandboxError
 
 
 #: Regex fragments matching destructive shell invocations.  Any match
@@ -68,7 +81,7 @@ class SandboxResult:
         return head + body + err
 
 
-class SandboxError(Exception):
+class SandboxError(MythicSandboxError):
     """Raised when a command is refused or cannot be sandboxed."""
 
 

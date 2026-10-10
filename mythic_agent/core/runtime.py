@@ -1,5 +1,14 @@
 """Shared turn outcomes and validated operational settings."""
 
+__all__ = [
+    "Any",
+    "TurnCancelled",
+    "TurnResult",
+    "dataclass",
+    "files",
+    "runtime_settings",
+]
+
 from dataclasses import dataclass
 import math
 from importlib.resources import files
@@ -7,8 +16,10 @@ from typing import Any
 
 import yaml
 
+from .exceptions import MythicExecutionError
 
-class TurnCancelled(RuntimeError):
+
+class TurnCancelled(MythicExecutionError, RuntimeError):
     """A user stopped a turn; adapters must not report success."""
 
 
