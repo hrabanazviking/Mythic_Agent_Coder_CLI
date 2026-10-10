@@ -15,6 +15,77 @@ released.
 
 ### Added
 
+- **Forge 2026-10-10 dawn — Campaign I "Bedrock Truth" (roadmap slices
+  001–020).** Twenty hardening slices, each with focused tests:
+  - R-001 Repository Truth Census: `core/repo_census.py` (deterministic
+    digest, snapshot/verify, CLI); receipt `docs/REPO_CENSUS.md`
+    (88 files, 13150 code lines, 123 classes, 806 functions).
+  - R-006 Dead-Code Quarantine: stdlib-ast scanner
+    `core/dead_code_scan.py`; inventory `docs/DEAD_CODE_QUARANTINE.txt`
+    (81 items); gate test fails on new dead code; removed 2 safe
+    private helpers (`_timeout_output`, `_use_color`).
+  - R-002 Architecture Conformance Audit: `core/arch_conformance.py`
+    (20 layering rules as data, import-graph gate); fixed 3 real
+    violations — `core/engine.py→terminal` and
+    `core/validation.py→agents.tools` dependency inversions eliminated
+    via new `core/recovery.py` / `core/tool_schemas.py`; 2 broken
+    relative imports in `ui/screens/chat_screen.py` fixed.
+  - R-007 Type Coverage: ast-based measurement
+    `core/type_coverage.py`; params 870/925 → 901/942, returns
+    666/795 → 712/807 across 7 annotated core modules; ratchet gate.
+  - R-004 Dependency/Extras Audit: declared `httpx`/`httpx2` (both —
+    `httpx2` is openai 3.x's real installed fork, plain `httpx` the
+    fallback), `anthropic`/`google` extras, `torch` in voice-cloning,
+    Apache-2.0 license metadata; restored the
+    try/except-ImportError httpx fallback in `core/execution.py`
+    (bare `import httpx` broke provider-live checks where only
+    httpx2 is installed); fallback-shape gate test.
+  - R-003 Public API Inventory: `__all__` on 82 modules (875→907
+    public names); generated `docs/PUBLIC_API.md`; rot-check gate.
+  - R-008 Exception Taxonomy V2: `core/exceptions.py` (`MythicError`
+    + 10 domain categories with machine codes and `to_dict()`);
+    15 existing exception classes migrated with multiple inheritance
+    preserving old `except` clauses.
+  - R-009 Configuration Schema V2: `CONFIG_SCHEMA` derived from
+    `config_defaults.yaml` (parity-tested); `validate_config()`
+    dotted-path problems; strict mode (`MYTHIC_STRICT_CONFIG`)
+    rejecting unknown keys with difflib hints;
+    `redacted_summary()` for safe logging.
+  - R-010 Resource Loading Hardening: 1 MiB size cap, strict typed
+    loaders (missing/malformed/oversized/traversal rejected),
+    traversal-safe `resource_path()` / `load_resource()`.
+  - R-011 Deterministic Startup: `core/determinism.py`; fixed
+    `mythic costs --json` nondeterministic ordering; volatile
+    machine-output fields documented.
+  - R-012 Shutdown Correctness: `core/lifecycle.py` (bounded
+    `shutdown_all`, idempotent `install_atexit`); all daemon
+    threads registered with stop events.
+  - R-013 Cancellation Correctness: `grep_search` cancel checks;
+    `TurnCancelled` no longer swallowed; cancel-event poisoning
+    fixed (ordinary failures no longer mark the shared event).
+  - R-014 Thread Ownership Audit: `core/thread_audit.py`
+    (`ThreadRegistry`, `LoopAffinity`, diagnostics); named threads
+    at all spawn sites.
+  - R-015 Async Boundary Audit: bridge contract documented and
+    tested (exception identity preserved; in-loop offload codified).
+  - R-016 Serialization Invariants: `canonical_json()`,
+    `strict_json_loads()`, `decode_json_bytes()` in storage;
+    `session_to_dict/from_dict`, `config_to_dict/from_dict`;
+    fixed unchecked session timestamps and `UsageRecord.from_dict`
+    bare-KeyError.
+  - R-017 Provider Protocol Invariants: signature/exception/registry
+    conformance gate (no network); fixed `ollama._post` leaking
+    raw `ValueError`/`JSONDecodeError` (now `ProviderError`).
+  - R-018 Workspace Identity Invariants: canonical `workspace_id()`,
+    `assert_within_workspace()` containment, `SecurityError` on
+    escapes.
+  - R-019 Session Identity Invariants: corrupt storage/row errors
+    now name the file/session (were raw `sqlite3.DatabaseError` /
+    `JSONDecodeError`); stale-lock semantics proven by tests.
+  - R-020 Edit Journal Integrity: 8 attack scenarios all held;
+    added `auto_vacuum_threshold` bounding tombstone growth.
+  - R-005 Source Ownership Map: `scripts/gen_ownership.py`;
+    generated `docs/OWNERSHIP.md` (95 modules).
 - **Slice 2 (S08) — Agent lifecycle and controlled orchestration.**
   Typed task IDs with queued/running/completed/failed/cancelled states,
   parent/child relationships, registry locking, delegation-cycle detection,
