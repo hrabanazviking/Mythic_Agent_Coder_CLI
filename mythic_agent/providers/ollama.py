@@ -58,16 +58,26 @@ class OllamaProvider(Provider):
 
     def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         """POST JSON and return the decoded body; single seam for tests."""
-        request = urllib.request.Request(
-            self.host + path,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST")
+        try:
+            request = urllib.request.Request(
+                self.host + path,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST")
+        except (OSError, ValueError) as exc:
+            raise ProviderError(
+                f"Ollama host is malformed ({self.host!r}): {exc}. "
+                "Use an http(s) URL such as 'http://localhost:11434'.") from exc
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as reply:
-                return json.loads(reply.read().decode("utf-8"))
+                raw = reply.read().decode("utf-8")
         except OSError as exc:
             raise ProviderError(
                 f"Ollama is unreachable at {self.host}. "
                 "Start it with `ollama serve` and pull a model with "
                 "`ollama pull <model>`.") from exc
+        try:
+            return json.loads(raw)
+        except ValueError as exc:  # json.JSONDecodeError subclasses ValueError
+            raise ProviderError(
+                f"Ollama returned malformed JSON from {self.host}.") from exc
