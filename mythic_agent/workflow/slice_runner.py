@@ -6,7 +6,22 @@ runner writes a checkpoint to ``<MYTHIC_DIR>/slices/<name>.json`` so
 after an interruption or a failed gate.
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Any",
+    "CheckpointError",
+    "GateResult",
+    "Optional",
+    "Path",
+    "SliceDefinition",
+    "SliceResult",
+    "SliceRunner",
+    "config_manager",
+    "dataclass",
+    "field",
+]
 
 import dataclasses
 import json
@@ -20,9 +35,10 @@ from pathlib import Path
 from typing import Any, Optional
 
 from ..core.config_manager import config_manager
+from ..core.exceptions import MythicExecutionError
 
 
-class CheckpointError(Exception):
+class CheckpointError(MythicExecutionError):
     """Raised when a slice checkpoint is missing or unreadable."""
 
 

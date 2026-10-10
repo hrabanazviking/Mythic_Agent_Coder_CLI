@@ -13,7 +13,21 @@ Appends are atomic: the whole file is rewritten through a temporary file plus
 never observe a half-written journal.
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Any",
+    "CRASH_REPORT_VERSION",
+    "CorruptJournalLine",
+    "FileLock",
+    "JOURNAL_SCHEMA_VERSION",
+    "Path",
+    "WriteAheadLog",
+    "datetime",
+    "timezone",
+    "write_crash_report",
+]
 
 import hashlib
 import json
@@ -25,6 +39,8 @@ import traceback
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+
+from .exceptions import MythicJournalError
 from typing import Any
 
 from filelock import FileLock
@@ -43,7 +59,7 @@ def _checksum(record: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-class CorruptJournalLine(Exception):
+class CorruptJournalLine(MythicJournalError):
     """A journal line failed checksum/parse validation; it is skipped."""
 
 

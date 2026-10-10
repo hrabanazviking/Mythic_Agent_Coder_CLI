@@ -7,20 +7,33 @@ traversal and symlink escapes are rejected at the validation layer, not just
 at execution time.
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Any",
+    "Path",
+    "SecurityError",
+    "ValidationError",
+    "get_agent_tools",
+    "resolve_file",
+    "sandbox_path",
+    "validate_tool_args",
+]
 
 from pathlib import Path
 from typing import Any
 
 from .workspace import resolve_file
 from .tool_schemas import get_agent_tools
+from .exceptions import MythicSecurityError, MythicValidationError
 
 
-class ValidationError(ValueError):
+class ValidationError(MythicValidationError, ValueError):
     """A tool argument failed schema or security validation."""
 
 
-class SecurityError(ValidationError):
+class SecurityError(MythicSecurityError, ValidationError):
     """A tool argument violated the workspace sandbox or a security rule."""
 
 

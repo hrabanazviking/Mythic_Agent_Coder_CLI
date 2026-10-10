@@ -12,14 +12,28 @@ failure — auth, transport, or malformed responses — and must never
 emit credentials in error text.
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "ABC",
+    "Any",
+    "Optional",
+    "Provider",
+    "ProviderError",
+    "ProviderNotConfigured",
+    "ProviderNotFound",
+    "abstractmethod",
+]
 
 import os
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
+from ..core.exceptions import MythicProviderError
 
-class ProviderError(RuntimeError):
+
+class ProviderError(MythicProviderError, RuntimeError):
     """Any provider-side failure (auth, transport, malformed response)."""
 
 

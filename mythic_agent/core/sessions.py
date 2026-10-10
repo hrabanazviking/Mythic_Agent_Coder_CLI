@@ -1,5 +1,22 @@
 """Workspace-scoped transcripts with atomic checkpoints and exclusive leases."""
 
+__all__ = [
+    "Any",
+    "FileLock",
+    "Path",
+    "SecretRedactor",
+    "SessionBusy",
+    "SessionStore",
+    "Timeout",
+    "WriteAheadLog",
+    "contextmanager",
+    "datetime",
+    "timezone",
+    "validate_messages",
+    "validate_session_id",
+    "workspace_id",
+]
+
 import copy
 import json
 import os
@@ -16,9 +33,10 @@ from filelock import FileLock, Timeout
 from .redaction import SecretRedactor
 from .journal import WriteAheadLog
 from .workspace import workspace_id
+from .exceptions import MythicSessionError
 
 
-class SessionBusy(RuntimeError):
+class SessionBusy(MythicSessionError, RuntimeError):
     """Another attached agent/process owns this session."""
 
 

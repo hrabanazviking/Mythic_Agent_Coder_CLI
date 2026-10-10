@@ -11,7 +11,22 @@ executor substitutes the dependency's output text before executing the
 dependent call.
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Any",
+    "Callable",
+    "DependencyError",
+    "Mapping",
+    "ParallelExecutor",
+    "ThreadPoolExecutor",
+    "ToolCall",
+    "ToolResult",
+    "dataclass",
+    "field",
+    "referenced_ids",
+]
 
 import concurrent.futures
 import json
@@ -20,6 +35,8 @@ from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any
+
+from ..core.exceptions import MythicExecutionError
 
 #: Matches ``${call-id.output}`` placeholders in argument values.
 _OUTPUT_REF = re.compile(r"\$\{([A-Za-z0-9][A-Za-z0-9_-]*)\.output\}")
@@ -74,7 +91,7 @@ def _resolve_arguments(arguments: Any, outputs: Mapping[str, str]) -> Any:
     return arguments
 
 
-class DependencyError(ValueError):
+class DependencyError(MythicExecutionError, ValueError):
     """A call references an unknown id, itself, or a dependency cycle."""
 
 

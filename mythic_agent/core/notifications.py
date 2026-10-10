@@ -12,7 +12,17 @@ No network traffic happens unless ``webhook_url`` is configured, and no
 secrets are ever logged.
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Any",
+    "NotificationError",
+    "Optional",
+    "WebhookSender",
+    "notify",
+    "notify_all",
+]
 
 import hashlib
 import hmac
@@ -22,10 +32,12 @@ import subprocess
 import urllib.request
 from typing import Any, Optional
 
+from .exceptions import MythicNotificationError
+
 _SIGNATURE_HEADER = "X-Mythic-Signature"
 
 
-class NotificationError(RuntimeError):
+class NotificationError(MythicNotificationError, RuntimeError):
     """A notification or webhook delivery failed."""
 
 
