@@ -242,6 +242,8 @@ def mythic_capabilities() -> str:
 
 def main():
     """Entry point for the MCP server."""
+    from .core.lifecycle import install_atexit
+    install_atexit()
     mcp.run(transport="stdio")
 
 if __name__ == "__main__":
