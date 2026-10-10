@@ -60,7 +60,7 @@ class WriteAheadLog:
         wal.commit(journal_id)      # tombstone: mutation is durable
     """
 
-    def __init__(self, path: str | Path):
+    def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         self._lock = FileLock(str(self.path) + ".lock", timeout=10)

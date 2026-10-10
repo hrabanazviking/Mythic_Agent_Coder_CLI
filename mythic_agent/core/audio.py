@@ -17,7 +17,7 @@ from openai import OpenAI
 from ..core.config_manager import config_manager
 
 class AudioRecorder:
-    def __init__(self):
+    def __init__(self) -> None:
         self.is_recording = False
         self.sample_rate = 16000
         self.channels = 1
@@ -39,13 +39,13 @@ class AudioRecorder:
             return self.config["api_keys"][self.base_url]
         return os.environ.get("OPENAI_API_KEY")
 
-    def _audio_callback(self, indata, frames, time, status):
+    def _audio_callback(self, indata, frames: int, time, status) -> None:
         """Called for each audio block by sounddevice."""
         if status:
             logging.warning(f"Audio callback status: {status}")
         self.audio_queue.put(indata.copy())
 
-    def _record_loop(self):
+    def _record_loop(self) -> None:
         """The main loop reading from the stream."""
         self._frames = []
         try:

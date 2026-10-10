@@ -27,6 +27,7 @@ import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import TracebackType
 from typing import Any, Iterator
 
 
@@ -134,7 +135,8 @@ class Trace:
         _local.current = self
         return self._span
 
-    def __exit__(self, exc_type, exc, tb) -> None:
+    def __exit__(self, exc_type: type[BaseException] | None,
+                   exc: BaseException | None, tb: TracebackType | None) -> None:
         self._span.end = time.monotonic()
         if exc_type is not None:
             self._span.attributes["error"] = f"{exc_type.__name__}: {exc}"
