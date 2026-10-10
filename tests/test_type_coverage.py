@@ -1,4 +1,6 @@
-"""Tests for mythic_agent.core.type_coverage (R-007).
+"""
+TIER: unit
+Tests for mythic_agent.core.type_coverage (R-007).
 
 The fixture-package tests are hermetic (built in tmp_path) so they are immune
 to concurrent work in the real repo.  The package-total gate at the bottom is

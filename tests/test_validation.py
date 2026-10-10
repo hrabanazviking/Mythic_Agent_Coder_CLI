@@ -1,4 +1,6 @@
-"""SLICE 14: schema validation, path sandboxing, secrets audit."""
+"""
+TIER: unit
+SLICE 14: schema validation, path sandboxing, secrets audit."""
 
 import pytest
 

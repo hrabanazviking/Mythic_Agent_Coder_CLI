@@ -1,4 +1,6 @@
-"""Slice 45: execution sandboxing."""
+"""
+TIER: unit
+Slice 45: execution sandboxing."""
 
 import pytest
 

@@ -1,4 +1,6 @@
-"""Slice R-001 / roadmap 001: repository truth census tests."""
+"""
+TIER: unit
+Slice R-001 / roadmap 001: repository truth census tests."""
 
 import json
 

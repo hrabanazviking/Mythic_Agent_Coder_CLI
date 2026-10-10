@@ -1,4 +1,6 @@
-"""Tests for coding prompt optimization assets (Slice 22)."""
+"""
+TIER: unit
+Tests for coding prompt optimization assets (Slice 22)."""
 
 import pytest
 

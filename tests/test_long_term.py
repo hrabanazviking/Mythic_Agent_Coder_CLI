@@ -1,4 +1,6 @@
-"""Tests for mythic_agent.memory.long_term (Slice 42)."""
+"""
+TIER: unit
+Tests for mythic_agent.memory.long_term (Slice 42)."""
 
 import json
 

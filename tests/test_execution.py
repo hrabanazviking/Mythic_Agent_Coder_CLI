@@ -1,4 +1,6 @@
-"""Real owned subprocesses and free localhost HTTP cancellation/recovery."""
+"""
+TIER: integration
+Real owned subprocesses and free localhost HTTP cancellation/recovery."""
 
 import asyncio
 import json

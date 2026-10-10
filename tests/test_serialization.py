@@ -1,4 +1,6 @@
-"""Serialization invariants (R-016): round-trips are a tested contract.
+"""
+TIER: unit
+Serialization invariants (R-016): round-trips are a tested contract.
 
 Covers session records (``sessions.session_to_dict``/``session_from_dict``),
 journal checkpoint entries (``WriteAheadLog``, already checksummed), and

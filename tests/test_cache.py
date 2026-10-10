@@ -1,4 +1,6 @@
-"""Slice 23: disk-backed LLM response cache (mythic_agent/core/cache.py)."""
+"""
+TIER: unit
+Slice 23: disk-backed LLM response cache (mythic_agent/core/cache.py)."""
 
 import json
 import time

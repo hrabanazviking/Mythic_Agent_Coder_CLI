@@ -1,4 +1,6 @@
-"""S09 (TUI polish) + S10 (repo workflows) slice tests.
+"""
+TIER: integration
+S09 (TUI polish) + S10 (repo workflows) slice tests.
 
 Covers: the ui_thread thread-safety wrapper, small-terminal detection,
 commit-scope preview, workspace-scoped gh execution, and token redaction

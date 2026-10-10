@@ -1,4 +1,6 @@
-"""Slice 37 notification tests.
+"""
+TIER: integration
+Slice 37 notification tests.
 
 ``notify-send`` and the network are never touched: both are stubbed.
 """

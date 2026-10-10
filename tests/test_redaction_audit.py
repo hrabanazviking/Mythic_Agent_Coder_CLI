@@ -1,4 +1,6 @@
-"""R-021 / roadmap 021 — Secret Redaction Audit: adversarial gate tests.
+"""
+TIER: unit
+R-021 / roadmap 021 — Secret Redaction Audit: adversarial gate tests.
 
 Proves that credential material cannot escape through the paths this slice
 owns: the pattern scanner, the redactor, config/session/journal exports, the

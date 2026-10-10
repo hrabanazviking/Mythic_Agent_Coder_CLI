@@ -1,4 +1,6 @@
-"""Tests for mythic_agent.agents.recovery (Slice 20)."""
+"""
+TIER: unit
+Tests for mythic_agent.agents.recovery (Slice 20)."""
 
 from pathlib import Path
 

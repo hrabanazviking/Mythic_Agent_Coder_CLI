@@ -1,4 +1,6 @@
-"""Tests for mythic_agent.core.mythic_logging (Slice 12)."""
+"""
+TIER: unit
+Tests for mythic_agent.core.mythic_logging (Slice 12)."""
 
 import io
 import json

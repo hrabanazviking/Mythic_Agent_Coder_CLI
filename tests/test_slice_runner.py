@@ -1,4 +1,6 @@
-"""Tests for the Mythic Engineering slice runner (S12)."""
+"""
+TIER: unit
+Tests for the Mythic Engineering slice runner (S12)."""
 
 import json
 import sys

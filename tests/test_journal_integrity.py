@@ -1,4 +1,6 @@
-"""Attack suite for write-ahead journal integrity (R-020).
+"""
+TIER: integration
+Attack suite for write-ahead journal integrity (R-020).
 
 Prime directive: PROVE the journal holds. Each test is an attack:
 a kill -9, a flipped byte, a torn write, a forged checksum, a thread

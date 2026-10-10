@@ -1,4 +1,6 @@
-"""Tests for mythic_agent.tools.smart_files (Slice 18)."""
+"""
+TIER: unit
+Tests for mythic_agent.tools.smart_files (Slice 18)."""
 
 from pathlib import Path
 

@@ -1,4 +1,6 @@
-"""Effects require one explicit decision across direct, human and MCP adapters."""
+"""
+TIER: integration
+Effects require one explicit decision across direct, human and MCP adapters."""
 
 import asyncio
 import importlib.util

@@ -1,4 +1,6 @@
-"""Slice 27: memory-bounded transcript (mythic_agent/core/transcript.py)."""
+"""
+TIER: unit
+Slice 27: memory-bounded transcript (mythic_agent/core/transcript.py)."""
 
 import tracemalloc
 

@@ -1,4 +1,6 @@
-"""Slice 46: audit logging."""
+"""
+TIER: unit
+Slice 46: audit logging."""
 
 import json
 

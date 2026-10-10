@@ -1,4 +1,6 @@
-"""Dependency/extras audit (R-004 / roadmap slice 004).
+"""
+TIER: unit
+Dependency/extras audit (R-004 / roadmap slice 004).
 
 Every third-party module imported anywhere in ``mythic_agent/`` must be
 declared in ``pyproject.toml`` — either in the core ``dependencies`` or in

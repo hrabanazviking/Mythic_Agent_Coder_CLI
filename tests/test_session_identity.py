@@ -1,4 +1,6 @@
-"""R-019: session identity invariants.
+"""
+TIER: integration
+R-019: session identity invariants.
 
 Session ID scheme (as found in ``mythic_agent/core/sessions.py``):
   * IDs are generated store-side by ``SessionStore.create()`` via

@@ -1,4 +1,6 @@
-"""Thread ownership audit: duplicate registration, loop affinity, diagnostics."""
+"""
+TIER: integration
+Thread ownership audit: duplicate registration, loop affinity, diagnostics."""
 
 import asyncio
 import threading

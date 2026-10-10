@@ -1,4 +1,6 @@
-"""Slice 32 tests: dependency-free Markdown rendering."""
+"""
+TIER: unit
+Slice 32 tests: dependency-free Markdown rendering."""
 
 from mythic_agent.ui.markdown import render_markdown
 

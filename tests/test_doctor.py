@@ -1,4 +1,6 @@
-"""Tests for mythic_agent.doctor (Slice 11)."""
+"""
+TIER: unit
+Tests for mythic_agent.doctor (Slice 11)."""
 
 import json
 

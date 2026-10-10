@@ -1,4 +1,6 @@
-"""Prevent GitHub Desktop checkout failures from Windows-invalid tracked paths."""
+"""
+TIER: integration
+Prevent GitHub Desktop checkout failures from Windows-invalid tracked paths."""
 
 import subprocess
 from pathlib import Path

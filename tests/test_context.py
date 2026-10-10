@@ -1,4 +1,6 @@
-"""Tests for smart token-budget-aware context assembly (Slice 15)."""
+"""
+TIER: unit
+Tests for smart token-budget-aware context assembly (Slice 15)."""
 
 import pytest
 

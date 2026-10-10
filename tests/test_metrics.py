@@ -1,4 +1,6 @@
-"""Slice 48: metrics and tracing."""
+"""
+TIER: unit
+Slice 48: metrics and tracing."""
 
 import json
 import time

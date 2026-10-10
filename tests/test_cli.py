@@ -1,4 +1,6 @@
-"""Actual subprocess/HTTP protocol tests against a local, free fake provider."""
+"""
+TIER: integration
+Actual subprocess/HTTP protocol tests against a local, free fake provider."""
 
 import json
 import os
