@@ -1,4 +1,6 @@
-"""Dead-code quarantine tests (roadmap slice R-006).
+"""
+TIER: unit
+Dead-code quarantine tests (roadmap slice R-006).
 
 Covers the stdlib-ast scanner in mythic_agent.core.dead_code_scan and the
 repository gate: no NEW dead code may appear beyond the quarantined list.

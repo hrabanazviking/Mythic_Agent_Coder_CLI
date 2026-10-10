@@ -1,4 +1,6 @@
-"""Public API inventory gate (forge run 2026-10-10, R-003 / roadmap 003).
+"""
+TIER: unit
+Public API inventory gate (forge run 2026-10-10, R-003 / roadmap 003).
 
 Every non-test module in ``mythic_agent/`` must define ``__all__`` (or be a
 documented intentional exclusion), and every name listed must actually exist

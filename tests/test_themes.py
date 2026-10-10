@@ -1,4 +1,6 @@
-"""Slice 30 tests: named UI themes."""
+"""
+TIER: unit
+Slice 30 tests: named UI themes."""
 
 import pytest
 

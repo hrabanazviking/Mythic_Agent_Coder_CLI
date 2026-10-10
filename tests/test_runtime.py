@@ -1,3 +1,8 @@
+"""Mythic Agent tests.
+
+TIER: integration
+"""
+
 import json
 from types import SimpleNamespace
 from unittest.mock import Mock

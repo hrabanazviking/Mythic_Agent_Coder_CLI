@@ -1,4 +1,6 @@
-"""Tests for mythic_agent.agents.tasks (SLICE 2 — S08 Agent lifecycle)."""
+"""
+TIER: integration
+Tests for mythic_agent.agents.tasks (SLICE 2 — S08 Agent lifecycle)."""
 
 import threading
 

@@ -1,4 +1,6 @@
-"""S07 provider adapter tests: loopback auth, retry budget, SSE streaming, doctor.
+"""
+TIER: integration
+S07 provider adapter tests: loopback auth, retry budget, SSE streaming, doctor.
 
 All provider traffic goes to in-process fake HTTP fixtures; no real
 provider is ever contacted.

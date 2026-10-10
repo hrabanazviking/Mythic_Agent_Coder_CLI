@@ -1,4 +1,6 @@
-"""R-012: shutdown correctness for the lifecycle thread registry.
+"""
+TIER: integration
+R-012: shutdown correctness for the lifecycle thread registry.
 
 * Registered threads with cooperative stop signals terminate within the
   shutdown budget.

@@ -1,4 +1,6 @@
-"""Tests for multi-step planning (Slice 16)."""
+"""
+TIER: unit
+Tests for multi-step planning (Slice 16)."""
 
 import pytest
 

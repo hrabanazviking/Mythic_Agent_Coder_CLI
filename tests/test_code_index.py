@@ -1,4 +1,6 @@
-"""Tests for mythic_agent.tools.code_index (Slice 19)."""
+"""
+TIER: unit
+Tests for mythic_agent.tools.code_index (Slice 19)."""
 
 from pathlib import Path
 

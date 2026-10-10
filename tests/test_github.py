@@ -1,4 +1,6 @@
-"""Slice 36 GitHub integration tests.
+"""
+TIER: integration
+Slice 36 GitHub integration tests.
 
 The ``gh`` CLI is never executed: ``_run_gh`` (and ``subprocess.run``
 for the missing-binary case) is stubbed in every test.

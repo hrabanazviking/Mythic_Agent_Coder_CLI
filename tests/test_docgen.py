@@ -1,4 +1,6 @@
-"""Tests for mythic_agent.tools.docgen (Slice 43)."""
+"""
+TIER: unit
+Tests for mythic_agent.tools.docgen (Slice 43)."""
 
 import ast
 from pathlib import Path

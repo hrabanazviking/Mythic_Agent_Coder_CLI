@@ -1,4 +1,6 @@
-"""R-015 async boundary audit: the sync/async bridge contract.
+"""
+TIER: integration
+R-015 async boundary audit: the sync/async bridge contract.
 
 Contract under test (see ``run_cancellable_async`` docstring):
 

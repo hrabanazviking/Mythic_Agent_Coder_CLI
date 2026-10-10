@@ -1,4 +1,6 @@
-"""Credential-free launch and resource contracts, safe in core-only installs."""
+"""
+TIER: integration
+Credential-free launch and resource contracts, safe in core-only installs."""
 
 import subprocess
 import sys

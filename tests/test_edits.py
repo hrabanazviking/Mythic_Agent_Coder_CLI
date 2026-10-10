@@ -1,3 +1,8 @@
+"""Mythic Agent tests.
+
+TIER: integration
+"""
+
 import os
 import sqlite3
 import stat

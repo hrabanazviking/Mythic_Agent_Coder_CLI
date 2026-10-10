@@ -70,3 +70,10 @@ addopts = "-ra"
 # loudly instead of hanging the suite indefinitely. 120s comfortably covers
 # the slowest subprocess-driven CLI tests (~35s on a loaded box).
 timeout = 120
+# R-023 (test taxonomy): tier markers. `live` tests touch real networks or
+# credentials and are skipped unless MYTHIC_LIVE_TESTS=1 (see conftest.py).
+markers = [
+    "unit: pure tests, no subprocess/threads/sockets (fast, hermetic)",
+    "integration: tests using subprocess, threads, loopback servers, sqlite",
+    "live: tests requiring real network access or real credentials",
+]

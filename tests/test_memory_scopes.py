@@ -1,4 +1,6 @@
-"""Tests for workspace-scoped core memory isolation (S11)."""
+"""
+TIER: unit
+Tests for workspace-scoped core memory isolation (S11)."""
 
 import json
 

@@ -1,4 +1,6 @@
-"""R-018: workspace identity invariants.
+"""
+TIER: unit
+R-018: workspace identity invariants.
 
 A workspace's identity is SHA-256 over its canonical (realpath) location.
 Every spelling of the same directory -- trailing slash, ``.``/``..``

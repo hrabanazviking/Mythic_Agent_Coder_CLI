@@ -1,4 +1,6 @@
-"""Exception taxonomy V2 tests (roadmap slice R-008).
+"""
+TIER: unit
+Exception taxonomy V2 tests (roadmap slice R-008).
 
 Covers ``mythic_agent/core/exceptions.py`` and the migration of every
 existing exception class onto the ``MythicError`` hierarchy:

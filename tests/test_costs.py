@@ -1,4 +1,6 @@
-"""Slice 47: cost tracking."""
+"""
+TIER: unit
+Slice 47: cost tracking."""
 
 import pytest
 

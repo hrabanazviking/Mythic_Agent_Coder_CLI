@@ -1,4 +1,6 @@
-"""R-013 cancellation correctness: real threads, real cancel events, real time bounds.
+"""
+TIER: integration
+R-013 cancellation correctness: real threads, real cancel events, real time bounds.
 
 Every test here drives an actual cancellable operation on a real thread, sets
 the ``threading.Event`` mid-flight (or before/after), and asserts the

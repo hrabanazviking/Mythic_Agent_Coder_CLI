@@ -1,4 +1,6 @@
-"""Write-ahead journal, crash recovery, and structured crash reports."""
+"""
+TIER: unit
+Write-ahead journal, crash recovery, and structured crash reports."""
 
 import json
 from pathlib import Path

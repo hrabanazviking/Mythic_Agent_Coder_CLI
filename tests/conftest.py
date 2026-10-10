@@ -32,3 +32,18 @@ def agent(tmp_path, monkeypatch):
     yield instance
     unsubscribe("agent_clear_history", instance._handle_clear_history)
     unsubscribe("agent_compact_history", instance._handle_compact_history)
+
+
+# R-023 (test taxonomy): live-tier tests are skipped unless explicitly opted
+# in, so a plain `pytest` never spends money or touches real credentials.
+def pytest_collection_modifyitems(config, items):
+    import os
+
+    if os.environ.get("MYTHIC_LIVE_TESTS") == "1":
+        return
+    skip_live = pytest.mark.skip(
+        reason="live tier: set MYTHIC_LIVE_TESTS=1 to run"
+    )
+    for item in items:
+        if "live" in item.keywords:
+            item.add_marker(skip_live)

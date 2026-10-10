@@ -1,4 +1,6 @@
-"""Tests for mythic_agent.knowledge.graph (Slice 41)."""
+"""
+TIER: unit
+Tests for mythic_agent.knowledge.graph (Slice 41)."""
 
 import json
 from pathlib import Path

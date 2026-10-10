@@ -1,4 +1,6 @@
-"""Slice 35 provider tests: registry, capabilities, adapters.
+"""
+TIER: unit
+Slice 35 provider tests: registry, capabilities, adapters.
 
 All provider adapters are exercised with stubs; no real provider is
 ever contacted.

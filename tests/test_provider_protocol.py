@@ -1,4 +1,6 @@
-"""R-017 / roadmap 017 — Protocol Invariants (Provider Protocol).
+"""
+TIER: integration
+R-017 / roadmap 017 — Protocol Invariants (Provider Protocol).
 
 Proves, with ZERO network traffic, that every registered provider
 adapter honors the ``Provider`` protocol in

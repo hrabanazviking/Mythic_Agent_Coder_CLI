@@ -1,4 +1,6 @@
-"""R-022 / roadmap 022 — Static Analysis Gate.
+"""
+TIER: unit
+R-022 / roadmap 022 — Static Analysis Gate.
 
 Runs scripts/static_gate.py in-process and asserts it passes. Any hard
 finding (compile error, SyntaxWarning, bare except, eval/exec) fails the

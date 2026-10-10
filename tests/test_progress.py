@@ -1,4 +1,6 @@
-"""Tests for mythic_agent.core.progress (Slice 29)."""
+"""
+TIER: unit
+Tests for mythic_agent.core.progress (Slice 29)."""
 
 import io
 

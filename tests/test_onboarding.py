@@ -1,4 +1,6 @@
-"""Slice 34 tests: onboarding tutorial and setup verification."""
+"""
+TIER: unit
+Slice 34 tests: onboarding tutorial and setup verification."""
 
 from pathlib import Path
 

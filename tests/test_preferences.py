@@ -1,4 +1,6 @@
-"""Tests for the user preference store (Slice 21)."""
+"""
+TIER: unit
+Tests for the user preference store (Slice 21)."""
 
 import json
 

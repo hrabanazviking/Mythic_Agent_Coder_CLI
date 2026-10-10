@@ -1,4 +1,6 @@
-"""Tests for the architecture conformance audit (R-002).
+"""
+TIER: unit
+Tests for the architecture conformance audit (R-002).
 
 * Fixture-tree tests prove ``check()`` returns structured violations and
   catches a rule-violating file pair, using a synthetic package so the tests

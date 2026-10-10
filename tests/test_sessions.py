@@ -1,4 +1,6 @@
-"""Durable checkpoints, process leases, protocol recovery and redacted exports."""
+"""
+TIER: integration
+Durable checkpoints, process leases, protocol recovery and redacted exports."""
 
 import json
 import logging

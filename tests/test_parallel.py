@@ -1,4 +1,6 @@
-"""Tests for parallel tool execution with dependency ordering (Slice 17)."""
+"""
+TIER: unit
+Tests for parallel tool execution with dependency ordering (Slice 17)."""
 
 import time
 

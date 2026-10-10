@@ -1,4 +1,6 @@
-"""R-011: deterministic startup and machine-output ordering.
+"""
+TIER: unit
+R-011: deterministic startup and machine-output ordering.
 
 Every user-facing listing must be emitted in sorted/stable order, repeated
 listings must be byte-identical, and ``--json`` machine output must contain

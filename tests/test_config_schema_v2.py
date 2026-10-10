@@ -1,4 +1,6 @@
-"""Configuration Schema V2: canonical schema, strict mode, validation, redaction."""
+"""
+TIER: unit
+Configuration Schema V2: canonical schema, strict mode, validation, redaction."""
 
 import copy
 import json

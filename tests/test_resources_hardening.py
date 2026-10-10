@@ -1,4 +1,6 @@
-"""R-010: resource/data loading hardening.
+"""
+TIER: unit
+R-010: resource/data loading hardening.
 
 Covers the hardened contracts in ``mythic_agent.resources`` and
 ``mythic_agent.data.data_loader``:

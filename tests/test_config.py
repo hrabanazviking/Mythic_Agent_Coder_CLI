@@ -1,4 +1,6 @@
-"""Settings recovery uses isolated state and never reads live credentials."""
+"""
+TIER: integration
+Settings recovery uses isolated state and never reads live credentials."""
 
 import copy
 import json

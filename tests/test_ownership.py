@@ -1,4 +1,6 @@
-"""Roadmap 005 / R-005 — Source Ownership Map gates.
+"""
+TIER: integration
+Roadmap 005 / R-005 — Source Ownership Map gates.
 
 The ownership map is a GENERATED artifact: docs/OWNERSHIP.md must be produced
 by scripts/gen_ownership.py (never hand-written). These tests gate it:
