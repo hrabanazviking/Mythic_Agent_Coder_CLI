@@ -16,10 +16,7 @@ TESTS_DIR = pathlib.Path(__file__).resolve().parent
 VALID_TIERS = {"unit", "integration", "live"}
 # Modules that landed from parallel workers mid-rebuild; their TIER lines
 # are added before this run closes (see docs/TEST_TAXONOMY.md).
-PENDING_TIER = {
-    "test_openai_compat.py",
-    "test_provider_contract_v2.py",
-}
+PENDING_TIER: set[str] = set()
 
 
 def _module_tier(path: pathlib.Path) -> str | None:
