@@ -1,5 +1,21 @@
 """Owned, cancellable I/O for synchronous harness adapters."""
 
+__all__ = [
+    "Any",
+    "Callable",
+    "CancellableChatClient",
+    "Path",
+    "ProcessResult",
+    "ThreadPoolExecutor",
+    "TurnCancelled",
+    "cancellable_http_post",
+    "dataclass",
+    "is_loopback_url",
+    "run_cancellable_async",
+    "run_process",
+    "urlsplit",
+]
+
 import asyncio
 import codecs
 import ipaddress
@@ -118,7 +134,13 @@ class CancellableChatClient:
         from openai import AsyncOpenAI
         extra: dict[str, Any] = {}
         if not self.trust_env:
-            import httpx as http
+            # httpx2 is openai's renamed httpx fork and ships as its hard
+            # dependency; plain httpx is the declared fallback.  Prefer the
+            # installed one -- never hard-require a single package name.
+            try:
+                import httpx2 as http
+            except ImportError:
+                import httpx as http
             extra["http_client"] = http.AsyncClient(trust_env=False, timeout=self.timeout)
         return AsyncOpenAI(base_url=self.base_url, api_key=self.api_key,
                            max_retries=0, timeout=self.timeout, **extra)
@@ -136,7 +158,12 @@ class CancellableChatClient:
 def cancellable_http_post(url: str, payload: dict[str, Any], cancel: threading.Event,
                           timeout: float, interval: float = 0.05, trust_env: bool = True) -> Any:
     async def request() -> Any:
-        import httpx as http
+        # See _make_openai_client: prefer httpx2 (openai's hard dep), fall
+        # back to plain httpx; never hard-require a single package name.
+        try:
+            import httpx2 as http
+        except ImportError:
+            import httpx as http
         async with http.AsyncClient(timeout=timeout, trust_env=trust_env) as client:
             response = await client.post(url, json=payload)
             response.raise_for_status()
