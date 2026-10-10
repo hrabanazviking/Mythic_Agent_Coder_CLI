@@ -23,7 +23,10 @@ def test_provider_base_is_abstract():
 
 def test_registry_lists_all_providers():
     names = registry.list_providers()
-    assert names == ["anthropic", "google", "ollama"]
+    assert names == [
+        "anthropic", "deepseek", "google", "llama.cpp", "lmstudio",
+        "local-openai", "ollama", "openai", "openrouter", "vllm",
+    ]
 
 
 def test_registry_resolves_each_provider():
@@ -40,7 +43,7 @@ def test_registry_accepts_aliases_and_case():
 
 def test_registry_rejects_unknown_provider():
     with pytest.raises(ProviderNotFound):
-        registry.get_provider("deepseek")
+        registry.get_provider("definitely-not-a-provider")
 
 
 def test_capability_flags_are_boolean_and_stable():
