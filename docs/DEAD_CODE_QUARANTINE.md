@@ -146,6 +146,12 @@ invented. Items are quarantined (recorded, not deleted) unless noted.
   `PreferenceStore`, `KnowledgeGraph.explain` /
   `architecture_summary`, `secrets_audit` helpers,
   `has_secrets` / `audit_report` / `scan_mapping`.
+- Added 2026-10-10 (R-009 follow-up, inventory 76 -> 78):
+  `validate_config` / `redacted_summary` in
+  `mythic_agent/core/config_manager.py` — intentional public API
+  (exercised by `tests/test_config_schema_v2.py`; available to
+  external callers), same category as the test-only public API
+  items above. Quarantined, not removed.
 
 ## Removed in this slice (not quarantined)
 
