@@ -1,5 +1,7 @@
 """R-026 / roadmap 026 — Provider Contract V2.
 
+TIER: unit
+
 Hardens ``mythic_agent/providers/base.py``:
 
 * ``validate_messages`` rejects malformed chat input with ProviderError,

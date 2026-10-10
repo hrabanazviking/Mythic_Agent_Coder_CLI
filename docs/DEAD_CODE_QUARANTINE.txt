@@ -64,6 +64,7 @@ mythic_agent/memory/preferences.py:167:learn_from_turn:method
 mythic_agent/memory/scopes.py:70:scoped_agent_key:function
 mythic_agent/memory/vector_db.py:107:save:method
 mythic_agent/providers/base.py:78:require_capability:method
+mythic_agent/providers/base.py:213:iter_chunks:method
 mythic_agent/tools/code_index.py:139:invalidate:method
 mythic_agent/tools/code_index.py:153:find_definition:method
 mythic_agent/tools/code_index.py:174:find_references:method
