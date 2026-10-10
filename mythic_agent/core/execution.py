@@ -118,10 +118,7 @@ class CancellableChatClient:
         from openai import AsyncOpenAI
         extra: dict[str, Any] = {}
         if not self.trust_env:
-            try:
-                import httpx2 as http
-            except ImportError:
-                import httpx as http
+            import httpx as http
             extra["http_client"] = http.AsyncClient(trust_env=False, timeout=self.timeout)
         return AsyncOpenAI(base_url=self.base_url, api_key=self.api_key,
                            max_retries=0, timeout=self.timeout, **extra)
@@ -139,10 +136,7 @@ class CancellableChatClient:
 def cancellable_http_post(url: str, payload: dict[str, Any], cancel: threading.Event,
                           timeout: float, interval: float = 0.05, trust_env: bool = True) -> Any:
     async def request() -> Any:
-        try:
-            import httpx2 as http
-        except ImportError:
-            import httpx as http
+        import httpx as http
         async with http.AsyncClient(timeout=timeout, trust_env=trust_env) as client:
             response = await client.post(url, json=payload)
             response.raise_for_status()
