@@ -60,6 +60,12 @@ _PATTERNS: list[tuple[str, re.Pattern[str], int]] = [
         re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY(?: BLOCK)?-----"),
         0,
     ),
+    ("google_api_key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"), 0),
+    (
+        "xai_key",
+        re.compile(r"\bxai-[A-Za-z0-9]{20,}\b"),
+        0,
+    ),
     (
         "bearer_token",
         re.compile(r"(?i)\bbearer\s+([A-Za-z0-9\-._~+/]{20,}={0,2})"),
