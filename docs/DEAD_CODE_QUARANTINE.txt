@@ -76,3 +76,5 @@ mythic_agent/ui/markdown.py:27:render_markdown:function
 mythic_agent/ui/screens/chat_screen.py:62:run_tui:function
 mythic_agent/ui/shortcuts.py:68:effective_shortcuts:function
 mythic_agent/ui/themes.py:76:to_textual_kwargs:function
+mythic_agent/core/config_manager.py:218:validate_config:function
+mythic_agent/core/config_manager.py:251:redacted_summary:function
