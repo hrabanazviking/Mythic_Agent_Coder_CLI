@@ -68,6 +68,7 @@ def test_providers_coverage_ratchet():
         "tests/test_provider_adapters.py",
         "tests/test_anthropic_hardening.py",
         "tests/test_redaction_audit.py",
+        "tests/test_local_provider_adapters.py",
         "tests/test_coverage_assault.py::test_ollama_options_passthrough_covered",
         "tests/test_coverage_assault.py::test_ollama_empty_message_content_normalized",
     ]
