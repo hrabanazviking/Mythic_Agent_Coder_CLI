@@ -202,12 +202,16 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             else:
                 exclude_dirs = {".git", ".venv", "node_modules", "__pycache__"}
                 for root, dirs, files in os.walk(path):
+                    if cancel is not None and cancel.is_set():
+                        raise TurnCancelled("Tool cancelled during search")
                     dirs[:] = [d for d in dirs if not d.startswith(".") and d not in exclude_dirs]
                     for f in files:
                         if not f.startswith("."):
                             files_to_search.append(Path(root) / f)
                 
             for p in files_to_search:
+                if cancel is not None and cancel.is_set():
+                    raise TurnCancelled("Tool cancelled during search")
                 try:
                     p = resolve_file(root_path, str(p))
                     content = p.read_text(encoding="utf-8")
@@ -217,6 +221,8 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
                 except (UnicodeDecodeError, ValueError, OSError):
                     continue
             return "\n".join(results) if results else "No matches found."
+        except TurnCancelled:
+            raise
         except Exception as exc:
             return f"Search failed: {exc}"
             

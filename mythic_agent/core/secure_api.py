@@ -76,8 +76,9 @@ class EventBus:
                         # Async subscribers cannot be awaited from a sync context.
                         # Log a warning so the developer notices the mismatch —
                         # silently calling it would return an unawaited coroutine.
+                        name = getattr(callback, "__qualname__", repr(callback))
                         logger.warning(
-                            f"publish_sync: subscriber {callback.__qualname__} for event "
+                            f"publish_sync: subscriber {name} for event "
                             f"'{event_type}' is async and will be skipped. "
                             "Use an async subscriber or refactor to a sync callback."
                         )
