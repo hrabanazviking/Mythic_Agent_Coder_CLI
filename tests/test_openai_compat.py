@@ -1,5 +1,7 @@
 """R-027 / roadmap 027 — OpenAI Adapter + R-028 — Local Adapter.
 
+TIER: unit
+
 Tests ``mythic_agent/providers/openai_compat.py`` with a fake transport
 seam — zero network traffic, zero real API keys.
 
@@ -117,11 +119,22 @@ def test_no_model_configured_raises():
         provider.chat(MESSAGES)
 
 
-def test_never_imports_plain_httpx():
+def test_httpx2_first_declared_fallback_pattern():
+    """Repo rule: httpx2 tried first, plain httpx only as ImportError fallback."""
+    import ast
     import pathlib
-    source = pathlib.Path(openai_compat.__file__).read_text()
-    assert "\nimport httpx\n" not in source
-    assert "import httpx2" in source
+    tree = ast.parse(pathlib.Path(openai_compat.__file__).read_text())
+    found = False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Try):
+            tried = [a.name for n in node.body
+                     if isinstance(n, ast.Import) for a in n.names]
+            caught = [a.name for h in node.handlers
+                      for n in h.body if isinstance(n, ast.Import)
+                      for a in n.names]
+            if "httpx2" in tried and "httpx" in caught:
+                found = True
+    assert found, "missing the declared try: httpx2 / except: httpx pattern"
 
 
 # ----------------------------------------------------------------------
