@@ -25,6 +25,7 @@ import signal
 import subprocess
 import threading
 import time
+from concurrent.futures import CancelledError as futures_CancelledError
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,7 +38,30 @@ from .thread_audit import LoopAffinity
 
 def run_cancellable_async(factory: Callable[[], Any], cancel: threading.Event,
                           interval: float = 0.05) -> Any:
-    """Cancel and drain the owned coroutine before closing its event loop."""
+    """Run a coroutine factory on an event loop owned by this call, with cancellation.
+
+    The coroutine always runs on a fresh loop owned by this call; the calling
+    thread never needs (or borrows) a running loop:
+
+    * With no running loop in this thread, ``asyncio.run`` drives the
+      operation directly.
+    * From inside a running event loop, the operation is offloaded to a
+      single worker thread that owns its loop, so the caller never sees a
+      confusing "event loop is already running" error -- the embedded call
+      simply works.
+
+    Contract:
+
+    * Exceptions raised by the coroutine propagate to the caller UNCHANGED:
+      same object, same type, same message, on both paths.
+    * A set ``cancel`` event -- before the call, or from another thread
+      mid-flight -- raises :class:`TurnCancelled` on the sync side once the
+      owned tasks drain; the coroutine's ``finally`` blocks still run.
+    * Only genuine cancellation (or the caller being interrupted while
+      blocked) marks the shared ``cancel`` event.  An ordinary coroutine
+      failure never poisons it: the caller owns retry policy, and a failed
+      request must not look like the user pressed stop.
+    """
     async def operation() -> Any:
         if cancel.is_set():
             raise TurnCancelled("Operation cancelled before execution")
@@ -79,7 +103,13 @@ def run_cancellable_async(factory: Callable[[], Any], cancel: threading.Event,
         future = pool.submit(drive)
         try:
             return future.result()
-        except BaseException:
+        except (TurnCancelled, asyncio.CancelledError, futures_CancelledError,
+                KeyboardInterrupt, SystemExit):
+            # Genuine cancellation (or the caller being interrupted while
+            # blocked): propagate it to the owned operation so its watcher
+            # drains promptly.  Ordinary coroutine failures must NOT mark the
+            # shared event -- the caller owns retry policy, and a failed
+            # request must never masquerade as a user stop.
             cancel.set()
             raise
 
