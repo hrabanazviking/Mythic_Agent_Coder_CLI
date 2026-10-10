@@ -78,13 +78,20 @@ class UsageRecord:
 
     @classmethod
     def from_dict(cls, obj: dict[str, Any]) -> "UsageRecord":
-        return cls(
-            model=obj["model"],
-            input_tokens=int(obj["input_tokens"]),
-            output_tokens=int(obj["output_tokens"]),
-            cost_usd=float(obj["cost_usd"]),
-            timestamp=obj.get("timestamp", ""),
-        )
+        missing = [k for k in ("model", "input_tokens", "output_tokens", "cost_usd")
+                   if k not in obj]
+        if missing:
+            raise ValueError(f"UsageRecord missing required field(s): {', '.join(missing)}")
+        try:
+            return cls(
+                model=obj["model"],
+                input_tokens=int(obj["input_tokens"]),
+                output_tokens=int(obj["output_tokens"]),
+                cost_usd=float(obj["cost_usd"]),
+                timestamp=obj.get("timestamp", ""),
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"UsageRecord has invalid field value: {exc}") from exc
 
 
 def price(model: str, input_tokens: int, output_tokens: int) -> tuple[float, bool]:
