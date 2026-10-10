@@ -15,10 +15,6 @@ import time
 from typing import Optional, TextIO
 
 
-def _use_color(stream: TextIO) -> bool:
-    return stream.isatty() and not os.environ.get("NO_COLOR")
-
-
 class ProgressBar:
     """Determinate progress bar.
 

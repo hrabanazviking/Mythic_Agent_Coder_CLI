@@ -40,7 +40,7 @@ def redact_text(text: str, secrets: set[str] | None = None) -> str:
 
 
 class SecretRedactor:
-    def __init__(self, config: dict[str, Any], *, include_environment: bool = True):
+    def __init__(self, config: dict[str, Any], *, include_environment: bool = True) -> None:
         self.secrets = _collect(config)
         if include_environment:
             self.secrets.update(value for key, value in os.environ.items()

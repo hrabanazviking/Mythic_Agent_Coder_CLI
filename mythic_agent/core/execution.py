@@ -21,11 +21,11 @@ from .runtime import TurnCancelled
 def run_cancellable_async(factory: Callable[[], Any], cancel: threading.Event,
                           interval: float = 0.05) -> Any:
     """Cancel and drain the owned coroutine before closing its event loop."""
-    async def operation():
+    async def operation() -> Any:
         if cancel.is_set():
             raise TurnCancelled("Operation cancelled before execution")
         task = asyncio.create_task(factory())
-        async def watch():
+        async def watch() -> None:
             while not cancel.is_set():
                 await asyncio.sleep(interval)
         watcher = asyncio.create_task(watch())
@@ -40,7 +40,7 @@ def run_cancellable_async(factory: Callable[[], Any], cancel: threading.Event,
                     owned.cancel()
             await asyncio.gather(task, watcher, return_exceptions=True)
 
-    def drive():
+    def drive() -> Any:
         return asyncio.run(operation())
     try:
         asyncio.get_running_loop()
@@ -80,7 +80,7 @@ def is_loopback_url(url: str) -> bool:
 class CancellableChatClient:
     """Retain the injectable chat.completions.create seam, with owned async I/O."""
     def __init__(self, base_url: str, api_key: str, cancel: threading.Event,
-                 timeout: float, interval: float = 0.05, trust_env: bool = True):
+                 timeout: float, interval: float = 0.05, trust_env: bool = True) -> None:
         from types import SimpleNamespace
         self.base_url, self.api_key = base_url, api_key
         self.cancel, self.timeout, self.interval = cancel, timeout, interval
@@ -137,8 +137,8 @@ class CancellableChatClient:
 
 
 def cancellable_http_post(url: str, payload: dict[str, Any], cancel: threading.Event,
-                          timeout: float, interval: float = 0.05, trust_env: bool = True):
-    async def request():
+                          timeout: float, interval: float = 0.05, trust_env: bool = True) -> Any:
+    async def request() -> Any:
         try:
             import httpx2 as http
         except ImportError:
@@ -163,7 +163,7 @@ class ProcessResult:
 
 class _WindowsJob:
     """Kill-on-close job owns regular descendants, including after parent exit."""
-    def __init__(self, process: subprocess.Popen):
+    def __init__(self, process: subprocess.Popen) -> None:
         import ctypes
         from ctypes import wintypes
         class Limits(ctypes.Structure):
@@ -418,14 +418,14 @@ def run_process(command: str | list[str], workspace: Path, *, shell: bool = Fals
     job = None
     chunks, reader_errors = [], []
     decoder = codecs.getincrementaldecoder(encoding)(errors="replace")
-    def emit(chunk):
+    def emit(chunk: str) -> None:
         if progress and chunk:
             try:
                 progress(chunk)
             except Exception:
                 # Adapter failure cannot abandon a live command or lose its capture.
                 pass
-    def read():
+    def read() -> None:
         try:
             while True:
                 chunk = process.stdout.read1(65536)
