@@ -1,5 +1,7 @@
 """R-029: Anthropic adapter hardening tests.
 
+TIER: unit
+
 The real ``anthropic`` SDK is never imported and never installed here:
 every test either hides it from ``sys.modules`` (SDK-absent path) or
 installs a stub module. No network traffic, no real keys.
@@ -21,6 +23,13 @@ from mythic_agent.providers.anthropic import (
 )
 
 FAKE_KEY = "sk-ant-test-key-000"
+
+
+def _boom(exc):
+    """Build a _send replacement that raises ``exc``."""
+    def raiser(*args, **kwargs):
+        raise exc
+    return raiser
 
 
 def _text_response(*texts, block_type="text"):
@@ -225,8 +234,7 @@ def test_rate_limit_maps_to_rate_limit_subclass(monkeypatch):
                              response=_text_response("ok"))
     provider = AnthropicProvider(api_key=FAKE_KEY)
     monkeypatch.setattr(
-        provider, "_send",
-        lambda client, **params: (_ for _ in ()).throw(stub.RateLimitError("slow down")))
+        provider, "_send", _boom(stub.RateLimitError("slow down")))
     with pytest.raises(AnthropicRateLimitError) as exc:
         provider.chat([{"role": "user", "content": "hi"}])
     assert isinstance(exc.value, ProviderError)
@@ -239,9 +247,8 @@ def test_auth_error_maps_to_auth_subclass_without_key_material(monkeypatch):
                              response=_text_response("ok"))
     # The SDK's own message echoes the key; our mapping must not repeat it.
     sdk_error = stub.AuthenticationError(f"invalid x-api-key: {FAKE_KEY}")
-    monkeypatch.setattr(
-        provider, "_send",
-        lambda client, **params: (_ for _ in ()).throw(sdk_error))
+    provider = AnthropicProvider(api_key=FAKE_KEY)
+    monkeypatch.setattr(provider, "_send", _boom(sdk_error))
     with pytest.raises(AnthropicAuthError) as exc:
         provider.chat([{"role": "user", "content": "hi"}])
     assert isinstance(exc.value, ProviderError)
@@ -253,9 +260,8 @@ def test_generic_sdk_error_maps_to_provider_error_without_key_material(monkeypat
     stub = _install_sdk_stub(monkeypatch, captured,
                              response=_text_response("ok"))
     sdk_error = stub.APIError(f"request failed with key {FAKE_KEY}")
-    monkeypatch.setattr(
-        provider, "_send",
-        lambda client, **params: (_ for _ in ()).throw(sdk_error))
+    provider = AnthropicProvider(api_key=FAKE_KEY)
+    monkeypatch.setattr(provider, "_send", _boom(sdk_error))
     with pytest.raises(ProviderError) as exc:
         provider.chat([{"role": "user", "content": "hi"}])
     assert not isinstance(exc.value, (AnthropicAuthError, AnthropicRateLimitError))
