@@ -6,7 +6,15 @@ Simple, dependency-free progress display:
 - Both write to stderr and respect NO_COLOR / non-TTY.
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Optional",
+    "ProgressBar",
+    "Spinner",
+    "TextIO",
+]
 
 import os
 import sys

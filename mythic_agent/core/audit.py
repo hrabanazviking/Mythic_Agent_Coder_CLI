@@ -13,7 +13,20 @@ Usage:
         print(entry.timestamp, entry.details)
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Any",
+    "AuditEntry",
+    "AuditLog",
+    "Path",
+    "asdict",
+    "dataclass",
+    "datetime",
+    "field",
+    "timezone",
+]
 
 import json
 from dataclasses import asdict, dataclass, field

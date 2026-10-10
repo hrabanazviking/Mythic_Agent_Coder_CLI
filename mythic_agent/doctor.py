@@ -18,7 +18,29 @@ Usage:
 Each check returns a HealthResult(status, message, fix_hint).
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Callable",
+    "Enum",
+    "HealthResult",
+    "HealthStatus",
+    "Path",
+    "check_config",
+    "check_dependencies",
+    "check_provider",
+    "check_provider_live",
+    "check_sessions",
+    "check_tools",
+    "check_workspace",
+    "dataclass",
+    "field",
+    "health_check",
+    "main",
+    "print_results",
+    "run_checks",
+]
 
 import json
 import shutil

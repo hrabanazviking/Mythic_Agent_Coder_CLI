@@ -6,7 +6,18 @@ styles, plain ANSI).  The user's choice is persisted in the config under
 the ``ui.theme`` key by the ``mythic theme --set NAME`` command.
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Any",
+    "DEFAULT_THEME",
+    "THEMES",
+    "get_theme",
+    "is_valid_theme",
+    "list_themes",
+    "to_textual_kwargs",
+]
 
 import copy
 from typing import Any

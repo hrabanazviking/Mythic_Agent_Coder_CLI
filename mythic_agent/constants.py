@@ -1,3 +1,10 @@
+
+__all__ = [
+    "DEFAULT_GLOBAL_RULES",
+    "DEFAULT_PRIMARY_NAME",
+    "DEFAULT_SUBAGENTS",
+    "DEFAULT_SYSTEM_PROMPT",
+]
 DEFAULT_GLOBAL_RULES = """# Rules AIs (and Humans Too) Have to Follow When Coding Here.
 # Project Laws — Viking Edition
 

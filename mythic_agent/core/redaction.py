@@ -1,5 +1,12 @@
 """Redact configured credentials and common token forms in exports/diagnostics."""
 
+__all__ = [
+    "Any",
+    "SecretRedactor",
+    "protect_logging",
+    "redact_text",
+]
+
 import logging
 import os
 import re

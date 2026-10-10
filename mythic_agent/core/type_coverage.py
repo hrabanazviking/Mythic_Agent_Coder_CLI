@@ -24,7 +24,20 @@ Counting rules (documented here so the numbers are reproducible):
   rather than aborting the whole measurement.
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "CoverageReport",
+    "ModuleCoverage",
+    "Path",
+    "dataclass",
+    "field",
+    "measure",
+    "measure_module",
+    "mypy_available",
+    "mypy_check",
+]
 
 import ast
 import importlib.util

@@ -1,3 +1,11 @@
+
+__all__ = [
+    "AudioRecorder",
+    "OpenAI",
+    "Optional",
+    "audio_recorder",
+    "config_manager",
+]
 import os
 import queue
 import tempfile

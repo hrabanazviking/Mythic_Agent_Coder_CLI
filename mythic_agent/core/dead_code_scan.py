@@ -30,7 +30,19 @@ type-annotation strings.
 ``kind`` in ``{"function", "method", "class", "variable", "import"}``.
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "DeadItem",
+    "List",
+    "Optional",
+    "Tuple",
+    "load_quarantine",
+    "main",
+    "scan",
+    "write_quarantine",
+]
 
 import ast
 import os

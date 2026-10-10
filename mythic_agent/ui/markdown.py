@@ -7,7 +7,12 @@ terminal output.  It is intentionally small: headings, code blocks, inline
 code, bold, italic, strikethrough, links, lists, and blockquotes.
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "render_markdown",
+]
 
 import re
 

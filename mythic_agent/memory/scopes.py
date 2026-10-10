@@ -7,7 +7,17 @@ a small value object that namespaces memory keys by workspace ID so memory is
 isolated per workspace.
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Any",
+    "Path",
+    "WorkspaceScope",
+    "sanitize_segment",
+    "scope_for_root",
+    "scoped_agent_key",
+]
 
 import re
 from pathlib import Path

@@ -6,7 +6,18 @@ README from the on-disk structure. No model calls are involved, so both
 are deterministic and offline.
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Any",
+    "Optional",
+    "Path",
+    "date",
+    "describe_signature",
+    "generate_docstring",
+    "generate_readme",
+]
 
 import ast
 import textwrap

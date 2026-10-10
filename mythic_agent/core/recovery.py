@@ -6,7 +6,14 @@ entry module.  Crash recovery is session infrastructure, so it belongs in
 core; ``terminal.py`` re-imports it from here.  Behavior is unchanged.
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Any",
+    "TYPE_CHECKING",
+    "recover_crashed_sessions",
+]
 
 import sys
 from typing import TYPE_CHECKING, Any

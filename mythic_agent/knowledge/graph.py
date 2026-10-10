@@ -6,7 +6,23 @@ persists to JSON. ``build_graph_from_index`` constructs one from the
 AST symbol index (:mod:`mythic_agent.tools.code_index`).
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Any",
+    "CALLS",
+    "CONTAINS",
+    "DEFINES_METHOD",
+    "IMPORTS",
+    "KnowledgeGraph",
+    "LOCATED_IN",
+    "Optional",
+    "Path",
+    "build_graph_from_index",
+    "build_graph_from_project",
+    "deque",
+]
 
 import json
 import threading

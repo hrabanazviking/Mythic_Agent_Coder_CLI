@@ -10,7 +10,22 @@ Python file and returns a list of :class:`Issue` records:
 - unused imports (best effort, name-based)
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "Issue",
+    "LONG_FUNCTION_LINES",
+    "Optional",
+    "Path",
+    "SEVERITIES",
+    "dataclass",
+    "field",
+    "format_issues",
+    "review_file",
+    "review_project",
+    "summary_counts",
+]
 
 import ast
 import re

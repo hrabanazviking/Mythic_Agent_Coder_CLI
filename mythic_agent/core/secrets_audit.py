@@ -5,7 +5,20 @@ security audits of tool inputs/outputs. Findings never carry the raw secret,
 only a masked preview, so audit reports are safe to store and display.
 """
 
+
 from __future__ import annotations
+
+__all__ = [
+    "SecretFinding",
+    "audit_report",
+    "count_by_kind",
+    "dataclass",
+    "field",
+    "has_secrets",
+    "mask_text",
+    "scan_mapping",
+    "scan_secrets",
+]
 
 import re
 from dataclasses import dataclass, field

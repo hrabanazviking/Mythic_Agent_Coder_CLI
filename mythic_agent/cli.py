@@ -1,5 +1,16 @@
 """CLI entry point; optional front ends are loaded only when requested."""
 
+__all__ = [
+    "PackageNotFoundError",
+    "TYPE_CHECKING",
+    "main",
+    "package_version",
+    "print_help",
+    "review_command",
+    "theme_command",
+    "version",
+]
+
 import argparse
 import sys
 from importlib.metadata import PackageNotFoundError, version

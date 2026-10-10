@@ -1,5 +1,12 @@
 """Locate immutable resources in installed wheels and editable checkouts."""
 
+__all__ = [
+    "Path",
+    "character_directory",
+    "engineering_protocol",
+    "files",
+]
+
 from importlib.resources import files
 from pathlib import Path
 
