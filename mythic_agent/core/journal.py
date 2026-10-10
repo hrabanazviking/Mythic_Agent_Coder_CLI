@@ -74,12 +74,19 @@ class WriteAheadLog:
         except Exception:
             raise                   # entry stays pending -> recovered later
         wal.commit(journal_id)      # tombstone: mutation is durable
+
+    If ``vacuum()`` is never called the file grows forever, so appends
+    automatically sweep the journal once tombstoned records pile up past
+    ``auto_vacuum_threshold`` (pass ``None`` to disable and manage it by
+    hand). The sweep only drops tombstoned pairs; uncommitted checkpoints
+    are never swept.
     """
 
-    def __init__(self, path: str | Path) -> None:
+    def __init__(self, path: str | Path, auto_vacuum_threshold: int | None = 1000) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         self._lock = FileLock(str(self.path) + ".lock", timeout=10)
+        self.auto_vacuum_threshold = auto_vacuum_threshold
 
     # ------------------------------------------------------------------ I/O
 
@@ -136,6 +143,10 @@ class WriteAheadLog:
             record["seq"] = max((r.get("seq", 0) for r in records), default=0) + 1
             records.append(record)
             self._write_records(records)
+            if (self.auto_vacuum_threshold is not None
+                    and sum(1 for r in records if r.get("op") == "tombstone")
+                    > self.auto_vacuum_threshold):
+                self._vacuum_locked()
             return record
 
     # ------------------------------------------------------------- public API
@@ -169,13 +180,17 @@ class WriteAheadLog:
     def vacuum(self) -> int:
         """Rewrite the journal dropping tombstoned entries; returns records kept."""
         with self._lock:
-            records = self._read_records()
-            committed = {r["journal_id"] for r in records
-                         if r.get("op") == "tombstone" and isinstance(r.get("journal_id"), str)}
-            live = [r for r in records
-                    if not (r.get("op") == "tombstone"
-                            or (r.get("op") == "checkpoint" and r.get("journal_id") in committed))]
-            self._write_records(live)
+            return self._vacuum_locked()
+
+    def _vacuum_locked(self) -> int:
+        """Vacuum assuming the caller already holds ``self._lock``."""
+        records = self._read_records()
+        committed = {r["journal_id"] for r in records
+                     if r.get("op") == "tombstone" and isinstance(r.get("journal_id"), str)}
+        live = [r for r in records
+                if not (r.get("op") == "tombstone"
+                        or (r.get("op") == "checkpoint" and r.get("journal_id") in committed))]
+        self._write_records(live)
         return len(live)
 
     def discard(self) -> None:
