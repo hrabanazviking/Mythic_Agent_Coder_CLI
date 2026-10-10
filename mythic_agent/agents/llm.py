@@ -877,7 +877,12 @@ class AgentManager:
         if tui_app:
             sub_agent.bind_tui(tui_app, mode=sub_agent.tool_policy.mode)
         AGENT_REGISTRY[name] = sub_agent
-        threading.Thread(target=self._run_agent_loop, args=(sub_agent,), daemon=True).start()
+        from ..core.thread_audit import THREAD_REGISTRY
+        sub_thread = threading.Thread(target=self._run_agent_loop, args=(sub_agent,),
+                                      name=f"mythic-subagent-loop:{name}", daemon=True)
+        THREAD_REGISTRY.assert_single_owner(sub_thread.name)
+        sub_thread.start()
+        THREAD_REGISTRY.register(sub_thread)
         
         # Publish creation message to UI
         publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[bold green]✦ A new subagent has been awakened: {name}[/bold green]\n")
@@ -907,7 +912,12 @@ class AgentManager:
         # Re-build system prompt if needed, but it's copied in messages
         
         AGENT_REGISTRY[ghost_name] = ghost_agent
-        threading.Thread(target=self._run_agent_loop, args=(ghost_agent,), daemon=True).start()
+        from ..core.thread_audit import THREAD_REGISTRY
+        ghost_thread = threading.Thread(target=self._run_agent_loop, args=(ghost_agent,),
+                                        name=f"mythic-ghost-loop:{ghost_name}", daemon=True)
+        THREAD_REGISTRY.assert_single_owner(ghost_thread.name)
+        ghost_thread.start()
+        THREAD_REGISTRY.register(ghost_thread)
         
         # Publish creation message to UI
         publish_sync("agent_chat_chunk", agent_name=original_agent.name, text=f"\n[bold magenta]✦ A ghost thread has been spun up to assist you: {ghost_name}[/bold magenta]\n")
