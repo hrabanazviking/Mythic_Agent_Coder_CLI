@@ -32,6 +32,7 @@ from typing import Any, Callable
 from urllib.parse import urlsplit
 
 from .runtime import TurnCancelled
+from .thread_audit import LoopAffinity
 
 
 def run_cancellable_async(factory: Callable[[], Any], cancel: threading.Event,
@@ -57,7 +58,17 @@ def run_cancellable_async(factory: Callable[[], Any], cancel: threading.Event,
             await asyncio.gather(task, watcher, return_exceptions=True)
 
     def drive() -> Any:
-        return asyncio.run(operation())
+        # Own the event loop outright: create AND drive it on this thread.
+        # LoopAffinity records the creating thread and raises
+        # ThreadAffinityError if any other thread tries to drive the loop.
+        loop = asyncio.new_event_loop()
+        affinity = LoopAffinity()
+        affinity.bind(loop)
+        try:
+            affinity.check()
+            return loop.run_until_complete(operation())
+        finally:
+            loop.close()
     try:
         asyncio.get_running_loop()
     except RuntimeError:
