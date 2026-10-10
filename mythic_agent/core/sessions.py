@@ -11,6 +11,8 @@ __all__ = [
     "WriteAheadLog",
     "contextmanager",
     "datetime",
+    "session_from_dict",
+    "session_to_dict",
     "timezone",
     "validate_messages",
     "validate_session_id",
@@ -23,6 +25,7 @@ import os
 import re
 import sqlite3
 import uuid
+from collections.abc import Mapping
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,6 +35,7 @@ from filelock import FileLock, Timeout
 
 from .redaction import SecretRedactor
 from .journal import WriteAheadLog
+from .storage import canonical_json
 from .workspace import workspace_id
 from .exceptions import MythicSessionError
 
@@ -115,24 +119,31 @@ class SessionStore:
                 pass
             else:
                 os.close(descriptor)
-            with self._connection() as connection:
-                version = connection.execute("PRAGMA user_version").fetchone()[0]
-                if version not in {0, self.SCHEMA_VERSION}:
-                    raise ValueError("Unsupported session storage version; original preserved")
-                connection.executescript("""
-                    CREATE TABLE IF NOT EXISTS sessions (
-                        id TEXT PRIMARY KEY, schema_version INTEGER NOT NULL,
-                        created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
-                        status TEXT NOT NULL, context TEXT NOT NULL,
-                        total_tokens INTEGER NOT NULL, metadata TEXT NOT NULL, outcome TEXT
-                    );
-                    CREATE TABLE IF NOT EXISTS events (
-                        sequence INTEGER PRIMARY KEY AUTOINCREMENT,
-                        session_id TEXT NOT NULL REFERENCES sessions(id),
-                        created_at TEXT NOT NULL, payload TEXT NOT NULL
-                    );
-                """)
-                connection.execute(f"PRAGMA user_version={self.SCHEMA_VERSION}")
+            try:
+                with self._connection() as connection:
+                    version = connection.execute("PRAGMA user_version").fetchone()[0]
+                    if version not in {0, self.SCHEMA_VERSION}:
+                        raise ValueError("Unsupported session storage version; original preserved")
+                    connection.executescript("""
+                        CREATE TABLE IF NOT EXISTS sessions (
+                            id TEXT PRIMARY KEY, schema_version INTEGER NOT NULL,
+                            created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                            status TEXT NOT NULL, context TEXT NOT NULL,
+                            total_tokens INTEGER NOT NULL, metadata TEXT NOT NULL, outcome TEXT
+                        );
+                        CREATE TABLE IF NOT EXISTS events (
+                            sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                            session_id TEXT NOT NULL REFERENCES sessions(id),
+                            created_at TEXT NOT NULL, payload TEXT NOT NULL
+                        );
+                    """)
+                    connection.execute(f"PRAGMA user_version={self.SCHEMA_VERSION}")
+            except sqlite3.Error as exc:
+                # Garbage bytes / truncated file: surface a clear error naming
+                # the file instead of a bare "file is not a database".
+                raise ValueError(
+                    f"Session storage file is corrupt or unreadable: {self.path}"
+                ) from exc
 
     @contextmanager
     def _connection(self):
@@ -234,6 +245,14 @@ class SessionStore:
         data = dict(row)
         if data["schema_version"] != SessionStore.SCHEMA_VERSION:
             raise ValueError("Unsupported session version; original preserved")
+        for stamp_key in ("created_at", "updated_at"):
+            stamp = data.get(stamp_key)
+            try:
+                parsed = datetime.fromisoformat(stamp) if isinstance(stamp, str) else None
+            except ValueError:
+                parsed = None
+            if parsed is None:
+                raise ValueError(f"Invalid session timestamp '{stamp_key}'; original preserved")
         for key in ("context", "metadata", "outcome"):
             data[key] = json.loads(data[key]) if data[key] is not None else None
         validate_messages(data["context"])
@@ -248,7 +267,16 @@ class SessionStore:
         validate_session_id(session_id)
         with self._connection() as connection:
             row = connection.execute("SELECT * FROM sessions WHERE id=?", (session_id,)).fetchone()
-        return self._decode(row)
+        if row is None:
+            raise ValueError("Session not found in this workspace")
+        try:
+            return self._decode(row)
+        except ValueError as exc:
+            # Malformed stored JSON / invalid checkpoint: name the file and
+            # the session instead of surfacing a bare JSONDecodeError.
+            raise ValueError(
+                f"Corrupt session record {session_id} in {self.path}: {exc}"
+            ) from exc
 
     def resume(self, session_id: str) -> dict[str, Any]:
         self._acquire(session_id)
@@ -331,8 +359,141 @@ class SessionStore:
         # One read transaction gives a consistent context/transcript snapshot.
         with self._connection() as connection:
             connection.execute("BEGIN")
-            data = self._decode(connection.execute("SELECT * FROM sessions WHERE id=?", (session_id,)).fetchone())
+            row = connection.execute("SELECT * FROM sessions WHERE id=?", (session_id,)).fetchone()
+            if row is None:
+                raise ValueError("Session not found in this workspace")
+            try:
+                data = self._decode(row)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Corrupt session record {session_id} in {self.path}: {exc}"
+                ) from exc
             events = [{"sequence": row["sequence"], "created_at": row["created_at"],
                        **json.loads(row["payload"])} for row in connection.execute(
                            "SELECT * FROM events WHERE session_id=? ORDER BY sequence", (session_id,))]
         return self.redactor.sanitize({**copy.deepcopy(data), "workspace": str(self.workspace), "events": events})
+
+
+# ---------------------------------------------------------------------------
+# Serialization invariants (R-016)
+# ---------------------------------------------------------------------------
+# Session records are plain dicts on the wire.  These helpers are the
+# canonical ``to_dict``/``from_dict`` pair for them: datetimes become
+# ISO-8601 strings, JSON is canonical (``sort_keys=True``,
+# ``allow_nan=False``), and every malformed input raises a ``ValueError``
+# naming the offending field — never a bare ``KeyError``/``TypeError``.
+
+_SESSION_RECORD_REQUIRED = (
+    "id", "schema_version", "created_at", "updated_at",
+    "status", "context", "total_tokens", "metadata",
+)
+
+
+def _coerce_iso8601(value: Any, field: str) -> str:
+    """Normalize a ``datetime`` or ISO-8601 string to an ISO-8601 string.
+
+    Naive datetimes/strings are assumed to be UTC.  Raises ``ValueError``
+    naming ``field`` for anything else.
+    """
+    if isinstance(value, datetime):
+        moment = value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+        return moment.isoformat()
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value)
+        except ValueError as exc:
+            raise ValueError(
+                f"session record field '{field}': not a valid ISO-8601 datetime: {value!r}"
+            ) from exc
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.isoformat()
+    raise ValueError(
+        f"session record field '{field}': expected an ISO-8601 datetime string "
+        f"or datetime, got {type(value).__name__}"
+    )
+
+
+def session_to_dict(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Serialize a session record to a plain JSON-ready dict.
+
+    ``created_at``/``updated_at`` accept ``datetime`` objects or ISO-8601
+    strings and are normalized to ISO-8601 strings.  NaN/Infinity payloads
+    and non-serializable values are rejected.  The input is never mutated.
+    """
+    if not isinstance(record, Mapping):
+        raise ValueError(f"session record: expected a mapping, got {type(record).__name__}")
+    data = copy.deepcopy(dict(record))
+    for field in ("created_at", "updated_at"):
+        if field in data:
+            data[field] = _coerce_iso8601(data[field], field)
+    try:
+        canonical_json(data)
+    except ValueError as exc:
+        raise ValueError(f"session record: {exc}") from exc
+    return data
+
+
+def session_from_dict(data: Any) -> dict[str, Any]:
+    """Rebuild a validated session record from a plain dict.
+
+    Reuses the store's own validators (``validate_session_id``,
+    ``validate_messages``) so the invariants match what SQLite persistence
+    enforces.  Every problem raises ``ValueError`` naming the field.
+    """
+    if not isinstance(data, Mapping):
+        raise ValueError(f"session record: expected an object, got {type(data).__name__}")
+    record = dict(data)
+    for field in _SESSION_RECORD_REQUIRED:
+        if field not in record:
+            raise ValueError(f"session record field '{field}': missing required key")
+    session_id = record["id"]
+    if not isinstance(session_id, str):
+        raise ValueError(
+            f"session record field 'id': expected str, got {type(session_id).__name__}")
+    try:
+        validate_session_id(session_id)
+    except ValueError as exc:
+        raise ValueError(f"session record field 'id': {exc}") from exc
+    schema_version = record["schema_version"]
+    if isinstance(schema_version, bool) or not isinstance(schema_version, int):
+        raise ValueError(
+            f"session record field 'schema_version': expected int, "
+            f"got {type(schema_version).__name__}")
+    if schema_version != SessionStore.SCHEMA_VERSION:
+        raise ValueError(
+            f"session record field 'schema_version': unsupported version {schema_version!r}")
+    for field in ("created_at", "updated_at"):
+        record[field] = _coerce_iso8601(record[field], field)
+    status = record["status"]
+    if status not in SessionStore.STATUSES:
+        raise ValueError(
+            f"session record field 'status': expected one of {sorted(SessionStore.STATUSES)}, "
+            f"got {status!r}")
+    context = record["context"]
+    if not isinstance(context, list):
+        raise ValueError(
+            f"session record field 'context': expected array, got {type(context).__name__}")
+    try:
+        validate_messages(context)
+    except ValueError as exc:
+        raise ValueError(f"session record field 'context': {exc}") from exc
+    total_tokens = record["total_tokens"]
+    if isinstance(total_tokens, bool) or not isinstance(total_tokens, int) or total_tokens < 0:
+        raise ValueError(
+            f"session record field 'total_tokens': expected a non-negative int, "
+            f"got {total_tokens!r}")
+    if not isinstance(record["metadata"], dict):
+        raise ValueError(
+            f"session record field 'metadata': expected object, "
+            f"got {type(record['metadata']).__name__}")
+    outcome = record.get("outcome")
+    if outcome is not None and not isinstance(outcome, dict):
+        raise ValueError(
+            f"session record field 'outcome': expected object or null, "
+            f"got {type(outcome).__name__}")
+    try:
+        canonical_json(record)
+    except ValueError as exc:
+        raise ValueError(f"session record: {exc}") from exc
+    return record

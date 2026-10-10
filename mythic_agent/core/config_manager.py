@@ -9,7 +9,9 @@ __all__ = [
     "SecretRedactor",
     "atomic_private_json",
     "atomic_private_write",
+    "config_from_dict",
     "config_manager",
+    "config_to_dict",
     "files",
     "logger",
     "protect_logging",
@@ -34,7 +36,7 @@ from filelock import FileLock
 
 from .runtime import runtime_settings
 from .secure_api import publish_sync
-from .storage import atomic_private_json, atomic_private_write
+from .storage import atomic_private_json, atomic_private_write, canonical_json
 from .redaction import SecretRedactor, protect_logging
 
 logger = logging.getLogger("mythic_config_manager")
@@ -256,6 +258,50 @@ def redacted_summary(config: Dict[str, Any]) -> Dict[str, Any]:
     """
     source = config if isinstance(config, dict) else {}
     return SecretRedactor(copy.deepcopy(source)).sanitize(copy.deepcopy(source))
+
+
+# ---------------------------------------------------------------------------
+# Serialization invariants (R-016)
+# ---------------------------------------------------------------------------
+# Config dicts are plain dicts on the wire.  This ``to_dict``/``from_dict``
+# pair is the canonical serialization entry point: JSON output is canonical
+# (``sort_keys=True``, ``allow_nan=False``), ``from_dict`` runs the
+# read-only schema check, and every malformed input raises a ``ValueError``
+# naming the offending field — never a bare ``KeyError``/``TypeError``.
+
+
+def config_to_dict(config: Any) -> Dict[str, Any]:
+    """Serialize a config mapping to a plain JSON-ready dict.
+
+    NaN/Infinity payloads and non-serializable values are rejected with a
+    clear ``ValueError``.  The input is never mutated.
+    """
+    if not isinstance(config, dict):
+        raise ValueError(f"config: expected object, got {type(config).__name__}")
+    data = copy.deepcopy(config)
+    try:
+        canonical_json(data)
+    except ValueError as exc:
+        raise ValueError(f"config: {exc}") from exc
+    return data
+
+
+def config_from_dict(data: Any) -> Dict[str, Any]:
+    """Rebuild a validated config from a plain dict.
+
+    Runs the read-only ``validate_config`` schema check; every problem is
+    reported with dotted-path field names.
+    """
+    if not isinstance(data, dict):
+        raise ValueError(f"config: expected object, got {type(data).__name__}")
+    problems = validate_config(data)
+    if problems:
+        raise ValueError("invalid config: " + "; ".join(problems))
+    try:
+        canonical_json(data)
+    except ValueError as exc:
+        raise ValueError(f"config: {exc}") from exc
+    return copy.deepcopy(data)
 
 
 class ConfigManager:
