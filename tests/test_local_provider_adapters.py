@@ -306,8 +306,11 @@ class TestLlamaCpp:
         _capabilities_honest(provider)
 
     def test_name_is_registry_safe(self):
-        # Must not clash with any already-registered provider name.
-        assert "llama.cpp" not in registry.list_providers()
+        # Registered exactly once and resolving to this adapter (no clash
+        # with any other provider name; aliases resolve identically).
+        assert registry.list_providers().count("llama.cpp") == 1
+        assert isinstance(registry.get_provider("llama.cpp"), LlamaCppProvider)
+        assert isinstance(registry.get_provider("llamacpp"), LlamaCppProvider)
 
     def test_no_authorization_header_without_key(self):
         transport = _FakeTransport([(200, _ok_body())])
