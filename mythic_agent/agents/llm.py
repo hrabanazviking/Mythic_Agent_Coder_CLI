@@ -524,7 +524,9 @@ class Agent:
         
         if hasattr(self, "core_memory"):
             system_prompt += self.core_memory.format_for_prompt()
-        
+
+        system_prompt += self._instruction_context_block()
+
         with self._lock:
             if not self.messages:
                 self.messages.append({"role": "system", "content": system_prompt})
@@ -534,6 +536,48 @@ class Agent:
                 self.messages.insert(0, {"role": "system", "content": system_prompt})
         self._checkpoint({"type": "system_prompt_updated", "message": self.history_snapshot()[0]})
             
+    def _instruction_context_block(self) -> str:
+        """Repository instruction layers for the system prompt (Slice 054/055).
+
+        Inert unless the ``context_compiler_enabled`` runtime setting is
+        true.  Failures degrade to no extra context, never a broken prompt.
+        """
+        try:
+            settings = runtime_settings(self.config)
+        except Exception:
+            return ""
+        if not settings.get("context_compiler_enabled") or not self.project_root:
+            return ""
+        try:
+            from mythic_agent.context import instruction_context_block
+            return instruction_context_block(self.config, self.project_root)
+        except Exception:
+            logging.exception("Context compiler instruction hook failed; continuing")
+            return ""
+
+    def _compile_prompt_context(self, prompt: str) -> str:
+        """File context for one user query (Slices 056-060).
+
+        Inert unless ``context_compiler_enabled`` is true or the turn is
+        already cancelled.  Failures degrade to no extra context.
+        """
+        try:
+            settings = runtime_settings(self.config)
+        except Exception:
+            return ""
+        if not settings.get("context_compiler_enabled") or not self.project_root:
+            return ""
+        if self._cancel.is_set():
+            return ""
+        try:
+            from mythic_agent.context import prompt_file_context
+            return prompt_file_context(self.config, self.project_root, prompt,
+                                       cancel_event=self._cancel,
+                                       redactor=self.redactor)
+        except Exception:
+            logging.exception("Context compiler prompt hook failed; continuing")
+            return ""
+
     def inject_mythic_agents(self) -> None:
         """Inject the core Mythic Engineering sub-agents if they don't exist."""
         from ..constants import DEFAULT_SUBAGENTS
@@ -653,7 +697,8 @@ class Agent:
         settings = runtime_settings(self.config)
         if prompt:
             recalled = self._recall(prompt)
-            self._append_message({"role": "user", "content": prompt + recalled})
+            file_context = self._compile_prompt_context(prompt)
+            self._append_message({"role": "user", "content": prompt + file_context + recalled})
         client = self.get_client()
         for _ in range(settings["max_tool_rounds"]):
             self._check_cancelled()
