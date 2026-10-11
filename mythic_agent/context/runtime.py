@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any
 
 from ..core.redaction import SecretRedactor
-from .budget import TokenEstimator
+from .budget import BudgetPlanner, TokenEstimator
 from .compiler import ContextCompiler, format_compiled
 from .deps import DependencyFilesSource
 from .files import ExplicitFilesSource
@@ -102,22 +102,27 @@ def prompt_file_context(
     if not (query or "").strip():
         return ""
     redactor = _redactor_for(config, redactor)
+    estimator = TokenEstimator()
     compiler = ContextCompiler(
         workspace,
         config=config,
-        estimator=TokenEstimator(),
+        estimator=estimator,
         budget_tokens=budget_tokens,
         cancel_event=cancel_event,
         redactor=redactor,
     )
+    # Split the budget across the budgeted selection sources by share
+    # (Slice 052); the compiler enforces the global budget on top.
+    shares = BudgetPlanner(estimator).allocate(
+        budget_tokens, {"semantic": 2.0, "symbols": 2.0, "deps": 1.0})
     compiler.add_source(ExplicitFilesSource(priority=2))
     compiler.add_source(GitDiffSource(priority=2))
     compiler.add_source(SemanticFilesSource(priority=4, top_n=3,
-                                           budget_tokens=budget_tokens // 2))
+                                           budget_tokens=shares["semantic"]))
     compiler.add_source(SymbolFilesSource(priority=4, top_n=3,
-                                         budget_tokens=budget_tokens // 2))
+                                         budget_tokens=shares["symbols"]))
     compiler.add_source(DependencyFilesSource(priority=5,
-                                             budget_tokens=budget_tokens // 2))
+                                             budget_tokens=shares["deps"]))
     try:
         compiled = compiler.compile(query)
     except Exception:
