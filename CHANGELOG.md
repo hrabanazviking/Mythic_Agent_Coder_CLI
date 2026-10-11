@@ -15,6 +15,63 @@ released.
 
 ### Added
 
+- **Forge 2026-10-11 dusk — roadmap slices 041–060 ("Pantheon & Well").**
+  Twenty slices in two campaigns, full suite **1407 passed / 2 skipped /
+  0 failed** (2 skips pre-existing: live tier, missing `textual`):
+  - **Provider Pantheon negotiation layer** (`mythic_agent/providers/`):
+    041 structured-output negotiation (`structured_output.py` — schema→payload
+    transform + JSON-fence fallback parse; also fixed Google advertising
+    `json_mode: True` with no wire shape by adding the Gemini
+    `generation_config` mapping + a type guard in `GoogleProvider.chat()`);
+    042 vision negotiation (`vision.py` — canonical parts → per-family wire
+    shapes, strip-or-raise downgrade, 20 MB cap, MIME allowlist);
+    043 reasoning-mode negotiation (`reasoning.py` — normalized
+    ReasoningConfig → OpenAI/OpenRouter/Anthropic/DeepSeek shapes);
+    044 streaming normalization (`streaming.py` — SSE/NDJSON → normalized
+    StreamEvent, cancel-safe `collect()`); 045 usage normalization
+    (`usage.py` — per-family usage mapping into ChatUsage, additive
+    `cached_tokens` + `estimated` fields on ChatUsage, heuristic flagged);
+    046 cost accounting (`cost_ledger.py` — usage × shared price table,
+    JSON persistence, per-model/per-provider rollups, exact-decimal
+    assertions against the price table); 047 provider health scoring
+    (`health.py` — 200-sample sliding window, 300 s half-life decay,
+    0.65·success + 0.35·latency); 048 provider failover (`failover.py` —
+    healthiest-first routing, consecutive-failure circuit breaker,
+    half-open cooldown, `FailoverExhausted` with per-provider errors);
+    049 provider conformance suite (`conformance.py` — 12-check contract
+    harness over fake fixtures, JSON reports, 10/10 providers PASS);
+    050 Pantheon Gate — receipt at `docs/FORGE_RECEIPT_041_050.md`, user
+    guide `docs/PROVIDER_NEGOTIATION.md`, `docs/PUBLIC_API.md` regenerated
+    (1116 public names), `docs/OWNERSHIP.md` re-baselined.
+  - **Context compiler** (new package `mythic_agent/context/`, 11 modules,
+    `INTERFACE.md`; wired into `mythic_agent/agents/llm.py` behind opt-in
+    runtime setting `context_compiler_enabled`, default `false`):
+    051 ContextCompiler (ordered blocks from pluggable sources,
+    per-source failure → warning, stale TTL wrapper, cancellation via
+    threading.Event); 052 TokenBudgetPlanner (tiktoken-when-importable,
+    deterministic `len//4` heuristic live path, largest-remainder
+    allocation, word-boundary truncation); 053 protocol-group preservation
+    (atomic groups never split); 054 repository instruction resolver
+    (AGENTS.md/.mythic/.muserules, size-capped, symlink-escape blocked);
+    055 instruction precedence (system > repo > dir > file, conflicts
+    recorded, provenance); 056 explicit file context (@-mention
+    resolution, workspace containment); 057 semantic selection (local
+    tf-idf, no embeddings); 058 symbol-aware selection (ast defs/classes);
+    059 dependency-aware selection (ast import graph); 060 git-diff-aware
+    context (staged/unstaged hunks, secret-redacted, non-git graceful).
+    All blocks pass through SecretRedactor; compilation failure degrades
+    to no extra context, never a broken turn.
+  - 258 new tests (135 provider + 123 context), normal/failure/
+    cancellation/boundary per slice; fake-transport seams only — no live
+    provider calls, no invented benchmarks.
+  - **Unresolved limitations:** no adapter implements `iter_chunks` yet
+    (conformance marks streaming `skipped`); reasoning covers 4 families,
+    others raise ProviderError; usage estimates are flagged heuristics;
+    `tiktoken` not installed so heuristic estimator is live; corpus walks
+    capped (200 files / 64 KiB); git-diff source sees tracked-file diffs
+    only; `file` precedence layer is API-ready but the current hook
+    supplies only system/repo/dir layers.
+
 - **Forge 2026-10-10 dusk — roadmap slices 021–040 (Bedrock tail +
   Provider Pantheon head).** Twenty slices, full suite
   **1149 passed / 2 skipped / 0 failed**:
