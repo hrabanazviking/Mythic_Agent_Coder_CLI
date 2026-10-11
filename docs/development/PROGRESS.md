@@ -259,3 +259,28 @@ Do not equate local tests with real-provider or physical cross-platform testing.
   hosted credential was used. These remain pending S07 fixes.
 - Next: central provider admission/diagnostics, normalized streamed text/tools,
   honest usage/cost and model discovery, with free localhost HTTP/SSE regressions.
+
+## Forge 051-060 — context compiler package (2026-10-11, dusk forge Worker B)
+
+- New headless package `mythic_agent/context/` (interface: `mythic_agent/context/INTERFACE.md`):
+  compiler core with pluggable workspace-isolated sources (051), token
+  estimator with tiktoken-if-available plus deterministic heuristic fallback
+  and largest-remainder budget planner (052), atomic protocol-group
+  truncation that never splits tool-call rounds (053), instruction-file
+  resolver with size caps and symlink-escape blocking (054), layered
+  precedence `system > repo > dir > file` with KEY-conflict winners and
+  provenance (055), @-mention file resolution with containment (056),
+  local tf-idf semantic file selection, no embeddings (057), stdlib-ast
+  symbol-aware selection (058), ast import-graph dependency selection
+  (059), staged/unstaged git-diff hunks with non-git graceful handling (060).
+- Runtime wiring (opt-in): new `context_compiler_enabled` runtime setting
+  (default false, declared in `mythic_agent/data/runtime_defaults.yaml`;
+  config schema builder now maps YAML booleans to bool type). When true,
+  `Agent.rebuild_system_prompt` appends merged repo/dir instruction layers
+  and `Agent._run_turn` prepends redacted file context (@-mentions,
+  semantic/symbol/dependency selection, diff hunks, 2000-token budget) to
+  the user turn. All block content passes through `SecretRedactor`; any
+  compilation failure degrades to no extra context, never a broken turn.
+- 8 new test modules, 123 tests green; full suite result recorded in the
+  forge report. Cross-workspace isolation, stale (TTL cache), malformed,
+  missing and oversized-data behavior covered per slice.

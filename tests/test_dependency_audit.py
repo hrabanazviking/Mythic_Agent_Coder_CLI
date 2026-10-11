@@ -43,6 +43,7 @@ PYPROJECT = REPO_ROOT / "pyproject.toml"
 # Derived from real usage in this tree (not invented).
 IMPORT_TO_REQUIREMENT = {
     "openai": "openai",
+    "tiktoken": "tiktoken",
     "prompt_toolkit": "prompt-toolkit",
     "rich": "rich",
     "filelock": "filelock",
@@ -84,6 +85,7 @@ OPTIONAL_IMPORT_FEATURES = {
     "anthropic": "Anthropic provider SDK (anthropic extra)",
     "google": "Google Gemini provider SDK (google extra)",
     "yaml": "optional YAML data loading with graceful fallback (core dependency)",
+    "tiktoken": "precise token counting for the context compiler (optional; deterministic heuristic fallback otherwise)",
     "httpx": "async HTTP client fallback for provider calls (core dependency)",
     "httpx2": "async HTTP client preferred for provider calls; openai 3.x's httpx fork (core dependency)",
 }
