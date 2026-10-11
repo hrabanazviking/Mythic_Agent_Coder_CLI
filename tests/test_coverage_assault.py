@@ -69,6 +69,16 @@ def test_providers_coverage_ratchet():
         "tests/test_anthropic_hardening.py",
         "tests/test_redaction_audit.py",
         "tests/test_local_provider_adapters.py",
+        # Forge 041-050 (dusk 2026-10-11): negotiation/normalization modules.
+        "tests/test_structured_output.py",
+        "tests/test_vision_negotiation.py",
+        "tests/test_reasoning_negotiation.py",
+        "tests/test_streaming_normalization.py",
+        "tests/test_usage_normalization.py",
+        "tests/test_cost_ledger.py",
+        "tests/test_provider_health.py",
+        "tests/test_provider_failover.py",
+        "tests/test_provider_conformance.py",
         "tests/test_coverage_assault.py::test_ollama_options_passthrough_covered",
         "tests/test_coverage_assault.py::test_ollama_empty_message_content_normalized",
     ]

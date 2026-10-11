@@ -17,7 +17,9 @@ Slice 026 (Provider Contract V2) hardens the contract:
   dicts with a valid ``role`` and usable ``content``; malformed input
   raises :class:`ProviderError` before any transport happens.
 * :class:`ChatUsage` / :class:`ToolCall` — normalized dataclasses for
-  token usage and tool calls, shared by every adapter.
+  token usage and tool calls, shared by every adapter. Slice 045
+  extends :class:`ChatUsage` with ``cached_tokens`` and ``estimated``
+  (both optional, defaulting to absent).
 * :meth:`Provider.iter_chunks` — streaming seam. The default
   implementation raises :class:`ProviderError` ("streaming unsupported");
   adapters with real streaming override it.
@@ -74,11 +76,25 @@ class ChatUsage:
 
     Adapters that receive usage metadata from their backend should
     populate this; ``total_tokens`` is derived when omitted.
+
+    Slice 045 adds two optional fields (both default to "absent", so
+    every existing construction site keeps working):
+
+    * ``cached_tokens`` — tokens served from prompt cache (Anthropic
+      ``cache_creation_input_tokens`` + ``cache_read_input_tokens``,
+      Gemini ``cachedContentTokenCount``). Counted inside
+      ``prompt_tokens`` by most vendors; kept separately here so cost
+      accounting can bill them distinctly.
+    * ``estimated`` — True when the numbers are a local heuristic
+      estimate (no backend usage metadata was available), False for
+      measured values.
     """
 
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
+    cached_tokens: int = 0
+    estimated: bool = False
 
     def __post_init__(self) -> None:
         if self.total_tokens == 0 and (
