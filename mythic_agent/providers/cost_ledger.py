@@ -22,7 +22,7 @@ ledger rather than crashing the caller.
 Reproducible measurement: the billing formula is pinned against the
 shared table by exact-decimal assertions in
 ``tests/test_cost_ledger.py`` (the baseline), and ledger throughput
-is measured locally (records/second) as a performance sanity gate —
+is measured locally in the test suite as a performance sanity gate —
 real local measurements, never invented provider benchmarks.
 """
 
@@ -38,7 +38,6 @@ __all__ = [
 ]
 
 import json
-import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -203,28 +202,6 @@ class CostLedger:
             lines.append("Unpriced models (billed $0): "
                          + ", ".join(unpriced))
         return "\n".join(lines)
-
-    # -- throughput measurement --------------------------------------------
-
-    def measure_record_throughput(self, calls: int = 1000) -> float:
-        """Measure local ``record()`` throughput (records/second).
-
-        Uses the real ``record()`` path (pricing math + JSON
-        persistence) against a throwaway temporary workspace, so the
-        measurement exercises production code and never touches the
-        caller's ledger file. The returned value is the observed local
-        rate — never a claim about any provider.
-        """
-        import tempfile
-        with tempfile.TemporaryDirectory(
-                prefix="mythic-cost-bench-") as tmpdir:
-            probe = CostLedger(workspace_root=tmpdir)
-            sample = ChatUsage(prompt_tokens=100, completion_tokens=50)
-            start = time.perf_counter()
-            for _ in range(calls):
-                probe.record("bench", "gpt-4o-mini", sample)
-            elapsed = time.perf_counter() - start
-        return calls / elapsed if elapsed > 0 else float("inf")
 
     # -- persistence ---------------------------------------------------------
 

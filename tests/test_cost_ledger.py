@@ -179,9 +179,20 @@ def test_malformed_entries_skipped_on_load(tmp_path):
 # Throughput measurement (real local measurement)
 # ----------------------------------------------------------------------
 
-def test_measure_record_throughput_sane():
-    ledger = CostLedger(workspace_root="/tmp/mythic-cost-unused")
-    rate = ledger.measure_record_throughput(calls=200)
+def test_measure_record_throughput_sane(tmp_path):
+    import time
+
+    # Real local measurement of the production record() path (pricing
+    # math + JSON persistence) against a throwaway workspace — never a
+    # claim about any provider.
+    ledger = CostLedger(workspace_root=tmp_path)
+    sample = ChatUsage(prompt_tokens=100, completion_tokens=50)
+    calls = 200
+    start = time.perf_counter()
+    for _ in range(calls):
+        ledger.record("bench", "gpt-4o-mini", sample)
+    elapsed = time.perf_counter() - start
+    rate = calls / elapsed if elapsed > 0 else float("inf")
     # Sanity gate: at least 20 priced+persisted records/second on any
     # reasonable machine; the observed value is reported, not asserted
     # as a benchmark claim.

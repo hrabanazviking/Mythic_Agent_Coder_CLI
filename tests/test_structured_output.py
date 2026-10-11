@@ -78,6 +78,65 @@ def test_negotiate_ollama_format_shape():
     assert fragment == {"format": _SCHEMA}
 
 
+def test_negotiate_google_generation_config_shape():
+    provider = _make_provider("google", _NATIVE_FLAGS)()
+    fragment = structured_output.negotiate(provider, _SCHEMA)
+    assert fragment == {"generation_config": {
+        "response_mime_type": "application/json",
+        "response_schema": _SCHEMA,
+    }}
+
+
+def test_negotiate_google_chat_passthrough(monkeypatch):
+    """negotiate() fragment flows through GoogleProvider.chat() to the SDK."""
+    import sys
+    import types
+
+    from mythic_agent.providers.google import GoogleProvider
+
+    captured = {}
+    child = types.ModuleType("google.generativeai")
+    parent = types.ModuleType("google")
+    parent.__path__ = []
+    parent.generativeai = child
+
+    class GenerativeModel:
+        def __init__(self, model_name, **kwargs):
+            captured["model_kwargs"] = dict(kwargs)
+
+        def generate_content(self, contents, **kwargs):
+            captured["gen_kwargs"] = dict(kwargs)
+            return types.SimpleNamespace(text='{"answer": "yes"}')
+
+    child.configure = lambda **kwargs: None
+    child.GenerativeModel = GenerativeModel
+    monkeypatch.setitem(sys.modules, "google", parent)
+    monkeypatch.setitem(sys.modules, "google.generativeai", child)
+
+    provider = GoogleProvider(api_key="fake-key")
+    fragment = structured_output.negotiate(provider, _SCHEMA)
+    text = provider.chat([{"role": "user", "content": "hi"}], **fragment)
+    assert text == '{"answer": "yes"}'
+    assert captured["gen_kwargs"]["generation_config"] == {
+        "response_mime_type": "application/json",
+        "response_schema": _SCHEMA,
+    }
+
+
+def test_google_chat_rejects_non_dict_generation_config(monkeypatch):
+    import sys
+    import types
+
+    from mythic_agent.providers.google import GoogleProvider
+
+    monkeypatch.setitem(sys.modules, "google", None)
+    monkeypatch.setitem(sys.modules, "google.generativeai", None)
+    provider = GoogleProvider(api_key="fake-key")
+    with pytest.raises(ProviderError):
+        provider.chat([{"role": "user", "content": "hi"}],
+                      generation_config="not-a-dict")
+
+
 def test_negotiate_requires_json_mode_capability():
     provider = _make_provider("novel", _NOJSON_FLAGS)()
     with pytest.raises(ProviderError):
