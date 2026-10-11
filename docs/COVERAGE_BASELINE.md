@@ -5,6 +5,13 @@ Measured 2026-10-10 dusk forge with `coverage 7.16.2` (venv-local) over
 `tests/test_provider_adapters.py`, `tests/test_anthropic_hardening.py`,
 `tests/test_redaction_audit.py`.
 
+Extended 2026-10-10 (R-036) with `tests/test_local_provider_adapters.py`;
+extended 2026-10-11 (forge 041–050) with `tests/test_structured_output.py`,
+`tests/test_vision_negotiation.py`, `tests/test_reasoning_negotiation.py`,
+`tests/test_streaming_normalization.py`, `tests/test_usage_normalization.py`,
+`tests/test_cost_ledger.py`, `tests/test_provider_health.py`,
+`tests/test_provider_failover.py`, `tests/test_provider_conformance.py`.
+
 ## Per-module (at measurement time)
 
 | Module | Stmts | Missed | Cover | Missing |
