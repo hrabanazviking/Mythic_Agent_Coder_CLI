@@ -40,11 +40,15 @@ class TokenEstimator:
         if prefer_tiktoken:
             try:
                 import tiktoken
-
-                self._encoding = tiktoken.get_encoding(model)
-                self.backend = "tiktoken"
-            except Exception:
-                self._encoding = None
+            except ImportError:
+                tiktoken = None  # optional: precise counting; heuristic fallback below
+            if tiktoken is not None:
+                try:
+                    self._encoding = tiktoken.get_encoding(model)
+                except Exception:
+                    self._encoding = None
+                else:
+                    self.backend = "tiktoken"
 
     def count(self, text: str) -> int:
         """Token count for *text* (never negative)."""
@@ -84,11 +88,13 @@ def truncate_text(
         # Marker alone does not fit: hard-cut the marker itself.
         approx_chars = max_tokens * _HEURISTIC_CHARS_PER_TOKEN
         return marker[:approx_chars]
-    budget = max_tokens - marker_cost
+    # Binary-search the longest prefix whose *full result* (prefix + marker)
+    # fits; searching on the concatenated string avoids integer-division
+    # rounding surprises between the two parts.
     lo, hi = 0, len(text)
     while lo < hi:
         mid = (lo + hi + 1) // 2
-        if estimator.count(text[:mid]) <= budget:
+        if estimator.count(text[:mid] + marker) <= max_tokens:
             lo = mid
         else:
             hi = mid - 1
@@ -96,7 +102,13 @@ def truncate_text(
     cut = prefix.rfind(" ")
     if cut > len(prefix) // 2:
         prefix = prefix[:cut].rstrip()
-    return prefix + marker
+    result = prefix + marker
+    # Defensive: word-boundary cuts only shorten, but a non-monotonic
+    # estimator must never let an oversized result through.
+    while prefix and estimator.count(result) > max_tokens:
+        prefix = prefix[:-1].rstrip()
+        result = prefix + marker
+    return result
 
 
 @dataclass
