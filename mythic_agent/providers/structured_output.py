@@ -17,8 +17,12 @@ Design (mirrors :mod:`mythic_agent.providers.tool_negotiation`):
     through, so the fragment merges straight into ``chat(**kwargs)``.
   - ``ollama`` (native ``/api/chat`` API): ``{"format": <schema>}`` —
     Ollama accepts a full JSON schema as the ``format`` field.
-  - ``anthropic`` / ``google``: no native JSON mode in this codebase
-    (``capabilities()["json_mode"]`` is False for both) — negotiation
+  - ``google``: ``{"generation_config": {"response_mime_type":
+    "application/json", "response_schema": <schema>}}`` — the
+    documented Gemini shape; ``GoogleProvider.chat()`` passes
+    ``generation_config`` through to ``generate_content``.
+  - ``anthropic``: no native JSON mode in this codebase
+    (``capabilities()["json_mode"]`` is False) — negotiation
     raises; use :func:`prepare` instead.
 
 * :func:`prepare` is the convenience entry point: native providers get
@@ -63,6 +67,8 @@ _FAMILIES: dict[str, str] = {
     "lmstudio": "openai",
     "llama.cpp": "openai",
     "local-openai": "openai",
+    "google": "google",
+    "gemini": "google",
     "ollama": "ollama",
 }
 
@@ -113,6 +119,11 @@ def negotiate(
         }}
     if family == "ollama":
         return {"format": schema}
+    if family == "google":
+        return {"generation_config": {
+            "response_mime_type": "application/json",
+            "response_schema": schema,
+        }}
     raise ProviderError(
         f"Provider {provider.name!r}: structured-output wire shape "
         "unknown; json_mode was advertised but no mapping exists.")

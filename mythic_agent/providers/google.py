@@ -25,6 +25,11 @@ Hardened behavior (documented; covered by
   carries key material.
 * :meth:`_client` calls ``genai.configure(api_key=...)`` exactly once
   per call, with the provider's key.
+* Structured output (slice 041): ``chat(..., generation_config={...})``
+  passes the dict through to ``generate_content`` — the shape
+  :mod:`mythic_agent.providers.structured_output` negotiates
+  (``response_mime_type`` / ``response_schema``); a non-dict value
+  raises :class:`ProviderError` before any network traffic.
 """
 
 
@@ -157,6 +162,12 @@ class GoogleProvider(Provider):
         model = kwargs.pop("model", None) or self.model
         if not model:
             raise ProviderError("No model configured for google provider")
+        generation_config = kwargs.get("generation_config")
+        if generation_config is not None and not isinstance(
+                generation_config, dict):
+            raise ProviderError(
+                "generation_config must be a dict, got "
+                f"{type(generation_config).__name__}.")
         genai = self._client()
         model_kwargs: dict[str, Any] = {}
         if system:
