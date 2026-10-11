@@ -1,4 +1,8 @@
 # Operational budgets are configurable; transcripts are never truncated here.
+# Context compiler (slices 051-060): opt-in workspace context assembly for
+# the model prompt (repo instructions, @-mentions, semantic/symbol/dependency
+# file selection, git-diff hunks). Off by default; enabling changes prompts.
+context_compiler_enabled: false
 request_timeout: 120.0
 max_retries: 2
 retry_delay: 0.5

@@ -30,6 +30,7 @@ tui = [
     "pyperclip>=1.9"
 ]
 mcp = ["mcp>=1.0.0"]
+context = ["tiktoken>=0.7.0"]
 knowledge = ["psycopg[binary]>=3.0.0", "requests>=2.0.0"]
 voice = [
     "sounddevice>=0.5.1",
