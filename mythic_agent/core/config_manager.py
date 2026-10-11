@@ -86,7 +86,9 @@ def _runtime_nested_schema() -> Dict[str, Dict[str, Any]]:
     int_minimums = {"max_retries": 0, "max_tool_rounds": 1, "max_tokens": 1}
     schema: Dict[str, Dict[str, Any]] = {}
     for key, default in defaults.items():
-        if key in int_minimums:
+        if isinstance(default, bool):
+            schema[key] = {"type": bool, "required": False, "default": default}
+        elif key in int_minimums:
             schema[key] = {"type": int, "required": False, "default": default,
                            "no_bool": True, "minimum": int_minimums[key]}
         else:

@@ -67,6 +67,7 @@ __all__ = [
     "select_by_symbols",
     "select_files",
     "select_related",
+    "tokenize",
     "truncate_groups",
     "truncate_text",
 ]
@@ -114,6 +115,7 @@ from .semantic import (
     build_corpus,
     score_corpus,
     select_files,
+    tokenize,
 )
 from .symbols import (
     Symbol,

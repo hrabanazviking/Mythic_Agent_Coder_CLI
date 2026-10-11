@@ -28,7 +28,7 @@ from .budget import TokenEstimator, truncate_text
 from .compiler import ContextBlock, ContextSource
 
 
-MENTION_RE = re.compile(r"@([A-Za-z0-9_][\w.\-/]*)")
+MENTION_RE = re.compile(r"@([A-Za-z0-9_./-][\w.\-/]*)")
 
 MAX_FILE_BYTES = 100_000
 
