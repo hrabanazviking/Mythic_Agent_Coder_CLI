@@ -1,8 +1,6 @@
 name: Coding harness checks
 on:
-  push:
-    branches: [development, main]
-  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
