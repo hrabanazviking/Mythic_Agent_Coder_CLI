@@ -97,6 +97,24 @@ Part I is COMPLETE (18/272). The campaign runs the parts in
 order; the keeper takes the next unbanked slice from this ledger
 each tick.
 
+*M-031 IN PROGRESS (2026-10-31 17:10 EDT tick): M-031
+(Cost-aware routing) is being built this tick. Design counted
+from the tree: the router's candidates are the doors the user
+has already configured — the current selection, the M-030
+fallback chain, and the M-029 role routes — never a door the
+user did not choose. Adequacy for a task class comes from
+M-027's capability truth (only a known-true capability counts;
+unknown is never adequate where a capability is required), and
+price comes from `mythic costs` data (`core/costs.py` PRICING,
+via `price()` — a model with no known price can never be
+claimed cheaper). The setting `cost_routing` ships OFF by
+default in config_defaults + the M-009 catalogue, explained in
+plain words on the `/costroute` surface (terminal + TUI
+system-command road, the M-029/M-030 pattern); applying a
+cheaper adequate route goes through M-028's switch machinery
+(journal-first `model_switched`), and the pure decision layer
+lives in `mythic_agent/core/cost_routing.py`.*
+
 *M-030 scoping note (2026-10-31 16:00 EDT tick, M-029's closure
 tick): M-030 (Fallback chains) is the next slice. Counted from the
 tree: a provider-level failover machinery already ships from the
