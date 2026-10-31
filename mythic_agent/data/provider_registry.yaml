@@ -1,0 +1,225 @@
+schema: mythic.provider_registry/1
+registry_slice: M-019
+source_note: 'The provider registry as data (All-Features roadmap slice M-019):
+  every provider the app ships, defined here — endpoint, auth style, model list,
+  capabilities — so a new OpenAI-compatible door is a data entry, not a code
+  change (the universal adapter that consumes entries generically is M-020).
+  This file is the definition; the runtime resolver remains
+  mythic_agent.providers.registry, and the slice''s tests pin every entry
+  against the live adapter classes (name, default model, key env, endpoint
+  default, live capabilities) so the data and the code cannot drift apart.
+  Native-SDK providers (anthropic, google) record endpoint null: their SDKs
+  own the service address, and no address is invented here. Local providers
+  record the loopback default their adapter ships.'
+extension_rule: 'Adding a provider whose door is OpenAI-compatible means
+  adding one entry here (plus, until M-020 lands, its preset adapter class);
+  a wholly new dialect is a new adapter, never a registry edit alone.'
+aliases:
+  claude: anthropic
+  gemini: google
+  gpt: openai
+  llama-cpp: llama.cpp
+  llamacpp: llama.cpp
+  lm-studio: lmstudio
+  local: ollama
+providers:
+- name: anthropic
+  title: Anthropic (Claude)
+  adapter: mythic_agent.providers.anthropic:AnthropicProvider
+  dialect: native_sdk
+  locality: remote
+  endpoint: null
+  auth_style: api_key_env
+  api_key_env: ANTHROPIC_API_KEY
+  default_model: claude-sonnet-4-5
+  models:
+  - claude-sonnet-4-5
+  - claude-opus-4-1
+  - claude-3-5-sonnet
+  - claude-3-5-haiku
+  capabilities:
+    streaming: true
+    tool_calling: false
+    vision: true
+    json_mode: false
+  notes: 'Native Messages API via the anthropic SDK (the SDK owns the
+    endpoint). The adapter implements no native tool calling and no JSON
+    mode — both flags are honestly false; M-021 grows this adapter.'
+- name: deepseek
+  title: DeepSeek
+  adapter: mythic_agent.providers.deepseek:DeepSeekProvider
+  dialect: openai_compatible
+  locality: remote
+  endpoint: https://api.deepseek.com/v1
+  auth_style: api_key_env
+  api_key_env: DEEPSEEK_API_KEY
+  default_model: deepseek-chat
+  models:
+  - deepseek-chat
+  - deepseek-reasoner
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  notes: 'OpenAI-compatible preset of the shared adapter with DeepSeek''s
+    endpoint and key env preset.'
+- name: google
+  title: Google (Gemini)
+  adapter: mythic_agent.providers.google:GoogleProvider
+  dialect: native_sdk
+  locality: remote
+  endpoint: null
+  auth_style: api_key_env
+  api_key_env: GOOGLE_API_KEY
+  default_model: gemini-2.0-flash
+  models:
+  - gemini-2.0-flash
+  - gemini-2.5-pro
+  - gemini-1.5-pro
+  - gemini-1.5-flash
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  notes: 'Native Gemini API via the google-generativeai SDK (the SDK owns
+    the endpoint). Tool transcripts degrade to user text in this adapter;
+    M-022 grows it.'
+- name: llama.cpp
+  title: llama.cpp (llama-server)
+  adapter: mythic_agent.providers.llamacpp:LlamaCppProvider
+  dialect: openai_compatible
+  locality: local
+  endpoint: http://localhost:8080/v1
+  auth_style: none
+  api_key_env: null
+  default_model: llama.cpp-local
+  models:
+  - llama.cpp-local
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  notes: 'Local llama-server door; performs no auth, so no key env. The
+    model name is a placeholder — the server serves the model it was
+    launched with. M-024 grows local discovery.'
+- name: lmstudio
+  title: LM Studio
+  adapter: mythic_agent.providers.lmstudio:LMStudioProvider
+  dialect: openai_compatible
+  locality: local
+  endpoint: http://localhost:1234/v1
+  auth_style: none
+  api_key_env: null
+  default_model: lmstudio-local
+  models:
+  - lmstudio-local
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  notes: 'Local LM Studio door; performs no auth, so no key env. LM Studio
+    names models after the file loaded in it. M-024 grows local discovery.'
+- name: local-openai
+  title: Generic local OpenAI-compatible server
+  adapter: mythic_agent.providers.openai_compat:GenericLocalCompatProvider
+  dialect: openai_compatible
+  locality: local
+  endpoint: http://localhost:1234/v1
+  auth_style: none
+  api_key_env: null
+  default_model: local-model
+  models:
+  - local-model
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  notes: 'The catch-all local door: any OpenAI-compatible server on a
+    loopback port, endpoint overridable per use. No Authorization header
+    is sent when no key is configured.'
+- name: ollama
+  title: Ollama
+  adapter: mythic_agent.providers.ollama:OllamaProvider
+  dialect: ollama_native
+  locality: local
+  endpoint: http://localhost:11434
+  auth_style: none
+  api_key_env: null
+  default_model: llama3.1
+  models:
+  - llama3.1
+  - llama3.2
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  notes: 'Local Ollama door speaking Ollama''s own API (not the compatible
+    shim); needs no key. Listed models are examples — the server reports
+    what is actually installed, and M-023 builds discovery on this entry.'
+- name: openai
+  title: OpenAI
+  adapter: mythic_agent.providers.openai_compat:OpenAICompatProvider
+  dialect: openai_compatible
+  locality: remote
+  endpoint: https://api.openai.com/v1
+  auth_style: api_key_env
+  api_key_env: OPENAI_API_KEY
+  default_model: gpt-5
+  models:
+  - gpt-5
+  - gpt-5-mini
+  - gpt-4o
+  - gpt-4o-mini
+  - gpt-3.5-turbo
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  notes: 'The reference OpenAI-compatible door; the shared adapter class
+    itself, with OpenAI''s endpoint and key env.'
+- name: openrouter
+  title: OpenRouter (gateway)
+  adapter: mythic_agent.providers.openrouter:OpenRouterProvider
+  dialect: openai_compatible
+  locality: remote
+  endpoint: https://openrouter.ai/api/v1
+  auth_style: api_key_env
+  api_key_env: OPENROUTER_API_KEY
+  default_model: openrouter/auto
+  models:
+  - openrouter/auto
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  notes: 'Gateway door: one key, many vendors'' models; the default model
+    is OpenRouter''s auto-router. Sends the app-identification headers
+    HTTP-Referer and X-Title. Its browsable catalogue is M-026''s slice;
+    per-model capability truth is M-027''s.'
+- name: vllm
+  title: vLLM
+  adapter: mythic_agent.providers.vllm:VLLMProvider
+  dialect: openai_compatible
+  locality: local
+  endpoint: http://localhost:8000/v1
+  auth_style: none
+  api_key_env: null
+  default_model: vllm-local
+  models:
+  - vllm-local
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  notes: 'Local vLLM door; no key env by default — a key may be passed
+    explicitly when the server was launched with one. The model name is
+    a placeholder for the model the server was launched with.'
