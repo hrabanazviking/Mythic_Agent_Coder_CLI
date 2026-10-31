@@ -646,6 +646,7 @@ class MainChatScreen(Screen):
                 chat_log.write("  [green]/model[/green]     - Show or switch the live model/provider (session, plan and crew kept)")
                 chat_log.write("  [green]/route[/green]     - Show or set per-office model routes (crew roles on different models)")
                 chat_log.write("  [green]/fallback[/green]  - Show or set the fallback chain (doors walked when a provider fails, with standing permission)")
+                chat_log.write("  [green]/costroute[/green] - Cost-aware routing: prefer the cheaper adequate door for a task class (off by default, explained in plain words)")
                 chat_log.write("  [green]/clear[/green]     - Clear agent memory")
                 chat_log.write("  [green]/compact[/green]   - Compact agent memory")
                 chat_log.write("  [green]/cost[/green]      - Estimate token cost")
@@ -692,6 +693,7 @@ class MainChatScreen(Screen):
                     "/route": "Usage: /route | /route <office> | /route <office> <model> [url] | /route <office> --provider <name> [--model <model>] | /route clear <office>\nPer-office model routing (M-029): different models for different offices — a deep thinker for the Architect, a fast hand for the Forge Worker, a cheap scout for the Cartographer. An office with no route uses the session default; routes are recorded as a session journal event and crew members take a route when spawned or when re-routed while idle. The Primary office has no route of its own — its selection is the session default, changed with /model.",
                     "/model": "Usage: /model | /model <model> [url] | /model --provider <name> [--model <model>] [--reason <words...>]\nShows or switches the live session's model or provider (M-028): the session, its history and plan, and the crew are kept, and the switch is recorded as a session journal event with the reason when one is given. Providers the live session cannot speak (the native-SDK doors and Ollama's own API) are refused plainly, with the session unchanged.",
                     "/fallback": "Usage: /fallback | /fallback on | /fallback off | /fallback add <model> [url] | /fallback add --provider <name> [--model <model>] | /fallback clear\nFallback chains (M-030): when a provider fails or rate-limits, the session walks the configured doors in order — but only with your standing permission (/fallback on; off by default), and every walk is announced in the chat and recorded as a session journal event, never silent. Doors are validated through the provider registry; a native-SDK door, the current door, or a duplicate is refused plainly.",
+                    "/costroute": "Usage: /costroute | /costroute on | /costroute off | /costroute <task-class>\nCost-aware routing (M-031): with mythic costs data, the router can prefer the cheaper adequate model for a task class (general, coding, reasoning, vision, long_context) — a setting, off by default, explained in plain words. It only chooses between doors you have already configured (your current door, your fallback chain, your role routes), only when the cheaper model's price is known and its abilities are known to fit the work, and it always says why; an applied switch is recorded as a session journal event with that reason.",
                     "/clear": "Usage: /clear\nClears the agent's memory window (except the system prompt).",
                     "/compact": "Usage: /compact\nForces the LLM's context pruner to run early, archiving old messages to the VectorDB.",
                     "/cost": "Usage: /cost\nComputes and displays the token cost of the current session.",
@@ -780,7 +782,7 @@ class MainChatScreen(Screen):
             else:
                 SecureAPI.publish_chat_request(f"{action_text} {args}", target_agent=active)
             chat_log.write(f"[magenta]{action_text}[/magenta] {args}")
-        elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr", "/stop", "/clear", "/compact", "/cost", "/review", "/ollama", "/local", "/gateway", "/model", "/route", "/fallback"]:
+        elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr", "/stop", "/clear", "/compact", "/cost", "/review", "/ollama", "/local", "/gateway", "/model", "/route", "/fallback", "/costroute"]:
             # M-023: /ollama rides this same system-command road — the
             # M-024: /local rides it too, for the same reason.
             # UI stays presentation-only (arch-conformance: no

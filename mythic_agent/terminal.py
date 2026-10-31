@@ -260,7 +260,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /status /session /add <path> /stop /undo /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /status /session /add <path> /stop /undo /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
         return True, False, "Conversation cleared."
@@ -334,6 +334,33 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_fallback_change(record)
+    if command == "/costroute":
+        from .core.cost_routing import (
+            candidate_doors,
+            enabled_from_config,
+            format_cost_change,
+            format_cost_routing,
+            format_decision,
+            parse_cost_args,
+        )
+        try:
+            request = parse_cost_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.cost_routing_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            assert [d["model"] for d in status["doors"]] == [
+                d.model for d in candidate_doors(agent.config)]
+            return True, False, format_cost_routing(agent.config)
+        try:
+            if request["action"] == "setting":
+                record = agent.set_cost_routing(request["enabled"])
+                return True, False, format_cost_change(record)
+            applied = agent.cost_route(request["task_class"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_decision(applied["decision"])
     if command == "/model":
         from .core.model_switch import format_switch_record, parse_switch_args
         try:

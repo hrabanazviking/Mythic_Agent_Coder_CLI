@@ -199,6 +199,8 @@ class CommandHandler:
                 self._handle_route(args)
             elif cmd == "/fallback":
                 self._handle_fallback(args)
+            elif cmd == "/costroute":
+                self._handle_costroute(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -850,6 +852,68 @@ class CommandHandler:
             return
         publish_sync("agent_chat_chunk", agent_name="Primary",
                      text=f"\n[green]{format_fallback_change(record)}[/green]\n")
+
+    def _handle_costroute(self, args: str):
+        """M-031: /costroute — cost-aware routing, in plain words.
+
+        ``/costroute`` shows the setting (off by default), the
+        plain-words explanation, the configured doors with their
+        costs-table prices, and the task classes;
+        ``/costroute on`` / ``off`` changes the setting (journaled
+        by the agent layer); ``/costroute <task-class>`` asks the
+        router for a decision for that class and applies it when
+        it prefers a cheaper adequate door — applied through the
+        agent's journaled model switch, with the decision's own
+        reason, and announced here, never silent.
+        """
+        from ..core.cost_routing import (
+            candidate_doors,
+            enabled_from_config,
+            format_cost_change,
+            format_cost_routing,
+            format_decision,
+            parse_cost_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_cost_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.cost_routing_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            assert [d["model"] for d in status["doors"]] == [
+                d.model for d in candidate_doors(primary.config)]
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_cost_routing(primary.config)}[/bold cyan]\n"
+                     "[dim]Decide for a kind of work with "
+                     "/costroute <task-class>; turn the setting on "
+                     "with /costroute on.[/dim]\n")
+            return
+        try:
+            if request["action"] == "setting":
+                record = primary.set_cost_routing(request["enabled"])
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_cost_change(record)}[/green]\n")
+                return
+            applied = primary.cost_route(request["task_class"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_decision(applied['decision'])}[/green]\n")
 
     def _handle_tutorial(self):
         tutorial_text = """

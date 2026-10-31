@@ -907,6 +907,101 @@ class Agent:
                 "settings were preserved")
         return change.record(self.session_id, journaled)
 
+    def cost_routing_status(self) -> dict[str, Any]:
+        """The cost-routing setting and its candidate doors (M-031).
+
+        The setting exactly as stored (validated — a malformed
+        stored value raises, never vanishes), every configured
+        door the router may choose between with its costs-table
+        yardstick price (None = unpriced, never claimed cheaper),
+        and the task classes. This is the answer ``/costroute``
+        shows; nothing about it is hidden.
+        """
+        from ..core import cost_routing
+
+        return {
+            "enabled": cost_routing.enabled_from_config(self.config),
+            "doors": [
+                {**door.selection(),
+                 "unit_cost": cost_routing.unit_cost(door.model)}
+                for door in cost_routing.candidate_doors(self.config)],
+            "task_classes": [
+                {"id": task.id, "title": task.title, "plain": task.plain}
+                for task in cost_routing.TASK_CLASSES],
+        }
+
+    def set_cost_routing(self, enabled: bool) -> dict[str, Any]:
+        """Turn cost-aware routing on or off (M-031).
+
+        Validated by :mod:`mythic_agent.core.cost_routing` before
+        anything mutates; journaled first as a
+        ``cost_routing_changed`` event when a session is attached;
+        a failed save restores the previous value exactly and
+        journals a compensating ``cost_routing_reverted``.
+        """
+        import copy
+
+        from ..core import cost_routing
+
+        new_value, change = cost_routing.set_enabled(self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[cost_routing.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "cost_routing_reverted",
+                        "reason": "The cost-routing change could not "
+                                  "be saved; the previous setting "
+                                  "was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Cost-routing change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def cost_decision(self, task_class: str) -> Any:
+        """The router's decision for *task_class* (M-031).
+
+        Pure over this agent's config: the chosen door, the
+        current door, both yardstick prices, and the plain-words
+        reason — whether or not anything is later applied.
+        """
+        from ..core.cost_routing import choose_route
+
+        return choose_route(self.config, task_class)
+
+    def cost_route(self, task_class: str) -> dict[str, Any]:
+        """Decide for *task_class* and apply a changed door (M-031).
+
+        When the decision prefers a different door, the switch is
+        applied through M-028's :meth:`switch_model` with the
+        decision's own reason, so it is journaled as a
+        ``model_switched`` event and preserves the session, the
+        plan, and the crew exactly as any switch does. When the
+        decision keeps the current door, nothing is applied and
+        nothing is journaled — no switch happened.
+        """
+        decision = self.cost_decision(task_class)
+        record = decision.record()
+        record["decision"] = decision
+        record["applied"] = False
+        record["switch"] = None
+        if decision.changed:
+            record["switch"] = self.switch_model(
+                model=decision.chosen.model,
+                base_url=decision.chosen.base_url,
+                reason=decision.reason)
+            record["applied"] = True
+        return record
+
     def _apply_role_route_to(self, member: Any) -> None:
         """Apply *member*'s office route to its config, if one is set."""
         route = _role_route_for(self.config, member.name)
