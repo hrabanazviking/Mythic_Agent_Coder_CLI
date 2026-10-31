@@ -1,0 +1,1908 @@
+schema: mythic.feature_census/1
+slice: M-001
+title: Mythic Agent Coder - Feature Census (living matrix)
+refreshed: '2026-10-30'
+source_note: Rival forms are summarised from the All-Features roadmap section 2 census (itself refreshed
+  from the rivals' public docs, 2026-10-30) and scored UNKNOWN wherever that census does not name the
+  holder - unknown means unknown, never guessed. Mythic states are scored against this repository's own
+  evidence (the module named in each row) as of the refresh date.
+states:
+- HAVE
+- PARTIAL
+- MISSING
+- BETTER
+- UNKNOWN
+mythic_states:
+- HAVE
+- PARTIAL
+- MISSING
+- BETTER
+rivals:
+- id: claude-code
+  name: Claude Code
+- id: codex-cli
+  name: Codex CLI
+- id: gemini-cli
+  name: Gemini / Antigravity CLI
+- id: opencode
+  name: OpenCode
+- id: aider
+  name: Aider
+- id: copilot-cli
+  name: Copilot CLI
+- id: goose
+  name: Goose
+- id: cline
+  name: Cline
+- id: amp
+  name: Amp
+- id: pi
+  name: Pi
+- id: omp
+  name: Omp
+features:
+- id: agentic-loop
+  name: Agentic read / edit / run loop
+  category: canon
+  mythic:
+    state: HAVE
+    form: 'Core engine loop: read, edit, run tools with approval gates.'
+    evidence: mythic_agent/core/engine.py
+  roadmap_ref: null
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: plan-mode
+  name: Plan mode
+  category: canon
+  mythic:
+    state: HAVE
+    form: Planning module plus the Mythic Engineering method posture; approval of the plan gates building.
+    evidence: mythic_agent/agents/planning.py
+  roadmap_ref: null
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: permission-prompts
+  name: Permission prompts with modes
+  category: canon
+  mythic:
+    state: HAVE
+    form: Policy modes with approval modals in the TUI; the TUI approval controls the shared executor.
+    evidence: mythic_agent/core/policy.py
+  roadmap_ref: null
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: permission-profiles
+  name: Named permission profiles with remembered, scoped approvals
+  category: canon
+  mythic:
+    state: PARTIAL
+    form: Policy modes exist; named postures and exact remembered scopes (command + args + path, revocable)
+      are owed.
+    evidence: mythic_agent/core/policy.py
+  roadmap_ref: M-095
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: project-instruction-files
+  name: Project instruction files (AGENTS.md and kin)
+  category: canon
+  mythic:
+    state: HAVE
+    form: Instruction files are read into context (RULES.AI.md natively; AGENTS.md honoured).
+    evidence: mythic_agent/context/instructions.py
+  roadmap_ref: null
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: slash-commands
+  name: Slash commands
+  category: canon
+  mythic:
+    state: HAVE
+    form: Slash commands in the TUI including /commit, /issue, /pr, /status, /gh, /undo.
+    evidence: mythic_agent/agents/command_handler.py
+  roadmap_ref: null
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: custom-commands
+  name: User / project custom commands
+  category: canon
+  mythic:
+    state: MISSING
+    form: No user-defined slash-command files yet; the command palace is built-in only.
+    evidence: ''
+  roadmap_ref: M-237
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: subagents
+  name: Subagents
+  category: canon
+  mythic:
+    state: HAVE
+    form: Six named offices (Skald, Architect, Forge Worker, Auditor, Cartographer, Scribe) plus castable
+      agent characters.
+    evidence: mythic_agent/agents/parallel.py
+  roadmap_ref: null
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: mcp-server
+  name: MCP server (the app serves tools)
+  category: canon
+  mythic:
+    state: HAVE
+    form: mythic-mcp exposes workspace / policy / session / task services with versioned contracts.
+    evidence: mythic_agent/mcp_server.py
+  roadmap_ref: null
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: mcp-client
+  name: MCP client (the app consumes servers)
+  category: canon
+  mythic:
+    state: MISSING
+    form: 'The missing half of the MCP face: Mythic serves MCP but does not yet consume other servers.'
+    evidence: ''
+  roadmap_ref: M-233
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: hooks
+  name: Lifecycle hooks
+  category: canon
+  mythic:
+    state: MISSING
+    form: No user hook lifecycle (pre/post tool, edit, test, commit, session) yet.
+    evidence: ''
+  roadmap_ref: M-101
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: skills-plugins
+  name: Skills / plugins
+  category: canon
+  mythic:
+    state: PARTIAL
+    form: Agent characters and tutorials exist; a loadable skills standard and plugin bundles are owed.
+    evidence: default_agent_characters/
+  roadmap_ref: M-236
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: checkpoints-undo
+  name: Checkpoints and undo
+  category: canon
+  mythic:
+    state: PARTIAL
+    form: /undo from the workspace journal and crash recovery exist; named checkpoints capturing tree
+      + session are thinner than the field's.
+    evidence: mythic_agent/core/journal.py
+  roadmap_ref: M-075
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: session-resume-search
+  name: Session resume and search
+  category: canon
+  mythic:
+    state: HAVE
+    form: Durable workspace sessions with --resume, export, and search.
+    evidence: mythic_agent/core/sessions.py
+  roadmap_ref: null
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: context-compaction
+  name: Context compaction
+  category: canon
+  mythic:
+    state: HAVE
+    form: Auto-compacting context engine; the glass-box (shown, editable) form is Part VII polish.
+    evidence: mythic_agent/context/compiler.py
+  roadmap_ref: null
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: streaming-tui-diffs
+  name: Streaming TUI with diffs
+  category: canon
+  mythic:
+    state: HAVE
+    form: Textual TUI (Tokyo Night) with streaming and diff review in approvals.
+    evidence: mythic_agent/ui/main_app.py
+  roadmap_ref: null
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: git-commit-pr-flows
+  name: Git auto-commit and PR flows
+  category: canon
+  mythic:
+    state: PARTIAL
+    form: /commit, /issue, /pr, /status, /gh exist in the TUI; automatic per-edit-set commit discipline
+      is owed.
+    evidence: mythic_agent/integrations/github.py
+  roadmap_ref: M-078
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: headless-ci-scripting
+  name: Headless / CI scripting
+  category: canon
+  mythic:
+    state: HAVE
+    form: mythic run --format json, read-only by default, with exit-code discipline and JSONL output.
+    evidence: mythic_agent/cli.py
+  roadmap_ref: null
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: cost-usage-reporting
+  name: Cost and usage reporting
+  category: canon
+  mythic:
+    state: BETTER
+    form: mythic costs ledger where unknown prices are reported as unknown, never guessed - the field's
+      tools estimate silently.
+    evidence: mythic_agent/core/costs.py
+  roadmap_ref: null
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: image-input
+  name: Image input
+  category: canon
+  mythic:
+    state: PARTIAL
+    form: Vision-capable provider plumbing exists; capability-truth routing of image tasks to sighted
+      models is owed.
+    evidence: mythic_agent/providers/vision.py
+  roadmap_ref: M-037
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: web-search-fetch
+  name: Web search and fetch tools
+  category: canon
+  mythic:
+    state: MISSING
+    form: No first-class web search / fetch tool yet; knowledge comes from the repo and local docs only.
+    evidence: ''
+  roadmap_ref: M-059
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: model-switching
+  name: Model switching
+  category: canon
+  mythic:
+    state: HAVE
+    form: Provider registry with per-session model choice across all registered providers.
+    evidence: mythic_agent/providers/registry.py
+  roadmap_ref: null
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: sandboxing
+  name: Sandboxing of commands
+  category: canon
+  mythic:
+    state: PARTIAL
+    form: A sandbox module exists, but OS-level kernel confinement (namespaces / seccomp class) is owed;
+      no Docker, ever.
+    evidence: mythic_agent/core/sandbox.py
+  roadmap_ref: M-097
+  rivals:
+    claude-code:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    codex-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    gemini-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    opencode:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    aider:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    copilot-cli:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    goose:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    cline:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    amp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    pi:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+    omp:
+      state: HAVE
+      form: 'Part of the field''s universal canon (roadmap section 2): every serious rival ships a form
+        of this.'
+- id: provider-breadth
+  name: Provider breadth (registries of 75+)
+  category: frontier
+  mythic:
+    state: PARTIAL
+    form: Registry covers OpenRouter, DeepSeek, OpenAI-compatible, Anthropic, Google, OpenCode Go plus
+      local doors; it is code-defined, not yet data-driven, and far from the field's 75+.
+    evidence: mythic_agent/providers/registry.py
+  roadmap_ref: M-019
+  rivals:
+    claude-code:
+      state: UNKNOWN
+      form: Breadth varies; not stated in the roadmap census for this tool.
+    codex-cli:
+      state: UNKNOWN
+      form: Breadth varies; not stated in the roadmap census for this tool.
+    gemini-cli:
+      state: UNKNOWN
+      form: Breadth varies; not stated in the roadmap census for this tool.
+    opencode:
+      state: HAVE
+      form: 75+ provider registry - the field's widest door (roadmap section 2).
+    aider:
+      state: UNKNOWN
+      form: Breadth varies; not stated in the roadmap census for this tool.
+    copilot-cli:
+      state: UNKNOWN
+      form: Breadth varies; not stated in the roadmap census for this tool.
+    goose:
+      state: UNKNOWN
+      form: Breadth varies; not stated in the roadmap census for this tool.
+    cline:
+      state: UNKNOWN
+      form: Breadth varies; not stated in the roadmap census for this tool.
+    amp:
+      state: UNKNOWN
+      form: Breadth varies; not stated in the roadmap census for this tool.
+    pi:
+      state: UNKNOWN
+      form: Breadth varies; not stated in the roadmap census for this tool.
+    omp:
+      state: UNKNOWN
+      form: Breadth varies; not stated in the roadmap census for this tool.
+- id: local-models
+  name: Local models as first citizens
+  category: frontier
+  mythic:
+    state: PARTIAL
+    form: Ollama, LM Studio, llama.cpp and vLLM provider modules are present; in-TUI discovery / pull
+      kindness is owed.
+    evidence: mythic_agent/providers/ollama.py
+  roadmap_ref: M-023
+  rivals:
+    claude-code:
+      state: UNKNOWN
+      form: Local-model support varies; not stated in the roadmap census for this tool.
+    codex-cli:
+      state: UNKNOWN
+      form: Local-model support varies; not stated in the roadmap census for this tool.
+    gemini-cli:
+      state: UNKNOWN
+      form: Local-model support varies; not stated in the roadmap census for this tool.
+    opencode:
+      state: HAVE
+      form: Local models part of its wide registry (roadmap section 2).
+    aider:
+      state: UNKNOWN
+      form: Local-model support varies; not stated in the roadmap census for this tool.
+    copilot-cli:
+      state: UNKNOWN
+      form: Local-model support varies; not stated in the roadmap census for this tool.
+    goose:
+      state: UNKNOWN
+      form: Local-model support varies; not stated in the roadmap census for this tool.
+    cline:
+      state: UNKNOWN
+      form: Local-model support varies; not stated in the roadmap census for this tool.
+    amp:
+      state: UNKNOWN
+      form: Local-model support varies; not stated in the roadmap census for this tool.
+    pi:
+      state: UNKNOWN
+      form: Local-model support varies; not stated in the roadmap census for this tool.
+    omp:
+      state: UNKNOWN
+      form: Local-model support varies; not stated in the roadmap census for this tool.
+- id: repo-map
+  name: Token-ranked repo map
+  category: frontier
+  mythic:
+    state: MISSING
+    form: No repo map yet; context is built from files, symbols, and retrieval instead.
+    evidence: ''
+  roadmap_ref: M-044
+  rivals:
+    claude-code:
+      state: UNKNOWN
+      form: No repo map claimed in the roadmap census for this tool.
+    codex-cli:
+      state: UNKNOWN
+      form: No repo map claimed in the roadmap census for this tool.
+    gemini-cli:
+      state: UNKNOWN
+      form: No repo map claimed in the roadmap census for this tool.
+    opencode:
+      state: UNKNOWN
+      form: No repo map claimed in the roadmap census for this tool.
+    aider:
+      state: HAVE
+      form: Token-budgeted repo map ranked over the reference graph - Aider's crown (roadmap section 2).
+    copilot-cli:
+      state: UNKNOWN
+      form: No repo map claimed in the roadmap census for this tool.
+    goose:
+      state: UNKNOWN
+      form: No repo map claimed in the roadmap census for this tool.
+    cline:
+      state: UNKNOWN
+      form: No repo map claimed in the roadmap census for this tool.
+    amp:
+      state: UNKNOWN
+      form: No repo map claimed in the roadmap census for this tool.
+    pi:
+      state: UNKNOWN
+      form: No repo map claimed in the roadmap census for this tool.
+    omp:
+      state: UNKNOWN
+      form: No repo map claimed in the roadmap census for this tool.
+- id: lsp-integration
+  name: LSP integration (diagnostics, references, rename)
+  category: frontier
+  mythic:
+    state: MISSING
+    form: No language-server client yet; the coder reads diagnostics only from test runs and the static
+      review.
+    evidence: ''
+  roadmap_ref: M-049
+  rivals:
+    claude-code:
+      state: UNKNOWN
+      form: No LSP integration claimed in the roadmap census for this tool.
+    codex-cli:
+      state: UNKNOWN
+      form: No LSP integration claimed in the roadmap census for this tool.
+    gemini-cli:
+      state: UNKNOWN
+      form: No LSP integration claimed in the roadmap census for this tool.
+    opencode:
+      state: HAVE
+      form: LSP integration named in the roadmap census.
+    aider:
+      state: UNKNOWN
+      form: No LSP integration claimed in the roadmap census for this tool.
+    copilot-cli:
+      state: UNKNOWN
+      form: No LSP integration claimed in the roadmap census for this tool.
+    goose:
+      state: UNKNOWN
+      form: No LSP integration claimed in the roadmap census for this tool.
+    cline:
+      state: UNKNOWN
+      form: No LSP integration claimed in the roadmap census for this tool.
+    amp:
+      state: UNKNOWN
+      form: No LSP integration claimed in the roadmap census for this tool.
+    pi:
+      state: UNKNOWN
+      form: No LSP integration claimed in the roadmap census for this tool.
+    omp:
+      state: HAVE
+      form: LSP integration named in the roadmap census.
+- id: structural-search-rewrite
+  name: AST-aware structural search and rewrite (ast-grep class)
+  category: frontier
+  mythic:
+    state: MISSING
+    form: Search is text and symbol based; structural pattern search / codemods are owed.
+    evidence: ''
+  roadmap_ref: M-047
+  rivals:
+    claude-code:
+      state: UNKNOWN
+      form: No structural search claimed in the roadmap census for this tool.
+    codex-cli:
+      state: UNKNOWN
+      form: No structural search claimed in the roadmap census for this tool.
+    gemini-cli:
+      state: UNKNOWN
+      form: No structural search claimed in the roadmap census for this tool.
+    opencode:
+      state: UNKNOWN
+      form: No structural search claimed in the roadmap census for this tool.
+    aider:
+      state: PARTIAL
+      form: AST-aware edit formats named in the roadmap census; full ast-grep rewrite not claimed.
+    copilot-cli:
+      state: UNKNOWN
+      form: No structural search claimed in the roadmap census for this tool.
+    goose:
+      state: UNKNOWN
+      form: No structural search claimed in the roadmap census for this tool.
+    cline:
+      state: UNKNOWN
+      form: No structural search claimed in the roadmap census for this tool.
+    amp:
+      state: UNKNOWN
+      form: No structural search claimed in the roadmap census for this tool.
+    pi:
+      state: UNKNOWN
+      form: No structural search claimed in the roadmap census for this tool.
+    omp:
+      state: HAVE
+      form: ast-grep structural rewrite named in the roadmap census.
+- id: hash-anchored-edits
+  name: Hash-anchored edits
+  category: frontier
+  mythic:
+    state: MISSING
+    form: Edits are not yet anchored to content hashes of the lines they touch.
+    evidence: ''
+  roadmap_ref: M-072
+  rivals:
+    claude-code:
+      state: UNKNOWN
+      form: No hash-anchored edits claimed in the roadmap census for this tool.
+    codex-cli:
+      state: UNKNOWN
+      form: No hash-anchored edits claimed in the roadmap census for this tool.
+    gemini-cli:
+      state: UNKNOWN
+      form: No hash-anchored edits claimed in the roadmap census for this tool.
+    opencode:
+      state: UNKNOWN
+      form: No hash-anchored edits claimed in the roadmap census for this tool.
+    aider:
+      state: UNKNOWN
+      form: No hash-anchored edits claimed in the roadmap census for this tool.
+    copilot-cli:
+      state: UNKNOWN
+      form: No hash-anchored edits claimed in the roadmap census for this tool.
+    goose:
+      state: UNKNOWN
+      form: No hash-anchored edits claimed in the roadmap census for this tool.
+    cline:
+      state: UNKNOWN
+      form: No hash-anchored edits claimed in the roadmap census for this tool.
+    amp:
+      state: UNKNOWN
+      form: No hash-anchored edits claimed in the roadmap census for this tool.
+    pi:
+      state: UNKNOWN
+      form: No hash-anchored edits claimed in the roadmap census for this tool.
+    omp:
+      state: HAVE
+      form: Hash-anchored edits named in the roadmap census.
+- id: debugger-dap
+  name: Real debugger over DAP
+  category: frontier
+  mythic:
+    state: MISSING
+    form: No debugger; failing tests are re-run, never stepped through.
+    evidence: ''
+  roadmap_ref: M-054
+  rivals:
+    claude-code:
+      state: UNKNOWN
+      form: No DAP debugger claimed in the roadmap census for this tool.
+    codex-cli:
+      state: UNKNOWN
+      form: No DAP debugger claimed in the roadmap census for this tool.
+    gemini-cli:
+      state: UNKNOWN
+      form: No DAP debugger claimed in the roadmap census for this tool.
+    opencode:
+      state: UNKNOWN
+      form: No DAP debugger claimed in the roadmap census for this tool.
+    aider:
+      state: UNKNOWN
+      form: No DAP debugger claimed in the roadmap census for this tool.
+    copilot-cli:
+      state: UNKNOWN
+      form: No DAP debugger claimed in the roadmap census for this tool.
+    goose:
+      state: UNKNOWN
+      form: No DAP debugger claimed in the roadmap census for this tool.
+    cline:
+      state: UNKNOWN
+      form: No DAP debugger claimed in the roadmap census for this tool.
+    amp:
+      state: UNKNOWN
+      form: No DAP debugger claimed in the roadmap census for this tool.
+    pi:
+      state: UNKNOWN
+      form: No DAP debugger claimed in the roadmap census for this tool.
+    omp:
+      state: HAVE
+      form: A real debugger over DAP - the field's frontier (roadmap section 2).
+- id: formatter-linter-loop
+  name: Formatter / linter feedback loop after edits
+  category: frontier
+  mythic:
+    state: PARTIAL
+    form: A static mythic review exists; running the project's own formatter / linter after every edit
+      and returning new errors in-turn is owed.
+    evidence: mythic_agent/tools/review.py
+  roadmap_ref: M-052
+  rivals:
+    claude-code:
+      state: UNKNOWN
+      form: Edit-time formatter/linter loop not stated in the roadmap census for this tool.
+    codex-cli:
+      state: UNKNOWN
+      form: Edit-time formatter/linter loop not stated in the roadmap census for this tool.
+    gemini-cli:
+      state: UNKNOWN
+      form: Edit-time formatter/linter loop not stated in the roadmap census for this tool.
+    opencode:
+      state: UNKNOWN
+      form: Edit-time formatter/linter loop not stated in the roadmap census for this tool.
+    aider:
+      state: UNKNOWN
+      form: Edit-time formatter/linter loop not stated in the roadmap census for this tool.
+    copilot-cli:
+      state: UNKNOWN
+      form: Edit-time formatter/linter loop not stated in the roadmap census for this tool.
+    goose:
+      state: UNKNOWN
+      form: Edit-time formatter/linter loop not stated in the roadmap census for this tool.
+    cline:
+      state: UNKNOWN
+      form: Edit-time formatter/linter loop not stated in the roadmap census for this tool.
+    amp:
+      state: UNKNOWN
+      form: Edit-time formatter/linter loop not stated in the roadmap census for this tool.
+    pi:
+      state: UNKNOWN
+      form: Edit-time formatter/linter loop not stated in the roadmap census for this tool.
+    omp:
+      state: UNKNOWN
+      form: Edit-time formatter/linter loop not stated in the roadmap census for this tool.
+- id: agent-teams-worktrees
+  name: Agent teams with parallel worktrees
+  category: frontier
+  mythic:
+    state: PARTIAL
+    form: Parallel subagents exist; per-member git worktrees with a merging coordinator are owed.
+    evidence: mythic_agent/agents/parallel.py
+  roadmap_ref: M-124
+  rivals:
+    claude-code:
+      state: HAVE
+      form: Agent teams with parallel worktrees (roadmap section 2).
+    codex-cli:
+      state: UNKNOWN
+      form: No parallel-worktree teams claimed in the roadmap census for this tool.
+    gemini-cli:
+      state: UNKNOWN
+      form: No parallel-worktree teams claimed in the roadmap census for this tool.
+    opencode:
+      state: UNKNOWN
+      form: No parallel-worktree teams claimed in the roadmap census for this tool.
+    aider:
+      state: UNKNOWN
+      form: No parallel-worktree teams claimed in the roadmap census for this tool.
+    copilot-cli:
+      state: UNKNOWN
+      form: No parallel-worktree teams claimed in the roadmap census for this tool.
+    goose:
+      state: UNKNOWN
+      form: No parallel-worktree teams claimed in the roadmap census for this tool.
+    cline:
+      state: UNKNOWN
+      form: No parallel-worktree teams claimed in the roadmap census for this tool.
+    amp:
+      state: UNKNOWN
+      form: No parallel-worktree teams claimed in the roadmap census for this tool.
+    pi:
+      state: UNKNOWN
+      form: No parallel-worktree teams claimed in the roadmap census for this tool.
+    omp:
+      state: UNKNOWN
+      form: No parallel-worktree teams claimed in the roadmap census for this tool.
+- id: long-context
+  name: 1M-token class contexts
+  category: frontier
+  mythic:
+    state: PARTIAL
+    form: Context windows are tracked per model; the map-first loading strategy for 1M-class contexts
+      is owed.
+    evidence: mythic_agent/providers/context_windows.py
+  roadmap_ref: M-038
+  rivals:
+    claude-code:
+      state: UNKNOWN
+      form: Context ceiling depends on the model served; not stated per-tool in the roadmap census.
+    codex-cli:
+      state: UNKNOWN
+      form: Context ceiling depends on the model served; not stated per-tool in the roadmap census.
+    gemini-cli:
+      state: UNKNOWN
+      form: Context ceiling depends on the model served; not stated per-tool in the roadmap census.
+    opencode:
+      state: UNKNOWN
+      form: Context ceiling depends on the model served; not stated per-tool in the roadmap census.
+    aider:
+      state: UNKNOWN
+      form: Context ceiling depends on the model served; not stated per-tool in the roadmap census.
+    copilot-cli:
+      state: UNKNOWN
+      form: Context ceiling depends on the model served; not stated per-tool in the roadmap census.
+    goose:
+      state: UNKNOWN
+      form: Context ceiling depends on the model served; not stated per-tool in the roadmap census.
+    cline:
+      state: UNKNOWN
+      form: Context ceiling depends on the model served; not stated per-tool in the roadmap census.
+    amp:
+      state: UNKNOWN
+      form: Context ceiling depends on the model served; not stated per-tool in the roadmap census.
+    pi:
+      state: UNKNOWN
+      form: Context ceiling depends on the model served; not stated per-tool in the roadmap census.
+    omp:
+      state: UNKNOWN
+      form: Context ceiling depends on the model served; not stated per-tool in the roadmap census.
+- id: background-tasks
+  name: Background tasks
+  category: frontier
+  mythic:
+    state: PARTIAL
+    form: A typed task lifecycle with budgets and cancellation exists; managed background jobs with live
+      tails are owed.
+    evidence: mythic_agent/agents/tasks.py
+  roadmap_ref: M-103
+  rivals:
+    claude-code:
+      state: UNKNOWN
+      form: Background tasks not stated in the roadmap census for this tool.
+    codex-cli:
+      state: UNKNOWN
+      form: Background tasks not stated in the roadmap census for this tool.
+    gemini-cli:
+      state: UNKNOWN
+      form: Background tasks not stated in the roadmap census for this tool.
+    opencode:
+      state: UNKNOWN
+      form: Background tasks not stated in the roadmap census for this tool.
+    aider:
+      state: UNKNOWN
+      form: Background tasks not stated in the roadmap census for this tool.
+    copilot-cli:
+      state: UNKNOWN
+      form: Background tasks not stated in the roadmap census for this tool.
+    goose:
+      state: UNKNOWN
+      form: Background tasks not stated in the roadmap census for this tool.
+    cline:
+      state: UNKNOWN
+      form: Background tasks not stated in the roadmap census for this tool.
+    amp:
+      state: UNKNOWN
+      form: Background tasks not stated in the roadmap census for this tool.
+    pi:
+      state: UNKNOWN
+      form: Background tasks not stated in the roadmap census for this tool.
+    omp:
+      state: UNKNOWN
+      form: Background tasks not stated in the roadmap census for this tool.
+- id: voice-input
+  name: Voice input
+  category: frontier
+  mythic:
+    state: PARTIAL
+    form: 'Audio and TTS extras exist (voice NOT PROVEN on this VM: no PortAudio); push-to-talk dictation
+      is owed.'
+    evidence: mythic_agent/core/audio.py
+  roadmap_ref: M-180
+  rivals:
+    claude-code:
+      state: UNKNOWN
+      form: Voice input not stated in the roadmap census for this tool.
+    codex-cli:
+      state: UNKNOWN
+      form: Voice input not stated in the roadmap census for this tool.
+    gemini-cli:
+      state: UNKNOWN
+      form: Voice input not stated in the roadmap census for this tool.
+    opencode:
+      state: UNKNOWN
+      form: Voice input not stated in the roadmap census for this tool.
+    aider:
+      state: UNKNOWN
+      form: Voice input not stated in the roadmap census for this tool.
+    copilot-cli:
+      state: UNKNOWN
+      form: Voice input not stated in the roadmap census for this tool.
+    goose:
+      state: UNKNOWN
+      form: Voice input not stated in the roadmap census for this tool.
+    cline:
+      state: UNKNOWN
+      form: Voice input not stated in the roadmap census for this tool.
+    amp:
+      state: UNKNOWN
+      form: Voice input not stated in the roadmap census for this tool.
+    pi:
+      state: UNKNOWN
+      form: Voice input not stated in the roadmap census for this tool.
+    omp:
+      state: UNKNOWN
+      form: Voice input not stated in the roadmap census for this tool.
+- id: ide-bridges
+  name: IDE bridges
+  category: frontier
+  mythic:
+    state: PARTIAL
+    form: Editor companions exist in embryo (editors/vim-plugin, editors/vscode-extension); the editor-agnostic
+      bridge protocol is owed.
+    evidence: editors/
+  roadmap_ref: M-239
+  rivals:
+    claude-code:
+      state: UNKNOWN
+      form: IDE bridge depth varies; not stated per-tool in the roadmap census.
+    codex-cli:
+      state: UNKNOWN
+      form: IDE bridge depth varies; not stated per-tool in the roadmap census.
+    gemini-cli:
+      state: UNKNOWN
+      form: IDE bridge depth varies; not stated per-tool in the roadmap census.
+    opencode:
+      state: UNKNOWN
+      form: IDE bridge depth varies; not stated per-tool in the roadmap census.
+    aider:
+      state: UNKNOWN
+      form: IDE bridge depth varies; not stated per-tool in the roadmap census.
+    copilot-cli:
+      state: UNKNOWN
+      form: IDE bridge depth varies; not stated per-tool in the roadmap census.
+    goose:
+      state: UNKNOWN
+      form: IDE bridge depth varies; not stated per-tool in the roadmap census.
+    cline:
+      state: HAVE
+      form: Born as an IDE-side agent; editor integration is its home form.
+    amp:
+      state: UNKNOWN
+      form: IDE bridge depth varies; not stated per-tool in the roadmap census.
+    pi:
+      state: UNKNOWN
+      form: IDE bridge depth varies; not stated per-tool in the roadmap census.
+    omp:
+      state: UNKNOWN
+      form: IDE bridge depth varies; not stated per-tool in the roadmap census.
+- id: method-engine
+  name: A named engineering method as the app's way of working
+  category: mythic-birthright
+  mythic:
+    state: PARTIAL
+    form: Mythic Engineering exists as a mode with six offices; making it the default loop of the whole
+      app is Part IX.
+    evidence: Mythic-Engineering/
+  roadmap_ref: M-201
+  rivals:
+    claude-code:
+      state: MISSING
+      form: No named method engine; the tool offers modes, not a method.
+    codex-cli:
+      state: MISSING
+      form: No named method engine; the tool offers modes, not a method.
+    gemini-cli:
+      state: MISSING
+      form: No named method engine; the tool offers modes, not a method.
+    opencode:
+      state: MISSING
+      form: No named method engine; the tool offers modes, not a method.
+    aider:
+      state: MISSING
+      form: No named method engine; the tool offers modes, not a method.
+    copilot-cli:
+      state: MISSING
+      form: No named method engine; the tool offers modes, not a method.
+    goose:
+      state: MISSING
+      form: No named method engine; the tool offers modes, not a method.
+    cline:
+      state: MISSING
+      form: No named method engine; the tool offers modes, not a method.
+    amp:
+      state: MISSING
+      form: No named method engine; the tool offers modes, not a method.
+    pi:
+      state: MISSING
+      form: No named method engine; the tool offers modes, not a method.
+    omp:
+      state: MISSING
+      form: No named method engine; the tool offers modes, not a method.
+- id: memory-rag
+  name: Layered memory (vector RAG + core memory)
+  category: mythic-birthright
+  mythic:
+    state: HAVE
+    form: Dual-layer vector RAG subconscious plus core memory, shipped and in daily use.
+    evidence: mythic_agent/memory/
+  roadmap_ref: null
+  rivals:
+    claude-code:
+      state: UNKNOWN
+      form: Memory depth varies widely; not scored per-tool in the roadmap census.
+    codex-cli:
+      state: UNKNOWN
+      form: Memory depth varies widely; not scored per-tool in the roadmap census.
+    gemini-cli:
+      state: UNKNOWN
+      form: Memory depth varies widely; not scored per-tool in the roadmap census.
+    opencode:
+      state: UNKNOWN
+      form: Memory depth varies widely; not scored per-tool in the roadmap census.
+    aider:
+      state: UNKNOWN
+      form: Memory depth varies widely; not scored per-tool in the roadmap census.
+    copilot-cli:
+      state: UNKNOWN
+      form: Memory depth varies widely; not scored per-tool in the roadmap census.
+    goose:
+      state: UNKNOWN
+      form: Memory depth varies widely; not scored per-tool in the roadmap census.
+    cline:
+      state: UNKNOWN
+      form: Memory depth varies widely; not scored per-tool in the roadmap census.
+    amp:
+      state: UNKNOWN
+      form: Memory depth varies widely; not scored per-tool in the roadmap census.
+    pi:
+      state: UNKNOWN
+      form: Memory depth varies widely; not scored per-tool in the roadmap census.
+    omp:
+      state: UNKNOWN
+      form: Memory depth varies widely; not scored per-tool in the roadmap census.
