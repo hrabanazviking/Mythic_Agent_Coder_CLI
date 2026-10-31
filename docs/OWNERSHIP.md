@@ -2,18 +2,18 @@
 
 > **GENERATED FILE — do not edit by hand.**
 > Regenerate with: `python scripts/gen_ownership.py`
-> Generated at: 2026-10-31T04:38:33Z
+> Generated at: 2026-10-31T05:01:27Z
 
 Ownership is derived from real git history: for each module the owner is the top author by commit count touching that file (ties resolve to the most recently active author). Share is the owner's commit count divided by the total commit count on the file.
 
 ## Per-author rollup
 
-Total modules: **135**
+Total modules: **136**
 
 | Author | Modules owned | File commits | Share of modules |
 | --- | ---: | ---: | ---: |
-| Yrsa Freydisdottir | 106 | 192 | 78.5% |
-| Volmarr Wyrd | 29 | 178 | 21.5% |
+| Yrsa Freydisdottir | 107 | 193 | 78.7% |
+| Volmarr Wyrd | 29 | 178 | 21.3% |
 
 ## Per-module ownership
 
@@ -57,6 +57,7 @@ Total modules: **135**
 | `mythic_agent/core/config_manager.py` | Volmarr Wyrd | 75.0% | 9 / 12 | 2026-10-11 |
 | `mythic_agent/core/costs.py` | Yrsa Freydisdottir | 100.0% | 3 / 3 | 2026-10-10 |
 | `mythic_agent/core/dead_code_scan.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
+| `mythic_agent/core/dependency_census.py` | Yrsa Freydisdottir | 100.0% | 1 / 1 | 2026-10-31 |
 | `mythic_agent/core/determinism.py` | Yrsa Freydisdottir | 100.0% | 1 / 1 | 2026-10-10 |
 | `mythic_agent/core/edits.py` | Yrsa Freydisdottir | 50.0% | 1 / 2 | 2026-10-10 |
 | `mythic_agent/core/engine.py` | Volmarr Wyrd | 55.6% | 5 / 9 | 2026-10-10 |
@@ -465,6 +466,14 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
       "total_commits": 2,
       "share": 1.0,
       "last_touch": "2026-10-10"
+    },
+    {
+      "module": "mythic_agent/core/dependency_census.py",
+      "owner": "Yrsa Freydisdottir",
+      "owner_commits": 1,
+      "total_commits": 1,
+      "share": 1.0,
+      "last_touch": "2026-10-31"
     },
     {
       "module": "mythic_agent/core/determinism.py",
@@ -1246,8 +1255,8 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
   "rollup": [
     {
       "author": "Yrsa Freydisdottir",
-      "modules_owned": 106,
-      "file_commits": 192
+      "modules_owned": 107,
+      "file_commits": 193
     },
     {
       "author": "Volmarr Wyrd",
@@ -1255,6 +1264,6 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
       "file_commits": 178
     }
   ],
-  "total_modules": 135
+  "total_modules": 136
 }
 ```
