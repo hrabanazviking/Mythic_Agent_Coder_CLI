@@ -60,6 +60,18 @@ workspace sessions, and a dual-layer memory.
   literal v1 golden artefacts (raw-SQL DB, raw-JSON journal lines,
   record, crash report, spill lines) that the real readers must
   always be able to read.
+- `mythic_agent/core/dependency_census.py` + `mythic_agent/data/dependency_census.yaml`
+  — the Dependency Census (M-012): every unique requirement declared
+  in `pyproject.toml` (29: 7 core + all extras + the hatchling build
+  backend), each with declaring groups, spec, licence, necessity,
+  purpose, and installed weight measured in the baseline venv (the
+  six the venv does not install are honestly `unmeasured`). Its
+  stdlib-first replacement list claims only two real wins —
+  scipy→stdlib `wave` (scipy's sole use is one wavfile write, yet it
+  is the heaviest measured dependency at 109,315 KiB) and
+  requests→the already-core httpx pair — and records the rest as
+  no-real-win with reasons. Tests cross-check the census against the
+  live pyproject (tomllib) and the dependency audit's import scan.
 - `mythic_agent/providers/` — provider adapters + negotiation
   (structured output, vision, reasoning, streaming, usage, health,
   failover — the MIM-026–050 Pantheon work).

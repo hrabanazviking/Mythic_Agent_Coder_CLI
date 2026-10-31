@@ -1,0 +1,412 @@
+schema: mythic.dependency_census/1
+slice: M-012
+censused: '2026-10-31'
+scope_note: 'Every unique requirement declared in pyproject.toml — the 7 core dependencies, every optional
+  extra (anthropic, google, tui, mcp, context, knowledge, voice, voice-cloning, dev), and the hatchling
+  build backend — counted once, with every group that declares it. Transitive dependencies are out of
+  scope and named so here: they are the declared dependencies'' own business (openai alone pulls httpx2''s
+  chain), and the census weighs what this project chooses, not what its choices pull in. Installed sizes
+  were measured in the baseline venv on this VM (files listed by importlib.metadata, stat-summed, pyc
+  caches included as installed); the six dependencies that venv does not install carry measured_kb 0 and
+  weight ''unmeasured'' — unknown is recorded as unknown, never guessed. Licences are the installed distributions''
+  metadata, or PyPI metadata for the uninstalled six.'
+dependencies:
+- id: D-01
+  name: openai
+  import_name: openai
+  declared_in:
+  - core
+  spec: '>=1.40,<4'
+  licence: Apache-2.0
+  necessity: essential-core
+  purpose: 'The OpenAI Python SDK: the default provider door (agents/llm.py, core/audio.py, core/execution.py)
+    and the base the OpenAI-compatible providers build on.'
+  measured_kb: 16730
+  weight: heavy
+- id: D-02
+  name: prompt-toolkit
+  import_name: prompt_toolkit
+  declared_in:
+  - core
+  spec: '>=3.0'
+  licence: BSD-3-Clause
+  necessity: essential-core
+  purpose: 'The classic terminal interface: line editing, prompts, and key handling in terminal.py.'
+  measured_kb: 2991
+  weight: moderate
+- id: D-03
+  name: rich
+  import_name: rich
+  declared_in:
+  - core
+  spec: '>=13.0'
+  licence: MIT
+  necessity: essential-core
+  purpose: Terminal rendering — tables, panels, markdown, and progress — across the CLI, terminal, and
+    TUI.
+  measured_kb: 2532
+  weight: moderate
+- id: D-04
+  name: filelock
+  import_name: filelock
+  declared_in:
+  - core
+  spec: '>=3.13'
+  licence: MIT
+  necessity: essential-core
+  purpose: Cross-platform file locking for the config manager, edit journal, WAL journal, and session
+    store, so parallel processes cannot corrupt shared state.
+  measured_kb: 1195
+  weight: moderate
+- id: D-05
+  name: pyyaml
+  import_name: yaml
+  declared_in:
+  - core
+  spec: '>=6.0.2'
+  licence: MIT
+  necessity: essential-core
+  purpose: YAML loading for config, policy, runtime defaults, and every data file the package ships (this
+    census included).
+  measured_kb: 3082
+  weight: moderate
+- id: D-06
+  name: httpx
+  import_name: httpx
+  declared_in:
+  - core
+  spec: '>=0.27'
+  licence: BSD-3-Clause
+  necessity: essential-core
+  purpose: The fallback HTTP client for provider calls, imported only inside the declared try-httpx2/except-httpx
+    shape (see the dependency audit).
+  measured_kb: 621
+  weight: light
+- id: D-07
+  name: httpx2
+  import_name: httpx2
+  declared_in:
+  - core
+  spec: '>=2.13'
+  licence: BSD-3-Clause
+  necessity: essential-core
+  purpose: 'The preferred HTTP client for provider calls: openai 3.x''s renamed httpx fork, tried first
+    at every provider HTTP site.'
+  measured_kb: 876
+  weight: light
+- id: D-08
+  name: anthropic
+  import_name: anthropic
+  declared_in:
+  - anthropic
+  spec: '>=0.40.0'
+  licence: Apache-2.0
+  necessity: optional-feature
+  purpose: The Anthropic provider SDK (providers/anthropic.py), behind the anthropic extra.
+  measured_kb: 13568
+  weight: heavy
+- id: D-09
+  name: google-generativeai
+  import_name: google
+  declared_in:
+  - google
+  spec: '>=0.8.0'
+  licence: Apache-2.0
+  necessity: optional-feature
+  purpose: The Google Gemini provider SDK (providers/google.py), behind the google extra.
+  measured_kb: 1086
+  weight: moderate
+- id: D-10
+  name: textual
+  import_name: textual
+  declared_in:
+  - tui
+  spec: '>=0.82.7,<9'
+  licence: MIT
+  necessity: essential-feature
+  purpose: 'The TUI framework: the whole mythic_agent/ui tree (screens, modals, widgets) is built on it.'
+  measured_kb: 6017
+  weight: moderate
+- id: D-11
+  name: textual-image
+  import_name: textual_image
+  declared_in:
+  - tui
+  - tui
+  spec: '>=0.12.0,<0.13 (py<3.12) / >=0.13.2 (py>=3.12)'
+  licence: LGPL-3.0-or-later
+  necessity: optional-feature
+  purpose: Renders images inside the Textual chat screen (ui/screens/chat_screen.py). The census's one
+    LGPL user-interface dependency — optional-extra only.
+  measured_kb: 405
+  weight: light
+- id: D-12
+  name: pillow
+  import_name: PIL
+  declared_in:
+  - tui
+  spec: '>=10.4.0'
+  licence: MIT-CMU
+  necessity: essential-feature
+  purpose: Image loading and measurement for the TUI's image rendering (PIL.Image in the chat screen).
+  measured_kb: 21303
+  weight: heavy
+- id: D-13
+  name: pyperclip
+  import_name: pyperclip
+  declared_in:
+  - tui
+  spec: '>=1.9'
+  licence: BSD-3-Clause
+  necessity: optional-feature
+  purpose: Clipboard copy from the TUI (ui/main_app.py); the lightest dependency in the census.
+  measured_kb: 60
+  weight: light
+- id: D-14
+  name: mcp
+  import_name: mcp
+  declared_in:
+  - mcp
+  spec: '>=1.0.0'
+  licence: MIT
+  necessity: optional-feature
+  purpose: The Model Context Protocol SDK behind mythic_agent/mcp_server.py (the mythic-mcp entry point).
+  measured_kb: 2500
+  weight: moderate
+- id: D-15
+  name: tiktoken
+  import_name: tiktoken
+  declared_in:
+  - context
+  spec: '>=0.7.0'
+  licence: MIT
+  necessity: optional-feature
+  purpose: Precise token counting for the context compiler (context/budget.py); a deterministic heuristic
+    estimator is the built-in fallback when it is absent.
+  measured_kb: 3745
+  weight: moderate
+- id: D-16
+  name: psycopg
+  import_name: psycopg
+  declared_in:
+  - knowledge
+  spec: '[binary]>=3.0.0'
+  licence: LGPL-3.0-only
+  necessity: optional-feature
+  purpose: PostgreSQL access for the knowledge tools (agents/tools.py), declared with its [binary] wheel;
+    LGPL, optional-extra only.
+  measured_kb: 1731
+  weight: moderate
+- id: D-17
+  name: requests
+  import_name: requests
+  declared_in:
+  - knowledge
+  - voice
+  spec: '>=2.0.0'
+  licence: Apache-2.0
+  necessity: optional-feature
+  purpose: A second HTTP client used by the knowledge tools and the voice/TTS backends (agents/tools.py,
+    core/audio.py, core/tts.py) — see replacement R-02.
+  measured_kb: 467
+  weight: light
+- id: D-18
+  name: sounddevice
+  import_name: sounddevice
+  declared_in:
+  - voice
+  spec: '>=0.5.1'
+  licence: MIT
+  necessity: optional-feature
+  purpose: Microphone recording and audio playback for voice (core/audio.py, core/tts.py), wrapping the
+    system PortAudio library — whose absence on this VM is the known PortAudio test failure.
+  measured_kb: 256
+  weight: light
+- id: D-19
+  name: numpy
+  import_name: numpy
+  declared_in:
+  - voice
+  spec: '>=2.0.0'
+  licence: 'BSD-3-Clause (bundled: 0BSD, MIT, Zlib, CC0-1.0)'
+  necessity: optional-feature
+  purpose: Audio sample arrays (core/audio.py, core/tts.py) and fast cosine similarity in the vector store
+    (memory/vector_db.py). The second-heaviest measured dependency.
+  measured_kb: 66826
+  weight: very-heavy
+- id: D-20
+  name: scipy
+  import_name: scipy
+  declared_in:
+  - voice
+  spec: '>=1.14.0'
+  licence: BSD-3-Clause (bundled components under their own licences)
+  necessity: optional-feature
+  purpose: Used for exactly one call — scipy.io.wavfile.write in core/audio.py — yet the heaviest measured
+    dependency in the census. See replacement R-01.
+  measured_kb: 109315
+  weight: very-heavy
+- id: D-21
+  name: piper-tts
+  import_name: piper
+  declared_in:
+  - voice
+  spec: '>=1.2.0'
+  licence: GPL-3.0-or-later
+  necessity: optional-feature
+  purpose: 'On-device Piper text-to-speech voices (core/tts.py). GPL-family and heavy: it rides only in
+    the voice extra, never in core.'
+  measured_kb: 45458
+  weight: heavy
+- id: D-22
+  name: pydub
+  import_name: pydub
+  declared_in:
+  - voice
+  spec: '>=0.25.1'
+  licence: MIT
+  necessity: optional-feature
+  purpose: Decodes compressed TTS responses (MOSS and NovelAI backends) into samples in core/tts.py, via
+    ffmpeg. Not installed in the baseline venv, so its weight is honestly unmeasured.
+  measured_kb: 0
+  weight: unmeasured
+- id: D-23
+  name: chatterbox-tts
+  import_name: chatterbox
+  declared_in:
+  - voice-cloning
+  spec: '>=0.1.0'
+  licence: MIT
+  necessity: optional-feature
+  purpose: Voice-cloning TTS (core/tts.py, HAS_CHATTERBOX path). Not installed in the baseline venv, so
+    its weight is honestly unmeasured.
+  measured_kb: 0
+  weight: unmeasured
+- id: D-24
+  name: torchaudio
+  import_name: torchaudio
+  declared_in:
+  - voice-cloning
+  spec: '>=2.0.0'
+  licence: BSD-2-Clause
+  necessity: optional-feature
+  purpose: Declared beside torch for the voice-cloning extra; no module imports it directly today (torch
+    is imported in core/tts.py). Not installed in the baseline venv, so its weight is honestly unmeasured.
+  measured_kb: 0
+  weight: unmeasured
+- id: D-25
+  name: torch
+  import_name: torch
+  declared_in:
+  - voice-cloning
+  spec: '>=2.0.0'
+  licence: BSD-3-Clause core (bundled components under Apache-2.0, MIT, BSD and other licences, per its
+    PyPI licence expression)
+  necessity: optional-feature
+  purpose: Only for CUDA detection when loading the Chatterbox cloning model (core/tts.py). By far the
+    largest dependency family in the census when installed; not installed in the baseline venv, so its
+    weight is honestly unmeasured rather than guessed.
+  measured_kb: 0
+  weight: unmeasured
+- id: D-26
+  name: pytest
+  import_name: pytest
+  declared_in:
+  - dev
+  spec: '>=8,<10'
+  licence: MIT
+  necessity: dev-only
+  purpose: The test runner for the whole suite (testpaths=tests in pyproject.toml). Dev extra only; never
+    imported by the package.
+  measured_kb: 3098
+  weight: moderate
+- id: D-27
+  name: pytest-timeout
+  import_name: pytest_timeout
+  declared_in:
+  - dev
+  spec: '>=2.4'
+  licence: MIT
+  necessity: dev-only
+  purpose: The per-test 120-second ceiling that keeps a stalled test failing loudly instead of hanging
+    the suite. Dev extra only.
+  measured_kb: 63
+  weight: light
+- id: D-28
+  name: build
+  import_name: build
+  declared_in:
+  - dev
+  spec: '>=1.2'
+  licence: MIT
+  necessity: dev-only
+  purpose: The PEP 517 build frontend used to cut wheels/sdists in development. Dev extra only; not installed
+    in the baseline venv, so unmeasured.
+  measured_kb: 0
+  weight: unmeasured
+- id: D-29
+  name: hatchling
+  import_name: hatchling
+  declared_in:
+  - dev
+  - build-system
+  spec: '>=1.26'
+  licence: MIT
+  necessity: build-only
+  purpose: The build backend itself (build-system requires it, unpinned; the dev extra pins >=1.26). It
+    reads the version from mythic_agent/__version__.py and assembles the wheel. Not installed in the baseline
+    venv, so unmeasured.
+  measured_kb: 0
+  weight: unmeasured
+replacements:
+- id: R-01
+  dependency: scipy
+  candidate: stdlib wave module (wave + array/struct for 16-bit PCM)
+  verdict: stdlib-win
+  rationale: scipy's only use in the package is scipy.io.wavfile.write in core/audio.py, writing int16
+    PCM WAV — exactly what the stdlib wave module writes. Dropping scipy removes the heaviest measured
+    dependency (109315 KiB installed) from the voice extra for one small module. The win is real; doing
+    the swap is a later voice-slimming slice, not this census.
+- id: R-02
+  dependency: requests
+  candidate: httpx — already a core dependency (via the httpx2/httpx fallback pair)
+  verdict: already-core-win
+  rationale: requests is a second, parallel HTTP stack (with its own urllib3/certifi chain) declared only
+    in the knowledge and voice extras, while httpx is already core. Porting its few call sites (agents/tools.py,
+    core/audio.py, core/tts.py) to the existing httpx path removes a whole duplicate stack from those
+    extras. The win is real; the port is a later slice, not this census.
+- id: R-03
+  dependency: pydub
+  candidate: stdlib wave module
+  verdict: no-real-win
+  rationale: pydub's two uses decode TTS responses from the MOSS and NovelAI backends, which may be compressed
+    (mp3/opus) — pydub reaches ffmpeg for that. The stdlib wave module reads only uncompressed WAV, so
+    it cannot do the whole job; claiming the swap would break those backends. Keep pydub.
+- id: R-04
+  dependency: filelock
+  candidate: stdlib fcntl / msvcrt locking
+  verdict: no-real-win
+  rationale: The stdlib lock primitives are platform-split (fcntl on POSIX, msvcrt on Windows) with different
+    semantics; filelock is one light (1195 KiB), cross-platform implementation guarding config, journal,
+    and session state. Rewriting four call sites to save 1.2 MB trades correctness risk for nothing.
+- id: R-05
+  dependency: pyyaml
+  candidate: stdlib tomllib / json
+  verdict: no-real-win
+  rationale: 'There is no YAML parser in the standard library: tomllib reads TOML and json reads JSON,
+    neither reads the config, policy, and data YAML this package ships everywhere. PyYAML (3082 KiB, MIT)
+    stays.'
+- id: R-06
+  dependency: httpx
+  candidate: drop httpx and keep only httpx2 (or the reverse)
+  verdict: no-real-win
+  rationale: 'The pair is deliberate, not accidental: openai 3.x installs its fork httpx2, plain httpx
+    is the fallback where only it exists, and the dependency audit test enforces the try-httpx2/except-httpx
+    shape at every site. Removing either side breaks one of those environments.'
+- id: R-07
+  dependency: numpy
+  candidate: stdlib math for the vector store's cosine similarity
+  verdict: no-real-win
+  rationale: The vector store's cosine is one numpy use, but audio recording/playback (core/audio.py,
+    core/tts.py) is built on numpy arrays end to end — removing the vector use alone drops nothing. Numpy
+    stays while the voice extra exists.
