@@ -181,7 +181,7 @@ slices:
   title: The OpenAI-compatible universal adapter
   summary: one adapter serving every compatible endpoint (the long tail of the field) with per-provider
     quirks declared in its registry entry.
-  status: queued
+  status: done
 - id: M-021
   part: 2
   title: Anthropic-native adapter v2
