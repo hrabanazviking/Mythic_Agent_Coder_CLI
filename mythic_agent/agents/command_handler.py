@@ -187,6 +187,8 @@ class CommandHandler:
                 self._handle_cost()
             elif cmd == "/review":
                 self._handle_review(args)
+            elif cmd == "/ollama":
+                self._handle_ollama(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -400,6 +402,75 @@ class CommandHandler:
         except FileNotFoundError:
             output = "[red]Error: 'gh' CLI not found.[/red]"
         publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[dim]> Create Pull Request[/dim]\n{output.strip()}\n")
+
+    def _handle_ollama(self, args: str):
+        """M-023: /ollama list|pull|show against the local Ollama server.
+
+        The provider comes from the shared registry; every failure is
+        a MythicProviderError whose text already carries its remedy
+        (start the server / pull the model), published verbatim.
+        Pulling downloads onto the machine, so it is gated like the
+        other mutating commands; list/show are read-only.
+        """
+        from ..core.exceptions import MythicProviderError
+        from ..providers.registry import get_provider
+
+        provider = get_provider(
+            "ollama",
+            host=os.environ.get("OLLAMA_HOST", "http://localhost:11434"))
+        sub = (args or "").split()
+        action = sub[0].lower() if sub else "list"
+        try:
+            if action == "list" and len(sub) <= 1:
+                snap = provider.discover()
+                installed, running = snap["installed"], snap["running"]
+                lines = [f"\n[bold cyan]Ollama at {snap['host']}[/bold cyan]"]
+                if installed:
+                    lines.append("Installed models:")
+                    for name in installed:
+                        mark = " [green](running)[/green]" \
+                            if name in running else ""
+                        lines.append(f"  {name}{mark}")
+                    if not running:
+                        lines.append(
+                            "[dim]No model is loaded right now; one "
+                            "loads when you chat with it.[/dim]")
+                else:
+                    lines.append(
+                        "No models installed yet. Pull one with "
+                        "/ollama pull <model>.")
+                text = "\n".join(lines) + "\n"
+            elif action == "pull" and len(sub) == 2:
+                if not self._policy().authorize(
+                        "run_command", {"arguments": sub[1]}):
+                    publish_sync(
+                        "agent_chat_chunk", agent_name="Primary",
+                        text="\nPermission denied for run_command; "
+                             "no operation was performed.\n")
+                    return
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\nPulling {sub[1]} — this can take a while "
+                         "for a large model...\n")
+                result = provider.pull_model(sub[1])
+                text = f"\n[green]Pull of {sub[1]}: " \
+                       f"{result.get('status', 'done')}.[/green]\n"
+            elif action == "show" and len(sub) == 2:
+                provider.ensure_model(sub[1])
+                info = provider.show_model(sub[1])
+                details = info.get("details", {}) or {}
+                summary = " ".join(
+                    p for p in (details.get("family", ""),
+                                details.get("parameter_size", "")) if p)
+                text = f"\n[bold cyan]{sub[1]}[/bold cyan]" + \
+                    (f" — {summary}" if summary else "") + \
+                    f"\nModified: {info.get('modified_at', 'unknown')}\n"
+            else:
+                text = "\n[red]Usage: /ollama [list] | /ollama pull " \
+                       "<model> | /ollama show <model>[/red]\n"
+        except MythicProviderError as e:
+            text = f"\n[red]{e}[/red]\n"
+        publish_sync("agent_chat_chunk", agent_name="Primary", text=text)
 
     def _handle_tutorial(self):
         tutorial_text = """

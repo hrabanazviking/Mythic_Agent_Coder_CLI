@@ -770,65 +770,11 @@ class MainChatScreen(Screen):
             else:
                 SecureAPI.publish_chat_request(f"{action_text} {args}", target_agent=active)
             chat_log.write(f"[magenta]{action_text}[/magenta] {args}")
-        elif cmd == "/ollama":
-            # M-023: local Ollama discovery/pull from the TUI. Talks to
-            # the local server through OllamaProvider's seams; every
-            # failure is a ProviderError whose text already carries
-            # its remedy (start the server / pull the model).
-            from mythic_agent.providers.base import ProviderError
-            from mythic_agent.providers.ollama import OllamaProvider
-
-            provider = OllamaProvider(
-                host=os.environ.get("OLLAMA_HOST",
-                                    "http://localhost:11434"))
-            sub = args.split()
-            action = sub[0].lower() if sub else "list"
-            try:
-                if action == "list" and len(sub) <= 1:
-                    snap = provider.discover()
-                    installed = snap["installed"]
-                    running = snap["running"]
-                    chat_log.write(
-                        f"[bold cyan]Ollama at {snap['host']}[/bold cyan]")
-                    if installed:
-                        chat_log.write("Installed models:")
-                        for name in installed:
-                            mark = " [green](running)[/green]" \
-                                if name in running else ""
-                            chat_log.write(f"  {name}{mark}")
-                    else:
-                        chat_log.write(
-                            "No models installed yet. Pull one with "
-                            "/ollama pull <model>.")
-                    if installed and not running:
-                        chat_log.write(
-                            "[dim]No model is loaded right now; one "
-                            "loads when you chat with it.[/dim]")
-                elif action == "pull" and len(sub) == 2:
-                    chat_log.write(f"Pulling {sub[1]} — this can take "
-                                   "a while for a large model...")
-                    result = provider.pull_model(sub[1])
-                    status = result.get("status", "done")
-                    chat_log.write(
-                        f"[green]Pull of {sub[1]}: {status}.[/green]")
-                elif action == "show" and len(sub) == 2:
-                    provider.ensure_model(sub[1])
-                    info = provider.show_model(sub[1])
-                    details = info.get("details", {}) or {}
-                    family = details.get("family", "")
-                    params = details.get("parameter_size", "")
-                    summary = " ".join(p for p in (family, params) if p)
-                    chat_log.write(
-                        f"[bold cyan]{sub[1]}[/bold cyan]"
-                        + (f" — {summary}" if summary else "")
-                        + f"\nModified: {info.get('modified_at', 'unknown')}")
-                else:
-                    chat_log.write(
-                        "[red]Usage: /ollama [list] | /ollama pull "
-                        "<model> | /ollama show <model>[/red]")
-            except ProviderError as e:
-                chat_log.write(f"[red]{e}[/red]")
-        elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr", "/stop", "/clear", "/compact", "/cost", "/review"]:
+        elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr", "/stop", "/clear", "/compact", "/cost", "/review", "/ollama"]:
+            # M-023: /ollama rides this same system-command road — the
+            # UI stays presentation-only (arch-conformance: no
+            # providers.* imports here); the agents-layer
+            # CommandHandler talks to the local Ollama server.
             SecureAPI.publish_system_command(cmd, args)
         else:
             chat_log.write(f"[red]Unknown command:[/red] {cmd}")
