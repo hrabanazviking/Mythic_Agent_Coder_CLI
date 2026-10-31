@@ -209,7 +209,7 @@ slices:
   title: Project Aesir as a provider
   summary: Mythic can aim at Volmarr's own engine (its API as it stands) — the ecosystem eats its own
     cooking; capability limits reported as Aesir reports them.
-  status: queued
+  status: done
 - id: M-026
   part: 2
   title: The gateways
