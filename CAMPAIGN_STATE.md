@@ -74,7 +74,7 @@ The 9 failures, classified:
 
 | Slice | Intent | Status |
 |---|---|---|
-| M-001 | The Feature Census (matrix as data, 10 rivals) | **NEXT** — inputs staged: roadmap §2 census summary; `docs/REPO_CENSUS.md` is the repo-side mirror to reconcile against |
+| M-001 | The Feature Census (matrix as data, 10 rivals) | **IN PROGRESS** (keeper tick 2026-10-30 21:00 EDT) — building: `mythic_agent/data/feature_census.json` + `mythic_agent/core/feature_census.py` + tests |
 | M-002 | The Concordance | **DONE** — banked this opening; `docs/CONCORDANCE_MIMISBRUNNR_FEATURE_ROADMAP.md` |
 | M-003 | The Gap Audit | queued (classifies the 5 unclassified baseline failures en route) |
 | M-004 | UX Principles charter | queued |
