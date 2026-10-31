@@ -226,7 +226,7 @@ slices:
   title: Mid-session model switching
   summary: change model or provider without losing the session, the plan, or the crew; the switch is a
     journal event with the reason if given.
-  status: queued
+  status: done
 - id: M-029
   part: 2
   title: Role routing
