@@ -306,15 +306,21 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         return True, False, format_route_change(record)
     if command == "/fallback":
         from .core.fallback_chain import (
+            chain_from_config,
             format_chain,
             format_fallback_change,
             parse_fallback_args,
+            permission_from_config,
         )
         try:
             request = parse_fallback_args(arguments)
         except ValueError as exc:
             return True, False, str(exc)
         if request["action"] == "show":
+            status = agent.fallback_status()
+            assert status["permission"] == permission_from_config(agent.config)
+            assert [(c["model"], c["base_url"]) for c in status["chain"]] == [
+                (e.model, e.base_url) for e in chain_from_config(agent.config)]
             return True, False, format_chain(agent.config)
         try:
             if request["action"] == "permission":
