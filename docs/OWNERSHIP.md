@@ -2,18 +2,18 @@
 
 > **GENERATED FILE — do not edit by hand.**
 > Regenerate with: `python scripts/gen_ownership.py`
-> Generated at: 2026-10-31T17:33:23Z
+> Generated at: 2026-10-31T17:50:23Z
 
 Ownership is derived from real git history: for each module the owner is the top author by commit count touching that file (ties resolve to the most recently active author). Share is the owner's commit count divided by the total commit count on the file.
 
 ## Per-author rollup
 
-Total modules: **145**
+Total modules: **146**
 
 | Author | Modules owned | File commits | Share of modules |
 | --- | ---: | ---: | ---: |
-| Yrsa Freydisdottir | 117 | 224 | 80.7% |
-| Volmarr Wyrd | 28 | 172 | 19.3% |
+| Yrsa Freydisdottir | 118 | 225 | 80.8% |
+| Volmarr Wyrd | 28 | 172 | 19.2% |
 
 ## Per-module ownership
 
@@ -70,6 +70,7 @@ Total modules: **145**
 | `mythic_agent/core/lifecycle.py` | Yrsa Freydisdottir | 100.0% | 1 / 1 | 2026-10-10 |
 | `mythic_agent/core/method_charter.py` | Yrsa Freydisdottir | 100.0% | 1 / 1 | 2026-10-31 |
 | `mythic_agent/core/metrics.py` | Yrsa Freydisdottir | 100.0% | 3 / 3 | 2026-10-10 |
+| `mythic_agent/core/model_capabilities.py` | Yrsa Freydisdottir | 100.0% | 1 / 1 | 2026-10-31 |
 | `mythic_agent/core/mythic_logging.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
 | `mythic_agent/core/notifications.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
 | `mythic_agent/core/part1_gate.py` | Yrsa Freydisdottir | 100.0% | 1 / 1 | 2026-10-31 |
@@ -579,6 +580,14 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
       "total_commits": 3,
       "share": 1.0,
       "last_touch": "2026-10-10"
+    },
+    {
+      "module": "mythic_agent/core/model_capabilities.py",
+      "owner": "Yrsa Freydisdottir",
+      "owner_commits": 1,
+      "total_commits": 1,
+      "share": 1.0,
+      "last_touch": "2026-10-31"
     },
     {
       "module": "mythic_agent/core/mythic_logging.py",
@@ -1336,8 +1345,8 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
   "rollup": [
     {
       "author": "Yrsa Freydisdottir",
-      "modules_owned": 117,
-      "file_commits": 224
+      "modules_owned": 118,
+      "file_commits": 225
     },
     {
       "author": "Volmarr Wyrd",
@@ -1345,6 +1354,6 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
       "file_commits": 172
     }
   ],
-  "total_modules": 145
+  "total_modules": 146
 }
 ```
