@@ -176,7 +176,9 @@ providers:
   quirks: []
   notes: 'Local Ollama door speaking Ollama''s own API (not the compatible
     shim); needs no key. Listed models are examples — the server reports
-    what is actually installed, and M-023 builds discovery on this entry.'
+    what is actually installed. M-023: discovery of running models
+    (/api/ps), pull/list/show from the TUI (/ollama), and honest
+    model-not-present answers (/api/show + HTTP-error mapping).'
 - name: openai
   title: OpenAI
   adapter: mythic_agent.providers.openai_compat:OpenAICompatProvider
