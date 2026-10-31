@@ -9,7 +9,7 @@ These tests do not take the record's word for any of it — every data
 artefact is re-loaded through its own shipped loader, the Concordance
 document is opened, the gate's baseline totals are cross-checked
 against the frozen baseline itself, the roadmap data must agree that
-M-001..M-017 are done with M-018 next, and the live Mimisbrunnr file
+M-001..M-018 are done with M-019 next, and the live Mimisbrunnr file
 is hashed and measured against the gate's pin.
 """
 
@@ -62,10 +62,11 @@ def test_artefact_titles_match_the_roadmap(gate):
     road = load_roadmap()
     for art in gate.artefacts:
         assert road.slice(art.slice).title == art.title, art.slice
-    # The gate's own road position: Part I's first seventeen slices
-    # are done in the roadmap data, and the gate slice is next.
-    assert [s.id for s in road.done()] == [f"M-{n:03d}" for n in range(1, 18)]
-    assert road.next_slice().id == "M-018"
+    # The gate's own road position: all eighteen Part I slices are
+    # done in the roadmap data (this gate banked last), and the road
+    # moves on to Part II.
+    assert [s.id for s in road.done()] == [f"M-{n:03d}" for n in range(1, 19)]
+    assert road.next_slice().id == "M-019"
     assert road.part(1).title == gate.part_title
 
 
