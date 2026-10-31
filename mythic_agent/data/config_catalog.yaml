@@ -1,0 +1,428 @@
+schema: mythic.config_catalog/1
+slice: M-009
+catalogued: '2026-10-30'
+scope_note: 'Every setting in config_defaults.yaml and runtime_defaults.yaml, every key in CONFIG_SCHEMA
+  (including config-managed keys), every environment variable named literally in the mythic_agent package,
+  and every file the configuration system reads or writes. Packaging files (pyproject.toml) and session/journal
+  stores (M-010''s road) are out of scope and named so here, not silently omitted. This catalogue is the
+  compatibility contract for Part VIII''s settings redesign: no entry may be dropped or renamed without
+  a migration.'
+settings:
+- id: S-01
+  name: config_version
+  scope: top-level
+  type: int
+  default: '3'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: Schema version of the config file; older files are upgraded in memory on load.
+- id: S-02
+  name: model
+  scope: top-level
+  type: str
+  default: deepseek-chat
+  source: mythic_agent/data/config_defaults.yaml
+  effect: Default model name sent to the provider endpoint.
+- id: S-03
+  name: base_url
+  scope: top-level
+  type: str
+  default: https://api.deepseek.com/v1
+  source: mythic_agent/data/config_defaults.yaml
+  effect: Default provider endpoint URL (must be a valid http(s) URL).
+- id: S-04
+  name: api_keys
+  scope: top-level
+  type: dict
+  default: '{}'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: Per-endpoint stored API keys, keyed by base URL; secrets — Part VIII keeps these in Kista.
+- id: S-05
+  name: working_directory
+  scope: top-level
+  type: str
+  default: (empty string)
+  source: mythic_agent/data/config_defaults.yaml
+  effect: Workspace directory the agent operates in.
+- id: S-06
+  name: user_name
+  scope: top-level
+  type: str
+  default: (empty string)
+  source: mythic_agent/data/config_defaults.yaml
+  effect: The user's name, woven into the system prompt when set.
+- id: S-07
+  name: user_data
+  scope: top-level
+  type: str
+  default: (empty string)
+  source: mythic_agent/data/config_defaults.yaml
+  effect: Free-text facts about the user, woven into the system prompt when set.
+- id: S-08
+  name: global_rules
+  scope: top-level
+  type: str
+  default: (empty string)
+  source: mythic_agent/data/config_defaults.yaml
+  effect: Standing rules appended to the system prompt as GLOBAL RULES when set.
+- id: S-09
+  name: vector_db_provider
+  scope: top-level
+  type: str
+  default: lightweight
+  source: mythic_agent/data/config_defaults.yaml
+  effect: Knowledge/vector store provider selection (default lightweight).
+- id: S-10
+  name: mythic_engineering_mode
+  scope: top-level
+  type: bool
+  default: 'False'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: Turns the Mythic Engineering method on in prompts and the TUI.
+- id: S-11
+  name: auto_accept_permissions
+  scope: top-level
+  type: bool
+  default: 'False'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: When true, the policy layer auto-accepts permissions instead of asking.
+- id: S-12
+  name: permission_mode
+  scope: top-level
+  type: str
+  default: ask
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Interactive permission posture: read-only, ask, or trusted.'
+- id: S-13
+  name: machine_permission_mode
+  scope: top-level
+  type: str
+  default: read-only
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Machine-level permission posture (env-overridable): read-only, ask, or trusted.'
+- id: S-14
+  name: streaming
+  scope: top-level
+  type: bool
+  default: 'False'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: Streams provider responses token by token when true.
+- id: S-15
+  name: runtime
+  scope: top-level
+  type: dict
+  default: '{}'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: Nested block of operational budgets; see the runtime-scope settings.
+- id: S-16
+  name: github
+  scope: top-level
+  type: dict
+  default: mapping (see nested settings)
+  source: mythic_agent/data/config_defaults.yaml
+  effect: Nested GitHub block; see github.repo_url and github.token.
+- id: S-17
+  name: github.repo_url
+  scope: github
+  type: str
+  default: (empty string)
+  source: mythic_agent/data/config_defaults.yaml
+  effect: Repository URL used by the GitHub integration.
+- id: S-18
+  name: github.token
+  scope: github
+  type: str
+  default: (empty string)
+  source: mythic_agent/data/config_defaults.yaml
+  effect: Token for the GitHub integration; a secret — Kista-bound in Part VIII.
+- id: S-19
+  name: context_compiler_enabled
+  scope: runtime
+  type: bool
+  default: 'False'
+  source: mythic_agent/data/runtime_defaults.yaml
+  effect: 'Runtime: opt-in workspace context assembly for prompts; off by default because enabling changes
+    prompts.'
+- id: S-20
+  name: request_timeout
+  scope: runtime
+  type: float
+  default: '120.0'
+  source: mythic_agent/data/runtime_defaults.yaml
+  effect: 'Runtime: per-request timeout in seconds.'
+- id: S-21
+  name: max_retries
+  scope: runtime
+  type: int
+  default: '2'
+  source: mythic_agent/data/runtime_defaults.yaml
+  effect: 'Runtime: maximum provider request retries.'
+- id: S-22
+  name: retry_delay
+  scope: runtime
+  type: float
+  default: '0.5'
+  source: mythic_agent/data/runtime_defaults.yaml
+  effect: 'Runtime: base delay between retries in seconds.'
+- id: S-23
+  name: retry_delay_cap
+  scope: runtime
+  type: float
+  default: '8.0'
+  source: mythic_agent/data/runtime_defaults.yaml
+  effect: 'Runtime: cap on the retry delay in seconds.'
+- id: S-24
+  name: max_tool_rounds
+  scope: runtime
+  type: int
+  default: '64'
+  source: mythic_agent/data/runtime_defaults.yaml
+  effect: 'Runtime: maximum tool rounds in one turn.'
+- id: S-25
+  name: max_tokens
+  scope: runtime
+  type: int
+  default: '127000'
+  source: mythic_agent/data/runtime_defaults.yaml
+  effect: 'Runtime: token budget ceiling for a turn.'
+- id: S-26
+  name: edit_lock_timeout
+  scope: runtime
+  type: float
+  default: '20.0'
+  source: mythic_agent/data/runtime_defaults.yaml
+  effect: 'Runtime: file-lock timeout in seconds for edits and config saves.'
+- id: S-27
+  name: command_timeout
+  scope: runtime
+  type: float
+  default: '300.0'
+  source: mythic_agent/data/runtime_defaults.yaml
+  effect: 'Runtime: shell command timeout in seconds.'
+- id: S-28
+  name: github_timeout
+  scope: runtime
+  type: float
+  default: '30.0'
+  source: mythic_agent/data/runtime_defaults.yaml
+  effect: 'Runtime: GitHub request timeout in seconds.'
+- id: S-29
+  name: approval_timeout
+  scope: runtime
+  type: float
+  default: '300.0'
+  source: mythic_agent/data/runtime_defaults.yaml
+  effect: 'Runtime: how long an approval request waits in seconds.'
+- id: S-30
+  name: process_kill_grace
+  scope: runtime
+  type: float
+  default: '1.0'
+  source: mythic_agent/data/runtime_defaults.yaml
+  effect: 'Runtime: grace period in seconds before a process is force-killed.'
+- id: S-31
+  name: cancellation_poll_interval
+  scope: runtime
+  type: float
+  default: '0.05'
+  source: mythic_agent/data/runtime_defaults.yaml
+  effect: 'Runtime: interval in seconds between cancellation checks.'
+- id: S-32
+  name: sub_agents
+  scope: managed
+  type: list
+  default: '[]'
+  source: mythic_agent/core/config_manager.py (CONFIG_SCHEMA)
+  effect: Named sub-agent definitions (name + prompt); managed by the config system, absent from the defaults
+    file.
+- id: S-33
+  name: recovery
+  scope: managed
+  type: dict
+  default: '{}'
+  source: mythic_agent/core/config_manager.py (CONFIG_SCHEMA)
+  effect: Quarantine for invalid values found on load; managed by the config system, never user-edited
+    by hand.
+- id: S-34
+  name: system_prompt
+  scope: managed
+  type: str
+  default: None
+  source: mythic_agent/core/config_manager.py (CONFIG_SCHEMA)
+  effect: Custom system prompt override; managed key, absent from the defaults file.
+- id: S-35
+  name: primary_name
+  scope: managed
+  type: str
+  default: None
+  source: mythic_agent/core/config_manager.py (CONFIG_SCHEMA)
+  effect: Primary (user/agent) name override; managed key, absent from the defaults file.
+env_vars:
+- id: V-01
+  name: MYTHIC_HOME
+  kind: state-dir
+  effect: Sets the Mythic state directory (default ~/.mythic); read by ConfigManager and the cache.
+  secret: false
+  source: mythic_agent/core/config_manager.py
+- id: V-02
+  name: MYTHIC_MODEL
+  kind: override
+  effect: Overrides the config model at load time.
+  secret: false
+  source: mythic_agent/core/config_manager.py
+- id: V-03
+  name: MYTHIC_BASE_URL
+  kind: override
+  effect: Overrides the config base_url at load time; ignored when not a valid http(s) URL.
+  secret: false
+  source: mythic_agent/core/config_manager.py
+- id: V-04
+  name: MYTHIC_WORKSPACE
+  kind: override
+  effect: Overrides working_directory at load time.
+  secret: false
+  source: mythic_agent/core/config_manager.py
+- id: V-05
+  name: MYTHIC_PERMISSION
+  kind: override
+  effect: Overrides machine_permission_mode at load time; ignored unless read-only, ask, or trusted.
+  secret: false
+  source: mythic_agent/core/config_manager.py
+- id: V-06
+  name: MYTHIC_STRICT_CONFIG
+  kind: mode
+  effect: Enables strict config mode (unknown top-level keys rejected) when 1, true, yes, or on.
+  secret: false
+  source: mythic_agent/core/config_manager.py
+- id: V-07
+  name: MYTHIC_API_KEY
+  kind: secret
+  effect: Presence checked by onboarding as evidence an API key is configured.
+  secret: true
+  source: mythic_agent/onboarding.py
+- id: V-08
+  name: MYTHIC_HEADLESS_MODE
+  kind: marker
+  effect: Set to 1 by the MCP server entry point as a headless marker; no in-package reader was found
+    by this census — recorded as written, not read.
+  secret: false
+  source: mythic_agent/mcp_server.py
+- id: V-09
+  name: MYTHIC_SANDBOX_NO_NETWORK
+  kind: marker
+  effect: Set to 1 in a sandboxed child's environment when network is disabled, and named in the sandbox
+    status text; not read as an input by the package.
+  secret: false
+  source: mythic_agent/core/sandbox.py
+- id: V-10
+  name: ANTHROPIC_API_KEY
+  kind: secret
+  effect: API key for the Anthropic provider (provider api_key_env).
+  secret: true
+  source: mythic_agent/providers/anthropic.py
+- id: V-11
+  name: DEEPSEEK_API_KEY
+  kind: secret
+  effect: API key for the DeepSeek provider and DeepSeek endpoints.
+  secret: true
+  source: mythic_agent/providers/deepseek.py
+- id: V-12
+  name: GOOGLE_API_KEY
+  kind: secret
+  effect: API key for the Google provider (provider api_key_env).
+  secret: true
+  source: mythic_agent/providers/google.py
+- id: V-13
+  name: OPENAI_API_KEY
+  kind: secret
+  effect: API key for OpenAI and OpenAI-compatible endpoints; also read by audio and the MCP server.
+  secret: true
+  source: mythic_agent/providers/openai_compat.py
+- id: V-14
+  name: OPENROUTER_API_KEY
+  kind: secret
+  effect: API key for the OpenRouter provider.
+  secret: true
+  source: mythic_agent/ui/screens/splash_screen.py
+- id: V-15
+  name: PG_KNOWLEDGE_PASSWORD
+  kind: secret
+  effect: Password for the Postgres knowledge store used by agent tools.
+  secret: true
+  source: mythic_agent/agents/tools.py
+- id: V-16
+  name: TMPDIR
+  kind: system
+  effect: Directory under which transcript spill files are written (falls back to /tmp).
+  secret: false
+  source: mythic_agent/core/transcript.py
+files:
+- id: F-01
+  name: config_defaults.yaml
+  kind: package-data
+  path: mythic_agent/data/config_defaults.yaml
+  role: Shipped defaults for every top-level config key; the schema and ConfigManager derive from it.
+  names: []
+- id: F-02
+  name: runtime_defaults.yaml
+  kind: package-data
+  path: mythic_agent/data/runtime_defaults.yaml
+  role: Shipped defaults for the nested runtime block; read by runtime_settings and the config schema.
+  names: []
+- id: F-03
+  name: permissions.yaml
+  kind: package-data
+  path: mythic_agent/data/permissions.yaml
+  role: Shipped read-only tool allowlist read by the policy layer.
+  names: []
+- id: F-04
+  name: config.json
+  kind: user-config
+  path: ~/.mythic/config.json
+  role: The primary user config file (directory overridable via MYTHIC_HOME); written only by an explicit
+    save, with the lock and recovery rules below.
+  names: []
+- id: F-05
+  name: legacy config
+  kind: legacy-user-config
+  path: ~/.mythic_config.json
+  role: Legacy single-file config, read only when no MYTHIC_HOME/root is configured and the primary file
+    is absent.
+  names: []
+- id: F-06
+  name: config.lock
+  kind: lock
+  path: ~/.mythic/config.lock
+  role: File lock guarding config saves (suffix-swapped sibling of config.json).
+  names: []
+- id: F-07
+  name: recovery backups
+  kind: recovery
+  path: ~/.mythic/config.recovery.<uuid>.bak
+  role: Private backup written before a save replaces a config whose bytes would change under upgrade.
+  names: []
+- id: F-08
+  name: status directory
+  kind: state-dir
+  path: ~/.mythic/status/
+  role: State directory created alongside the config by ConfigManager.
+  names: []
+- id: F-09
+  name: agent.log
+  kind: log
+  path: ~/.mythic/agent.log
+  role: Engine log file inside the Mythic state directory.
+  names: []
+- id: F-10
+  name: workspace instruction files
+  kind: workspace-instruction
+  path: <workspace>/ (per directory)
+  role: Instruction files discovered per workspace directory and merged by precedence; the compatibility
+    surface Part X's importers must honour.
+  names:
+  - AGENTS.md
+  - CLAUDE.md
+  - .mythic.md
+  - .mythic
+  - .muserules
+  - .cursorrules
+  - .aider.rules.md
