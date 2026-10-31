@@ -163,7 +163,7 @@ slices:
   title: The roadmap made data
   summary: this road's slices in a machine file the app itself can display, check off, and report (Part
     IX eats first from its own kitchen).
-  status: queued
+  status: done
 - id: M-018
   part: 1
   title: Part I gate
