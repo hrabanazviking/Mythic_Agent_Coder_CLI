@@ -97,6 +97,24 @@ Part I is COMPLETE (18/272). The campaign runs the parts in
 order; the keeper takes the next unbanked slice from this ledger
 each tick.
 
+*M-030 scoping note (2026-10-31 16:00 EDT tick, M-029's closure
+tick): M-030 (Fallback chains) is the next slice. Counted from the
+tree: a provider-level failover machinery already ships from the
+elder road — `mythic_agent/providers/failover.py` (FailoverRouter,
+FailoverPolicy, FailoverExhausted) + `providers/health.py`
+(ProviderHealth), proven by `tests/test_provider_failover.py`
+(230 lines, scripted fake providers, injectable clock). M-030's
+gap is the user-facing chain the roadmap names: a configured
+chain of doors (provider/model entries in config, validated
+through the M-019 registry + M-028 resolver honesty bounds),
+the user's standing permission recorded as a setting, the walk
+wired into the live session's chat path, and every walk
+ANNOUNCED (a surfaced record + journal event), never silent —
+plus a `/fallback` surface on the M-028/M-029 terminal + TUI
+system-command pattern and the M-009 config-catalogue entry the
+new setting requires. Native doors' honesty bound from M-028
+applies to chain entries exactly as to switches.*
+
 *M-023 closure note (2026-10-31 11:30 EDT tick): M-023's code was
 banked by the 10:20–11:00 ticks (`3b2c1ae` + arch-fix + regens) but
 its suite verdict and closure outlived those ticks and a VM reboot;
