@@ -29,6 +29,13 @@ workspace sessions, and a dual-layer memory.
 - `mythic_agent/core/feature_census.py` + `mythic_agent/data/feature_census.yaml`
   — the All-Features Feature Census (M-001): the living feature × rival
   matrix as validated data; every gap row names its owning M-slice.
+- `mythic_agent/core/baseline_freeze.py` + `mythic_agent/data/baseline_freeze.yaml`
+  — the Baseline Freeze (M-007): suite count + startup profile + the
+  scripted end-to-end steps, frozen as validated data; the recording
+  itself is `scripts/baseline_e2e.py` (loopback fake provider, steps
+  E-01–E-04, re-run live by `tests/test_baseline_freeze.py`). Part XI
+  compares against this freeze; a re-freeze is a new slice, never an
+  edit.
 - `mythic_agent/providers/` — provider adapters + negotiation
   (structured output, vision, reasoning, streaming, usage, health,
   failover — the MIM-026–050 Pantheon work).
