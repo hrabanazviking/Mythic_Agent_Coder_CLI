@@ -35,7 +35,7 @@ settings:
   type: dict
   default: '{}'
   source: mythic_agent/data/config_defaults.yaml
-  effect: Per-endpoint stored API keys, keyed by base URL; secrets — Part VIII keeps these in Kista.
+  effect: 'Per-endpoint stored API keys, keyed by base URL. Since M-032 a value may be a Kista reference (kista:<name>) instead of a secret: providers resolve the reference through Kista (vault file, then environment), the config holding only the reference; legacy plaintext values keep working until adopted into Kista with /kista adopt.'
 - id: S-05
   name: working_directory
   scope: top-level
@@ -413,6 +413,12 @@ env_vars:
   effect: API key for the xAI gateway provider (provider api_key_env, M-026).
   secret: true
   source: mythic_agent/providers/gateways.py
+- id: V-22
+  name: MYTHIC_KISTA_FILE
+  kind: state-dir
+  effect: 'Path of Kista''s vault file (M-032): a private JSON mapping of key names to keys that Kista references resolve through first; unset means no vault-file road and references resolve from the environment only.'
+  secret: false
+  source: mythic_agent/core/key_custody.py
 files:
 - id: F-01
   name: config_defaults.yaml

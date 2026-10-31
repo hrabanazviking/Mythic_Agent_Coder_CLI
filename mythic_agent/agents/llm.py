@@ -86,24 +86,40 @@ def _key_env_hint(base_url: str) -> str:
 
 
 def _missing_key_remedy(base_url: str) -> str:
-    return (
-        f"No API key configured for {base_url}. "
-        f"Store one for this endpoint in settings, or export {_key_env_hint(base_url)}. "
-        "Local loopback endpoints (127.0.0.1, localhost) need no key."
-    )
+    """The one plain remedy for a door with no key (M-032).
+
+    The wording is M-032's :func:`missing_key_message`: it asks
+    once, kindly, naming the Kista reference to add and the
+    environment variable — config files hold references, never
+    secrets. Loopback endpoints need no key.
+    """
+    from ..core.key_custody import missing_key_message
+
+    return missing_key_message(base_url)
 
 
 def resolve_api_key(config: dict[str, Any], base_url: str) -> str | None:
     """Return the configured credential for an endpoint, if any.
 
-    Checks the per-endpoint stored keys first, then the provider's
-    environment variable. Returns None when nothing is configured; it is
-    the caller's job to decide whether that is an error (remote) or fine
-    (loopback).
+    A stored Kista reference (M-032) resolves through Kista —
+    its vault file, then the environment under the reference's
+    own name; an unresolved reference returns None here (no
+    other door's key, and not the door's hint variable either,
+    is substituted for the key the reference names). A legacy
+    plaintext stored key is itself. Otherwise the provider's
+    environment variable answers. Returns None when nothing is
+    configured; it is the caller's job to decide whether that
+    is an error (remote) or fine (loopback).
     """
-    stored_key = config.get("api_keys", {}).get(base_url)
-    if stored_key:
-        return stored_key
+    from ..core.key_custody import is_reference, stored_key_for
+
+    stored = config.get("api_keys", {}).get(base_url)
+    if stored:
+        resolved = stored_key_for(config, base_url)
+        if resolved:
+            return resolved
+        if is_reference(stored):
+            return None
     return os.environ.get(_key_env_hint(base_url))
 
 
@@ -1001,6 +1017,82 @@ class Agent:
                 reason=decision.reason)
             record["applied"] = True
         return record
+
+    def kista_status(self) -> dict[str, Any]:
+        """Where every door's key lives, and whether one is held (M-032).
+
+        The custody board exactly as :mod:`mythic_agent.core.
+        key_custody` reads it — per door: Kista reference,
+        environment, legacy plaintext, missing, or not-needed
+        (loopback) — plus whether Kista's vault file is
+        configured. No key value is ever part of the answer;
+        this is what ``/kista`` shows.
+        """
+        from ..core import key_custody
+
+        return {
+            "entries": [entry.record() for entry in
+                        key_custody.custody_entries(self.config)],
+            "vault_configured": key_custody.vault_path() is not None,
+            "vault_file": (str(key_custody.vault_path())
+                           if key_custody.vault_path() is not None
+                           else None),
+        }
+
+    def adopt_key_for_kista(self, base_url: str | None = None
+                            ) -> dict[str, Any]:
+        """Move a door's stored plaintext key into Kista (M-032).
+
+        The move is validated by :mod:`mythic_agent.core.
+        key_custody` before anything happens (a door already
+        holding a reference, a door with no stored key, an
+        unconfigured vault file, or a name Kista already holds
+        a different key under are each refused plainly, changing
+        nothing). The adoption is then journaled *first* as a
+        ``key_custody_changed`` event — door and reference
+        only, never the key — the key is deposited in Kista's
+        vault file, and the config is left holding only the
+        reference; a failed save restores the previous config
+        exactly and journals a compensating
+        ``key_custody_reverted`` event (the copy Kista now
+        holds stays held — custody was never the config's to
+        lose).
+        """
+        import copy
+
+        from ..core import key_custody
+
+        change = key_custody.plan_adoption(self.config, base_url)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        reference, change = key_custody.adopt(self.config, base_url)
+        previous = copy.deepcopy(self.config)
+        if "api_keys" not in self.config:
+            self.config["api_keys"] = {}
+        self.config["api_keys"][change.base_url] = reference
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "key_custody_reverted",
+                        "base_url": change.base_url,
+                        "reference": change.reference,
+                        "reason": "The config change could not be "
+                                  "saved; the previous config was "
+                                  "preserved. The key itself is "
+                                  "held by Kista either way.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Key custody change could not be saved; previous "
+                "config was preserved")
+        self.redactor = SecretRedactor(self.config)
+        protect_logging(self.redactor)
+        return change.record(self.session_id, journaled)
 
     def _apply_role_route_to(self, member: Any) -> None:
         """Apply *member*'s office route to its config, if one is set."""
