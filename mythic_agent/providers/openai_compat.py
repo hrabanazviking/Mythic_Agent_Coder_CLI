@@ -22,6 +22,15 @@ Slice 028 generalizes the adapter into a reusable base:
 :class:`GenericLocalCompatProvider` presets a local endpoint with no
 auth header when no key is configured, and the module docstring shows
 how OpenRouter / DeepSeek / local servers subclass it.
+
+All-Features slice M-020 completes the road: the per-provider quirks
+that used to live only in subclasses are declared in the provider
+registry data (``mythic_agent/data/provider_registry.yaml``), and
+:class:`UniversalOpenAICompatProvider` is constructed purely from a
+registry entry — name, endpoint, key env, default model, capabilities,
+and quirks all come from the data. One adapter therefore serves every
+``openai_compatible`` door in the registry, preset-identical in its
+observable behaviour (headers, text extraction, capabilities).
 """
 
 
@@ -29,10 +38,16 @@ from __future__ import annotations
 
 __all__ = [
     "Any",
+    "DEFAULT_HTTP_REFERER",
+    "DEFAULT_X_TITLE",
     "GenericLocalCompatProvider",
+    "LocalCompatProvider",
     "OpenAICompatProvider",
+    "PLACEHOLDER_API_KEY",
     "Provider",
+    "ProviderDef",
     "ProviderError",
+    "UniversalOpenAICompatProvider",
 ]
 
 import json
@@ -45,7 +60,22 @@ try:
 except ImportError:  # pragma: no cover - declared fallback pattern
     import httpx as httpx2  # type: ignore[no-redef]
 
+from ..core.provider_registry import ProviderDef, load_registry
 from .base import Provider, ProviderError
+
+#: Default ``HTTP-Referer`` header value for the registry quirk
+#: ``app-identification-headers`` (OpenRouter's app identification).
+#: Matches the preset OpenRouter adapter's documented default.
+DEFAULT_HTTP_REFERER = "https://github.com/hrabanazviking/Mythic_Agent_Coder_CLI"
+
+#: Default ``X-Title`` header value for the same quirk.
+DEFAULT_X_TITLE = "Mythic Agent Coder CLI"
+
+#: Placeholder key sent for the registry quirk
+#: ``placeholder-bearer-auth`` (vLLM accepts any well-formed bearer
+#: value and never validates it; this is the literal placeholder
+#: vLLM's own examples document).
+PLACEHOLDER_API_KEY = "token-" + "abc123"
 
 
 #: Statuses worth retrying: rate limits and server-side failures.
@@ -232,13 +262,131 @@ class OpenAICompatProvider(Provider):
                 f"model={self.model!r} base_url={self.base_url!r}>")
 
 
-class GenericLocalCompatProvider(OpenAICompatProvider):
+class LocalCompatProvider(OpenAICompatProvider):
+    """Base for local OpenAI-compatible servers, with M-024 discovery.
+
+    All-Features slice M-024 (Local runtimes II) gives every local
+    compatible door the same discovery kindness M-023 gave Ollama:
+
+    * :meth:`served_models` — the model ids the server itself reports
+      via ``GET /models`` (the OpenAI shape ``{"data": [{"id": ...}]}``);
+      an empty list is an honest answer, never an error,
+    * :meth:`list_models` — the same list, except an empty server is
+      an error carrying its remedy (mirroring Ollama's contract),
+    * :meth:`model_present` / :meth:`ensure_model` — honest
+      "model not present" answers whose text carries the remedy,
+    * :meth:`discover` — the one-call snapshot the TUI's ``/local``
+      command renders.
+
+    Transport failures map to :class:`ProviderError` saying the
+    server is unreachable at its address plus the start remedy —
+    never a bare socket error. A non-200 answer is surfaced as the
+    server's own answer (its HTTP status), never as "unreachable".
+    The single GET seam is :meth:`_get_json`; tests stub it instead
+    of opening sockets. Subclasses override the two remedy hooks and,
+    where their server speaks more than the compatible shape, extend
+    :meth:`discover` (LM Studio's native API, llama.cpp's ``/props``).
+    """
+
+    def _start_remedy(self) -> str:
+        """How to start this server, named in unreachable errors."""
+        return (f"Start the local server so it listens at "
+                f"{self.base_url}, then try again.")
+
+    def _absent_remedy(self, name: str) -> str:
+        """How to make ``name`` available, named in absence errors."""
+        return (f"Serve {name!r} from the local server at "
+                f"{self.base_url} (load or launch it there), then "
+                "try again.")
+
+    def _get_json(self, path: str) -> tuple[int, Any]:
+        """GET ``base_url + path``; single seam tests stub.
+
+        Returns ``(status, parsed_json)`` — a non-200 status is the
+        server's own answer and is returned, not raised. A transport
+        failure raises :class:`ProviderError` (unreachable + remedy);
+        a malformed JSON body on a 200 raises likewise.
+        """
+        url = self.base_url + path
+        try:
+            with httpx2.Client(timeout=self.timeout) as client:
+                response = client.get(url, headers=self._headers())
+        except httpx2.HTTPError as exc:
+            raise ProviderError(
+                f"{self.name} is unreachable at {self.base_url}: "
+                f"{type(exc).__name__}. {self._start_remedy()}") from exc
+        try:
+            return response.status_code, response.json()
+        except ValueError:
+            if response.status_code == 200:
+                raise ProviderError(
+                    f"{self.name} returned malformed JSON from "
+                    f"{self.base_url}.") from None
+            return response.status_code, None
+
+    @staticmethod
+    def _model_ids(body: Any) -> list[str]:
+        """Model ids from an OpenAI-shape ``/models`` body; else []."""
+        if not isinstance(body, dict):
+            return []
+        data = body.get("data")
+        if not isinstance(data, list):
+            return []
+        return [entry["id"] for entry in data
+                if isinstance(entry, dict)
+                and isinstance(entry.get("id"), str) and entry["id"]]
+
+    def served_models(self) -> list[str]:
+        """Model ids this server reports serving (``GET /models``)."""
+        status, body = self._get_json("/models")
+        if status != 200:
+            raise ProviderError(
+                f"{self.name} at {self.base_url} answered HTTP "
+                f"{status} for its model list.")
+        return self._model_ids(body)
+
+    def list_models(self) -> list[str]:
+        """Served model ids; an empty server is an honest error."""
+        names = self.served_models()
+        if not names:
+            raise ProviderError(
+                f"{self.name} at {self.base_url} reported no models. "
+                + self._absent_remedy(self.model or "a model"))
+        return names
+
+    def model_present(self, name: str) -> bool:
+        """True when ``name`` is among the models the server serves."""
+        wanted = (name or "").strip()
+        if not wanted:
+            raise ProviderError("No model name given to look for.")
+        return wanted in self.served_models()
+
+    def ensure_model(self, name: str) -> str:
+        """Return ``name`` if served; else an honest not-present error."""
+        wanted = (name or "").strip()
+        if not wanted:
+            raise ProviderError(
+                f"No model configured for {self.name} provider")
+        if not self.model_present(wanted):
+            raise ProviderError(
+                f"Model {wanted!r} is not present on {self.name} at "
+                f"{self.base_url}. " + self._absent_remedy(wanted))
+        return wanted
+
+    def discover(self) -> dict[str, Any]:
+        """One-call discovery snapshot: host + served model ids."""
+        return {"host": self.base_url, "served": self.served_models()}
+
+
+class GenericLocalCompatProvider(LocalCompatProvider):
     """Preset for generic local OpenAI-compatible servers.
 
     Points at ``http://localhost:1234/v1`` (LM Studio's default; override
     ``base_url`` for llama.cpp ``:8080``, vLLM ``:8000``, etc.) with
     ``api_key_env = None``. When no key is configured, no
-    ``Authorization`` header is sent at all.
+    ``Authorization`` header is sent at all. M-024: inherits the
+    :class:`LocalCompatProvider` discovery surface unchanged — this
+    is the "any local OpenAI-compatible port" door.
     """
 
     name = "local-openai"
@@ -258,3 +406,108 @@ class GenericLocalCompatProvider(OpenAICompatProvider):
         super().__init__(api_key=api_key, model=model, base_url=base_url,
                          timeout=timeout, max_retries=max_retries,
                          transport=transport)
+
+
+class UniversalOpenAICompatProvider(OpenAICompatProvider):
+    """The M-020 universal adapter: one instance per registry entry.
+
+    Constructed purely from a :class:`ProviderDef` with dialect
+    ``openai_compatible`` — endpoint, key env, default model, and
+    capabilities come from the entry, and the entry's declared quirks
+    switch on the behaviours the preset subclasses used to hard-code:
+
+    * ``reasoning-content-fallback`` — assistant text falls back to
+      ``message.reasoning_content`` when ``content`` is empty
+      (DeepSeek's reasoning models).
+    * ``app-identification-headers`` — every request also sends
+      ``HTTP-Referer`` / ``X-Title`` (OpenRouter's app identification;
+      overridable via ``http_referer=`` / ``x_title=``).
+    * ``placeholder-bearer-auth`` — with no key configured, a
+      placeholder bearer value is sent (vLLM's server convention).
+
+    A non-compatible entry (``native_sdk``, ``ollama_native``) is
+    refused with :class:`ProviderError`: those dialects are served by
+    their own adapters, never through this shim.
+    """
+
+    def __init__(
+        self,
+        provider_def: ProviderDef,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+        base_url: Optional[str] = None,
+        timeout: float = 60.0,
+        max_retries: int = 2,
+        transport: Optional[Callable[..., tuple[int, Any]]] = None,
+        http_referer: Optional[str] = None,
+        x_title: Optional[str] = None,
+    ) -> None:
+        if provider_def.dialect != "openai_compatible":
+            raise ProviderError(
+                f"provider {provider_def.name!r} speaks dialect "
+                f"{provider_def.dialect!r}, not 'openai_compatible'; "
+                "the universal adapter cannot serve it"
+            )
+        # Instance identity must be set before Provider.__init__ reads
+        # default_model / api_key_env to resolve model and key.
+        self.provider_def = provider_def
+        self.name = provider_def.name
+        self.default_model = provider_def.default_model
+        self.api_key_env = provider_def.api_key_env
+        self.base_url_default = provider_def.endpoint or ""
+        self.http_referer = http_referer or DEFAULT_HTTP_REFERER
+        self.x_title = x_title or DEFAULT_X_TITLE
+        super().__init__(api_key=api_key, model=model, base_url=base_url,
+                         timeout=timeout, max_retries=max_retries,
+                         transport=transport)
+
+    @classmethod
+    def from_registry(
+        cls,
+        name: str,
+        **kwargs: Any,
+    ) -> "UniversalOpenAICompatProvider":
+        """Build the universal adapter for the registry entry *name*.
+
+        Aliases resolve through the registry, exactly as in
+        :meth:`ProviderRegistry.provider`; an unknown name raises
+        KeyError — an unknown door is unknown, never guessed.
+        """
+        return cls(load_registry().provider(name), **kwargs)
+
+    def capabilities(self) -> dict[str, bool]:
+        return dict(self.provider_def.capabilities)
+
+    def _headers(self) -> dict[str, str]:
+        headers = super()._headers()
+        if "Authorization" not in headers and (
+            self.provider_def.has_quirk("placeholder-bearer-auth")
+        ):
+            headers["Authorization"] = f"Bearer {PLACEHOLDER_API_KEY}"
+        if self.provider_def.has_quirk("app-identification-headers"):
+            headers["HTTP-Referer"] = self.http_referer
+            headers["X-Title"] = self.x_title
+        return headers
+
+    def _extract_text(self, body: Any, status: int) -> str:
+        if not self.provider_def.has_quirk("reasoning-content-fallback"):
+            return super()._extract_text(body, status)
+        try:
+            choices = body["choices"]
+        except (TypeError, KeyError, IndexError):
+            choices = None
+        if not isinstance(choices, list) or not choices:
+            raise ProviderError(
+                f"{self.name} returned no choices (HTTP {status}).")
+        first = choices[0]
+        message = first.get("message") if isinstance(first, dict) else None
+        if not isinstance(message, dict):
+            raise ProviderError(
+                f"{self.name} returned empty assistant text (HTTP {status}).")
+        text = message.get("content")
+        if not isinstance(text, str) or not text.strip():
+            text = message.get("reasoning_content")
+        if not isinstance(text, str) or not text.strip():
+            raise ProviderError(
+                f"{self.name} returned empty assistant text (HTTP {status}).")
+        return text

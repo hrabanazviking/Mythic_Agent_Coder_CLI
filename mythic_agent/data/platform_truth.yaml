@@ -1,0 +1,155 @@
+schema: mythic.platform_truth/1
+slice: M-013
+recorded: '2026-10-31'
+scope_note: 'The platform truth table: Linux, Windows, and macOS, each against four surfaces — install,
+  run, TUI, voice — twelve cells, each PROVEN or NOT PROVEN as of the recorded date, with no
+  inheritance: a cell is PROVEN only on evidence measured locally in this campaign (evidence_kind
+  local-measured, enforced by the validator), never on a rival''s claim, a documentation promise, or
+  an earlier revision''s hosted run. Historical hosted evidence is named where it exists and still
+  leaves the cell NOT PROVEN: the six-job hosted matrix (Linux/macOS/Windows x Python 3.10/3.13)
+  passed for earlier revisions in runs 37258887547, 37258957751, and 37259244508 (recorded in
+  docs/development/PROGRESS.md), but the workflow is manual-dispatch only since 2026-10-27, no
+  hosted run exists for the current tree, and no Windows or macOS machine is available to this
+  campaign — those cells are re-earned by a manual dispatch of .github/workflows/ci.yml on the
+  current revision, or by a local run on the real platform (Part XI, M-259, re-proves the whole
+  table). Architecture scope: the Linux cells are proven on x86_64 only; Linux on ARM (Raspberry Pi
+  class) is not in this table and is NOT PROVEN by anything here. The voice surface is NOT PROVEN on
+  every platform: on this Linux machine the failure is measured (the PortAudio system library is
+  absent, so sounddevice and mythic_agent.core.audio fail to import), and the hosted matrix never
+  installs the voice extra at all (its install step is pip install -e ''.[dev,tui]''), so no hosted
+  run says anything about voice anywhere.'
+cells:
+- id: P-01
+  platform: linux
+  surface: install
+  verdict: PROVEN
+  evidence_kind: local-measured
+  evidence: 'Baseline venv on this VM (Linux x86_64, Python 3.12.3) installed from PyPI with all
+    optional extras on 2026-10-30 (campaign baseline, CAMPAIGN_STATE.md); re-verified 2026-10-31:
+    mythic_agent, textual, openai, rich, prompt_toolkit, yaml, and httpx all import in that venv,
+    and the full test suite runs from it (M-012 counted run: 1588 passed, 3 failed, 1 skipped — the
+    failures classified, none an install failure).'
+  retest: 'Fresh venv, pip install the package with extras, import the package and run the suite.'
+- id: P-02
+  platform: linux
+  surface: run
+  verdict: PROVEN
+  evidence_kind: local-measured
+  evidence: 'On this VM, 2026-10-31: python -m mythic_agent.cli --help exits 0 and --version reports
+    0.1.0 (source checkout) with exit 0; the M-007 scripted end-to-end task passed 4/4 against a
+    loopback fake provider, and the full suite''s subprocess CLI tests pass in the counted runs.'
+  retest: 'Run --help/--version and the scripted end-to-end task (scripts/baseline_e2e.py) on the
+    platform and record exit codes.'
+- id: P-03
+  platform: linux
+  surface: tui
+  verdict: PROVEN
+  evidence_kind: local-measured
+  evidence: 'On this VM, 2026-10-31: the real TUI app (mythic_agent.ui.main_app.MythicTUI) launched
+    headless under the Textual pilot, reported running with its SplashScreen up; the suite''s TUI
+    approval test (tests/test_policy.py, -k tui) passed the same day, and the full suite''s Textual
+    tests pass in the counted runs. Proven headless via the pilot — the same app a terminal runs;
+    no physical-terminal session is claimed.'
+  retest: 'Launch MythicTUI under the Textual pilot (run_test) and run the suite''s TUI tests on
+    the platform.'
+- id: P-04
+  platform: linux
+  surface: voice
+  verdict: NOT PROVEN
+  evidence_kind: local-measured
+  evidence: 'Measured absent on this VM, 2026-10-31: importing sounddevice raises OSError
+    (PortAudio library not found) and importing mythic_agent.core.audio fails the same way; the
+    suite''s public-api test fails for exactly this reason in every counted run. The voice code is
+    present and the voice extra is installed — the system PortAudio library is what is missing, so
+    no recording or playback has ever been proven on this machine.'
+  retest: 'Install the PortAudio system library, import sounddevice and mythic_agent.core.audio,
+    and record + play back a real clip on the platform.'
+- id: P-05
+  platform: windows
+  surface: install
+  verdict: NOT PROVEN
+  evidence_kind: historical-only
+  evidence: 'Historical hosted evidence only: the windows-latest jobs of hosted runs 37258887547,
+    37258957751, and 37259244508 (October 2026, earlier revisions, docs/development/PROGRESS.md)
+    installed the package with pip install -e ''.[dev,tui]'' successfully. No hosted run exists for
+    the current tree (the workflow is manual-dispatch only) and this campaign has no Windows
+    machine, so under the no-inheritance rule the cell is NOT PROVEN as of today.'
+  retest: 'Dispatch .github/workflows/ci.yml manually on the current revision and record the
+    windows-latest install step, or install in a fresh venv on a real Windows machine.'
+- id: P-06
+  platform: windows
+  surface: run
+  verdict: NOT PROVEN
+  evidence_kind: historical-only
+  evidence: 'Historical hosted evidence only: the same October 2026 windows-latest jobs ran the
+    test suite and the installed-wheel smoke check (mythic_agent.cli --help and --version from
+    outside the checkout) green on earlier revisions. Not re-proven on the current tree, and the
+    user''s own GitHub Desktop pull on Windows was expressly not claimed as tested
+    (TASK_windows_pull.md), so the cell is NOT PROVEN as of today.'
+  retest: 'Dispatch the CI workflow on the current revision and record the windows-latest test +
+    wheel-smoke steps, or run --help/--version from a fresh install on a real Windows machine.'
+- id: P-07
+  platform: windows
+  surface: tui
+  verdict: NOT PROVEN
+  evidence_kind: historical-only
+  evidence: 'Historical hosted evidence only: the October 2026 windows-latest jobs installed the
+    tui extra and ran the suite, whose Textual pilot tests exercise the TUI headless — but that
+    was earlier revisions, no run exists for the current tree, and no interactive Windows terminal
+    session has ever been recorded, so the cell is NOT PROVEN as of today.'
+  retest: 'Run the TUI under the Textual pilot on Windows (suite TUI tests) on the current
+    revision, and record one interactive terminal session.'
+- id: P-08
+  platform: windows
+  surface: voice
+  verdict: NOT PROVEN
+  evidence_kind: none
+  evidence: 'No evidence at all: the hosted matrix never installs the voice extra (its install
+    step is pip install -e ''.[dev,tui]''), and no Windows machine with audio hardware is
+    available to this campaign. Nothing about Windows voice is claimed or inherited.'
+  retest: 'On a real Windows machine: install the voice extra plus PortAudio, import sounddevice,
+    and record + play back a real clip.'
+- id: P-09
+  platform: macos
+  surface: install
+  verdict: NOT PROVEN
+  evidence_kind: historical-only
+  evidence: 'Historical hosted evidence only: the macos-latest jobs of hosted runs 37258887547,
+    37258957751, and 37259244508 (October 2026, earlier revisions, docs/development/PROGRESS.md)
+    installed the package with pip install -e ''.[dev,tui]'' successfully. No hosted run exists for
+    the current tree (the workflow is manual-dispatch only) and this campaign has no macOS
+    machine, so under the no-inheritance rule the cell is NOT PROVEN as of today.'
+  retest: 'Dispatch .github/workflows/ci.yml manually on the current revision and record the
+    macos-latest install step, or install in a fresh venv on a real Mac.'
+- id: P-10
+  platform: macos
+  surface: run
+  verdict: NOT PROVEN
+  evidence_kind: historical-only
+  evidence: 'Historical hosted evidence only: the same October 2026 macos-latest jobs ran the test
+    suite and the installed-wheel smoke check (mythic_agent.cli --help and --version from outside
+    the checkout) green on earlier revisions. Not re-proven on the current tree and never run on
+    a local Mac, so the cell is NOT PROVEN as of today.'
+  retest: 'Dispatch the CI workflow on the current revision and record the macos-latest test +
+    wheel-smoke steps, or run --help/--version from a fresh install on a real Mac.'
+- id: P-11
+  platform: macos
+  surface: tui
+  verdict: NOT PROVEN
+  evidence_kind: historical-only
+  evidence: 'Historical hosted evidence only: the October 2026 macos-latest jobs installed the tui
+    extra and ran the suite, whose Textual pilot tests exercise the TUI headless — but that was
+    earlier revisions, no run exists for the current tree, and no interactive macOS terminal
+    session has ever been recorded, so the cell is NOT PROVEN as of today.'
+  retest: 'Run the TUI under the Textual pilot on macOS (suite TUI tests) on the current revision,
+    and record one interactive terminal session.'
+- id: P-12
+  platform: macos
+  surface: voice
+  verdict: NOT PROVEN
+  evidence_kind: none
+  evidence: 'No evidence at all: the hosted matrix never installs the voice extra (its install
+    step is pip install -e ''.[dev,tui]''), and no Mac with audio hardware is available to this
+    campaign. Nothing about macOS voice is claimed or inherited.'
+  retest: 'On a real Mac: install the voice extra plus PortAudio, import sounddevice, and record
+    + play back a real clip.'

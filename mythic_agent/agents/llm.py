@@ -604,23 +604,100 @@ class Agent:
         return build_provider_client(self.config, self._cancel)
         
     def set_model(self, model: str, base_url: str, api_key: str | None = None) -> None:
+        """Legacy spelling of :meth:`switch_model` (model + door URL).
+
+        Kept for the callers that predate M-028; the switch is now
+        journaled like every other switch when a session is attached.
+        """
+        self.switch_model(model, base_url=base_url, api_key=api_key)
+
+    def switch_model(self, model: str | None = None, *, provider: str | None = None,
+                     base_url: str | None = None, api_key: str | None = None,
+                     reason: str | None = None) -> dict[str, Any]:
+        """Change this agent's model and/or provider mid-session (M-028).
+
+        The session, its history and plan context, its token count,
+        and the whole live crew survive the switch untouched — only
+        this agent's own model/provider selection changes. The
+        switch happens only between turns: called while a turn is
+        running it raises and changes nothing.
+
+        The request is validated by
+        :func:`mythic_agent.core.model_switch.resolve_switch` before
+        anything mutates (unknown providers and doors the live
+        session cannot speak are refused plainly, with nothing
+        changed). When a session is attached, the switch is then
+        journaled *first* — a ``model_switched`` checkpoint event
+        carrying the from/to selections and the reason if given, on
+        the unchanged history — and only then applied and saved; if
+        the save fails, the previous selection is restored exactly
+        and a compensating ``model_switch_reverted`` event is
+        journaled, so the journal never claims a switch that did
+        not take effect.
+
+        Returns the switch record (from/to/reason/session_id/
+        journaled) built by the resolver.
+        """
         import copy
-        if not isinstance(model, str) or not model.strip() or not config_manager._valid_url(base_url):
-            raise ValueError("Model must be nonempty and endpoint must be an HTTP(S) URL")
+
+        from ..core.model_switch import resolve_switch
+
         if api_key is not None and not isinstance(api_key, str):
             raise ValueError("API key must be text")
-        previous = copy.deepcopy(self.config)
-        self.config["model"] = model
-        self.config["base_url"] = base_url
-        if "api_keys" not in self.config:
-            self.config["api_keys"] = {}
-        if api_key:
-            self.config["api_keys"][base_url] = api_key
-        if not self.save_config():
-            self.config = previous
-            raise RuntimeError("Model preference could not be saved; previous settings were preserved")
-        self.redactor = SecretRedactor(self.config)
-        protect_logging(self.redactor)
+        target = resolve_switch(self.config, model=model, provider=provider,
+                                base_url=base_url, reason=reason)
+        if not self._turn_lock.acquire(blocking=False):
+            raise RuntimeError(
+                "Finish the current turn before switching models; "
+                "the session, its plan and the crew are unchanged.")
+        try:
+            if self._closed:
+                raise RuntimeError("Agent is closed")
+            journaled = False
+            if self._session_store and self.session_id:
+                self._checkpoint(target.event())
+                journaled = True
+            previous = copy.deepcopy(self.config)
+            self.config["model"] = target.to_model
+            self.config["base_url"] = target.to_base_url
+            if "api_keys" not in self.config:
+                self.config["api_keys"] = {}
+            if api_key:
+                self.config["api_keys"][target.to_base_url] = api_key
+            if not self.save_config():
+                self.config = previous
+                if journaled:
+                    try:
+                        self._checkpoint({
+                            "type": "model_switch_reverted",
+                            "to": {"model": target.from_model,
+                                   "base_url": target.from_base_url,
+                                   "provider": target.from_provider},
+                            "reason": "The model preference could not be "
+                                      "saved; the previous selection was "
+                                      "preserved.",
+                        })
+                    except Exception:
+                        pass  # the RuntimeError below is the truth owed
+                raise RuntimeError(
+                    "Model preference could not be saved; "
+                    "previous settings were preserved")
+            self.redactor = SecretRedactor(self.config)
+            protect_logging(self.redactor)
+            return target.record(self.session_id, journaled)
+        finally:
+            self._turn_lock.release()
+
+    def active_provider(self) -> str | None:
+        """The registry provider this agent's current door is, or None.
+
+        Exact endpoint inference over the M-019 registry data (see
+        :func:`mythic_agent.core.model_switch.infer_provider`): a
+        custom door truthfully has no provider name.
+        """
+        from ..core.model_switch import infer_provider
+
+        return infer_provider(self.config.get("base_url"))
 
     def fetch_models(self, base_url: str, api_key: str) -> list[str]:
         settings = runtime_settings(self.config)
