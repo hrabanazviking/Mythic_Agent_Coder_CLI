@@ -26,6 +26,9 @@ workspace sessions, and a dual-layer memory.
   `planning.py`, `parallel.py`, `context.py`, `recovery.py`,
   `tasks.py`, `command_handler.py`, `prompts.py`.
 - `mythic_agent/context/` — context engine (`budget.py`, …).
+- `mythic_agent/core/feature_census.py` + `mythic_agent/data/feature_census.yaml`
+  — the All-Features Feature Census (M-001): the living feature × rival
+  matrix as validated data; every gap row names its owning M-slice.
 - `mythic_agent/providers/` — provider adapters + negotiation
   (structured output, vision, reasoning, streaming, usage, health,
   failover — the MIM-026–050 Pantheon work).
