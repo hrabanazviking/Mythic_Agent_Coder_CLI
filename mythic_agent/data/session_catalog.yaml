@@ -1,0 +1,61 @@
+schema: mythic.session_catalog/1
+slice: M-010
+catalogued: '2026-10-31'
+scope_note: 'Every session and journal format the app writes today: the SQLite session store, the plain-dict session record, the session export, the write-ahead journal, the structured crash report, the transcript spill file, and the session-event payload. This catalogue is the forward-compat contract: a format may gain a new version only with a reader that still reads version 1, and the golden fixtures frozen in tests/test_session_catalog.py must never break.'
+formats:
+- id: J-01
+  name: session-store
+  kind: sqlite-store
+  location: '<state>/sessions/<workspace-id>/sessions.sqlite'
+  version: '1'
+  reader: mythic_agent/core/sessions.py
+  fields: [id, schema_version, created_at, updated_at, status, context, total_tokens, metadata, outcome, sequence, session_id, payload]
+  compat_rule: 'PRAGMA user_version and each row''s schema_version stay 1; SessionStore refuses any other version and preserves the original file.'
+- id: J-02
+  name: session-record
+  kind: dict-record
+  location: 'plain dict (session_to_dict / session_from_dict)'
+  version: '1'
+  reader: mythic_agent/core/sessions.py
+  fields: [id, schema_version, created_at, updated_at, status, context, total_tokens, metadata, outcome]
+  compat_rule: 'Required keys never shrink; datetimes are ISO-8601 strings; session_from_dict validates with the store''s own validators and names the offending field.'
+- id: J-03
+  name: session-export
+  kind: dict-export
+  location: 'plain dict returned by SessionStore.export()'
+  version: '1'
+  reader: mythic_agent/core/sessions.py
+  fields: [id, schema_version, created_at, updated_at, status, context, total_tokens, metadata, outcome, workspace, events]
+  compat_rule: 'The export is the session record plus workspace and the full ordered events list; it is a superset, never a reshaping, of the record.'
+- id: J-04
+  name: wal-journal
+  kind: jsonl-journal
+  location: '<state>/sessions/<workspace-id>/journal.log'
+  version: '1'
+  reader: mythic_agent/core/journal.py
+  fields: [v, ts, seq, op, journal_id, session_id, checkpoint, event, checksum]
+  compat_rule: 'One JSON record per line, sha256 checksum over the canonical JSON of the record body; corrupt or torn lines are skipped, never applied; ops are checkpoint and tombstone.'
+- id: J-05
+  name: crash-report
+  kind: json-report
+  location: '<mythic-dir>/crashes/crash_<stamp>_<pid>.json'
+  version: '1'
+  reader: mythic_agent/core/journal.py
+  fields: [schema_version, timestamp, session_id, exception_type, exception_message, traceback, python_version, platform, pid]
+  compat_rule: 'schema_version stays 1; the report is a single JSON object with exactly the catalogued keys.'
+- id: J-06
+  name: transcript-spill
+  kind: jsonl-spill
+  location: '<spill-dir>/spill_<pid>_<millis>.jsonl'
+  version: 'unversioned (plain turn dicts)'
+  reader: mythic_agent/core/transcript.py
+  fields: [role, content]
+  compat_rule: 'One plain turn dict per line, oldest first, each a JSON object with at least role and content; get_all() reconstructs spill + hot window in original order.'
+- id: J-07
+  name: session-event
+  kind: json-payload
+  location: 'events.payload column of the session store'
+  version: 'unversioned (type-tagged JSON)'
+  reader: mythic_agent/core/sessions.py
+  fields: [type]
+  compat_rule: 'Every event payload is a JSON object carrying a type tag; unknown types are counted as unknown, never fatal, in session_event_counts().'
