@@ -250,7 +250,7 @@ slices:
   title: Key custody via Kista
   summary: providers read their keys from Volmarr's Kista; config files hold references, never secrets;
     a missing key asks once, kindly.
-  status: queued
+  status: done
 - id: M-033
   part: 2
   title: Subscription doors study
