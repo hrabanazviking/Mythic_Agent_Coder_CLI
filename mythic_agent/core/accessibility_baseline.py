@@ -393,9 +393,11 @@ def render_markdown(baseline: AccessibilityBaseline) -> str:
     :meth:`AccessibilityBaseline.finding_ids`,
     :meth:`AccessibilityBaseline.verdicts`, each entry's
     :meth:`ContrastEntry.ratio` / :meth:`ContrastEntry.worst`, and
-    this module's :func:`contrast_ratio` (recomputed live for the
-    body-text pair), so the rendered page is computed from the
-    same accessors and functions the tests pin.
+    this module's :func:`contrast_ratio` (applied to the AA bars
+    below), so the rendered page is computed from the same
+    accessors and functions the tests pin. (The live-theme
+    recomputation lives in the tests, not here: ``core`` is
+    UI-agnostic and may not import ``mythic_agent.ui``.)
     """
     n_kbd, n_sr, n_con, n_find = baseline.counts()
     lines = [
@@ -426,20 +428,17 @@ def render_markdown(baseline: AccessibilityBaseline) -> str:
         "## Contrast audit (WCAG 2.x ratios)",
         "",
         f"AA bars: {AA_NORMAL}:1 normal text, {AA_LARGE}:1 large text. "
-        f"Live recomputation of one pair per theme via contrast_ratio() "
-        f"must agree with the recorded text_on_background ratio.",
+        f"A black-on-white sanity pair via contrast_ratio() reads "
+        f"{contrast_ratio('#000000', '#ffffff'):.1f}:1; the slice's "
+        f"tests recompute every recorded ratio from the live themes.",
         "",
     ]
-    from ..ui.themes import THEMES
-
     for entry in baseline.contrast_entries:
-        theme = THEMES[entry.theme]
-        live = round(contrast_ratio(theme["text"], theme["background"]), 2)
         worst_pair, worst_ratio = entry.worst()
         lines.append(
             f"- {entry.id} {entry.theme}: **{entry.verdict}** — "
-            f"text/background {entry.ratio('text_on_background')} "
-            f"(live {live}), muted/background "
+            f"text/background {entry.ratio('text_on_background')}, "
+            f"muted/background "
             f"{entry.ratio('muted_on_background')}, worst pair "
             f"{worst_pair} at {worst_ratio}."
         )
