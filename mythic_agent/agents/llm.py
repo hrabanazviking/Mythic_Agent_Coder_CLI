@@ -834,11 +834,7 @@ class Agent:
                 continue
             if member._turn_lock.locked():
                 continue
-            route = _role_route_for(self.config, member_name)
-            if route is None:
-                continue
-            member.config["model"] = route.model
-            member.config["base_url"] = route.base_url
+            self._apply_role_route_to(member)
 
     def fetch_models(self, base_url: str, api_key: str) -> list[str]:
         settings = runtime_settings(self.config)
