@@ -85,6 +85,22 @@ workspace sessions, and a dual-layer memory.
   PROVEN until re-earned on the current tree (M-259 re-proves).
   Tests cross-check the table against the live CI workflow and the
   hosted run ids in docs/development/PROGRESS.md.
+- `mythic_agent/core/rival_config_study.py` + `mythic_agent/data/rival_config_study.yaml`
+  — the Rivals' Config Import Study (M-014): what the config and
+  instruction files of Claude Code, Codex CLI, OpenCode and Aider
+  look like behaviourally, recorded clean-room from public
+  documentation (formats and observable behaviour only) as the spec
+  for Part X's rival importers (M-241). 4 rivals, 23 files (names,
+  scopes, formats, roles), 24 key mappings — each landing on a real
+  M-009 catalogue setting or honestly on `none` with the reason —
+  6 findings, and per-rival importer directives that route every
+  secret disguise (literal keys, env names, helper commands,
+  load-time substitutions) to Kista. Tests cross-check the study
+  against the live census rivals, the live config catalogue, and
+  Mythic's own instruction filenames (CLAUDE.md and AGENTS.md are
+  already discovered; Aider's read-list road is the outlier). The
+  Gemini/Antigravity layouts M-241 also names are NOT studied here
+  — the gap is recorded in the study itself.
 - `mythic_agent/providers/` — provider adapters + negotiation
   (structured output, vision, reasoning, streaming, usage, health,
   failover — the MIM-026–050 Pantheon work).
