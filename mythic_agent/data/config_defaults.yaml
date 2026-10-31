@@ -2,6 +2,7 @@ config_version: 3
 model: deepseek-chat
 base_url: https://api.deepseek.com/v1
 api_keys: {}
+role_routes: {}
 working_directory: ''
 user_name: ''
 user_data: ''

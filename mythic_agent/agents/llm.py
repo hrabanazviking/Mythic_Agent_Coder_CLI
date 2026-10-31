@@ -699,6 +699,140 @@ class Agent:
 
         return infer_provider(self.config.get("base_url"))
 
+    def role_route(self, office_or_name: str) -> dict[str, Any]:
+        """The effective route for an office or crew member (M-029).
+
+        Accepts an office id (``architect``) or a crew member's name
+        (``Architect - Rúnhild Svartdóttir``); a name no office
+        claims raises KeyError. The route is the office's explicit
+        ``role_routes`` entry when one is set, else the session
+        default — the fallback is part of the answer, never hidden.
+        """
+        from ..core.role_routing import (
+            office_for_agent_name,
+            office_ids,
+            resolve_route,
+        )
+
+        office = office_or_name
+        if office not in office_ids():
+            office = office_for_agent_name(office_or_name)
+            if office is None:
+                raise KeyError(
+                    f"No office claims {office_or_name!r}; routes are "
+                    "set per office (architect, forge_worker, "
+                    "cartographer, auditor, scribe, skald, guardian, "
+                    "polymath)")
+        route = resolve_route(self.config, office)
+        return {"office": route.office, **route.selection(),
+                "source": route.source}
+
+    def set_role_route(self, office: str, *, model: str | None = None,
+                       provider: str | None = None,
+                       base_url: str | None = None) -> dict[str, Any]:
+        """Set one office's model route (M-029).
+
+        The change is validated by
+        :mod:`mythic_agent.core.role_routing` (through the M-028
+        resolver) before anything mutates. When a session is
+        attached, the change is journaled first as a
+        ``role_route_changed`` event; if the config save fails, the
+        previous routes are restored exactly and a compensating
+        ``role_route_reverted`` event is journaled. Crew members
+        take the new route when spawned, or at once if they are
+        already spawned and idle (see :meth:`_apply_role_routes`).
+        """
+        return self._change_role_route(office, model=model,
+                                       provider=provider,
+                                       base_url=base_url, clear=False)
+
+    def clear_role_route(self, office: str) -> dict[str, Any]:
+        """Clear one office's route back to the session default (M-029)."""
+        return self._change_role_route(office, clear=True)
+
+    def _change_role_route(self, office: str, *, model: str | None = None,
+                           provider: str | None = None,
+                           base_url: str | None = None,
+                           clear: bool = False) -> dict[str, Any]:
+        import copy
+
+        from ..core import role_routing
+
+        if clear:
+            new_routes, change = role_routing.clear_route(self.config, office)
+        else:
+            new_routes, change = role_routing.set_route(
+                self.config, office, model=model, provider=provider,
+                base_url=base_url)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[role_routing.ROUTES_KEY] = new_routes
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "role_route_reverted",
+                        "office": change.office,
+                        "reason": "The route change could not be "
+                                  "saved; the previous routes were "
+                                  "preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Role route could not be saved; previous routes "
+                "were preserved")
+        self._apply_role_routes()
+        return change.record(self.session_id, journaled)
+
+    def _apply_role_route_to(self, member: Any) -> None:
+        """Apply *member*'s office route to its config, if one is set."""
+        from ..core.role_routing import office_for_agent_name, resolve_route
+
+        office = office_for_agent_name(member.name)
+        if office is None:
+            return
+        try:
+            route = resolve_route(self.config, office)
+        except ValueError:
+            return  # a malformed stored route surfaces at set/show time
+        if route.source != "route":
+            return
+        member.config["model"] = route.model
+        member.config["base_url"] = route.base_url
+
+    def _apply_role_routes(self) -> None:
+        """Apply stored routes to live, idle crew members (M-029).
+
+        A spawned member whose office holds an explicit route gets
+        that route's model and door in its own config. Busy members
+        are left untouched — their route lands at their next spawn.
+        The Primary agent itself is never re-routed here: its
+        selection is the session default (M-028 owns it).
+        """
+        from ..core.role_routing import office_for_agent_name, resolve_route
+
+        for member_name, member in list(AGENT_REGISTRY.items()):
+            if member is self or member_name == self.name:
+                continue
+            office = office_for_agent_name(member_name)
+            if office is None:
+                continue
+            try:
+                route = resolve_route(self.config, office)
+            except ValueError:
+                continue  # a malformed stored route surfaces at set/show time
+            if route.source != "route":
+                continue
+            if member._turn_lock.locked():
+                continue
+            member.config["model"] = route.model
+            member.config["base_url"] = route.base_url
+
     def fetch_models(self, base_url: str, api_key: str) -> list[str]:
         settings = runtime_settings(self.config)
         loopback = is_loopback_url(base_url)
@@ -980,6 +1114,7 @@ class AgentManager:
             existing.tool_policy = inherited.fork()
             existing._permission_override = inherited.mode
             existing.tui_app = tui_app
+            self._apply_role_routes()
             if tui_app:
                 existing.bind_tui(tui_app, mode=inherited.mode)
             return existing
@@ -994,6 +1129,7 @@ class AgentManager:
             
         logging.info(f"Dynamically spawning subagent: {name}")
         sub_agent = Agent(project_root=project_root, name=name)
+        self._apply_role_route_to(sub_agent)
         sub_agent.tool_policy = (policy or ToolPolicy("read-only")).fork()
         sub_agent._permission_override = sub_agent.tool_policy.mode
         if tui_app:

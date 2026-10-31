@@ -644,6 +644,7 @@ class MainChatScreen(Screen):
                 chat_log.write("  [green]/local[/green]     - Local runtimes (LM Studio / llama.cpp / any port): list / show")
                 chat_log.write("  [green]/gateway[/green]   - Gateway catalogue (OpenRouter): list / search / show")
                 chat_log.write("  [green]/model[/green]     - Show or switch the live model/provider (session, plan and crew kept)")
+                chat_log.write("  [green]/route[/green]     - Show or set per-office model routes (crew roles on different models)")
                 chat_log.write("  [green]/clear[/green]     - Clear agent memory")
                 chat_log.write("  [green]/compact[/green]   - Compact agent memory")
                 chat_log.write("  [green]/cost[/green]      - Estimate token cost")
@@ -687,6 +688,7 @@ class MainChatScreen(Screen):
                     "/ollama": "Usage: /ollama [list] | /ollama pull <model> | /ollama show <model>\nTalks to the local Ollama server (OLLAMA_HOST or http://localhost:11434): list shows installed and running models, pull downloads a model, show gives one model's details — or an honest 'not present' answer.",
                     "/local": "Usage: /local [list] | /local <lmstudio|llama.cpp|local-openai> show <model>\nDiscovers the local OpenAI-compatible runtimes (LM Studio http://localhost:1234, llama.cpp http://localhost:8080, or any local port): list shows what each server is serving, show gives one model's presence — or an honest 'not present' answer with its remedy.",
                     "/gateway": "Usage: /gateway [list] | /gateway search <text> | /gateway show <model>\nBrowses the OpenRouter gateway catalogue in-app (its public /models door — no key needed to browse): list shows the first models with the full count, search filters by id or name, show gives one model's reported context, modality and prices — or an honest 'not in the catalogue' answer. The kin gateways (groq, together, fireworks, xai, mistral) are providers in their own right; pick one as your provider to use its models.",
+                    "/route": "Usage: /route | /route <office> | /route <office> <model> [url] | /route <office> --provider <name> [--model <model>] | /route clear <office>\nPer-office model routing (M-029): different models for different offices — a deep thinker for the Architect, a fast hand for the Forge Worker, a cheap scout for the Cartographer. An office with no route uses the session default; routes are recorded as a session journal event and crew members take a route when spawned or when re-routed while idle. The Primary office has no route of its own — its selection is the session default, changed with /model.",
                     "/model": "Usage: /model | /model <model> [url] | /model --provider <name> [--model <model>] [--reason <words...>]\nShows or switches the live session's model or provider (M-028): the session, its history and plan, and the crew are kept, and the switch is recorded as a session journal event with the reason when one is given. Providers the live session cannot speak (the native-SDK doors and Ollama's own API) are refused plainly, with the session unchanged.",
                     "/clear": "Usage: /clear\nClears the agent's memory window (except the system prompt).",
                     "/compact": "Usage: /compact\nForces the LLM's context pruner to run early, archiving old messages to the VectorDB.",
@@ -776,7 +778,7 @@ class MainChatScreen(Screen):
             else:
                 SecureAPI.publish_chat_request(f"{action_text} {args}", target_agent=active)
             chat_log.write(f"[magenta]{action_text}[/magenta] {args}")
-        elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr", "/stop", "/clear", "/compact", "/cost", "/review", "/ollama", "/local", "/gateway", "/model"]:
+        elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr", "/stop", "/clear", "/compact", "/cost", "/review", "/ollama", "/local", "/gateway", "/model", "/route"]:
             # M-023: /ollama rides this same system-command road — the
             # M-024: /local rides it too, for the same reason.
             # UI stays presentation-only (arch-conformance: no
