@@ -32,11 +32,11 @@ Volmarr's Hermes) can pick this campaign up from this file alone.*
   `development`; `main` (`d06c0098`) rides one commit ahead (the
   roadmap filing). **Nothing is pushed** — build pushes await
   Volmarr's word.
-- The clone is **shallow (depth 1)** with its object store completed
-  from the parent's push clone — see "Transport war" below. When
-  GitHub transport is healthy, run `git fetch --unshallow origin`
-  (this also repairs the two ownership tests that read full git
-  history).
+- The clone was shallow (depth 1) at the opening; **`git fetch
+  --unshallow origin` succeeded 2026-10-30 ~21:05 EDT** (transport
+  healed) and the clone now has full history. The two ownership
+  tests that read full git history pass again, and
+  `docs/OWNERSHIP.md` was regenerated truthfully in M-001.
 - Baseline venv: `.venv-baseline/` in the tree (untracked) — Python
   3.12 with pytest + all optional extras installed from PyPI
   (2026-10-30). Reuse it for suite runs; delete it freely.
@@ -74,9 +74,9 @@ The 9 failures, classified:
 
 | Slice | Intent | Status |
 |---|---|---|
-| M-001 | The Feature Census (matrix as data, 10 rivals) | **IN PROGRESS** (keeper tick 2026-10-30 21:00 EDT) — building: `mythic_agent/data/feature_census.json` + `mythic_agent/core/feature_census.py` + tests |
+| M-001 | The Feature Census (matrix as data, 10 rivals) | **DONE** — banked 2026-10-30 21:2x EDT (`b599572`): `mythic_agent/data/feature_census.yaml` (38 features × 11 rivals; YAML because the repo gitignores `*.json` and its data shelf ships YAML) + validated loader `mythic_agent/core/feature_census.py` + 12 tests. Mythic tally from the matrix (counted from the data): 13 HAVE, 1 BETTER (cost honesty), 15 PARTIAL, 9 MISSING — 24 gap rows, every one carrying its owning slice |
 | M-002 | The Concordance | **DONE** — banked this opening; `docs/CONCORDANCE_MIMISBRUNNR_FEATURE_ROADMAP.md` |
-| M-003 | The Gap Audit | queued (classifies the 5 unclassified baseline failures en route) |
+| M-003 | The Gap Audit | **NEXT** (classifies the 5 unclassified baseline failures en route; seeds from M-001's 24 gap rows) |
 | M-004 | UX Principles charter | queued |
 | M-005 | The Method Charter in-app | queued |
 | M-006 | Terminology bridge | queued |
@@ -123,7 +123,20 @@ TUI · **no Docker, ever** · README.md is never overwritten ·
 per-slice commits banked locally; pushes only at Volmarr's word ·
 every discovered bug fixed in scope or commissioned on the spot.
 
-*State as of the campaign opening, 2026-10-30 ~21:05 EDT.*
+*Post-M-001 verification (2026-10-30 ~21:20 EDT): full suite ran
+**1412 passed, 8 failed, 1 skipped** (1421 collected, 469 s). Of the
+8 failures: 7 are baseline-classified (PortAudio env; the estimator
+premise inversion; 5 still-unclassified — M-003's queue, unchanged)
+and 2 baseline failures are HEALED (both ownership tests, via the
+unshallow above). The 1 new failure was M-001's own
+`test_no_new_dead_code_beyond_quarantine` (two census helper methods
+referenced only from tests): fixed in-slice before banking
+(`render_markdown` now renders the gap list from `gaps()`; the
+redundant `by_state` was removed) and re-verified in the targeted
+set — 52 passed with the PortAudio env case the sole failure.*
+
+*State as of the campaign opening, 2026-10-30 ~21:05 EDT; M-001
+banked by the keeper the same night (see ledger).*
 *Post-bank verification (same night): after the M-002 + opening
 commits, the doc/ownership/public-api subset re-ran — 63 passed,
 3 failed, the failures being exactly the three already-classified
