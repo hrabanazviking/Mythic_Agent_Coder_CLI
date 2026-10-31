@@ -101,6 +101,23 @@ workspace sessions, and a dual-layer memory.
   already discovered; Aider's read-list road is the outlier). The
   Gemini/Antigravity layouts M-241 also names are NOT studied here
   — the gap is recorded in the study itself.
+- `mythic_agent/core/telemetry_review.py` + `mythic_agent/data/telemetry_review.yaml`
+  — the Telemetry Honesty Review (M-015): what the app records
+  today (10 items: metrics/traces, both cost ledgers, audit log,
+  session store + WAL journal, crash reports, structured logs,
+  response cache, long-term memory/preferences, transcript spill —
+  every one local-file or in-memory, `leaves_machine: false`
+  enforced by the validator), the only 6 outbound channels (provider
+  calls — with OpenRouter's HTTP-Referer/X-Title identification
+  disclosed — embeddings/knowledge search, Deepgram STT, TTS
+  downloads/remote voices, the opt-in notification webhook, and
+  gh-CLI GitHub operations; each user-initiated, user-configured, or
+  a provider call), 5 honestly absent systems (analytics SDK, crash
+  upload, update phone-home, background beacon, trackers), and 6
+  honesty rules headed by the never-phones-home rule carried
+  verbatim. Tests scan the package source for known telemetry
+  libraries/endpoints and cross-check owner modules and cited
+  destination strings against the live tree.
 - `mythic_agent/providers/` — provider adapters + negotiation
   (structured output, vision, reasoning, streaming, usage, health,
   failover — the MIM-026–050 Pantheon work).
