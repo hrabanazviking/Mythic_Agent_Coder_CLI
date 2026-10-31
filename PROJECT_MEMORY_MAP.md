@@ -36,6 +36,14 @@ workspace sessions, and a dual-layer memory.
   E-01–E-04, re-run live by `tests/test_baseline_freeze.py`). Part XI
   compares against this freeze; a re-freeze is a new slice, never an
   edit.
+- `mythic_agent/core/benchmark_tasks.py` + `mythic_agent/data/benchmark_tasks.yaml`
+  — the Benchmark Task Pack v1 (M-008): 20 real tasks (4 each bugfix /
+  feature / refactor / test-writing / docs), each a throwaway repo with
+  seed files, a reference solution, hidden grading tests, and a diff
+  rubric. Proven property (tests/test_benchmark_tasks.py): grading
+  FAILS on every seed alone and PASSES on every seed+solution.
+  `materialize(task, root, solved=...)` writes a repo ready for
+  M-042's gate runs and M-255's harness.
 - `mythic_agent/providers/` — provider adapters + negotiation
   (structured output, vision, reasoning, streaming, usage, health,
   failover — the MIM-026–050 Pantheon work).
