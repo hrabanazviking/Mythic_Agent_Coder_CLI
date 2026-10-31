@@ -201,6 +201,8 @@ class CommandHandler:
                 self._handle_fallback(args)
             elif cmd == "/costroute":
                 self._handle_costroute(args)
+            elif cmd == "/kista":
+                self._handle_kista(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -914,6 +916,55 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[green]{format_decision(applied['decision'])}[/green]\n")
+
+    def _handle_kista(self, args: str):
+        """M-032: /kista — key custody, in plain words.
+
+        ``/kista`` shows, for every configured door, where its
+        key lives (Kista reference, environment, legacy plain
+        text, missing, or not-needed for a local door) and
+        whether a key is held — never a key value itself.
+        ``/kista adopt [base-url]`` moves that door's stored
+        plain-text key into Kista's vault file, leaving only
+        its reference in the config; the agent layer owns the
+        move (validated first, journaled as a session event).
+        """
+        from ..core.key_custody import (
+            custody_entries,
+            format_custody,
+            format_custody_change,
+            parse_kista_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_kista_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.kista_status()
+            assert [e["base_url"] for e in status["entries"]] == [
+                e.base_url for e in custody_entries(primary.config)]
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_custody(primary.config)}[/bold cyan]\n"
+                     "[dim]Move a plain-text key into Kista with "
+                     "/kista adopt.[/dim]\n")
+            return
+        try:
+            record = primary.adopt_key_for_kista(request["base_url"])
+        except (ValueError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync("agent_chat_chunk", agent_name="Primary",
+                     text=f"\n[green]{format_custody_change(record)}[/green]\n")
 
     def _handle_tutorial(self):
         tutorial_text = """
