@@ -3,7 +3,8 @@ registry_slice: M-019
 source_note: 'The provider registry as data (All-Features roadmap slice M-019):
   every provider the app ships, defined here — endpoint, auth style, model list,
   capabilities — so a new OpenAI-compatible door is a data entry, not a code
-  change (the universal adapter that consumes entries generically is M-020).
+  change (the M-020 universal adapter consumes entries generically,
+  quirks included).
   This file is the definition; the runtime resolver remains
   mythic_agent.providers.registry, and the slice''s tests pin every entry
   against the live adapter classes (name, default model, key env, endpoint
@@ -12,7 +13,7 @@ source_note: 'The provider registry as data (All-Features roadmap slice M-019):
   own the service address, and no address is invented here. Local providers
   record the loopback default their adapter ships.'
 extension_rule: 'Adding a provider whose door is OpenAI-compatible means
-  adding one entry here (plus, until M-020 lands, its preset adapter class);
+  adding one entry here — the M-020 universal adapter consumes the entry generically, quirks included;
   a wholly new dialect is a new adapter, never a registry edit alone.'
 aliases:
   claude: anthropic
@@ -42,6 +43,7 @@ providers:
     tool_calling: false
     vision: true
     json_mode: false
+  quirks: []
   notes: 'Native Messages API via the anthropic SDK (the SDK owns the
     endpoint). The adapter implements no native tool calling and no JSON
     mode — both flags are honestly false; M-021 grows this adapter.'
@@ -62,6 +64,8 @@ providers:
     tool_calling: true
     vision: true
     json_mode: true
+  quirks:
+  - reasoning-content-fallback
   notes: 'OpenAI-compatible preset of the shared adapter with DeepSeek''s
     endpoint and key env preset.'
 - name: google
@@ -83,6 +87,7 @@ providers:
     tool_calling: true
     vision: true
     json_mode: true
+  quirks: []
   notes: 'Native Gemini API via the google-generativeai SDK (the SDK owns
     the endpoint). Tool transcripts degrade to user text in this adapter;
     M-022 grows it.'
@@ -102,6 +107,7 @@ providers:
     tool_calling: true
     vision: true
     json_mode: true
+  quirks: []
   notes: 'Local llama-server door; performs no auth, so no key env. The
     model name is a placeholder — the server serves the model it was
     launched with. M-024 grows local discovery.'
@@ -121,6 +127,7 @@ providers:
     tool_calling: true
     vision: true
     json_mode: true
+  quirks: []
   notes: 'Local LM Studio door; performs no auth, so no key env. LM Studio
     names models after the file loaded in it. M-024 grows local discovery.'
 - name: local-openai
@@ -139,6 +146,7 @@ providers:
     tool_calling: true
     vision: true
     json_mode: true
+  quirks: []
   notes: 'The catch-all local door: any OpenAI-compatible server on a
     loopback port, endpoint overridable per use. No Authorization header
     is sent when no key is configured.'
@@ -159,6 +167,7 @@ providers:
     tool_calling: true
     vision: true
     json_mode: true
+  quirks: []
   notes: 'Local Ollama door speaking Ollama''s own API (not the compatible
     shim); needs no key. Listed models are examples — the server reports
     what is actually installed, and M-023 builds discovery on this entry.'
@@ -182,6 +191,7 @@ providers:
     tool_calling: true
     vision: true
     json_mode: true
+  quirks: []
   notes: 'The reference OpenAI-compatible door; the shared adapter class
     itself, with OpenAI''s endpoint and key env.'
 - name: openrouter
@@ -200,6 +210,8 @@ providers:
     tool_calling: true
     vision: true
     json_mode: true
+  quirks:
+  - app-identification-headers
   notes: 'Gateway door: one key, many vendors'' models; the default model
     is OpenRouter''s auto-router. Sends the app-identification headers
     HTTP-Referer and X-Title. Its browsable catalogue is M-026''s slice;
@@ -220,6 +232,8 @@ providers:
     tool_calling: true
     vision: true
     json_mode: true
+  quirks:
+  - placeholder-bearer-auth
   notes: 'Local vLLM door; no key env by default — a key may be passed
     explicitly when the server was launched with one. The model name is
     a placeholder for the model the server was launched with.'

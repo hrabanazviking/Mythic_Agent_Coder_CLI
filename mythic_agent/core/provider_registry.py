@@ -4,8 +4,16 @@ Part II — The Provider Ocean — opens here. Every provider the app
 ships is defined in ``mythic_agent/data/provider_registry.yaml``:
 endpoint, auth style, model list, and capabilities, in a data file —
 so a new OpenAI-compatible door is a registry entry, not a code
-change (the universal adapter that consumes entries generically is
-M-020). This module loads, validates, and renders that registry.
+change. This module loads, validates, and renders that registry.
+
+M-020 adds the ``quirks`` declaration: every entry carries a list of
+named per-provider quirks (possibly empty) drawn from the fixed
+:data:`QUIRKS` vocabulary. Quirks are a universal-adapter concept, so
+only ``openai_compatible`` entries may declare a non-empty list — a
+native or Ollama entry claiming one would be inventing behaviour its
+adapter does not have. The universal adapter
+(:class:`mythic_agent.providers.openai_compat.UniversalOpenAICompatProvider`)
+is constructed purely from an entry here, quirks included.
 
 The honesty rules are enforced by :func:`validate_registry`:
 
@@ -33,6 +41,7 @@ __all__ = [
     "CAPABILITY_FLAGS",
     "DIALECTS",
     "LOCALITIES",
+    "QUIRKS",
     "REGISTRY_RESOURCE",
     "REGISTRY_SCHEMA",
     "REGISTRY_SLICE",
@@ -76,6 +85,17 @@ AUTH_STYLES = ("api_key_env", "none")
 #: The capability contract flags, in contract order.
 CAPABILITY_FLAGS = ("streaming", "tool_calling", "vision", "json_mode")
 
+#: The per-provider quirks the universal adapter (M-020) knows how to
+#: honour, in declaration order. Each name is one observable behaviour
+#: of a shipped preset adapter, declared in data instead of subclassed
+#: in code: DeepSeek's reasoning-content fallback, OpenRouter's
+#: app-identification headers, vLLM's placeholder bearer auth.
+QUIRKS = (
+    "app-identification-headers",
+    "placeholder-bearer-auth",
+    "reasoning-content-fallback",
+)
+
 _ADAPTER_RE = re.compile(r"^[a-z_][a-z0-9_.]*:[A-Z][A-Za-z0-9]*$")
 _ENV_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 _URL_RE = re.compile(r"^https?://\S+$")
@@ -97,6 +117,11 @@ class ProviderDef:
     models: Tuple[str, ...]
     capabilities: Tuple[Tuple[str, bool], ...]
     notes: str
+    quirks: Tuple[str, ...] = ()
+
+    def has_quirk(self, quirk: str) -> bool:
+        """True when this entry declares the named M-020 *quirk*."""
+        return quirk in self.quirks
 
     def capability(self, flag: str) -> bool:
         """The recorded value of capability *flag* (KeyError if absent)."""
@@ -262,6 +287,31 @@ def validate_registry(data: Any) -> List[str]:
                 )
         if not isinstance(entry.get("notes"), str) or not entry["notes"]:
             problems.append(f"provider {label}: notes must be non-empty")
+        quirks = entry.get("quirks")
+        if not isinstance(quirks, list) or not all(
+            isinstance(q, str) for q in quirks or []
+        ):
+            problems.append(
+                f"provider {label}: quirks must be a list of quirk names "
+                f"from {QUIRKS} (possibly empty), got {quirks!r}"
+            )
+        else:
+            for quirk in quirks:
+                if quirk not in QUIRKS:
+                    problems.append(
+                        f"provider {label}: unknown quirk {quirk!r}; "
+                        f"quirks must be drawn from {QUIRKS}"
+                    )
+            if len(set(quirks)) != len(quirks):
+                problems.append(
+                    f"provider {label}: quirks must not repeat a quirk"
+                )
+            if quirks and dialect != "openai_compatible":
+                problems.append(
+                    f"provider {label}: quirks are a universal-adapter "
+                    "concept and may be declared only on "
+                    "openai_compatible entries"
+                )
     if names != sorted(names):
         problems.append(
             "providers must be listed in sorted name order (the order "
@@ -306,6 +356,7 @@ def _to_registry(data: Dict[str, Any]) -> ProviderRegistry:
                     (flag, p["capabilities"][flag]) for flag in CAPABILITY_FLAGS
                 ),
                 notes=p["notes"],
+                quirks=tuple(p["quirks"]),
             )
             for p in data["providers"]
         ),
@@ -360,11 +411,16 @@ def render_markdown(registry: ProviderRegistry) -> str:
                 f"{flag}={'yes' if provider.capability(flag) else 'no'}"
                 for flag in CAPABILITY_FLAGS
             )
+            quirk_text = (
+                f" quirks: {', '.join(provider.quirks)}."
+                if provider.quirks
+                else ""
+            )
             lines.append(
                 f"- **{provider.name}** — {provider.title}: "
                 f"`{endpoint}`, auth {auth}, default model "
                 f"`{provider.default_model}`, models "
-                f"{', '.join(provider.models)}; {flags}."
+                f"{', '.join(provider.models)}; {flags}.{quirk_text}"
             )
         lines.append("")
     lines.append("## Aliases")
