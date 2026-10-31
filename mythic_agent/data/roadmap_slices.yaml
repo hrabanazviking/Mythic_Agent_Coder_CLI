@@ -238,7 +238,7 @@ slices:
   title: Fallback chains
   summary: when a provider fails or rate-limits, the chain walks to the next door with the user's standing
     permission; every walk is announced, never silent.
-  status: queued
+  status: done
 - id: M-031
   part: 2
   title: Cost-aware routing
