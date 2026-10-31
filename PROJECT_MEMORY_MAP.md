@@ -51,6 +51,15 @@ workspace sessions, and a dual-layer memory.
   writes (10), each with its source in the tree. It is the compatibility
   contract for Part VIII's settings redesign; tests cross-check it
   against the defaults files, CONFIG_SCHEMA, and a live env-var scan.
+- `mythic_agent/core/session_catalog.py` + `mythic_agent/data/session_catalog.yaml`
+  — the Session Catalogue (M-010): every session/journal format (7:
+  SQLite session store, session record, session export, WAL journal,
+  crash report, transcript spill, session-event payload), each with
+  location, version, reader, fields, and compat rule. It is the
+  forward-compat contract; tests/test_session_catalog.py freezes
+  literal v1 golden artefacts (raw-SQL DB, raw-JSON journal lines,
+  record, crash report, spill lines) that the real readers must
+  always be able to read.
 - `mythic_agent/providers/` — provider adapters + negotiation
   (structured output, vision, reasoning, streaming, usage, health,
   failover — the MIM-026–050 Pantheon work).
