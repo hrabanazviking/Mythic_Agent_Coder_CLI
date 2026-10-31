@@ -197,7 +197,7 @@ slices:
   part: 2
   title: Local runtimes I — Ollama
   summary: discovery of running models, pull/list from the TUI, honest "model not present" answers.
-  status: queued
+  status: done
 - id: M-024
   part: 2
   title: Local runtimes II
