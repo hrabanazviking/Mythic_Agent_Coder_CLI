@@ -195,6 +195,8 @@ class CommandHandler:
                 self._handle_gateway(args)
             elif cmd == "/model":
                 self._handle_model(args)
+            elif cmd == "/route":
+                self._handle_route(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -716,6 +718,74 @@ class CommandHandler:
             return
         publish_sync("agent_chat_chunk", agent_name="Primary",
                      text=f"\n[green]{format_switch_record(record)}[/green]\n")
+
+    def _handle_route(self, args: str):
+        """M-029: /route — per-office model routing.
+
+        ``/route`` lists every office with its effective model and
+        whether that comes from a role route or the session default;
+        ``/route <office>`` shows one office; ``/route <office>
+        <model> [url]`` or ``/route <office> --provider <name>
+        [--model <model>]`` sets the office's route; ``/route clear
+        <office>`` returns it to the session default. The agent
+        layer owns the change (validated through the M-028
+        resolver, journaled as a session event, saved to config);
+        every refusal is published verbatim and changes nothing.
+        """
+        from ..core.role_routing import (
+            format_route_change,
+            format_routes,
+            parse_route_args,
+            resolve_route,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_route_args(args)
+        except (ValueError, KeyError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "list":
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_routes(primary.config)}[/bold cyan]\n"
+                     "[dim]Set one with /route <office> <model> [url] "
+                     "or /route <office> --provider <name>; clear one "
+                     "with /route clear <office>.[/dim]\n")
+            return
+        if request["action"] == "show":
+            try:
+                route = resolve_route(primary.config, request["office"])
+                shown = primary.role_route(request["office"])
+            except ValueError as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            assert shown["source"] == route.source
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{route.office}:[/bold cyan] "
+                     f"{route.describe()}\n")
+            return
+        try:
+            if request["action"] == "clear":
+                record = primary.clear_role_route(request["office"])
+            else:
+                record = primary.set_role_route(
+                    request["office"], model=request["model"],
+                    provider=request["provider"],
+                    base_url=request["base_url"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync("agent_chat_chunk", agent_name="Primary",
+                     text=f"\n[green]{format_route_change(record)}[/green]\n")
 
     def _handle_tutorial(self):
         tutorial_text = """

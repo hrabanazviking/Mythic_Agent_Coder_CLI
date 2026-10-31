@@ -256,6 +256,13 @@ settings:
   default: None
   source: mythic_agent/core/config_manager.py (CONFIG_SCHEMA)
   effect: Primary (user/agent) name override; managed key, absent from the defaults file.
+- id: S-36
+  name: role_routes
+  scope: top-level
+  type: dict
+  default: '{}'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Per-office model routes (M-029): office id to {model, base_url}; an office with no route uses the session default model/base_url.'
 env_vars:
 - id: V-01
   name: MYTHIC_HOME

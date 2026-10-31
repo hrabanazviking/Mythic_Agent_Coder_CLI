@@ -260,7 +260,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /status /session /add <path> /stop /undo /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /status /session /add <path> /stop /undo /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
         return True, False, "Conversation cleared."
@@ -272,6 +272,38 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         return True, False, "Earlier complete turns archived; transcript retained."
     if command == "/session":
         return True, False, f"Session: {agent.session_id}\nResume: mythic chat --workspace {shlex.quote(str(agent.project_root))} --resume {agent.session_id}"
+    if command == "/route":
+        from .core.role_routing import (
+            format_route_change,
+            format_routes,
+            parse_route_args,
+            resolve_route,
+        )
+        try:
+            request = parse_route_args(arguments)
+        except (ValueError, KeyError) as exc:
+            return True, False, str(exc)
+        if request["action"] == "list":
+            return True, False, format_routes(agent.config)
+        if request["action"] == "show":
+            try:
+                route = resolve_route(agent.config, request["office"])
+                shown = agent.role_route(request["office"])
+            except ValueError as exc:
+                return True, False, str(exc)
+            assert shown["source"] == route.source
+            return True, False, f"{route.office}: {route.describe()}"
+        try:
+            if request["action"] == "clear":
+                record = agent.clear_role_route(request["office"])
+            else:
+                record = agent.set_role_route(
+                    request["office"], model=request["model"],
+                    provider=request["provider"],
+                    base_url=request["base_url"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_route_change(record)
     if command == "/model":
         from .core.model_switch import format_switch_record, parse_switch_args
         try:
