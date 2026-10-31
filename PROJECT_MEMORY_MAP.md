@@ -154,6 +154,16 @@ workspace sessions, and a dual-layer memory.
   measurement. The gate's tests re-load every data artefact through its
   own shipped loader on every run; a non-PASS verdict is invalid data,
   not a recordable state.
+- `mythic_agent/core/provider_registry.py` +
+  `mythic_agent/data/provider_registry.yaml` — the Provider Registry
+  as Data (M-019, Part II's opening slice): all 10 shipped providers
+  defined in data — endpoint, auth style, model list, capabilities,
+  dialect, locality — with 7 aliases. Native-SDK providers record
+  endpoint null (their SDK owns the address; none is invented), and
+  the tests pin every entry against the live adapter classes (name,
+  default model, key env, endpoint default, live capabilities()) and
+  the runtime registry, so data and code cannot drift. The universal
+  adapter that consumes entries generically is M-020.
 - `mythic_agent/providers/` — provider adapters + negotiation
   (structured output, vision, reasoning, streaming, usage, health,
   failover — the MIM-026–050 Pantheon work).
