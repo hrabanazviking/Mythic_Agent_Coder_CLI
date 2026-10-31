@@ -2,7 +2,7 @@
 
 > **GENERATED FILE — do not edit by hand.**
 > Regenerate with: `python scripts/gen_ownership.py`
-> Generated at: 2026-10-31T19:20:30Z
+> Generated at: 2026-10-31T20:22:02Z
 
 Ownership is derived from real git history: for each module the owner is the top author by commit count touching that file (ties resolve to the most recently active author). Share is the owner's commit count divided by the total commit count on the file.
 
@@ -24,7 +24,7 @@ Total modules: **148**
 | `mythic_agent/agents/__init__.py` | Volmarr Wyrd | 100.0% | 1 / 1 | 2026-06-06 |
 | `mythic_agent/agents/command_handler.py` | Yrsa Freydisdottir | 60.0% | 9 / 15 | 2026-10-31 |
 | `mythic_agent/agents/context.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
-| `mythic_agent/agents/llm.py` | Volmarr Wyrd | 79.4% | 27 / 34 | 2026-10-31 |
+| `mythic_agent/agents/llm.py` | Volmarr Wyrd | 75.0% | 27 / 36 | 2026-10-31 |
 | `mythic_agent/agents/parallel.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
 | `mythic_agent/agents/planning.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
 | `mythic_agent/agents/prompts.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
@@ -219,8 +219,8 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
       "module": "mythic_agent/agents/llm.py",
       "owner": "Volmarr Wyrd",
       "owner_commits": 27,
-      "total_commits": 34,
-      "share": 0.7941,
+      "total_commits": 36,
+      "share": 0.75,
       "last_touch": "2026-10-31"
     },
     {
