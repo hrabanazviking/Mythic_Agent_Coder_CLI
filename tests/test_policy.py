@@ -211,11 +211,24 @@ def test_tui_approval_controls_the_shared_executor_and_cancels(agent):
             agent.bind_tui(app, mode="ask")
             with ThreadPoolExecutor(max_workers=1) as pool:
                 future = pool.submit(execute_tool, "write_file", {"path": "approved", "content": "[red]literal"}, agent=agent)
-                for _ in range(20):
+                # Wait for the modal AND its Allow button to be mounted,
+                # then click until the click lands: the screen class
+                # appears before compose/layout settles, and in
+                # full-suite context a single early click can miss
+                # (NoMatches, or click() returning False) even though
+                # the modal and button are correct (M-003 audit). A
+                # missed click has no effect, so retrying is safe; a
+                # landed click approves exactly once (decide() is
+                # guarded) and app.requests below still asserts the
+                # modal was raised a single time.
+                clicked = False
+                for _ in range(200):
                     await pilot.pause(0.05)
-                    if isinstance(app.screen, CommandApproval):
-                        break
-                assert await pilot.click("#allow")
+                    if isinstance(app.screen, CommandApproval) and app.screen.query("#allow"):
+                        if await pilot.click("#allow"):
+                            clicked = True
+                            break
+                assert clicked
                 for _ in range(20):
                     await pilot.pause(0.05)
                     if future.done():
