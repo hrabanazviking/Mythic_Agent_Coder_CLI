@@ -39,6 +39,7 @@ import pytest
 
 from mythic_agent.core.exceptions import MythicError, MythicProviderError
 from mythic_agent.providers import registry
+from mythic_agent.providers.aesir import AesirProvider
 from mythic_agent.providers.anthropic import AnthropicProvider, _anthropic_messages
 from mythic_agent.providers.base import (
     Provider,
@@ -59,6 +60,7 @@ from mythic_agent.providers.openrouter import OpenRouterProvider
 from mythic_agent.providers.vllm import VLLMProvider
 
 ADAPTERS: list[type[Provider]] = [
+    AesirProvider,
     AnthropicProvider,
     DeepSeekProvider,
     GenericLocalCompatProvider,

@@ -14,6 +14,7 @@ True
 from __future__ import annotations
 
 __all__ = [
+    "AesirProvider",
     "AnthropicProvider",
     "Any",
     "DeepSeekProvider",
@@ -33,6 +34,7 @@ __all__ = [
 
 from typing import Any
 
+from .aesir import AesirProvider
 from .anthropic import AnthropicProvider
 from .base import Provider, ProviderNotFound
 from .deepseek import DeepSeekProvider
@@ -45,6 +47,7 @@ from .openrouter import OpenRouterProvider
 from .vllm import VLLMProvider
 
 _REGISTRY: dict[str, type[Provider]] = {
+    AesirProvider.name: AesirProvider,
     AnthropicProvider.name: AnthropicProvider,
     DeepSeekProvider.name: DeepSeekProvider,
     GenericLocalCompatProvider.name: GenericLocalCompatProvider,

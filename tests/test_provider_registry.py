@@ -52,7 +52,7 @@ def test_shipped_registry_loads_and_validates(registry):
 
 def test_registry_names_match_the_runtime_registry(registry):
     assert list(registry.names()) == list_providers()
-    assert len(registry.providers) == 10
+    assert len(registry.providers) == 11
 
 
 def test_every_entry_matches_its_live_adapter_class(registry):
@@ -89,7 +89,11 @@ def test_auth_styles_agree_with_live_key_envs(registry):
     for provider in registry.providers:
         if provider.auth_style == "api_key_env":
             assert provider.api_key_env
-            assert provider.locality == "remote"
+            # Remote doors read a key — and so does Aesir (M-025):
+            # a LOCAL provider whose own authenticated service
+            # design requires a Bearer key file. Every other
+            # key-reading provider is remote.
+            assert provider.locality == "remote" or provider.name == "aesir"
         else:
             assert provider.api_key_env is None
 
@@ -99,7 +103,8 @@ def test_home_fires_are_first_citizens(registry):
     # citizens, not afterthoughts.
     local_names = [p.name for p in registry.by_locality("local")]
     assert "ollama" in local_names
-    assert len(local_names) == 5
+    assert "aesir" in local_names
+    assert len(local_names) == 6
     assert len(registry.by_locality("remote")) == 5
     ollama = registry.provider("ollama")
     assert ollama.dialect == "ollama_native"
@@ -133,11 +138,12 @@ def test_dialects_cover_the_ocean(registry):
     assert len(registry.by_dialect("openai_compatible")) == 7
     assert len(registry.by_dialect("native_sdk")) == 2
     assert len(registry.by_dialect("ollama_native")) == 1
+    assert len(registry.by_dialect("aesir_native")) == 1
 
 
 def test_render_markdown_reports_every_door(registry):
     text = render_markdown(registry)
-    assert "10 providers" in text
+    assert "11 providers" in text
     for provider in registry.providers:
         assert f"**{provider.name}**" in text
         assert provider.default_model in text
@@ -161,7 +167,11 @@ def test_validator_rejects_a_duplicate_provider():
 
 def test_validator_rejects_an_invented_native_endpoint():
     def spoil(d):
-        d["providers"][0]["endpoint"] = "https://example.invalid/v1"
+        # Target a native_sdk entry by name (providers[0] is aesir
+        # since M-025; an invented endpoint is only a crime for the
+        # SDK-owned-address dialect).
+        entry = next(e for e in d["providers"] if e["dialect"] == "native_sdk")
+        entry["endpoint"] = "https://example.invalid/v1"
 
     problems = validate_registry(_mutated(spoil))
     assert any("native_sdk" in p for p in problems)
