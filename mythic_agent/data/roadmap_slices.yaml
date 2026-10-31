@@ -192,7 +192,7 @@ slices:
   part: 2
   title: Google/Gemini-native adapter
   summary: native dialect, long-context handling, grounding toggles where offered.
-  status: queued
+  status: done
 - id: M-023
   part: 2
   title: Local runtimes I — Ollama
