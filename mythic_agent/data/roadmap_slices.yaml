@@ -203,7 +203,7 @@ slices:
   title: Local runtimes II
   summary: LM Studio, llama.cpp servers, and any local OpenAI-compatible port, with the same discovery
     kindness.
-  status: queued
+  status: done
 - id: M-025
   part: 2
   title: Project Aesir as a provider
