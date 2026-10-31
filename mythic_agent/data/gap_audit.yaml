@@ -1,0 +1,257 @@
+schema: mythic.gap_audit/1
+slice: M-003
+title: Mythic Agent Coder - Gap Audit (every census gap traced to its owning module)
+audited: '2026-10-30'
+source_note: >
+  Built from the M-001 census gaps (24 PARTIAL/MISSING rows). Each row names
+  the module that will own its fix: an existing module (verified present in
+  this tree at audit time) or a proposed new module (verified absent), plus
+  the existing neighbour whose patterns it follows. The owning slice is the
+  census row's roadmap_ref; the part is that slice's roadmap part. Two of
+  the five unclassified baseline failures were proven product defects and
+  were fixed inside this slice (see baseline_failures below); one was a
+  test-timing defect, also fixed; one was environment, healed and verified.
+rows:
+- feature: permission-profiles
+  slice: M-095
+  part: V
+  state: PARTIAL
+  owning_module: mythic_agent/core/policy.py
+  module_kind: existing
+  basis: mythic_agent/core/policy.py
+  fix_shape: Named permission postures with exact, revocable remembered scopes are added to the policy engine.
+- feature: custom-commands
+  slice: M-237
+  part: X
+  state: MISSING
+  owning_module: mythic_agent/agents/custom_commands.py
+  module_kind: proposed
+  basis: mythic_agent/agents/command_handler.py
+  fix_shape: User/project slash-command files are loaded and registered with the existing command handler.
+- feature: mcp-client
+  slice: M-233
+  part: X
+  state: MISSING
+  owning_module: mythic_agent/mcp_client.py
+  module_kind: proposed
+  basis: mythic_agent/mcp_server.py
+  fix_shape: A client half mirroring the shipped MCP server, consuming other servers' tools, resources, and prompts.
+- feature: hooks
+  slice: M-101
+  part: V
+  state: MISSING
+  owning_module: mythic_agent/core/hooks.py
+  module_kind: proposed
+  basis: mythic_agent/core/lifecycle.py
+  fix_shape: User hook lifecycle (pre/post tool, edit, test, commit, session) dispatched beside the lifecycle core.
+- feature: skills-plugins
+  slice: M-236
+  part: X
+  state: PARTIAL
+  owning_module: mythic_agent/core/skills.py
+  module_kind: proposed
+  basis: default_agent_characters/
+  fix_shape: A loadable skills standard and plugin bundles, growing out of the shipped agent characters.
+- feature: checkpoints-undo
+  slice: M-075
+  part: IV
+  state: PARTIAL
+  owning_module: mythic_agent/core/journal.py
+  module_kind: existing
+  basis: mythic_agent/core/journal.py
+  fix_shape: Named checkpoints capturing tree plus session, extending the workspace journal and crash recovery.
+- feature: git-commit-pr-flows
+  slice: M-078
+  part: IV
+  state: PARTIAL
+  owning_module: mythic_agent/integrations/github.py
+  module_kind: existing
+  basis: mythic_agent/integrations/github.py
+  fix_shape: Automatic per-edit-set commit discipline on top of the existing GitHub integration and TUI git commands.
+- feature: image-input
+  slice: M-037
+  part: II
+  state: PARTIAL
+  owning_module: mythic_agent/providers/vision.py
+  module_kind: existing
+  basis: mythic_agent/providers/vision.py
+  fix_shape: Capability-truth routing sends image tasks only to sighted models.
+- feature: web-search-fetch
+  slice: M-059
+  part: III
+  state: MISSING
+  owning_module: mythic_agent/tools/web_search.py
+  module_kind: proposed
+  basis: mythic_agent/tools/review.py
+  fix_shape: First-class web search and fetch tools in the tools package.
+- feature: sandboxing
+  slice: M-097
+  part: V
+  state: PARTIAL
+  owning_module: mythic_agent/core/sandbox.py
+  module_kind: existing
+  basis: mythic_agent/core/sandbox.py
+  fix_shape: OS-level kernel confinement (namespaces/seccomp class) in the native sandbox; no Docker, ever.
+- feature: provider-breadth
+  slice: M-019
+  part: II
+  state: PARTIAL
+  owning_module: mythic_agent/providers/registry.py
+  module_kind: existing
+  basis: mythic_agent/providers/registry.py
+  fix_shape: The provider registry becomes data-driven and grows toward the field's breadth.
+- feature: local-models
+  slice: M-023
+  part: II
+  state: PARTIAL
+  owning_module: mythic_agent/providers/ollama.py
+  module_kind: existing
+  basis: mythic_agent/providers/ollama.py
+  fix_shape: In-TUI discovery and pull kindness for local runtimes, starting with Ollama.
+- feature: repo-map
+  slice: M-044
+  part: III
+  state: MISSING
+  owning_module: mythic_agent/context/repo_map.py
+  module_kind: proposed
+  basis: mythic_agent/context/compiler.py
+  fix_shape: A token-budgeted repo map built with the context compiler and the code index.
+- feature: lsp-integration
+  slice: M-049
+  part: III
+  state: MISSING
+  owning_module: mythic_agent/integrations/lsp.py
+  module_kind: proposed
+  basis: mythic_agent/tools/review.py
+  fix_shape: A language-server client feeding real diagnostics into the edit-time review loop.
+- feature: structural-search-rewrite
+  slice: M-047
+  part: III
+  state: MISSING
+  owning_module: mythic_agent/tools/structural_search.py
+  module_kind: proposed
+  basis: mythic_agent/tools/code_index.py
+  fix_shape: Structural pattern search and codemods beside the existing code index.
+- feature: hash-anchored-edits
+  slice: M-072
+  part: IV
+  state: MISSING
+  owning_module: mythic_agent/core/edits.py
+  module_kind: existing
+  basis: mythic_agent/core/edits.py
+  fix_shape: Edits anchored to content hashes of the lines they touch, in the edits core.
+- feature: debugger-dap
+  slice: M-054
+  part: III
+  state: MISSING
+  owning_module: mythic_agent/tools/debugger.py
+  module_kind: proposed
+  basis: mythic_agent/tools/review.py
+  fix_shape: A DAP debugger tool (breakpoints, step, inspect) in the tools package.
+- feature: formatter-linter-loop
+  slice: M-052
+  part: III
+  state: PARTIAL
+  owning_module: mythic_agent/tools/review.py
+  module_kind: existing
+  basis: mythic_agent/tools/review.py
+  fix_shape: The project's own formatter/linter runs after every edit and new errors return in-turn.
+- feature: agent-teams-worktrees
+  slice: M-124
+  part: VI
+  state: PARTIAL
+  owning_module: mythic_agent/agents/parallel.py
+  module_kind: existing
+  basis: mythic_agent/core/workspace.py
+  fix_shape: Per-member git worktrees with a merging coordinator, on the parallel-agents engine.
+- feature: long-context
+  slice: M-038
+  part: II
+  state: PARTIAL
+  owning_module: mythic_agent/providers/context_windows.py
+  module_kind: existing
+  basis: mythic_agent/context/compiler.py
+  fix_shape: Map-first loading strategy for 1M-class contexts, driven by the tracked window sizes.
+- feature: background-tasks
+  slice: M-103
+  part: V
+  state: PARTIAL
+  owning_module: mythic_agent/agents/tasks.py
+  module_kind: existing
+  basis: mythic_agent/agents/tasks.py
+  fix_shape: Managed background jobs with live tails on the typed task lifecycle.
+- feature: voice-input
+  slice: M-180
+  part: VIII
+  state: PARTIAL
+  owning_module: mythic_agent/core/audio.py
+  module_kind: existing
+  basis: mythic_agent/core/audio.py
+  fix_shape: Push-to-talk dictation on the shipped audio core (voice itself NOT PROVEN on this VM - no PortAudio).
+- feature: ide-bridges
+  slice: M-239
+  part: X
+  state: PARTIAL
+  owning_module: editors/
+  module_kind: existing
+  basis: editors/
+  fix_shape: An editor-agnostic bridge protocol growing out of the shipped vim/VS Code embryos.
+- feature: method-engine
+  slice: M-201
+  part: IX
+  state: PARTIAL
+  owning_module: mythic_agent/workflow/slice_runner.py
+  module_kind: existing
+  basis: Mythic-Engineering/
+  fix_shape: Mythic Engineering becomes the default loop of the whole app, executed by the workflow engine.
+baseline_failures:
+- test: tests/test_provider_protocol.py::test_empty_model_name_raises_provider_error[AnthropicProvider]
+  verdict: product-defect
+  fixed_in: M-003
+  evidence: >
+    Passing model="" explicitly was treated as 'no model named' via
+    kwargs.pop("model", None) or self.model, silently substituting the
+    default model (claude-sonnet-4-5) and proceeding to build the live SDK
+    client - which in this VM raises a raw ValueError from httpx URL
+    parsing of the proxy no_proxy IPv6 entries, and anywhere else would
+    attempt a real call with the wrong model. Fixed: an explicitly empty
+    model name now raises ProviderError before any client is built, in
+    both anthropic.py and google.py. Test passes.
+- test: tests/test_provider_protocol.py::test_empty_model_name_raises_provider_error[GoogleProvider]
+  verdict: product-defect
+  fixed_in: M-003
+  evidence: >
+    Same defect as the Anthropic parameter (default gemini-2.0-flash
+    silently substituted for an explicitly empty model name); same fix in
+    google.py. Test passes.
+- test: tests/test_context_compiler.py::test_truncate_text_boundary_behavior
+  verdict: product-defect
+  fixed_in: M-003
+  evidence: >
+    truncate_text's marker hard-cut branch sliced the marker by the
+    heuristic chars-per-token estimate without checking the estimator:
+    under the exact tiktoken backend the returned slice "... " costs 2
+    tokens against a budget of 1, breaking the function's own contract.
+    Fixed: the slice now shrinks until the estimator itself agrees it
+    fits (budget.py). Test passes under both backends' pricing.
+- test: tests/test_coverage_assault.py::test_providers_coverage_ratchet
+  verdict: environment
+  fixed_in: M-003
+  evidence: >
+    The ratchet runs coverage in a subprocess; the campaign baseline venv
+    had no coverage package ('No module named coverage' in the report
+    subprocess's stderr), so no report could be parsed. Healed by
+    installing coverage into the untracked .venv-baseline; the ratchet
+    then passed (78 s). No product or test code changed.
+- test: tests/test_policy.py::test_tui_approval_controls_the_shared_executor_and_cancels
+  verdict: test-timing
+  fixed_in: M-003
+  evidence: >
+    The modal does define its Allow button (mythic_agent/ui/components/
+    modals.py compose, id="allow"), but the test polled only ~1 s for the
+    screen class and clicked immediately; under this VM's load the button
+    had not mounted yet (NoMatches on '#allow'), and the orphaned worker
+    thread then waited out the approval timeout. Test hardened to wait
+    for the button itself to mount (all assertions unchanged). Test
+    passes; the same test also passed pre-fix when the machine was quiet,
+    confirming timing, not product behaviour.

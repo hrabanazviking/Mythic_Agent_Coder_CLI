@@ -150,7 +150,13 @@ class AnthropicProvider(Provider):
         system, converted = _anthropic_messages(messages)
         if not converted:
             raise ProviderError("No user/assistant messages to send")
-        model = kwargs.pop("model", None) or self.model
+        named = kwargs.pop("model", None)
+        if named == "":
+            # An explicitly empty model name is bad input, not a request
+            # for the default (M-003 gap audit): reject it before any
+            # client is built, per the provider protocol.
+            raise ProviderError("No model configured for anthropic provider")
+        model = named or self.model
         if not model:
             raise ProviderError("No model configured for anthropic provider")
         client = self._client()

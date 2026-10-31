@@ -5,7 +5,7 @@ module on 2026-10-31T01:06:45Z.
 Regenerate: re-run the scan in `tests/test_public_api.py`
 (`test_public_api_inventory_matches_scan`) or repeat the AST walk.
 
-TOTAL: 1133 public names across the package (modules listed below; `__init__.py`
+TOTAL: 1149 public names across the package (modules listed below; `__init__.py`
 package namespaces are intentionally excluded — see the test).
 
 ## Modules
@@ -420,6 +420,23 @@ mythic_agent.core.feature_census: 17 public names
     load_census
     render_markdown
     validate_census
+mythic_agent.core.gap_audit: 16 public names
+    AUDIT_RESOURCE
+    AUDIT_SCHEMA
+    FAILURE_VERDICTS
+    MODULE_KINDS
+    Any
+    AuditRow
+    Dict
+    FailureFinding
+    GapAudit
+    List
+    Optional
+    Path
+    Tuple
+    load_audit
+    render_markdown
+    validate_audit
 mythic_agent.core.journal: 10 public names
     Any
     CRASH_REPORT_VERSION
