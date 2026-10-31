@@ -40,13 +40,15 @@ providers:
   - claude-3-5-haiku
   capabilities:
     streaming: true
-    tool_calling: false
+    tool_calling: true
     vision: true
     json_mode: false
   quirks: []
   notes: 'Native Messages API via the anthropic SDK (the SDK owns the
-    endpoint). The adapter implements no native tool calling and no JSON
-    mode — both flags are honestly false; M-021 grows this adapter.'
+    endpoint). M-021 grew this adapter to the native v2 dialect: tool
+    calling is implemented natively (tool definitions, tool_use /
+    tool_result blocks), prompt caching via ephemeral cache_control,
+    and extended-thinking controls; JSON mode remains honestly false.'
 - name: deepseek
   title: DeepSeek
   adapter: mythic_agent.providers.deepseek:DeepSeekProvider

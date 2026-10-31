@@ -157,13 +157,16 @@ def test_no_system_blocks_means_none_system(monkeypatch):
 # ----------------------------------------------------------------------
 
 def test_tool_role_is_rejected_not_dropped():
+    # M-021: a tool result WITH a tool_use_id converts natively (see
+    # test_anthropic_v2.py); one WITHOUT an id still cannot be paired
+    # with its call, so it is rejected — never silently dropped.
     with pytest.raises(ProviderError) as exc:
         _anthropic_messages([
             {"role": "user", "content": "hi"},
             {"role": "tool", "content": "tool output"},
         ])
     assert "tool" in str(exc.value).lower()
-    assert "capabilities" in str(exc.value).lower()
+    assert "tool_use_id" in str(exc.value)
 
 
 def test_chat_rejects_tool_transcripts(monkeypatch):
@@ -180,10 +183,11 @@ def test_chat_rejects_tool_transcripts(monkeypatch):
 
 
 def test_tool_calling_capability_is_honest():
+    # M-021 grew the adapter: native tool calling is implemented, so
+    # the honest flag is now True and require_capability passes.
     provider = AnthropicProvider(api_key=FAKE_KEY)
-    assert provider.capabilities()["tool_calling"] is False
-    with pytest.raises(ProviderError):
-        provider.require_capability("tool_calling")
+    assert provider.capabilities()["tool_calling"] is True
+    provider.require_capability("tool_calling")
 
 
 # ----------------------------------------------------------------------
