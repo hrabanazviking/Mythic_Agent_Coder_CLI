@@ -169,7 +169,7 @@ slices:
   title: Part I gate
   summary: census + concordance + audits published in-repo; baseline evidence banked; Volmarr's 500-slice
     file untouched.
-  status: queued
+  status: done
 - id: M-019
   part: 2
   title: Provider registry as data
