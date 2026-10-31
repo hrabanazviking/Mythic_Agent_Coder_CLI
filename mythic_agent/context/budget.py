@@ -85,9 +85,16 @@ def truncate_text(
         return text
     marker_cost = estimator.count(marker)
     if marker_cost >= max_tokens:
-        # Marker alone does not fit: hard-cut the marker itself.
+        # Marker alone does not fit: hard-cut the marker itself.  Start
+        # from the heuristic char estimate, then shrink until the
+        # estimator itself agrees the slice fits — an exact backend
+        # (tiktoken) can price a heuristic-sized slice above budget
+        # (M-003 gap audit: "... " costs 2 tiktoken tokens, not 1).
         approx_chars = max_tokens * _HEURISTIC_CHARS_PER_TOKEN
-        return marker[:approx_chars]
+        cut = marker[:approx_chars]
+        while cut and estimator.count(cut) > max_tokens:
+            cut = cut[:-1]
+        return cut
     # Binary-search the longest prefix whose *full result* (prefix + marker)
     # fits; searching on the concatenated string avoids integer-division
     # rounding surprises between the two parts.

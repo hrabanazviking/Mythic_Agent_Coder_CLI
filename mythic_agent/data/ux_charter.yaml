@@ -1,0 +1,127 @@
+schema: mythic.ux_charter/1
+slice: M-004
+title: Mythic Agent Coder - UX Principles Charter (the kindness rules, as reviewable law)
+chartered: '2026-10-30'
+source_note: >
+  The kindness rules from the All-Features roadmap's slice M-004, written as
+  reviewable law for all later parts. The first five principles are the
+  roadmap's named mandates, each carrying its mandate key exactly once;
+  the remaining four are the standing laws of this house that every later
+  part's interface work already answers to (honesty machinery, error
+  kindness, local sovereignty, calm by default). Every principle carries a
+  review_check phrased as a question: a reviewer of any later slice answers
+  it yes or no from the slice's own evidence, and a "no" blocks banking.
+binding_on: Parts II-XI - every slice that shows, asks, refuses, destroys,
+  waits, or reports.
+principles:
+- id: K-01
+  name: Plain language first
+  mandate: plain-language-first
+  rule: >
+    The first words a user meets - a report, an approval, an error, a
+    stand-up - are plain everyday words that state the thing itself.
+    Technical detail is one keystroke behind, never the headline.
+  why: >
+    The user decides from the first sentence; jargon first buries the
+    decision and taxes every interaction that follows.
+  applies_to: [II, III, IV, V, VI, VII, VIII, IX, X, XI]
+  review_check: Can a non-programmer say back what happened and what is being asked, from the first screen alone?
+- id: K-02
+  name: One-tap approvals with remembered scopes
+  mandate: one-tap-approvals
+  rule: >
+    An approval is one decision on one card, answerable in one tap or one
+    keystroke, with the full context on the card. A remembered approval
+    names its scope exactly - what, where, until when - and is revocable
+    in one step.
+  why: >
+    Approval fatigue trains blind tapping; precise scopes keep consent
+    real instead of ceremonial.
+  applies_to: [V, VIII]
+  review_check: Can the user approve or refuse in one action, and can they state the exact scope a remembered approval covers?
+- id: K-03
+  name: Nothing destructive without a named target
+  mandate: named-target-destruction
+  rule: >
+    No destructive action runs against an unnamed, implied, or guessed
+    target. The target is named on the approval card before the action,
+    and the action touches that target and no other.
+  why: >
+    A named target makes destruction reviewable and reversible in
+    intent; an unnamed one makes it an accident waiting for a typo.
+  applies_to: [II, III, IV, V, VI, VII, VIII, IX, X, XI]
+  review_check: Is the exact target of every destructive action named to the user before it runs?
+- id: K-04
+  name: Every refusal explains itself
+  mandate: explained-refusals
+  rule: >
+    When the app refuses - a policy block, a sandbox denial, a failed
+    precondition - it says what was refused, why, and what would change
+    the answer. A bare "no" is a defect.
+  why: >
+    An explained refusal teaches the boundary; an unexplained one reads
+    as breakage and erodes trust in every other refusal.
+  applies_to: [II, V, VIII, IX]
+  review_check: Does every refusal in this slice state what was refused, why, and what would allow it?
+- id: K-05
+  name: Every long job shows its slices
+  mandate: visible-slices
+  rule: >
+    Work longer than a breath shows its slices - what is queued, what is
+    building, what is verifying, what is banked - and reports counts
+    only as measured. Silence mid-job is reserved for jobs that finish
+    before the user can wonder.
+  why: >
+    Visible slices let the user steer, pause, or trust the work;
+    an opaque spinner hides stalls until they become failures.
+  applies_to: [VI, VIII, IX, XI]
+  review_check: Can the user see, at any moment of a long job, which slice is running and which are done?
+- id: K-06
+  name: Honesty over polish
+  mandate: null
+  rule: >
+    Unknown is shown as unknown and NOT PROVEN is a presentable result.
+    No count, price, status, or capability is displayed that was not
+    measured or verified; a gap is labelled, never papered over.
+  why: >
+    The honesty machinery is this app's spine; one invented number
+    teaches the user to distrust every other number on screen.
+  applies_to: [II, III, IV, V, VI, VII, VIII, IX, X, XI]
+  review_check: Is every displayed fact in this slice measured or verified, with unknowns labelled as unknown?
+- id: K-07
+  name: Every error carries its fix
+  mandate: null
+  rule: >
+    An error states what happened, what it means in plain words, and
+    the most likely fix. No raw stack trace lands on a user
+    unaccompanied; the trace is one keystroke away for those who want it.
+  why: >
+    An error without a next step strands the user at the exact moment
+    they most need a hand.
+  applies_to: [II, VIII, X]
+  review_check: Does every error in this slice name what happened, what it means, and the most likely fix?
+- id: K-08
+  name: Local sovereignty, secrets in Kista
+  mandate: null
+  rule: >
+    No feature requires one vendor, one account, or a network it does
+    not name. Secrets live in Kista and are never written to project
+    files, logs, or chat; the app works for its user, on their machine,
+    under their word.
+  why: >
+    A coder that phones home or leaks a key has failed before its
+    first edit; sovereignty is a feature, not a setting.
+  applies_to: [II, V, VII, X]
+  review_check: Does this slice work without any unnamed vendor or network, and are all secrets held only in Kista?
+- id: K-09
+  name: Calm by default
+  mandate: null
+  rule: >
+    Silence is the default posture. A long job announces its completion
+    once and its failure once, with the one action that matters; nothing
+    nags, repeats, or competes for attention it has not earned.
+  why: >
+    Attention is the user's scarcest resource; an app that spends it
+    carefully is one that gets kept open.
+  applies_to: [VI, VIII]
+  review_check: Does this slice stay silent except for one completion or failure announcement that names the action that matters?

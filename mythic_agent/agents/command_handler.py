@@ -187,6 +187,14 @@ class CommandHandler:
                 self._handle_cost()
             elif cmd == "/review":
                 self._handle_review(args)
+            elif cmd == "/ollama":
+                self._handle_ollama(args)
+            elif cmd == "/local":
+                self._handle_local(args)
+            elif cmd == "/gateway":
+                self._handle_gateway(args)
+            elif cmd == "/model":
+                self._handle_model(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -400,6 +408,314 @@ class CommandHandler:
         except FileNotFoundError:
             output = "[red]Error: 'gh' CLI not found.[/red]"
         publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n[dim]> Create Pull Request[/dim]\n{output.strip()}\n")
+
+    def _handle_ollama(self, args: str):
+        """M-023: /ollama list|pull|show against the local Ollama server.
+
+        The provider comes from the shared registry; every failure is
+        a MythicProviderError whose text already carries its remedy
+        (start the server / pull the model), published verbatim.
+        Pulling downloads onto the machine, so it is gated like the
+        other mutating commands; list/show are read-only.
+        """
+        from ..core.exceptions import MythicProviderError
+        from ..providers.registry import get_provider
+
+        provider = get_provider(
+            "ollama",
+            host=os.environ.get("OLLAMA_HOST", "http://localhost:11434"))
+        sub = (args or "").split()
+        action = sub[0].lower() if sub else "list"
+        try:
+            if action == "list" and len(sub) <= 1:
+                snap = provider.discover()
+                installed, running = snap["installed"], snap["running"]
+                lines = [f"\n[bold cyan]Ollama at {snap['host']}[/bold cyan]"]
+                if installed:
+                    lines.append("Installed models:")
+                    for name in installed:
+                        mark = " [green](running)[/green]" \
+                            if name in running else ""
+                        lines.append(f"  {name}{mark}")
+                    if not running:
+                        lines.append(
+                            "[dim]No model is loaded right now; one "
+                            "loads when you chat with it.[/dim]")
+                else:
+                    lines.append(
+                        "No models installed yet. Pull one with "
+                        "/ollama pull <model>.")
+                text = "\n".join(lines) + "\n"
+            elif action == "pull" and len(sub) == 2:
+                if not self._policy().authorize(
+                        "run_command", {"arguments": sub[1]}):
+                    publish_sync(
+                        "agent_chat_chunk", agent_name="Primary",
+                        text="\nPermission denied for run_command; "
+                             "no operation was performed.\n")
+                    return
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\nPulling {sub[1]} — this can take a while "
+                         "for a large model...\n")
+                result = provider.pull_model(sub[1])
+                text = f"\n[green]Pull of {sub[1]}: " \
+                       f"{result.get('status', 'done')}.[/green]\n"
+            elif action == "show" and len(sub) == 2:
+                provider.ensure_model(sub[1])
+                info = provider.show_model(sub[1])
+                details = info.get("details", {}) or {}
+                summary = " ".join(
+                    p for p in (details.get("family", ""),
+                                details.get("parameter_size", "")) if p)
+                text = f"\n[bold cyan]{sub[1]}[/bold cyan]" + \
+                    (f" — {summary}" if summary else "") + \
+                    f"\nModified: {info.get('modified_at', 'unknown')}\n"
+            else:
+                text = "\n[red]Usage: /ollama [list] | /ollama pull " \
+                       "<model> | /ollama show <model>[/red]\n"
+        except MythicProviderError as e:
+            text = f"\n[red]{e}[/red]\n"
+        publish_sync("agent_chat_chunk", agent_name="Primary", text=text)
+
+    #: M-024: /local provider spellings -> registry names.
+    _LOCAL_PROVIDERS = {
+        "lmstudio": "lmstudio",
+        "lm-studio": "lmstudio",
+        "llama.cpp": "llama.cpp",
+        "llamacpp": "llama.cpp",
+        "llama-cpp": "llama.cpp",
+        "local-openai": "local-openai",
+        "generic": "local-openai",
+        "local": "local-openai",
+    }
+
+    def _handle_local(self, args: str):
+        """M-024: /local — discovery for LM Studio / llama.cpp / any port.
+
+        ``/local`` (or ``/local list``) snapshots every local
+        OpenAI-compatible door; a door that is down renders its own
+        honest error line (which carries its start remedy) and never
+        hides the other doors. ``/local <provider> show <model>``
+        gives one model's presence + detail, or the honest
+        not-present answer with its remedy. Read-only throughout.
+        """
+        from ..core.exceptions import MythicProviderError
+        from ..providers.registry import get_provider
+
+        parts = (args or "").split()
+        if parts and parts[0].lower() in self._LOCAL_PROVIDERS:
+            registry_name = self._LOCAL_PROVIDERS[parts[0].lower()]
+            rest = parts[1:]
+            provider = get_provider(registry_name)
+            try:
+                if not rest or rest[0].lower() == "list" \
+                        and len(rest) <= 1:
+                    snap = provider.discover()
+                    lines = [f"\n[bold cyan]{registry_name} at "
+                             f"{snap['host']}[/bold cyan]"]
+                    served = snap.get("served") or []
+                    if served:
+                        lines.append("Serving: " + ", ".join(served))
+                    else:
+                        lines.append("Serving: nothing right now.")
+                    if snap.get("downloaded") is not None:
+                        downloaded = snap["downloaded"]
+                        lines.append(
+                            "Downloaded: " + (", ".join(downloaded)
+                                              if downloaded else "none"))
+                    if snap.get("loaded"):
+                        lines.append("Loaded: "
+                                     + ", ".join(snap["loaded"]))
+                    if snap.get("model_path"):
+                        lines.append(f"Model file: {snap['model_path']}")
+                    text = "\n".join(lines) + "\n"
+                elif rest[0].lower() == "show" and len(rest) == 2:
+                    provider.ensure_model(rest[1])
+                    show = getattr(provider, "show_model", None)
+                    if show is not None:
+                        info = show(rest[1])
+                        bits = " ".join(
+                            str(info.get(k)) for k in ("type", "state")
+                            if info.get(k))
+                        text = f"\n[bold cyan]{rest[1]}[/bold cyan]" + \
+                            (f" — {bits}" if bits else "") + \
+                            f"\nPresent on {registry_name} at " \
+                            f"{provider.base_url}.\n"
+                    else:
+                        text = f"\n[bold cyan]{rest[1]}[/bold cyan] — " \
+                               f"serving on {registry_name} at " \
+                               f"{provider.base_url}.\n"
+                else:
+                    text = "\n[red]Usage: /local [list] | /local " \
+                           "<lmstudio|llama.cpp|local-openai> show " \
+                           "<model>[/red]\n"
+            except MythicProviderError as e:
+                text = f"\n[red]{e}[/red]\n"
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=text)
+            return
+        if parts and parts[0].lower() != "list":
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text="\n[red]Usage: /local [list] | /local "
+                     "<lmstudio|llama.cpp|local-openai> show "
+                     "<model>[/red]\n")
+            return
+        lines = ["\n[bold cyan]Local runtimes[/bold cyan]"]
+        for registry_name in ("lmstudio", "llama.cpp", "local-openai"):
+            provider = get_provider(registry_name)
+            try:
+                snap = provider.discover()
+                served = snap.get("served") or []
+                lines.append(
+                    f"{registry_name} at {snap['host']}: "
+                    + (", ".join(served) if served
+                       else "serving nothing right now"))
+            except MythicProviderError as e:
+                lines.append(f"{registry_name}: {e}")
+        publish_sync("agent_chat_chunk", agent_name="Primary",
+                     text="\n".join(lines) + "\n")
+
+    #: M-026: how many catalogue rows /gateway list prints before it
+    #: points at search — a gateway catalogue runs to hundreds.
+    _GATEWAY_LIST_LIMIT = 25
+
+    def _gateway_line(self, entry: dict) -> str:
+        """One catalogue row: id, context, modality, prices as reported."""
+        bits = []
+        if entry.get("context_length"):
+            bits.append(f"context {entry['context_length']}")
+        if entry.get("modality"):
+            bits.append(entry["modality"])
+        if entry.get("prompt_price") is not None:
+            bits.append(f"in {entry['prompt_price']}/tok")
+        if entry.get("completion_price") is not None:
+            bits.append(f"out {entry['completion_price']}/tok")
+        suffix = " — " + ", ".join(bits) if bits else ""
+        return f"  {entry['id']}{suffix}"
+
+    def _handle_gateway(self, args: str):
+        """M-026: /gateway — browse the OpenRouter catalogue in-app.
+
+        ``/gateway`` (or ``/gateway list``) prints the first rows of
+        the gateway's live catalogue with its full size;
+        ``/gateway search <text>`` filters it; ``/gateway show
+        <model>`` gives one model's reported facts, or the honest
+        not-in-catalogue answer. The kin gateways (groq, together,
+        fireworks, xai, mistral) are registry citizens whose live
+        catalogues are their own /models doors; this browser reads
+        OpenRouter's public door, which needs no key. Read-only.
+        """
+        from ..core.exceptions import MythicProviderError
+        from ..providers.registry import get_provider
+
+        provider = get_provider("openrouter")
+        parts = (args or "").split()
+        action = parts[0].lower() if parts else "list"
+        try:
+            if action == "list" and len(parts) <= 1:
+                entries = provider.catalogue()
+                lines = [f"\n[bold cyan]OpenRouter catalogue at "
+                         f"{provider.base_url} — {len(entries)} "
+                         "models[/bold cyan]"]
+                for entry in entries[:self._GATEWAY_LIST_LIMIT]:
+                    lines.append(self._gateway_line(entry))
+                if len(entries) > self._GATEWAY_LIST_LIMIT:
+                    lines.append(
+                        f"[dim]… and {len(entries) - self._GATEWAY_LIST_LIMIT} "
+                        "more — narrow it with /gateway search "
+                        "<text>.[/dim]")
+                text = "\n".join(lines) + "\n"
+            elif action == "search" and len(parts) >= 2:
+                query = " ".join(parts[1:])
+                entries = provider.search_catalogue(query)
+                lines = [f"\n[bold cyan]OpenRouter catalogue — "
+                         f"{len(entries)} matching {query!r}[/bold cyan]"]
+                for entry in entries[:self._GATEWAY_LIST_LIMIT]:
+                    lines.append(self._gateway_line(entry))
+                if not entries:
+                    lines.append(
+                        "No model id or name contains that text.")
+                text = "\n".join(lines) + "\n"
+            elif action == "show" and len(parts) == 2:
+                entry = provider.catalogue_entry(parts[1])
+                lines = [f"\n[bold cyan]{entry['id']}[/bold cyan]"]
+                if entry.get("name"):
+                    lines.append(f"Name: {entry['name']}")
+                if entry.get("context_length"):
+                    lines.append(
+                        f"Context: {entry['context_length']} tokens")
+                if entry.get("max_completion_tokens"):
+                    lines.append(
+                        "Max completion: "
+                        f"{entry['max_completion_tokens']} tokens")
+                if entry.get("modality"):
+                    lines.append(f"Modality: {entry['modality']}")
+                if entry.get("prompt_price") is not None:
+                    lines.append(
+                        f"Prompt price: {entry['prompt_price']} per token")
+                if entry.get("completion_price") is not None:
+                    lines.append(
+                        "Completion price: "
+                        f"{entry['completion_price']} per token")
+                text = "\n".join(lines) + "\n"
+            else:
+                text = "\n[red]Usage: /gateway [list] | /gateway " \
+                       "search <text> | /gateway show <model>[/red]\n"
+        except MythicProviderError as e:
+            text = f"\n[red]{e}[/red]\n"
+        publish_sync("agent_chat_chunk", agent_name="Primary", text=text)
+
+    def _handle_model(self, args: str):
+        """M-028: /model — mid-session model/provider switching.
+
+        ``/model`` shows the Primary agent's current selection;
+        ``/model <model> [url]`` switches model (and door) on the
+        live session; ``/model --provider <name> [--model <model>]
+        [--reason <words...>]`` switches provider through the
+        M-019 registry. The agent layer owns the switch itself
+        (between-turns only, journaled as a session event, session /
+        plan / crew preserved); every refusal — unknown provider, a
+        native-dialect door the live session cannot speak, a turn
+        in flight, a failed save — is published verbatim, and a
+        refused switch changes nothing.
+        """
+        from ..core.model_switch import format_switch_record, parse_switch_args
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_switch_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if not any(request.values()):
+            provider = primary.active_provider()
+            label = f" via {provider}" if provider else ""
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]Model:[/bold cyan] "
+                     f"{primary.config.get('model')}{label} "
+                     f"({primary.config.get('base_url')})\n"
+                     "[dim]Switch with /model <model> [url] or "
+                     "/model --provider <name> — the session, its "
+                     "plan and the crew are kept.[/dim]\n")
+            return
+        try:
+            record = primary.switch_model(
+                request["model"], provider=request["provider"],
+                base_url=request["base_url"], reason=request["reason"])
+        except (ValueError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync("agent_chat_chunk", agent_name="Primary",
+                     text=f"\n[green]{format_switch_record(record)}[/green]\n")
 
     def _handle_tutorial(self):
         tutorial_text = """

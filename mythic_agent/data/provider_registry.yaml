@@ -1,0 +1,395 @@
+schema: mythic.provider_registry/1
+registry_slice: M-019
+source_note: 'The provider registry as data (All-Features roadmap slice M-019):
+  every provider the app ships, defined here — endpoint, auth style, model list,
+  capabilities — so a new OpenAI-compatible door is a data entry, not a code
+  change (the M-020 universal adapter consumes entries generically,
+  quirks included).
+  This file is the definition; the runtime resolver remains
+  mythic_agent.providers.registry, and the slice''s tests pin every entry
+  against the live adapter classes (name, default model, key env, endpoint
+  default, live capabilities) so the data and the code cannot drift apart.
+  Native-SDK providers (anthropic, google) record endpoint null: their SDKs
+  own the service address, and no address is invented here. Local providers
+  record the loopback default their adapter ships.'
+extension_rule: 'Adding a provider whose door is OpenAI-compatible means
+  adding one entry here — the M-020 universal adapter consumes the entry generically, quirks included;
+  a wholly new dialect is a new adapter, never a registry edit alone.'
+aliases:
+  claude: anthropic
+  gemini: google
+  gpt: openai
+  llama-cpp: llama.cpp
+  llamacpp: llama.cpp
+  lm-studio: lmstudio
+  local: ollama
+providers:
+- name: aesir
+  title: Project Aesir (Volmarr's own engine)
+  adapter: mythic_agent.providers.aesir:AesirProvider
+  dialect: aesir_native
+  locality: local
+  endpoint: http://127.0.0.1:18434/v1
+  auth_style: api_key_env
+  api_key_env: AESIR_API_KEY
+  default_model: aesir-local
+  models:
+  - aesir-local
+  capabilities:
+    streaming: true
+    tool_calling: false
+    vision: false
+    json_mode: false
+  quirks: []
+  notes: 'Project Aesir''s native authenticated door (loopback 18434, Bearer
+    key from an aesir keygen file — a LOCAL provider that nevertheless
+    authenticates, by Aesir''s own design). M-025: chat via its OpenAI-subset
+    /v1/chat/completions, native generation via /v1/generate, health via
+    /health/ready + /health/live, catalog via /v1/models, residency via the
+    readiness record. Capability limits as Aesir reports them: streaming yes
+    (NDJSON/SSE subsets); general tool calling no (single zero-argument Gemma
+    function only); vision no; general JSON mode no (strict Boolean schema
+    subset only); one resident model at a time and the catalog is not
+    readiness. Its --ollama door (127.0.0.1:11434) is snapshotted by the
+    adapter, not chatted through here. The default model is a placeholder —
+    Aesir serves the one model it was launched with.'
+- name: anthropic
+  title: Anthropic (Claude)
+  adapter: mythic_agent.providers.anthropic:AnthropicProvider
+  dialect: native_sdk
+  locality: remote
+  endpoint: null
+  auth_style: api_key_env
+  api_key_env: ANTHROPIC_API_KEY
+  default_model: claude-sonnet-4-5
+  models:
+  - claude-sonnet-4-5
+  - claude-opus-4-1
+  - claude-3-5-sonnet
+  - claude-3-5-haiku
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: false
+  quirks: []
+  notes: 'Native Messages API via the anthropic SDK (the SDK owns the
+    endpoint). M-021 grew this adapter to the native v2 dialect: tool
+    calling is implemented natively (tool definitions, tool_use /
+    tool_result blocks), prompt caching via ephemeral cache_control,
+    and extended-thinking controls; JSON mode remains honestly false.'
+- name: deepseek
+  title: DeepSeek
+  adapter: mythic_agent.providers.deepseek:DeepSeekProvider
+  dialect: openai_compatible
+  locality: remote
+  endpoint: https://api.deepseek.com/v1
+  auth_style: api_key_env
+  api_key_env: DEEPSEEK_API_KEY
+  default_model: deepseek-chat
+  models:
+  - deepseek-chat
+  - deepseek-reasoner
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  quirks:
+  - reasoning-content-fallback
+  notes: 'OpenAI-compatible preset of the shared adapter with DeepSeek''s
+    endpoint and key env preset.'
+- name: fireworks
+  title: Fireworks (gateway)
+  adapter: mythic_agent.providers.gateways:FireworksProvider
+  dialect: openai_compatible
+  locality: remote
+  endpoint: https://api.fireworks.ai/inference/v1
+  auth_style: api_key_env
+  api_key_env: FIREWORKS_API_KEY
+  default_model: accounts/fireworks/models/llama-v3p3-70b-instruct
+  models:
+  - accounts/fireworks/models/llama-v3p3-70b-instruct
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  quirks: []
+  notes: 'Gateway door (M-026 kin): one key, the vendor''s hosted models.
+    Endpoint probed live 2026-10-31 — HTTP 401 unauthenticated, a
+    live OpenAI-compatible door asking for its key. The static model
+    list is only the default; the live catalogue is its /models
+    door. Per-model capability truth is M-027''s road.'
+- name: google
+  title: Google (Gemini)
+  adapter: mythic_agent.providers.google:GoogleProvider
+  dialect: native_sdk
+  locality: remote
+  endpoint: null
+  auth_style: api_key_env
+  api_key_env: GOOGLE_API_KEY
+  default_model: gemini-2.0-flash
+  models:
+  - gemini-2.0-flash
+  - gemini-2.5-pro
+  - gemini-1.5-pro
+  - gemini-1.5-flash
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  quirks: []
+  notes: 'Native Gemini API via the google-generativeai SDK (the SDK owns
+    the endpoint). M-022 grew this adapter to the native dialect: function
+    calling implemented natively (function_declarations, tool_config,
+    function_call / function_response parts), long-context handling
+    (1M-class windows reported per model, over-window prompts refused —
+    never truncated — and cached_content context caching), and grounding
+    toggles via google_search_retrieval where offered.'
+- name: groq
+  title: Groq (gateway)
+  adapter: mythic_agent.providers.gateways:GroqProvider
+  dialect: openai_compatible
+  locality: remote
+  endpoint: https://api.groq.com/openai/v1
+  auth_style: api_key_env
+  api_key_env: GROQ_API_KEY
+  default_model: llama-3.3-70b-versatile
+  models:
+  - llama-3.3-70b-versatile
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  quirks: []
+  notes: 'Gateway door (M-026 kin): one key, the vendor''s hosted models.
+    Endpoint probed live 2026-10-31 — HTTP 401 unauthenticated, a
+    live OpenAI-compatible door asking for its key. The static model
+    list is only the default; the live catalogue is its /models
+    door. Per-model capability truth is M-027''s road.'
+- name: llama.cpp
+  title: llama.cpp (llama-server)
+  adapter: mythic_agent.providers.llamacpp:LlamaCppProvider
+  dialect: openai_compatible
+  locality: local
+  endpoint: http://localhost:8080/v1
+  auth_style: none
+  api_key_env: null
+  default_model: llama.cpp-local
+  models:
+  - llama.cpp-local
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  quirks: []
+  notes: 'Local llama-server door; performs no auth, so no key env. The
+    model name is a placeholder — the server serves the model it was
+    launched with. M-024: local discovery — served model via
+    /v1/models, native /health + /props, honest not-present answers
+    (restart with `llama-server -m <model>`), /local in the TUI.'
+- name: lmstudio
+  title: LM Studio
+  adapter: mythic_agent.providers.lmstudio:LMStudioProvider
+  dialect: openai_compatible
+  locality: local
+  endpoint: http://localhost:1234/v1
+  auth_style: none
+  api_key_env: null
+  default_model: lmstudio-local
+  models:
+  - lmstudio-local
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  quirks: []
+  notes: 'Local LM Studio door; performs no auth, so no key env. LM Studio
+    names models after the file loaded in it. M-024: local discovery —
+    served via /v1/models plus the native /api/v0 surface (downloaded,
+    loaded state, per-model detail), honest not-present answers,
+    /local in the TUI.'
+- name: local-openai
+  title: Generic local OpenAI-compatible server
+  adapter: mythic_agent.providers.openai_compat:GenericLocalCompatProvider
+  dialect: openai_compatible
+  locality: local
+  endpoint: http://localhost:1234/v1
+  auth_style: none
+  api_key_env: null
+  default_model: local-model
+  models:
+  - local-model
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  quirks: []
+  notes: 'The catch-all local door: any OpenAI-compatible server on a
+    loopback port, endpoint overridable per use. No Authorization header
+    is sent when no key is configured. M-024: the shared local discovery
+    surface (served models, presence, honest absence) lives on this
+    class''s LocalCompatProvider base, and /local lists this door too.'
+- name: mistral
+  title: Mistral (gateway)
+  adapter: mythic_agent.providers.gateways:MistralProvider
+  dialect: openai_compatible
+  locality: remote
+  endpoint: https://api.mistral.ai/v1
+  auth_style: api_key_env
+  api_key_env: MISTRAL_API_KEY
+  default_model: mistral-large-latest
+  models:
+  - mistral-large-latest
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  quirks: []
+  notes: 'Gateway door (M-026 kin): one key, the vendor''s hosted models.
+    Endpoint probed live 2026-10-31 — HTTP 401 unauthenticated, a
+    live OpenAI-compatible door asking for its key. The static model
+    list is only the default; the live catalogue is its /models
+    door. Per-model capability truth is M-027''s road.'
+- name: ollama
+  title: Ollama
+  adapter: mythic_agent.providers.ollama:OllamaProvider
+  dialect: ollama_native
+  locality: local
+  endpoint: http://localhost:11434
+  auth_style: none
+  api_key_env: null
+  default_model: llama3.1
+  models:
+  - llama3.1
+  - llama3.2
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  quirks: []
+  notes: 'Local Ollama door speaking Ollama''s own API (not the compatible
+    shim); needs no key. Listed models are examples — the server reports
+    what is actually installed. M-023: discovery of running models
+    (/api/ps), pull/list/show from the TUI (/ollama), and honest
+    model-not-present answers (/api/show + HTTP-error mapping).'
+- name: openai
+  title: OpenAI
+  adapter: mythic_agent.providers.openai_compat:OpenAICompatProvider
+  dialect: openai_compatible
+  locality: remote
+  endpoint: https://api.openai.com/v1
+  auth_style: api_key_env
+  api_key_env: OPENAI_API_KEY
+  default_model: gpt-5
+  models:
+  - gpt-5
+  - gpt-5-mini
+  - gpt-4o
+  - gpt-4o-mini
+  - gpt-3.5-turbo
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  quirks: []
+  notes: 'The reference OpenAI-compatible door; the shared adapter class
+    itself, with OpenAI''s endpoint and key env.'
+- name: openrouter
+  title: OpenRouter (gateway)
+  adapter: mythic_agent.providers.openrouter:OpenRouterProvider
+  dialect: openai_compatible
+  locality: remote
+  endpoint: https://openrouter.ai/api/v1
+  auth_style: api_key_env
+  api_key_env: OPENROUTER_API_KEY
+  default_model: openrouter/auto
+  models:
+  - openrouter/auto
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  quirks:
+  - app-identification-headers
+  notes: 'Gateway door: one key, many vendors'' models; the default model
+    is OpenRouter''s auto-router. Sends the app-identification headers
+    HTTP-Referer and X-Title. M-026 made its catalogue browsable in-app
+    (/gateway list|search|show reads the public /models door and
+    reports each model as the gateway reports it); per-model
+    capability truth is M-027''s.'
+- name: together
+  title: Together (gateway)
+  adapter: mythic_agent.providers.gateways:TogetherProvider
+  dialect: openai_compatible
+  locality: remote
+  endpoint: https://api.together.xyz/v1
+  auth_style: api_key_env
+  api_key_env: TOGETHER_API_KEY
+  default_model: meta-llama/Llama-3.3-70B-Instruct-Turbo
+  models:
+  - meta-llama/Llama-3.3-70B-Instruct-Turbo
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  quirks: []
+  notes: 'Gateway door (M-026 kin): one key, the vendor''s hosted models.
+    Endpoint probed live 2026-10-31 — HTTP 401 unauthenticated, a
+    live OpenAI-compatible door asking for its key. The static model
+    list is only the default; the live catalogue is its /models
+    door. Per-model capability truth is M-027''s road.'
+- name: vllm
+  title: vLLM
+  adapter: mythic_agent.providers.vllm:VLLMProvider
+  dialect: openai_compatible
+  locality: local
+  endpoint: http://localhost:8000/v1
+  auth_style: none
+  api_key_env: null
+  default_model: vllm-local
+  models:
+  - vllm-local
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  quirks:
+  - placeholder-bearer-auth
+  notes: 'Local vLLM door; no key env by default — a key may be passed
+    explicitly when the server was launched with one. The model name is
+    a placeholder for the model the server was launched with.'
+- name: xai
+  title: xAI (gateway)
+  adapter: mythic_agent.providers.gateways:XAIProvider
+  dialect: openai_compatible
+  locality: remote
+  endpoint: https://api.x.ai/v1
+  auth_style: api_key_env
+  api_key_env: XAI_API_KEY
+  default_model: grok-4
+  models:
+  - grok-4
+  capabilities:
+    streaming: true
+    tool_calling: true
+    vision: true
+    json_mode: true
+  quirks: []
+  notes: 'Gateway door (M-026 kin): one key, the vendor''s hosted models.
+    Endpoint probed live 2026-10-31 — HTTP 401 unauthenticated, a
+    live OpenAI-compatible door asking for its key. The static model
+    list is only the default; the live catalogue is its /models
+    door. Per-model capability truth is M-027''s road.'

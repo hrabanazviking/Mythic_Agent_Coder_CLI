@@ -1,0 +1,498 @@
+schema: mythic.rival_config_study/1
+slice: M-014
+recorded: '2026-10-31'
+scope_note: 'The rivals'' config import study: what the config and instruction files of Claude Code, Codex
+  CLI, OpenCode and Aider look like, behaviourally - file names, locations, scopes, formats, precedence,
+  merge behaviour, key settings and the secrets disguises - recorded clean-room from the rivals'' public
+  documentation as of the recorded date. No rival source code was read and no rival file was copied; only
+  formats and observable behaviour are recorded, which is exactly what an importer needs. This study is
+  the specification for Part X''s rival importers (M-241): every file and key here carries its importer
+  consequence, and every key''s Mythic landing spot names a real setting from the M-009 config catalogue
+  (or ''none'', with the reason, where Mythic has no counterpart). One honest gap: M-241 also names Gemini/Antigravity
+  layouts, which M-014''s roadmap text does not - those layouts are NOT studied here and M-241 must commission
+  that study rather than guess from this one.'
+rivals:
+- id: R-01
+  rival: claude-code
+  name: Claude Code
+  vendor: Anthropic
+  precedence:
+  - managed settings (enterprise policy, delivered by the OS/MDM)
+  - command-line arguments
+  - .claude/settings.local.json (project-local, personal)
+  - .claude/settings.json (project, shared)
+  - ~/.claude/settings.json (user)
+  merge_behaviour: 'Settings fold layer by layer: for scalar and object keys the more specific scope wins,
+    while permission rule arrays (allow/deny/ask) accumulate across scopes instead of replacing. The env
+    object is merged per variable with the more specific scope winning.'
+  importer_directives:
+  - Fold the three settings files in precedence order (local over project over user) per key, unioning
+    the permission arrays; never import managed settings - they are the machine owner's policy, not the
+    user's portable configuration.
+  - 'Copy CLAUDE.md verbatim as a Mythic instruction file: Mythic''s resolver already discovers the CLAUDE.md
+    name, and the @path import lines resolve the same way relative to the file.'
+  - Translate .mcp.json mcpServers entries one for one (stdio command/args/env, or HTTP url), expanding
+    ${VAR} and ${VAR:-default} references from the user's environment at import time and never persisting
+    an expanded value.
+  - Convert .claude/commands/*.md and .claude/agents/*.md by translating their YAML frontmatter; the $ARGUMENTS
+    and $1 spellings in the bodies carry over unchanged.
+  - 'Route any apiKeyHelper command or key material to Kista (Part II, M-032): import the fact that a
+    helper exists, never the secret it returns.'
+- id: R-02
+  rival: codex-cli
+  name: Codex CLI
+  vendor: OpenAI
+  precedence:
+  - command-line arguments and --profile selection
+  - .codex/config.toml (project - loaded only for trusted projects)
+  - ~/.codex/config.toml [profiles.<name>] section when a profile is named
+  - ~/.codex/config.toml (user)
+  - system config and built-in defaults
+  merge_behaviour: TOML tables deep-merge across layers with the nearer scope winning each scalar; a named
+    profile's table folds over the user file's base table. A project file from an untrusted project is
+    ignored entirely, not merged.
+  importer_directives:
+  - Parse config.toml losslessly (TOML, comments are documentation the user wrote - keep them out of values
+    but expect them).
+  - 'Carry the trust gate into the importer: a .codex/config.toml from a project the user has not trusted
+    is offered, never applied silently.'
+  - 'Copy AGENTS.md verbatim as a Mythic instruction file: Mythic''s resolver already discovers the AGENTS.md
+    name; concatenate global, root, and nested files in root-to-leaf order when a tree of them is imported.'
+  - Translate [mcp_servers.<name>] tables (stdio command/args/env or streamable HTTP url) and carry only
+    the NAME of any bearer token environment variable; the token itself resolves through Kista (Part II,
+    M-032).
+  - Map the approval_policy + sandbox_mode pair onto Mythic's permission mode as one combined decision,
+    and say so in the import report - they are two halves of one posture.
+- id: R-03
+  rival: opencode
+  name: OpenCode
+  vendor: OpenCode (open source)
+  precedence:
+  - OPENCODE_CONFIG environment variable (an extra file merged last)
+  - opencode.json / opencode.jsonc in the project (searched upward to the worktree root, nearest wins)
+  - ~/.config/opencode/opencode.json (global)
+  - remote .well-known/opencode defaults served by an organisation
+  merge_behaviour: 'Configs deep-merge, project over global, with the file named by OPENCODE_CONFIG folded
+    in last. The format is JSONC: comments and trailing commas are legal, and a $schema key names the
+    schema the file was written against. Strings may contain {env:VAR} and {file:path} substitutions resolved
+    at load time.'
+  importer_directives:
+  - 'Parse with a JSONC parser, not a strict JSON one: real-world opencode.json files carry comments and
+    trailing commas.'
+  - 'Split the model value on its first slash: the prefix is the provider id, the rest is the model name
+    Mythic records.'
+  - Resolve {env:VAR} references to the variable NAME and {file:path} references to a Kista reference
+    (Part II, M-032); never bake a substituted value into the imported config.
+  - Copy AGENTS.md verbatim (Mythic's resolver already discovers the name) and convert every path or glob
+    in the instructions array into an instruction file placed where Mythic discovers instruction files.
+  - Convert .opencode/command/*.md and .opencode/agent/*.md by frontmatter translation, like the Claude
+    Code files - the body spellings ($ARGUMENTS, !shell, @file) are shared.
+- id: R-04
+  rival: aider
+  name: Aider
+  vendor: Aider (open source)
+  precedence:
+  - command-line arguments
+  - AIDER_* environment variables (one twin per config key)
+  - .aider.conf.yml in the current directory
+  - .aider.conf.yml at the git repository root
+  - ~/.aider.conf.yml in the home directory
+  - built-in defaults
+  merge_behaviour: Every config key is a command-line flag name written in YAML kebab-case, and every
+    key also exists as an AIDER_* environment variable that beats the file. All .aider.conf.yml files
+    found (home, repo root, current directory) load, with the file nearest the work winning per key; command-line
+    arguments beat everything.
+  importer_directives:
+  - 'Translate keys, do not copy them: kebab-case YAML keys are flag names, so the importer is a flag
+    translator (model carries over; edit-format, auto-commits and friends have no Mythic counterpart and
+    are reported as dropped, never silently kept).'
+  - 'Convert the read list into instruction files: each markdown file named in read: is copied to where
+    Mythic discovers instruction files, since Aider has no magic filename to discover.'
+  - 'Treat api-key values and .env contents as secrets: record only which provider each key belongs to
+    and route the value through Kista (Part II, M-032); never write a literal key into Mythic''s config.'
+  - Read .aider.model.settings.yml as per-model overrides keyed by exact model name, and fold any entry
+    for the imported model into that model's Mythic settings.
+files:
+- id: F-01
+  rival: claude-code
+  name: ~/.claude/settings.json
+  scope: user
+  format: json
+  role: settings
+  behaviour: 'The user settings file: strict JSON (no comments). Holds model, env, permissions, hooks
+    and UI preferences for everything the user runs.'
+- id: F-02
+  rival: claude-code
+  name: .claude/settings.json
+  scope: project
+  format: json
+  role: settings
+  behaviour: 'The shared project settings file, committed with the repo so a whole team inherits it: same
+    keys as the user file, folded over it.'
+- id: F-03
+  rival: claude-code
+  name: .claude/settings.local.json
+  scope: local
+  format: json
+  role: settings
+  behaviour: Personal project overrides. The tool itself adds this name to .gitignore; it beats the shared
+    project file and is never meant to be committed.
+- id: F-04
+  rival: claude-code
+  name: managed settings (OS/MDM-delivered)
+  scope: managed
+  format: json
+  role: settings
+  behaviour: Enterprise policy delivered outside the repo (system paths, macOS plist, Windows registry).
+    Highest precedence; user and project files cannot override it.
+- id: F-05
+  rival: claude-code
+  name: CLAUDE.md
+  scope: project
+  format: markdown
+  role: instructions
+  behaviour: 'The instruction file: plain markdown, discovered at the project root (or ./.claude/CLAUDE.md),
+    in every parent directory up to the root, and at ~/.claude/CLAUDE.md for the user scope. Files concatenate
+    root-first; @path lines import other files; CLAUDE.local.md rides alongside as the personal, uncommitted
+    layer.'
+- id: F-06
+  rival: claude-code
+  name: .mcp.json
+  scope: project
+  format: json
+  role: mcp
+  behaviour: 'Project MCP servers under a mcpServers map: each entry is a stdio command/args/env or an
+    HTTP url/type. Values support ${VAR} and ${VAR:-default} expansion from the environment at load time.'
+- id: F-07
+  rival: claude-code
+  name: .claude/commands/*.md
+  scope: project
+  format: markdown-frontmatter
+  role: commands
+  behaviour: 'Slash commands as markdown files (user twins live in ~/.claude/commands/): the filename
+    is the command name, subdirectories namespace it, YAML frontmatter carries description, allowed-tools,
+    argument-hint and model, and the body is a prompt template using $ARGUMENTS / $1 placeholders, !shell
+    lines and @file references.'
+- id: F-08
+  rival: claude-code
+  name: .claude/agents/*.md
+  scope: project
+  format: markdown-frontmatter
+  role: agents
+  behaviour: 'Subagent definitions as markdown files (user twins in ~/.claude/agents/): frontmatter carries
+    name, description, tools and model; the body is the agent''s system prompt.'
+- id: F-09
+  rival: claude-code
+  name: ~/.claude.json
+  scope: user
+  format: json
+  role: state
+  behaviour: 'The legacy global file: a mixture of application state (per-project history and caches)
+    and the user-scope MCP server definitions. Behaviourally it is state that happens to hold one config
+    surface, not a settings file.'
+- id: F-10
+  rival: codex-cli
+  name: ~/.codex/config.toml
+  scope: user
+  format: toml
+  role: settings
+  behaviour: 'The user config: TOML. Holds model, model_provider, approval_policy, sandbox_mode, [model_providers]
+    endpoints, [mcp_servers] tables and named [profiles.<name>] tables folded in by --profile.'
+- id: F-11
+  rival: codex-cli
+  name: .codex/config.toml
+  scope: project
+  format: toml
+  role: settings
+  behaviour: Project config with the same TOML shape, discovered from the project root - but loaded only
+    when the user has marked the project trusted; untrusted projects are run on user config alone.
+- id: F-12
+  rival: codex-cli
+  name: AGENTS.md
+  scope: project
+  format: markdown
+  role: instructions
+  behaviour: 'The instruction file: a global ~/.codex/AGENTS.md first, then one per directory from the
+    project root down to the working directory, concatenated in that order so nearer files speak last.
+    Fallback filenames are configurable, and the combined instruction text is capped (project_doc_max_bytes,
+    32 KiB by default) - files past the cap are dropped, not truncated mid-file.'
+- id: F-13
+  rival: opencode
+  name: ~/.config/opencode/opencode.json
+  scope: user
+  format: jsonc
+  role: settings
+  behaviour: 'The global config: JSONC (comments and trailing commas legal), usually carrying a $schema
+    key. Holds provider/model selection, agents, permissions, mcp servers, keybinds, theme and plugins.'
+- id: F-14
+  rival: opencode
+  name: opencode.json / opencode.jsonc
+  scope: project
+  format: jsonc
+  role: settings
+  behaviour: The project config, searched from the working directory upward to the worktree root; the
+    nearest file wins and deep-merges over the global one. An OPENCODE_CONFIG environment variable can
+    name one more file merged after both.
+- id: F-15
+  rival: opencode
+  name: AGENTS.md
+  scope: project
+  format: markdown
+  role: instructions
+  behaviour: 'The instruction file: the project''s AGENTS.md plus the global ~/.config/opencode/AGENTS.md.
+    The config''s instructions array can add further files, globs and even URLs, folded in with the discovered
+    ones.'
+- id: F-16
+  rival: opencode
+  name: .opencode/command/*.md
+  scope: project
+  format: markdown-frontmatter
+  role: commands
+  behaviour: 'Custom commands as markdown files (global twins in the config directory): frontmatter carries
+    description, agent, model and subtask; bodies use $ARGUMENTS / $1 placeholders, !shell lines and @file
+    references - the same spellings Claude Code uses.'
+- id: F-17
+  rival: opencode
+  name: .opencode/agent/*.md
+  scope: project
+  format: markdown-frontmatter
+  role: agents
+  behaviour: 'Agent definitions as markdown files: frontmatter carries description, mode (primary, subagent
+    or all), model, temperature and per-tool permissions; the body is the agent''s prompt.'
+- id: F-18
+  rival: aider
+  name: ~/.aider.conf.yml
+  scope: user
+  format: yaml
+  role: settings
+  behaviour: 'The home config: YAML whose keys are the CLI flag names in kebab-case (model, weak-model,
+    edit-format, auto-commits, read, api-key). The outermost layer; repo and directory files fold over
+    it.'
+- id: F-19
+  rival: aider
+  name: .aider.conf.yml
+  scope: project
+  format: yaml
+  role: settings
+  behaviour: 'The same YAML file at the git repository root and again in the current directory when they
+    differ: all found files load, the nearest winning per key. A --config flag can name a file explicitly
+    instead.'
+- id: F-20
+  rival: aider
+  name: .aider.model.settings.yml
+  scope: project
+  format: yaml
+  role: settings
+  behaviour: 'Per-model settings: a YAML list of entries matched by exact model name, carrying per-model
+    overrides such as edit_format and weak_model. Searched in the same places as the main config.'
+- id: F-21
+  rival: aider
+  name: CONVENTIONS.md (via the read list)
+  scope: project
+  format: markdown
+  role: instructions
+  behaviour: 'Aider has no magic instruction filename: instruction content arrives through the read list
+    - files named by the read: config key or the --read flag are loaded read-only into every session.
+    The community convention is a CONVENTIONS.md named in that list, which is why the name means ''instructions''
+    in Aider projects without the tool ever discovering it by name.'
+- id: F-22
+  rival: aider
+  name: .aiderignore
+  scope: project
+  format: plaintext
+  role: ignore
+  behaviour: Ignore patterns, one per line in .gitignore style, excluding files from Aider's repository
+    map and file watching. Behavioural config, though not a settings file.
+- id: F-23
+  rival: aider
+  name: .env (--env-file)
+  scope: project
+  format: dotenv
+  role: settings
+  behaviour: KEY=VALUE lines loaded into the process environment before the config is read; this is where
+    provider API keys commonly live in Aider setups, alongside AIDER_* variables that mirror config keys.
+key_mappings:
+- id: K-01
+  rival: claude-code
+  key: model
+  mythic_setting: model
+  behaviour: Names the model for the session; the importer carries it over directly.
+- id: K-02
+  rival: claude-code
+  key: env
+  mythic_setting: none
+  behaviour: 'An object of environment variables set for every session. Mythic has no per-config env object:
+    the importer translates only variables it recognises (provider keys route to Kista) and reports the
+    rest.'
+- id: K-03
+  rival: claude-code
+  key: permissions.allow / deny / ask
+  mythic_setting: permission_mode
+  behaviour: 'Per-tool pattern lists (for example Bash(npm run test:*) or Read(~/secrets/**)) that accumulate
+    across scopes. Mythic''s catalogue holds a single permission mode plus an auto-accept flag, so the
+    mapping is coarse: any deny rule forces the cautious end, and the lists themselves are reported as
+    untranslated until a per-tool surface exists.'
+- id: K-04
+  rival: claude-code
+  key: hooks
+  mythic_setting: none
+  behaviour: Shell commands fired on tool/session events (PreToolUse, PostToolUse, Stop and kin) with
+    matchers. Mythic's catalogue has no hook setting; the importer records the hooks as unimplemented
+    rather than dropping them silently.
+- id: K-05
+  rival: claude-code
+  key: apiKeyHelper
+  mythic_setting: none
+  behaviour: A shell command whose stdout becomes the API key. Secrets belong in Kista, so the importer
+    imports the fact of the helper and routes custody to Kista (M-032); it never runs or copies the helper.
+- id: K-06
+  rival: claude-code
+  key: statusLine / outputStyle
+  mythic_setting: none
+  behaviour: Presentation preferences. The Design Lawbook governs Mythic's TUI, so these are reported
+    and dropped, not mapped.
+- id: K-07
+  rival: codex-cli
+  key: model
+  mythic_setting: model
+  behaviour: Names the model; carries over directly.
+- id: K-08
+  rival: codex-cli
+  key: model_provider + [model_providers.<id>] base_url
+  mythic_setting: base_url
+  behaviour: The provider id selects an endpoint table whose base_url is the wire address; the importer
+    maps the selected table's base_url onto Mythic's base_url and records the provider id.
+- id: K-09
+  rival: codex-cli
+  key: approval_policy
+  mythic_setting: permission_mode
+  behaviour: 'One of untrusted / on-failure / on-request / never: when the tool must stop and ask. Maps
+    coarsely onto Mythic''s permission mode together with sandbox_mode (one combined decision).'
+- id: K-10
+  rival: codex-cli
+  key: sandbox_mode
+  mythic_setting: none
+  behaviour: 'One of read-only / workspace-write / danger-full-access: the filesystem posture. Mythic''s
+    sandbox is native (Part V) and its catalogue names no sandbox setting, so the value folds into the
+    permission-mode decision and is reported.'
+- id: K-11
+  rival: codex-cli
+  key: mcp_servers
+  mythic_setting: none
+  behaviour: A TOML table of MCP servers (stdio command/args/env or HTTP url with a bearer-token env var
+    name). Mythic keeps MCP definitions outside the settings catalogue; the importer translates the table
+    into Mythic's MCP store, carrying env var names only.
+- id: K-12
+  rival: codex-cli
+  key: project_doc_max_bytes
+  mythic_setting: none
+  behaviour: The byte cap on combined AGENTS.md instruction text (32 KiB default). Mythic's resolver has
+    its own caps; the importer reports a smaller rival cap so imported trees are not silently larger than
+    the user configured.
+- id: K-13
+  rival: opencode
+  key: model
+  mythic_setting: model
+  behaviour: 'A single ''provider/model'' string. The importer splits it: the model half lands in Mythic''s
+    model setting and the provider half selects the provider entry.'
+- id: K-14
+  rival: opencode
+  key: provider.<id>.options.baseURL
+  mythic_setting: base_url
+  behaviour: Per-provider endpoint override inside the provider table; maps onto Mythic's base_url for
+    the selected provider.
+- id: K-15
+  rival: opencode
+  key: permission
+  mythic_setting: permission_mode
+  behaviour: Per-capability posture (edit / bash / webfetch, each allow, ask or deny). Maps coarsely onto
+    Mythic's permission mode; the per-capability split is reported as untranslated.
+- id: K-16
+  rival: opencode
+  key: mcp
+  mythic_setting: none
+  behaviour: 'MCP servers in one map: local entries carry a command array, remote entries a url, both
+    with an enabled flag. Translated into Mythic''s MCP store by the importer; the enabled flag carries
+    over as the server''s initial state.'
+- id: K-17
+  rival: opencode
+  key: agent.<name>
+  mythic_setting: sub_agents
+  behaviour: Named agent definitions (mode, prompt, model, tools) in the config or as .opencode/agent
+    files. Mythic's catalogue holds a runtime sub_agents section; the importer folds definitions there
+    and reports any mode it cannot express.
+- id: K-18
+  rival: opencode
+  key: keybinds / theme
+  mythic_setting: none
+  behaviour: Presentation preferences governed in Mythic by the Design Lawbook; reported and dropped.
+- id: K-19
+  rival: aider
+  key: model
+  mythic_setting: model
+  behaviour: Names the main model; carries over directly. weak-model and editor-model name the lesser
+    models Aider consults and are recorded in the import report.
+- id: K-20
+  rival: aider
+  key: api-key
+  mythic_setting: api_keys
+  behaviour: Keys written as provider=KEY pairs (or bare keys) in the YAML. The importer maps the provider
+    association onto Mythic's api_keys shape but routes every literal value through Kista (M-032) - the
+    value itself never lands in Mythic's config file.
+- id: K-21
+  rival: aider
+  key: read
+  mythic_setting: none
+  behaviour: 'The list of files loaded read-only into every session - Aider''s instruction road. No Mythic
+    setting names it: the importer converts the listed files into discovered instruction files instead.'
+- id: K-22
+  rival: aider
+  key: auto-commits / dirty-commits
+  mythic_setting: none
+  behaviour: Git automation posture (commit after each change; commit dirty files first). Mythic's banking
+    is explicit per slice, so these are reported as dropped, never mapped onto a Mythic switch.
+- id: K-23
+  rival: aider
+  key: edit-format
+  mythic_setting: none
+  behaviour: The editing dialect (whole, diff, udiff, editor-diff and kin). Mythic's edit machinery is
+    its own; the importer reports the value so the user knows the habit that will not carry.
+- id: K-24
+  rival: aider
+  key: env-file
+  mythic_setting: none
+  behaviour: Names the dotenv file to load. The importer reads it only to learn which provider keys exist
+    and routes them to Kista; the path itself has no Mythic counterpart.
+findings:
+- id: G-01
+  finding: Every studied rival separates user scope from project scope, and every one lets the nearer
+    scope win per key while folding the layers together.
+  importer_implication: M-241's importers fold layers in precedence order; importing only the single nearest
+    file would silently lose the user's outer layers.
+- id: G-02
+  finding: Instruction files are plain markdown everywhere. Three of the four rivals use a magic filename
+    (CLAUDE.md for Claude Code, AGENTS.md for both Codex and OpenCode); Aider is the exception, loading
+    instructions through an explicit read list.
+  importer_implication: Mythic's resolver already discovers CLAUDE.md and AGENTS.md by name, so three
+    rivals' instructions import as file copies; Aider's read list converts into placed instruction files.
+- id: G-03
+  finding: MCP is configured in three dialects (JSON mcpServers, TOML mcp_servers, JSON mcp) over the
+    same two transports - a stdio command or an HTTP URL.
+  importer_implication: One importer core with three small parsers covers every MCP import; the transport
+    shapes never change, only the spelling.
+- id: G-04
+  finding: 'Secrets appear in rival configs in four disguises: literal keys (Aider api-key), environment
+    variable names (Codex bearer tokens), helper commands (Claude Code apiKeyHelper), and load-time substitutions
+    (OpenCode {env:}/{file:}, Claude Code ${VAR}).'
+  importer_implication: The importer carries names, associations and references only; every value routes
+    to Kista (M-032) and no imported config ever contains a secret.
+- id: G-05
+  finding: Slash commands and subagents are markdown files with YAML frontmatter in both Claude Code and
+    OpenCode, with the same body spellings ($ARGUMENTS, $1, !shell lines, @file references).
+  importer_implication: Command and agent import is a file copy plus a frontmatter translation; one converter
+    serves both rivals.
+- id: G-06
+  finding: 'Aider is the structural outlier: kebab-case YAML keys that are literally its CLI flag names,
+    an AIDER_* environment twin for every key, and no magic instruction filename.'
+  importer_implication: Aider's importer is a flag translator with an explicit dropped-keys report, not
+    a file mover; the report is part of the import, so nothing vanishes silently.
