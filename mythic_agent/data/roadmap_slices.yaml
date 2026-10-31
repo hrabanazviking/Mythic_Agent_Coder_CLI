@@ -256,7 +256,7 @@ slices:
   title: Subscription doors study
   summary: OAuth-style sign-ins some rivals use (ChatGPT/Claude subscriptions) — studied behaviourally;
     built only where the provider's terms allow, else recorded NOT OFFERED with the reason.
-  status: queued
+  status: done
 - id: M-034
   part: 2
   title: Streaming discipline
