@@ -124,3 +124,7 @@ per-slice commits banked locally; pushes only at Volmarr's word ·
 every discovered bug fixed in scope or commissioned on the spot.
 
 *State as of the campaign opening, 2026-10-30 ~21:05 EDT.*
+*Post-bank verification (same night): after the M-002 + opening
+commits, the doc/ownership/public-api subset re-ran — 63 passed,
+3 failed, the failures being exactly the three already-classified
+environment cases above. The opening commits broke nothing.*
