@@ -1,0 +1,215 @@
+schema: mythic.arcanum_review/1
+slice: M-011
+reviewed: '2026-10-31'
+file: arcanum/arcanum.py
+file_lines: 1930
+file_bytes: 118290
+file_sha256: 068e7964d490f19157cbc4de680d94df5a1a60b5ae90aa417373cf01007755b5
+scope_note: 'The arcanum review: the 116 KB standalone Golden Dawn tarot TUI at arcanum/arcanum.py mapped section by section — what each section owns, what it duplicates in the mythic_agent package, and the verdict for Parts III, VI, and VII. ARCHITECTURE.md already names arcanum/ an adjacent project, not part of the core turn pipeline; this review proves that judgement section by section and records the three defects the review itself proved, all fixed in-slice.'
+overall_verdict: 'LEAVE arcanum/ as a standalone adjacent project: Parts III, VI, and VII absorb nothing — it holds no code-intelligence surface (Part III), no agents or delegation (Part VI), and no retrievable memory (Part VII). The two real duplication risks are recorded as findings with their absorbing parts named (config/key custody -> Kista via Part II M-032; the AI reading -> the package OpenRouterProvider via Part II), so a future integration has its roads marked without this review moving any code.'
+sections:
+- id: A-01
+  name: preamble-and-theme
+  kind: rendering
+  lines: [1, 78]
+  anchor: 'ARCANUM_THEME'
+  owns: 'The module docstring, the rich import guard, and the ARCANUM_THEME Rich theme plus the shared Console every screen renders through.'
+  duplicates: 'Presentation-only kinship with mythic_agent/ui/themes.py (the package''s Textual theme system); no shared code — a second, independent theme for a second, independent TUI toolkit (rich vs textual).'
+  verdict_part_iii: leave
+  verdict_part_vi: leave
+  verdict_part_vii: leave
+  disposition: 'leave — the adjacent app''s own face; the package TUI keeps its own theme system.'
+- id: A-02
+  name: correspondence-data
+  kind: data
+  lines: [79, 144]
+  anchor: 'ELEMENT_HARMONY'
+  owns: 'ELEMENTS (suit-to-element) and ELEMENT_HARMONY (all 16 ordered element-pair dignities) — the Golden Dawn correspondence tables the dignities engine reads.'
+  duplicates: 'Nothing in the package: no tarot or correspondence data exists outside arcanum/.'
+  verdict_part_iii: leave
+  verdict_part_vi: leave
+  verdict_part_vii: leave
+  disposition: 'leave — domain content, not code intelligence; Part III''s symbol graph is about user code, not fixed correspondence tables.'
+- id: A-03
+  name: major-arcana-data
+  kind: data
+  lines: [145, 393]
+  anchor: 'MAJOR_ARCANA'
+  owns: 'MAJOR_ARCANA: the 22 Major Arcana with Book T titles, Hebrew letters, attributions, upright/reversed meanings, keywords, and esoteric notes.'
+  duplicates: 'Nothing in the package.'
+  verdict_part_iii: leave
+  verdict_part_vi: leave
+  verdict_part_vii: leave
+  disposition: 'leave — domain content owned by arcanum alone.'
+- id: A-04
+  name: minor-and-court-data
+  kind: data
+  lines: [394, 777]
+  anchor: 'COURT_CARDS'
+  owns: 'MINOR_ARCANA (40 pip cards with Book T titles and planetary/sign attributions) and COURT_CARDS (16 court cards) in the same record shape as the majors.'
+  duplicates: 'Nothing in the package.'
+  verdict_part_iii: leave
+  verdict_part_vi: leave
+  verdict_part_vii: leave
+  disposition: 'leave — domain content owned by arcanum alone.'
+- id: A-05
+  name: spread-definitions
+  kind: data
+  lines: [778, 910]
+  anchor: 'SPREADS'
+  owns: 'SPREADS: 8 spreads (celtic_cross, three_card, tree_of_life, planetary, opening_key, single_card, relationship, year_ahead), each with card count, named positions with meanings, and a layout tag.'
+  duplicates: 'Nothing in the package. The layout tag is data the reading flow only partly honours: only celtic_cross has a layout renderer (see defect D-02).'
+  verdict_part_iii: leave
+  verdict_part_vi: leave
+  verdict_part_vii: leave
+  disposition: 'leave — domain content; the spread/position shape is the closest thing in the file to a plan, but it is a fixed menu, not Part IX campaign data.'
+- id: A-06
+  name: card-symbols
+  kind: data
+  lines: [911, 937]
+  anchor: 'SUIT_SYMBOLS'
+  owns: 'SUIT_SYMBOLS / SUIT_DISPLAY / MAJOR_SYMBOL: the glyphs the rendering engine stamps on cards.'
+  duplicates: 'Nothing in the package.'
+  verdict_part_iii: leave
+  verdict_part_vi: leave
+  verdict_part_vii: leave
+  disposition: 'leave — presentation data for arcanum''s own renderer.'
+- id: A-07
+  name: configuration
+  kind: config
+  lines: [938, 956]
+  anchor: 'load_config'
+  owns: 'load_config/save_config for ~/.arcanum/config.json (keys: openrouter_api_key, openrouter_model, reversal_pct), plus CONFIG_DIR/CONFIG_FILE, which also root the readings archive.'
+  duplicates: 'Duplicates mythic_agent/core/config_manager.py in miniature: its own JSON load/save with silent {} on corrupt data, no schema, no redaction — and it stores the OpenRouter API key in plaintext, against the campaign law that secrets live in Kista.'
+  verdict_part_iii: leave
+  verdict_part_vi: leave
+  verdict_part_vii: leave
+  disposition: 'leave in place — arcanum is a standalone adjacent app with its own home directory; recorded as finding F-01: if arcanum is ever folded into the package, its key custody must move to Kista (Part II, M-032) and its config onto config_manager, never the reverse.'
+- id: A-08
+  name: tarot-deck-classes
+  kind: domain
+  lines: [957, 1080]
+  anchor: 'TarotDeck'
+  owns: 'TarotCard (classification, suit/element derivation, orientation, dignity label, attribution/title/meaning properties) and TarotDeck (builds the 78-card deck, shuffle, draw with reversal roll, reset).'
+  duplicates: 'Nothing in the package: no domain model like it exists there.'
+  verdict_part_iii: leave
+  verdict_part_vi: leave
+  verdict_part_vii: leave
+  disposition: 'leave — the domain heart of the app; defect D-03 (the reversal roll ignored the reversal_pct setting) was fixed here in-slice.'
+- id: A-09
+  name: dignities-engine
+  kind: engine
+  lines: [1081, 1151]
+  anchor: 'apply_dignities'
+  owns: 'check_dignity, _major_element, and apply_dignities: the elemental-dignities rules engine that grades each drawn card against its neighbours.'
+  duplicates: 'Nothing in the package: the package has no rules engine of this kind; its nearest kin is policy evaluation, which shares no code or concepts beyond ''a table plus a lookup''.'
+  verdict_part_iii: leave
+  verdict_part_vi: leave
+  verdict_part_vii: leave
+  disposition: 'leave — pure domain logic with no package counterpart to absorb it into.'
+- id: A-10
+  name: rendering-engine
+  kind: rendering
+  lines: [1152, 1376]
+  anchor: 'ai_reading'
+  owns: 'suit_color/element_color, render_card, render_card_mini, render_celtic_cross_layout, and ai_reading — the Rich rendering of cards/layouts and the direct OpenRouter chat-completions call that narrates a reading.'
+  duplicates: 'render_card/render_card_mini parallel the package''s Textual rendering in purpose only. ai_reading duplicates mythic_agent/providers/openrouter.py: a raw requests.post with a hand-built prompt, its own key handling, no retry/backoff honesty, and no usage accounting.'
+  verdict_part_iii: leave
+  verdict_part_vi: leave
+  verdict_part_vii: leave
+  disposition: 'leave — but recorded as finding F-02: if the AI reading is ever absorbed, it must go through the package''s OpenRouterProvider (Part II), never by copying ai_reading; defects D-01 and D-02 were fixed in this section in-slice.'
+- id: A-11
+  name: tui-interface
+  kind: tui
+  lines: [1377, 1465]
+  anchor: 'show_settings'
+  owns: 'clear/pause, the banner, the main/spread/deck-browse menus, and show_settings — the numbered-menu shell every flow hangs from.'
+  duplicates: 'Purpose-parallel to mythic_agent/ui/main_app.py (the package''s Textual app); a different toolkit (rich Prompt/Confirm menus vs Textual screens) with no shared code.'
+  verdict_part_iii: leave
+  verdict_part_vi: leave
+  verdict_part_vii: leave
+  disposition: 'leave — an adjacent app''s own shell; Part VIII''s TUI work is the package''s face, not this one.'
+- id: A-12
+  name: reading-flow
+  kind: flow
+  lines: [1466, 1663]
+  anchor: 'save_reading'
+  owns: 'do_reading (question, shuffle theatre, draw, dignities, per-card display, elemental summary, the optional AI reading, the save prompt) and save_reading (one unversioned JSON file per reading under ~/.arcanum/readings/).'
+  duplicates: 'save_reading duplicates the package''s persistence pattern in miniature (compare mythic_agent/core/sessions.py and core/journal.py): its own file-per-record JSON archive with no version field, no checksum, and no reader in the app — saved readings are write-only today.'
+  verdict_part_iii: leave
+  verdict_part_vi: leave
+  verdict_part_vii: leave
+  disposition: 'leave — the readings archive is arcanum''s own; Part VII absorbs nothing: it is a flat write-only archive, not memory the coder retrieves. Recorded as finding F-03 (no reader exists) for any future arcanum work, not as a Part VII slice.'
+- id: A-13
+  name: deck-browser
+  kind: tui
+  lines: [1664, 1719]
+  anchor: 'browse_major'
+  owns: 'browse_major/browse_suit/browse_random: read-only tours of the deck built on render_card_mini.'
+  duplicates: 'Nothing in the package.'
+  verdict_part_iii: leave
+  verdict_part_vi: leave
+  verdict_part_vii: leave
+  disposition: 'leave — arcanum-only browsing over its own data.'
+- id: A-14
+  name: dignities-info
+  kind: tui
+  lines: [1720, 1795]
+  anchor: 'show_dignities_info'
+  owns: 'show_dignities_info: a static explanatory screen for the elemental-dignities system.'
+  duplicates: 'Nothing in the package.'
+  verdict_part_iii: leave
+  verdict_part_vi: leave
+  verdict_part_vii: leave
+  disposition: 'leave — in-app documentation for arcanum''s own engine.'
+- id: A-15
+  name: spread-library
+  kind: tui
+  lines: [1796, 1816]
+  anchor: 'show_spread_library'
+  owns: 'show_spread_library: a static catalogue screen listing SPREADS with counts and descriptions.'
+  duplicates: 'Nothing in the package.'
+  verdict_part_iii: leave
+  verdict_part_vi: leave
+  verdict_part_vii: leave
+  disposition: 'leave — renders A-05''s data; no separate logic to absorb.'
+- id: A-16
+  name: main-loop
+  kind: entry
+  lines: [1817, 1930]
+  anchor: 'def main'
+  owns: 'main(): the menu dispatch loop (readings, spread library, deck browser, dignities info, settings incl. key/model/reversal editing) with a catch-all exception handler, and the __main__ guard.'
+  duplicates: 'Purpose-parallel to mythic_agent/cli.py + core/engine.py (entry + dispatch + crash handling); the catch-all handler is weaker than the package''s discipline — it swallowed defect D-02''s NameError as a generic ''Error:'' line for as long as the bug lived.'
+  verdict_part_iii: leave
+  verdict_part_vi: leave
+  verdict_part_vii: leave
+  disposition: 'leave — the adjacent app''s entry point; the package''s entry points are untouched by this review.'
+defects:
+- id: D-01
+  name: 'arcanum.py did not compile: a lost return and a lost def line'
+  section: 'rendering-engine (A-10)'
+  evidence: 'py_compile failed at line 1259: commit fd6fd7b (an agent content replacement) dropped 11 lines — render_card_mini''s return statement and the ''def ai_reading'' line — leaving a bare parameter list where the function definition belonged. The app could not start at all.'
+  status: fixed-in-slice
+  fix: 'FIXED in-slice (M-011): the 11 lines were restored byte-exactly from the last compiling revision 86bd5aa (verified: after restoration the file was byte-identical to 86bd5aa before the D-02/D-03 repairs), and a compile gate now lives in tests/test_arcanum_review.py.'
+- id: D-02
+  name: 'render_celtic_cross_layout was called but never defined'
+  section: 'reading-flow (A-12) calling rendering-engine (A-10)'
+  evidence: 'do_reading calls render_celtic_cross_layout for the celtic_cross spread; the name exists in no revision of the file (checked every committed revision), so every Celtic Cross reading died on a NameError, swallowed by main()''s catch-all as a generic error line.'
+  status: fixed-in-slice
+  fix: 'FIXED in-slice (M-011): a minimal cross-and-staff text layout renderer was added to the rendering engine, built on the spread''s own position names, and is exercised by tests with a full 10-card Celtic Cross.'
+- id: D-03
+  name: 'the reversal_pct setting was never wired to the draw'
+  section: 'configuration (A-07) / tarot-deck-classes (A-08) / reading-flow (A-12)'
+  evidence: 'Settings let the user set reversal_pct and save it, but TarotDeck.draw hardcoded a 0.35 reversal roll and do_reading never passed the setting — the setting changed nothing.'
+  status: fixed-in-slice
+  fix: 'FIXED in-slice (M-011): draw() takes reversal_pct (default 35, the old hardcoded value) and do_reading passes config''s reversal_pct; tests prove 0% draws nothing reversed and 100% draws everything reversed.'
+findings:
+- id: F-01
+  name: 'plaintext API key in ~/.arcanum/config.json'
+  note: 'Against the campaign law (secrets live in Kista) if this were package code. It is a standalone adjacent app''s own config; recorded, not rewritten — any future integration routes key custody through Kista (Part II, M-032).'
+- id: F-02
+  name: 'ai_reading bypasses the package provider layer'
+  note: 'A raw requests.post to OpenRouter with its own key handling and no retry honesty or usage accounting. Any future absorption goes through mythic_agent/providers/openrouter.py (Part II), never by copying this function.'
+- id: F-03
+  name: 'saved readings are write-only'
+  note: 'save_reading writes one unversioned JSON file per reading and the app has no reader for them. Noted for any future arcanum work; it is not a Part VII memory slice — nothing retrieves these files.'

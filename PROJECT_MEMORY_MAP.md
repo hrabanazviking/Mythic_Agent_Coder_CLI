@@ -63,7 +63,18 @@ workspace sessions, and a dual-layer memory.
 - `mythic_agent/providers/` — provider adapters + negotiation
   (structured output, vision, reasoning, streaming, usage, health,
   failover — the MIM-026–050 Pantheon work).
-- `arcanum/arcanum.py` — the 116 KB arcanum (M-011 owes its map).
+- `arcanum/arcanum.py` — the 118 KB arcanum, mapped by M-011 in
+  `mythic_agent/core/arcanum_review.py` + `mythic_agent/data/arcanum_review.yaml`:
+  16 banner sections, each with owns/duplicates and absorb/leave
+  verdicts for Parts III/VI/VII — all leave; it is a standalone
+  adjacent project (see ARCHITECTURE.md), and its two duplication
+  risks (plaintext key custody, a provider-bypassing AI reading) are
+  recorded as findings with Part II named as their absorbing road.
+  M-011 also fixed three proven defects in the file: it did not
+  compile (lost `return` + `def ai_reading` lines, restored
+  byte-exact from the last compiling revision), the called-but-never-
+  defined `render_celtic_cross_layout`, and the unwired
+  `reversal_pct` setting.
 - `tests/` — the pytest suite (testpaths = `tests` in
   `pyproject.toml`; per-test timeout 120 s by house habit). The loose
   `test_*.py` files at repo root are dev scratch, NOT the suite.
