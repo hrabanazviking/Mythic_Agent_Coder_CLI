@@ -35,6 +35,11 @@ __all__ = [
 
 from typing import Any, Callable, Optional
 
+try:
+    import httpx2
+except ImportError:  # pragma: no cover - declared fallback pattern
+    import httpx as httpx2  # type: ignore[no-redef]
+
 from .base import Provider, ProviderError
 from .openai_compat import OpenAICompatProvider
 
@@ -107,8 +112,6 @@ class OpenRouterProvider(OpenAICompatProvider):
         failure raises :class:`ProviderError` (unreachable + the
         remedy); a malformed JSON body on a 200 raises likewise.
         """
-        import httpx2
-
         url = self.base_url + path
         try:
             with httpx2.Client(timeout=self.timeout) as client:
