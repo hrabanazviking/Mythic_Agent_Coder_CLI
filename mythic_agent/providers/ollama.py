@@ -17,6 +17,23 @@ R-033 hardening:
 * :meth:`OllamaProvider.list_models` lists installed models via
   ``GET /api/tags``; the ``_post`` / ``_get`` transport seams are the
   single stub points tests use (no live server required).
+
+M-023 (Local runtimes I) adds the discovery kindness on top:
+
+* :meth:`OllamaProvider.running_models` — models actually loaded in
+  memory right now, via ``GET /api/ps`` (an empty list is an honest
+  answer, never an error),
+* :meth:`OllamaProvider.pull_model` — ``POST /api/pull`` so a model
+  can be fetched without leaving the app (the TUI's ``/ollama pull``),
+* :meth:`OllamaProvider.model_present` / :meth:`OllamaProvider.ensure_model`
+  / :meth:`OllamaProvider.show_model` — honest "model not present"
+  answers: presence is checked against ``/api/tags``, detail comes
+  from ``POST /api/show``, and an HTTP error body from the server
+  (e.g. a 404 ``model not found``) is surfaced as itself — with the
+  ``ollama pull`` remedy — instead of being misreported as an
+  unreachable server,
+* :meth:`OllamaProvider.discover` — the one-call snapshot (installed
+  + running) the TUI's ``/ollama`` list renders.
 """
 
 
@@ -30,6 +47,7 @@ __all__ = [
 ]
 
 import json
+import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any
@@ -81,14 +99,87 @@ class OllamaProvider(Provider):
         (``{"models": [{"name": ...}, ...]}``). Live use performs a real
         GET; unit tests stub the ``_get`` seam — no socket is opened.
         """
-        response = self._get("/api/tags")
-        models = response.get("models", [])
-        names = [m.get("name") for m in models
-                 if isinstance(m, dict) and m.get("name")]
+        names = self._installed_names()
         if not names:
             raise ProviderError(
                 f"Ollama at {self.host} reported no installed models.")
         return names
+
+    def _installed_names(self) -> list[str]:
+        """Installed model names from ``GET /api/tags``; empty is honest."""
+        response = self._get("/api/tags")
+        models = response.get("models", [])
+        if not isinstance(models, list):
+            return []
+        return [m.get("name") for m in models
+                if isinstance(m, dict) and m.get("name")]
+
+    @staticmethod
+    def _name_matches(installed: str, wanted: str) -> bool:
+        """True when ``wanted`` names ``installed`` (``:latest`` implied)."""
+        return installed == wanted or installed == f"{wanted}:latest"
+
+    def model_present(self, name: str) -> bool:
+        """True when ``name`` is installed on the server (``/api/tags``)."""
+        wanted = (name or "").strip()
+        if not wanted:
+            raise ProviderError("No model name given to look for.")
+        return any(self._name_matches(installed, wanted)
+                   for installed in self._installed_names())
+
+    def ensure_model(self, name: str) -> str:
+        """Return ``name`` if installed; else an honest not-present error."""
+        wanted = (name or "").strip()
+        if not wanted:
+            raise ProviderError("No model configured for ollama provider")
+        if not self.model_present(wanted):
+            raise ProviderError(
+                f"Model {wanted!r} is not present in Ollama at {self.host}. "
+                f"Pull it with `ollama pull {wanted}` or from the TUI with "
+                f"`/ollama pull {wanted}`.")
+        return wanted
+
+    def running_models(self) -> list[str]:
+        """Names of models loaded in memory right now (``GET /api/ps``).
+
+        Unlike :meth:`list_models`, an empty answer is a normal state
+        (nothing loaded yet), so this returns ``[]`` rather than raising.
+        """
+        response = self._get("/api/ps")
+        models = response.get("models", [])
+        if not isinstance(models, list):
+            return []
+        return [m.get("name") for m in models
+                if isinstance(m, dict) and m.get("name")]
+
+    def discover(self) -> dict[str, Any]:
+        """One-call discovery snapshot: host, installed, and running models."""
+        return {"host": self.host,
+                "installed": self._installed_names(),
+                "running": self.running_models()}
+
+    def show_model(self, name: str) -> dict[str, Any]:
+        """Server detail for one model via ``POST /api/show``.
+
+        A model the server does not have answers 404, which the
+        transport maps to a "model not present" :class:`ProviderError`
+        carrying the pull remedy — never a silent empty dict.
+        """
+        wanted = (name or "").strip()
+        if not wanted:
+            raise ProviderError("No model name given to show.")
+        return self._post("/api/show", {"name": wanted})
+
+    def pull_model(self, name: str) -> dict[str, Any]:
+        """Pull ``name`` onto the server via ``POST /api/pull``.
+
+        Non-streaming: the call returns when the pull finishes, with
+        the server's final status body (``{"status": "success"}``).
+        """
+        wanted = (name or "").strip()
+        if not wanted:
+            raise ProviderError("No model name given to pull.")
+        return self._post("/api/pull", {"name": wanted, "stream": False})
 
     # -- transport seams ----------------------------------------------------
 
@@ -144,6 +235,29 @@ class OllamaProvider(Provider):
             with urllib.request.urlopen(request,
                                         timeout=self.timeout) as reply:
                 raw = reply.read().decode("utf-8")
+        except urllib.error.HTTPError as exc:
+            # The server answered and said no — surface ITS answer
+            # (HTTPError is an OSError subclass, so this must come
+            # before the unreachable mapping below).
+            detail = ""
+            try:
+                body = exc.read().decode("utf-8")
+                parsed = json.loads(body)
+                if isinstance(parsed, dict) and parsed.get("error"):
+                    detail = str(parsed["error"])
+                elif body.strip():
+                    detail = body.strip()
+            except Exception:
+                detail = ""
+            if exc.code == 404 or "not found" in detail.lower():
+                raise ProviderError(
+                    f"Ollama at {self.host} reports the model is not "
+                    f"present ({detail or 'not found'}). Pull it with "
+                    "`ollama pull <model>` or from the TUI with "
+                    "`/ollama pull <model>`.") from exc
+            raise ProviderError(
+                f"Ollama at {self.host} answered HTTP {exc.code}"
+                + (f": {detail}" if detail else ".")) from exc
         except ConnectionRefusedError as exc:
             raise ProviderError(
                 f"Ollama connection refused at {self.host}: the server is "
