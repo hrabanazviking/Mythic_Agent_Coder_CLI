@@ -52,7 +52,7 @@ def test_shipped_registry_loads_and_validates(registry):
 
 def test_registry_names_match_the_runtime_registry(registry):
     assert list(registry.names()) == list_providers()
-    assert len(registry.providers) == 11
+    assert len(registry.providers) == 16
 
 
 def test_every_entry_matches_its_live_adapter_class(registry):
@@ -105,7 +105,7 @@ def test_home_fires_are_first_citizens(registry):
     assert "ollama" in local_names
     assert "aesir" in local_names
     assert len(local_names) == 6
-    assert len(registry.by_locality("remote")) == 5
+    assert len(registry.by_locality("remote")) == 10
     ollama = registry.provider("ollama")
     assert ollama.dialect == "ollama_native"
     assert ollama.endpoint == "http://localhost:11434"
@@ -135,7 +135,7 @@ def test_model_lists_are_honest(registry):
 
 def test_dialects_cover_the_ocean(registry):
     assert {p.dialect for p in registry.providers} == set(DIALECTS)
-    assert len(registry.by_dialect("openai_compatible")) == 7
+    assert len(registry.by_dialect("openai_compatible")) == 12
     assert len(registry.by_dialect("native_sdk")) == 2
     assert len(registry.by_dialect("ollama_native")) == 1
     assert len(registry.by_dialect("aesir_native")) == 1
@@ -143,7 +143,7 @@ def test_dialects_cover_the_ocean(registry):
 
 def test_render_markdown_reports_every_door(registry):
     text = render_markdown(registry)
-    assert "11 providers" in text
+    assert "16 providers" in text
     for provider in registry.providers:
         assert f"**{provider.name}**" in text
         assert provider.default_model in text

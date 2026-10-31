@@ -191,6 +191,8 @@ class CommandHandler:
                 self._handle_ollama(args)
             elif cmd == "/local":
                 self._handle_local(args)
+            elif cmd == "/gateway":
+                self._handle_gateway(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -572,6 +574,96 @@ class CommandHandler:
                 lines.append(f"{registry_name}: {e}")
         publish_sync("agent_chat_chunk", agent_name="Primary",
                      text="\n".join(lines) + "\n")
+
+    #: M-026: how many catalogue rows /gateway list prints before it
+    #: points at search — a gateway catalogue runs to hundreds.
+    _GATEWAY_LIST_LIMIT = 25
+
+    def _gateway_line(self, entry: dict) -> str:
+        """One catalogue row: id, context, modality, prices as reported."""
+        bits = []
+        if entry.get("context_length"):
+            bits.append(f"context {entry['context_length']}")
+        if entry.get("modality"):
+            bits.append(entry["modality"])
+        if entry.get("prompt_price") is not None:
+            bits.append(f"in {entry['prompt_price']}/tok")
+        if entry.get("completion_price") is not None:
+            bits.append(f"out {entry['completion_price']}/tok")
+        suffix = " — " + ", ".join(bits) if bits else ""
+        return f"  {entry['id']}{suffix}"
+
+    def _handle_gateway(self, args: str):
+        """M-026: /gateway — browse the OpenRouter catalogue in-app.
+
+        ``/gateway`` (or ``/gateway list``) prints the first rows of
+        the gateway's live catalogue with its full size;
+        ``/gateway search <text>`` filters it; ``/gateway show
+        <model>`` gives one model's reported facts, or the honest
+        not-in-catalogue answer. The kin gateways (groq, together,
+        fireworks, xai, mistral) are registry citizens whose live
+        catalogues are their own /models doors; this browser reads
+        OpenRouter's public door, which needs no key. Read-only.
+        """
+        from ..core.exceptions import MythicProviderError
+        from ..providers.registry import get_provider
+
+        provider = get_provider("openrouter")
+        parts = (args or "").split()
+        action = parts[0].lower() if parts else "list"
+        try:
+            if action == "list" and len(parts) <= 1:
+                entries = provider.catalogue()
+                lines = [f"\n[bold cyan]OpenRouter catalogue at "
+                         f"{provider.base_url} — {len(entries)} "
+                         "models[/bold cyan]"]
+                for entry in entries[:self._GATEWAY_LIST_LIMIT]:
+                    lines.append(self._gateway_line(entry))
+                if len(entries) > self._GATEWAY_LIST_LIMIT:
+                    lines.append(
+                        f"[dim]… and {len(entries) - self._GATEWAY_LIST_LIMIT} "
+                        "more — narrow it with /gateway search "
+                        "<text>.[/dim]")
+                text = "\n".join(lines) + "\n"
+            elif action == "search" and len(parts) >= 2:
+                query = " ".join(parts[1:])
+                entries = provider.search_catalogue(query)
+                lines = [f"\n[bold cyan]OpenRouter catalogue — "
+                         f"{len(entries)} matching {query!r}[/bold cyan]"]
+                for entry in entries[:self._GATEWAY_LIST_LIMIT]:
+                    lines.append(self._gateway_line(entry))
+                if not entries:
+                    lines.append(
+                        "No model id or name contains that text.")
+                text = "\n".join(lines) + "\n"
+            elif action == "show" and len(parts) == 2:
+                entry = provider.catalogue_entry(parts[1])
+                lines = [f"\n[bold cyan]{entry['id']}[/bold cyan]"]
+                if entry.get("name"):
+                    lines.append(f"Name: {entry['name']}")
+                if entry.get("context_length"):
+                    lines.append(
+                        f"Context: {entry['context_length']} tokens")
+                if entry.get("max_completion_tokens"):
+                    lines.append(
+                        "Max completion: "
+                        f"{entry['max_completion_tokens']} tokens")
+                if entry.get("modality"):
+                    lines.append(f"Modality: {entry['modality']}")
+                if entry.get("prompt_price") is not None:
+                    lines.append(
+                        f"Prompt price: {entry['prompt_price']} per token")
+                if entry.get("completion_price") is not None:
+                    lines.append(
+                        "Completion price: "
+                        f"{entry['completion_price']} per token")
+                text = "\n".join(lines) + "\n"
+            else:
+                text = "\n[red]Usage: /gateway [list] | /gateway " \
+                       "search <text> | /gateway show <model>[/red]\n"
+        except MythicProviderError as e:
+            text = f"\n[red]{e}[/red]\n"
+        publish_sync("agent_chat_chunk", agent_name="Primary", text=text)
 
     def _handle_tutorial(self):
         tutorial_text = """

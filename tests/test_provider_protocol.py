@@ -48,6 +48,13 @@ from mythic_agent.providers.base import (
     ProviderNotFound,
 )
 from mythic_agent.providers.deepseek import DeepSeekProvider
+from mythic_agent.providers.gateways import (
+    FireworksProvider,
+    GroqProvider,
+    MistralProvider,
+    TogetherProvider,
+    XAIProvider,
+)
 from mythic_agent.providers.google import GoogleProvider, _gemini_contents
 from mythic_agent.providers.llamacpp import LlamaCppProvider
 from mythic_agent.providers.lmstudio import LMStudioProvider
@@ -63,14 +70,19 @@ ADAPTERS: list[type[Provider]] = [
     AesirProvider,
     AnthropicProvider,
     DeepSeekProvider,
+    FireworksProvider,
     GenericLocalCompatProvider,
     GoogleProvider,
+    GroqProvider,
     LlamaCppProvider,
     LMStudioProvider,
+    MistralProvider,
     OllamaProvider,
     OpenAICompatProvider,
     OpenRouterProvider,
+    TogetherProvider,
     VLLMProvider,
+    XAIProvider,
 ]
 NAME_TO_CLS: dict[str, type[Provider]] = {cls.name: cls for cls in ADAPTERS}
 FAKE_KEY = "fake-test-key-not-a-secret"

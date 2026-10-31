@@ -355,6 +355,36 @@ env_vars:
   effect: Directory under which transcript spill files are written (falls back to /tmp).
   secret: false
   source: mythic_agent/core/transcript.py
+- id: V-17
+  name: FIREWORKS_API_KEY
+  kind: secret
+  effect: API key for the Fireworks gateway provider (provider api_key_env, M-026).
+  secret: true
+  source: mythic_agent/providers/gateways.py
+- id: V-18
+  name: GROQ_API_KEY
+  kind: secret
+  effect: API key for the Groq gateway provider (provider api_key_env, M-026).
+  secret: true
+  source: mythic_agent/providers/gateways.py
+- id: V-19
+  name: MISTRAL_API_KEY
+  kind: secret
+  effect: API key for the Mistral gateway provider (provider api_key_env, M-026).
+  secret: true
+  source: mythic_agent/providers/gateways.py
+- id: V-20
+  name: TOGETHER_API_KEY
+  kind: secret
+  effect: API key for the Together gateway provider (provider api_key_env, M-026).
+  secret: true
+  source: mythic_agent/providers/gateways.py
+- id: V-21
+  name: XAI_API_KEY
+  kind: secret
+  effect: API key for the xAI gateway provider (provider api_key_env, M-026).
+  secret: true
+  source: mythic_agent/providers/gateways.py
 files:
 - id: F-01
   name: config_defaults.yaml

@@ -18,16 +18,21 @@ __all__ = [
     "AnthropicProvider",
     "Any",
     "DeepSeekProvider",
+    "FireworksProvider",
     "GenericLocalCompatProvider",
     "GoogleProvider",
+    "GroqProvider",
     "LlamaCppProvider",
     "LMStudioProvider",
+    "MistralProvider",
     "OllamaProvider",
     "OpenAICompatProvider",
     "OpenRouterProvider",
     "Provider",
     "ProviderNotFound",
+    "TogetherProvider",
     "VLLMProvider",
+    "XAIProvider",
     "get_provider",
     "list_providers",
 ]
@@ -38,6 +43,13 @@ from .aesir import AesirProvider
 from .anthropic import AnthropicProvider
 from .base import Provider, ProviderNotFound
 from .deepseek import DeepSeekProvider
+from .gateways import (
+    FireworksProvider,
+    GroqProvider,
+    MistralProvider,
+    TogetherProvider,
+    XAIProvider,
+)
 from .google import GoogleProvider
 from .llamacpp import LlamaCppProvider
 from .lmstudio import LMStudioProvider
@@ -50,14 +62,19 @@ _REGISTRY: dict[str, type[Provider]] = {
     AesirProvider.name: AesirProvider,
     AnthropicProvider.name: AnthropicProvider,
     DeepSeekProvider.name: DeepSeekProvider,
+    FireworksProvider.name: FireworksProvider,
     GenericLocalCompatProvider.name: GenericLocalCompatProvider,
     GoogleProvider.name: GoogleProvider,
+    GroqProvider.name: GroqProvider,
     LlamaCppProvider.name: LlamaCppProvider,
     LMStudioProvider.name: LMStudioProvider,
+    MistralProvider.name: MistralProvider,
     OllamaProvider.name: OllamaProvider,
     OpenAICompatProvider.name: OpenAICompatProvider,
     OpenRouterProvider.name: OpenRouterProvider,
+    TogetherProvider.name: TogetherProvider,
     VLLMProvider.name: VLLMProvider,
+    XAIProvider.name: XAIProvider,
 }
 
 #: Friendly aliases accepted by :func:`get_provider`.

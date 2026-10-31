@@ -46,12 +46,17 @@ from mythic_agent.resources import load_resource
 
 COMPATIBLE = (
     "deepseek",
+    "fireworks",
+    "groq",
     "llama.cpp",
     "lmstudio",
     "local-openai",
+    "mistral",
     "openai",
     "openrouter",
+    "together",
     "vllm",
+    "xai",
 )
 
 MESSAGES = [{"role": "user", "content": "ping"}]
