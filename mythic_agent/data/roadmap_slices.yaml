@@ -214,7 +214,7 @@ slices:
   part: 2
   title: The gateways
   summary: OpenRouter and kin as first-class registry entries with their model catalogues browsable in-app.
-  status: queued
+  status: done
 - id: M-027
   part: 2
   title: Capability truth per model
