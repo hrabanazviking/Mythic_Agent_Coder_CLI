@@ -41,6 +41,7 @@ __all__ = [
     "DEFAULT_HTTP_REFERER",
     "DEFAULT_X_TITLE",
     "GenericLocalCompatProvider",
+    "LocalCompatProvider",
     "OpenAICompatProvider",
     "PLACEHOLDER_API_KEY",
     "Provider",
@@ -261,13 +262,131 @@ class OpenAICompatProvider(Provider):
                 f"model={self.model!r} base_url={self.base_url!r}>")
 
 
-class GenericLocalCompatProvider(OpenAICompatProvider):
+class LocalCompatProvider(OpenAICompatProvider):
+    """Base for local OpenAI-compatible servers, with M-024 discovery.
+
+    All-Features slice M-024 (Local runtimes II) gives every local
+    compatible door the same discovery kindness M-023 gave Ollama:
+
+    * :meth:`served_models` — the model ids the server itself reports
+      via ``GET /models`` (the OpenAI shape ``{"data": [{"id": ...}]}``);
+      an empty list is an honest answer, never an error,
+    * :meth:`list_models` — the same list, except an empty server is
+      an error carrying its remedy (mirroring Ollama's contract),
+    * :meth:`model_present` / :meth:`ensure_model` — honest
+      "model not present" answers whose text carries the remedy,
+    * :meth:`discover` — the one-call snapshot the TUI's ``/local``
+      command renders.
+
+    Transport failures map to :class:`ProviderError` saying the
+    server is unreachable at its address plus the start remedy —
+    never a bare socket error. A non-200 answer is surfaced as the
+    server's own answer (its HTTP status), never as "unreachable".
+    The single GET seam is :meth:`_get_json`; tests stub it instead
+    of opening sockets. Subclasses override the two remedy hooks and,
+    where their server speaks more than the compatible shape, extend
+    :meth:`discover` (LM Studio's native API, llama.cpp's ``/props``).
+    """
+
+    def _start_remedy(self) -> str:
+        """How to start this server, named in unreachable errors."""
+        return (f"Start the local server so it listens at "
+                f"{self.base_url}, then try again.")
+
+    def _absent_remedy(self, name: str) -> str:
+        """How to make ``name`` available, named in absence errors."""
+        return (f"Serve {name!r} from the local server at "
+                f"{self.base_url} (load or launch it there), then "
+                "try again.")
+
+    def _get_json(self, path: str) -> tuple[int, Any]:
+        """GET ``base_url + path``; single seam tests stub.
+
+        Returns ``(status, parsed_json)`` — a non-200 status is the
+        server's own answer and is returned, not raised. A transport
+        failure raises :class:`ProviderError` (unreachable + remedy);
+        a malformed JSON body on a 200 raises likewise.
+        """
+        url = self.base_url + path
+        try:
+            with httpx2.Client(timeout=self.timeout) as client:
+                response = client.get(url, headers=self._headers())
+        except httpx2.HTTPError as exc:
+            raise ProviderError(
+                f"{self.name} is unreachable at {self.base_url}: "
+                f"{type(exc).__name__}. {self._start_remedy()}") from exc
+        try:
+            return response.status_code, response.json()
+        except ValueError:
+            if response.status_code == 200:
+                raise ProviderError(
+                    f"{self.name} returned malformed JSON from "
+                    f"{self.base_url}.") from None
+            return response.status_code, None
+
+    @staticmethod
+    def _model_ids(body: Any) -> list[str]:
+        """Model ids from an OpenAI-shape ``/models`` body; else []."""
+        if not isinstance(body, dict):
+            return []
+        data = body.get("data")
+        if not isinstance(data, list):
+            return []
+        return [entry["id"] for entry in data
+                if isinstance(entry, dict)
+                and isinstance(entry.get("id"), str) and entry["id"]]
+
+    def served_models(self) -> list[str]:
+        """Model ids this server reports serving (``GET /models``)."""
+        status, body = self._get_json("/models")
+        if status != 200:
+            raise ProviderError(
+                f"{self.name} at {self.base_url} answered HTTP "
+                f"{status} for its model list.")
+        return self._model_ids(body)
+
+    def list_models(self) -> list[str]:
+        """Served model ids; an empty server is an honest error."""
+        names = self.served_models()
+        if not names:
+            raise ProviderError(
+                f"{self.name} at {self.base_url} reported no models. "
+                + self._absent_remedy(self.model or "a model"))
+        return names
+
+    def model_present(self, name: str) -> bool:
+        """True when ``name`` is among the models the server serves."""
+        wanted = (name or "").strip()
+        if not wanted:
+            raise ProviderError("No model name given to look for.")
+        return wanted in self.served_models()
+
+    def ensure_model(self, name: str) -> str:
+        """Return ``name`` if served; else an honest not-present error."""
+        wanted = (name or "").strip()
+        if not wanted:
+            raise ProviderError(
+                f"No model configured for {self.name} provider")
+        if not self.model_present(wanted):
+            raise ProviderError(
+                f"Model {wanted!r} is not present on {self.name} at "
+                f"{self.base_url}. " + self._absent_remedy(wanted))
+        return wanted
+
+    def discover(self) -> dict[str, Any]:
+        """One-call discovery snapshot: host + served model ids."""
+        return {"host": self.base_url, "served": self.served_models()}
+
+
+class GenericLocalCompatProvider(LocalCompatProvider):
     """Preset for generic local OpenAI-compatible servers.
 
     Points at ``http://localhost:1234/v1`` (LM Studio's default; override
     ``base_url`` for llama.cpp ``:8080``, vLLM ``:8000``, etc.) with
     ``api_key_env = None``. When no key is configured, no
-    ``Authorization`` header is sent at all.
+    ``Authorization`` header is sent at all. M-024: inherits the
+    :class:`LocalCompatProvider` discovery surface unchanged — this
+    is the "any local OpenAI-compatible port" door.
     """
 
     name = "local-openai"

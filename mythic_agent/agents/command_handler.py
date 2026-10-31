@@ -189,6 +189,8 @@ class CommandHandler:
                 self._handle_review(args)
             elif cmd == "/ollama":
                 self._handle_ollama(args)
+            elif cmd == "/local":
+                self._handle_local(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -471,6 +473,105 @@ class CommandHandler:
         except MythicProviderError as e:
             text = f"\n[red]{e}[/red]\n"
         publish_sync("agent_chat_chunk", agent_name="Primary", text=text)
+
+    #: M-024: /local provider spellings -> registry names.
+    _LOCAL_PROVIDERS = {
+        "lmstudio": "lmstudio",
+        "lm-studio": "lmstudio",
+        "llama.cpp": "llama.cpp",
+        "llamacpp": "llama.cpp",
+        "llama-cpp": "llama.cpp",
+        "local-openai": "local-openai",
+        "generic": "local-openai",
+        "local": "local-openai",
+    }
+
+    def _handle_local(self, args: str):
+        """M-024: /local — discovery for LM Studio / llama.cpp / any port.
+
+        ``/local`` (or ``/local list``) snapshots every local
+        OpenAI-compatible door; a door that is down renders its own
+        honest error line (which carries its start remedy) and never
+        hides the other doors. ``/local <provider> show <model>``
+        gives one model's presence + detail, or the honest
+        not-present answer with its remedy. Read-only throughout.
+        """
+        from ..core.exceptions import MythicProviderError
+        from ..providers.registry import get_provider
+
+        parts = (args or "").split()
+        if parts and parts[0].lower() in self._LOCAL_PROVIDERS:
+            registry_name = self._LOCAL_PROVIDERS[parts[0].lower()]
+            rest = parts[1:]
+            provider = get_provider(registry_name)
+            try:
+                if not rest or rest[0].lower() == "list" \
+                        and len(rest) <= 1:
+                    snap = provider.discover()
+                    lines = [f"\n[bold cyan]{registry_name} at "
+                             f"{snap['host']}[/bold cyan]"]
+                    served = snap.get("served") or []
+                    if served:
+                        lines.append("Serving: " + ", ".join(served))
+                    else:
+                        lines.append("Serving: nothing right now.")
+                    if snap.get("downloaded") is not None:
+                        downloaded = snap["downloaded"]
+                        lines.append(
+                            "Downloaded: " + (", ".join(downloaded)
+                                              if downloaded else "none"))
+                    if snap.get("loaded"):
+                        lines.append("Loaded: "
+                                     + ", ".join(snap["loaded"]))
+                    if snap.get("model_path"):
+                        lines.append(f"Model file: {snap['model_path']}")
+                    text = "\n".join(lines) + "\n"
+                elif rest[0].lower() == "show" and len(rest) == 2:
+                    provider.ensure_model(rest[1])
+                    show = getattr(provider, "show_model", None)
+                    if show is not None:
+                        info = show(rest[1])
+                        bits = " ".join(
+                            str(info.get(k)) for k in ("type", "state")
+                            if info.get(k))
+                        text = f"\n[bold cyan]{rest[1]}[/bold cyan]" + \
+                            (f" — {bits}" if bits else "") + \
+                            f"\nPresent on {registry_name} at " \
+                            f"{provider.base_url}.\n"
+                    else:
+                        text = f"\n[bold cyan]{rest[1]}[/bold cyan] — " \
+                               f"serving on {registry_name} at " \
+                               f"{provider.base_url}.\n"
+                else:
+                    text = "\n[red]Usage: /local [list] | /local " \
+                           "<lmstudio|llama.cpp|local-openai> show " \
+                           "<model>[/red]\n"
+            except MythicProviderError as e:
+                text = f"\n[red]{e}[/red]\n"
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=text)
+            return
+        if parts and parts[0].lower() != "list":
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text="\n[red]Usage: /local [list] | /local "
+                     "<lmstudio|llama.cpp|local-openai> show "
+                     "<model>[/red]\n")
+            return
+        lines = ["\n[bold cyan]Local runtimes[/bold cyan]"]
+        for registry_name in ("lmstudio", "llama.cpp", "local-openai"):
+            provider = get_provider(registry_name)
+            try:
+                snap = provider.discover()
+                served = snap.get("served") or []
+                lines.append(
+                    f"{registry_name} at {snap['host']}: "
+                    + (", ".join(served) if served
+                       else "serving nothing right now"))
+            except MythicProviderError as e:
+                lines.append(f"{registry_name}: {e}")
+        publish_sync("agent_chat_chunk", agent_name="Primary",
+                     text="\n".join(lines) + "\n")
 
     def _handle_tutorial(self):
         tutorial_text = """

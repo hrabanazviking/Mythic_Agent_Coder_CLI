@@ -84,3 +84,4 @@ mythic_agent/core/thread_audit.py:113:forget:method
 mythic_agent/core/thread_audit.py:158:owner_ident:method
 mythic_agent/providers/llamacpp.py:68:health:method
 mythic_agent/providers/ollama.py:77:list_models:method
+mythic_agent/providers/openai_compat.py:348:list_models:method

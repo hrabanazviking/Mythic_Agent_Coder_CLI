@@ -116,7 +116,9 @@ providers:
   quirks: []
   notes: 'Local llama-server door; performs no auth, so no key env. The
     model name is a placeholder — the server serves the model it was
-    launched with. M-024 grows local discovery.'
+    launched with. M-024: local discovery — served model via
+    /v1/models, native /health + /props, honest not-present answers
+    (restart with `llama-server -m <model>`), /local in the TUI.'
 - name: lmstudio
   title: LM Studio
   adapter: mythic_agent.providers.lmstudio:LMStudioProvider
@@ -135,7 +137,10 @@ providers:
     json_mode: true
   quirks: []
   notes: 'Local LM Studio door; performs no auth, so no key env. LM Studio
-    names models after the file loaded in it. M-024 grows local discovery.'
+    names models after the file loaded in it. M-024: local discovery —
+    served via /v1/models plus the native /api/v0 surface (downloaded,
+    loaded state, per-model detail), honest not-present answers,
+    /local in the TUI.'
 - name: local-openai
   title: Generic local OpenAI-compatible server
   adapter: mythic_agent.providers.openai_compat:GenericLocalCompatProvider
@@ -155,7 +160,9 @@ providers:
   quirks: []
   notes: 'The catch-all local door: any OpenAI-compatible server on a
     loopback port, endpoint overridable per use. No Authorization header
-    is sent when no key is configured.'
+    is sent when no key is configured. M-024: the shared local discovery
+    surface (served models, presence, honest absence) lives on this
+    class''s LocalCompatProvider base, and /local lists this door too.'
 - name: ollama
   title: Ollama
   adapter: mythic_agent.providers.ollama:OllamaProvider
