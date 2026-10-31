@@ -260,7 +260,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /status /session /add <path> /stop /undo /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /status /session /add <path> /stop /undo /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
         return True, False, "Conversation cleared."
@@ -304,6 +304,30 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_route_change(record)
+    if command == "/fallback":
+        from .core.fallback_chain import (
+            format_chain,
+            format_fallback_change,
+            parse_fallback_args,
+        )
+        try:
+            request = parse_fallback_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            return True, False, format_chain(agent.config)
+        try:
+            if request["action"] == "permission":
+                record = agent.set_fallback_permission(request["enabled"])
+            elif request["action"] == "clear":
+                record = agent.clear_fallback_chain()
+            else:
+                record = agent.add_fallback_entry(
+                    model=request["model"], provider=request["provider"],
+                    base_url=request["base_url"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_fallback_change(record)
     if command == "/model":
         from .core.model_switch import format_switch_record, parse_switch_args
         try:
