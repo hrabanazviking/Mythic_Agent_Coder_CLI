@@ -76,7 +76,7 @@ The 9 failures, classified:
 |---|---|---|
 | M-001 | The Feature Census (matrix as data, 10 rivals) | **DONE** — banked 2026-10-30 21:2x EDT (`b599572`): `mythic_agent/data/feature_census.yaml` (38 features × 11 rivals; YAML because the repo gitignores `*.json` and its data shelf ships YAML) + validated loader `mythic_agent/core/feature_census.py` + 12 tests. Mythic tally from the matrix (counted from the data): 13 HAVE, 1 BETTER (cost honesty), 15 PARTIAL, 9 MISSING — 24 gap rows, every one carrying its owning slice |
 | M-002 | The Concordance | **DONE** — banked this opening; `docs/CONCORDANCE_MIMISBRUNNR_FEATURE_ROADMAP.md` |
-| M-003 | The Gap Audit | **NEXT** (classifies the 5 unclassified baseline failures en route; seeds from M-001's 24 gap rows) |
+| M-003 | The Gap Audit | **IN PROGRESS** — keeper tick 2026-10-30 21:20 EDT (traces M-001's 24 gap rows to owning modules; classifies the 5 unclassified baseline failures) |
 | M-004 | UX Principles charter | queued |
 | M-005 | The Method Charter in-app | queued |
 | M-006 | Terminology bridge | queued |
