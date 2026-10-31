@@ -72,6 +72,19 @@ workspace sessions, and a dual-layer memory.
   requests→the already-core httpx pair — and records the rest as
   no-real-win with reasons. Tests cross-check the census against the
   live pyproject (tomllib) and the dependency audit's import scan.
+- `mythic_agent/core/platform_truth.py` + `mythic_agent/data/platform_truth.yaml`
+  — the Platform Truth Table (M-013): Linux/Windows/macOS ×
+  install/run/TUI/voice, 12 cells, each PROVEN or NOT PROVEN with no
+  inheritance — the validator refuses PROVEN on anything but
+  locally measured evidence. As recorded 2026-10-31: only Linux
+  install/run/TUI are PROVEN (this VM, x86_64; TUI headless via the
+  Textual pilot); voice is NOT PROVEN everywhere (Linux: PortAudio
+  absent, measured; Windows/macOS: the hosted matrix never installs
+  the voice extra), and Windows/macOS rest on historical hosted CI
+  runs from October 2026 (earlier revisions) only, so they stay NOT
+  PROVEN until re-earned on the current tree (M-259 re-proves).
+  Tests cross-check the table against the live CI workflow and the
+  hosted run ids in docs/development/PROGRESS.md.
 - `mythic_agent/providers/` — provider adapters + negotiation
   (structured output, vision, reasoning, streaming, usage, health,
   failover — the MIM-026–050 Pantheon work).
