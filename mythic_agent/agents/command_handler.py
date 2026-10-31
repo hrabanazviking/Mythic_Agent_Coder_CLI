@@ -803,9 +803,11 @@ class CommandHandler:
         by the agent in the chat path — never silent.
         """
         from ..core.fallback_chain import (
+            chain_from_config,
             format_chain,
             format_fallback_change,
             parse_fallback_args,
+            permission_from_config,
         )
 
         primary = self._primary()
@@ -820,6 +822,12 @@ class CommandHandler:
                          text=f"\n[red]{e}[/red]\n")
             return
         if request["action"] == "show":
+            status = primary.fallback_status()
+            assert status["permission"] == permission_from_config(
+                primary.config)
+            assert [(c["model"], c["base_url"]) for c in status["chain"]] == [
+                (e.model, e.base_url)
+                for e in chain_from_config(primary.config)]
             publish_sync(
                 "agent_chat_chunk", agent_name="Primary",
                 text=f"\n[bold cyan]{format_chain(primary.config)}[/bold cyan]\n"
