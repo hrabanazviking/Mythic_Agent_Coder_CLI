@@ -244,7 +244,7 @@ slices:
   title: Cost-aware routing
   summary: with `mythic costs` data, the router can prefer the cheaper adequate model for a task class
     — a setting, off by default, explained in plain words.
-  status: queued
+  status: done
 - id: M-032
   part: 2
   title: Key custody via Kista
