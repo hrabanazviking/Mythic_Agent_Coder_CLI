@@ -118,6 +118,23 @@ workspace sessions, and a dual-layer memory.
   verbatim. Tests scan the package source for known telemetry
   libraries/endpoints and cross-check owner modules and cited
   destination strings against the live tree.
+- `mythic_agent/core/accessibility_baseline.py` + `mythic_agent/data/accessibility_baseline.yaml`
+  — the Accessibility Baseline (M-016): the "before" for Part VIII.
+  Keyboard-only: CLI tasks and the terminal loop are keyboard-only by
+  construction, and the approval dialog is pilot-measured
+  keyboard-complete (Allow auto-focused, Tab cycles, Enter approves,
+  Escape rejects); the chat screen wires only quit + F-keys + Escape
+  while the shortcuts registry advertises 11 more TUI actions no
+  screen binds (finding F-03). Screen-reader: TUI content is real
+  terminal text (PARTIAL), but the splash block art and the agent
+  portrait carry no alternative text (FAIL), form labels are visual
+  adjacency only, and a real NVDA/JAWS/VoiceOver/Orca pass is NOT
+  PROVEN. Contrast (WCAG ratios recomputed from the live themes in
+  tests): body text passes everywhere (10.59–16.41), muted fails AA
+  in all 3 themes, viking_dark error (2.87) fails even large text;
+  NO_COLOR is claimed in progress.py's docstring but never read
+  (F-04). 6 findings, all owned by Part VIII; M-199 re-runs these
+  tests as its gate.
 - `mythic_agent/providers/` — provider adapters + negotiation
   (structured output, vision, reasoning, streaming, usage, health,
   failover — the MIM-026–050 Pantheon work).
