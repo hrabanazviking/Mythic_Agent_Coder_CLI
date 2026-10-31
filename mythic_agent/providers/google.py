@@ -703,7 +703,7 @@ class GoogleProvider(Provider):
         # estimated size exceeds the model's KNOWN window. Validation
         # happens before any client is built, like every v2 check.
         if model_registry.known(model):
-            _, window = model_registry.lookup(model)
+            window = self.context_window(model)
             estimate = _estimate_prompt_tokens(messages)
             if estimate > window:
                 raise ProviderError(
