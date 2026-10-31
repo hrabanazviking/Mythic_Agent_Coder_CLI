@@ -3,6 +3,8 @@ model: deepseek-chat
 base_url: https://api.deepseek.com/v1
 api_keys: {}
 role_routes: {}
+fallback_chain: []
+fallback_permission: false
 working_directory: ''
 user_name: ''
 user_data: ''

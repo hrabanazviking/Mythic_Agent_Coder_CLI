@@ -197,6 +197,8 @@ class CommandHandler:
                 self._handle_model(args)
             elif cmd == "/route":
                 self._handle_route(args)
+            elif cmd == "/fallback":
+                self._handle_fallback(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -786,6 +788,60 @@ class CommandHandler:
             return
         publish_sync("agent_chat_chunk", agent_name="Primary",
                      text=f"\n[green]{format_route_change(record)}[/green]\n")
+
+    def _handle_fallback(self, args: str):
+        """M-030: /fallback — the fallback chain and its permission.
+
+        ``/fallback`` shows the chain, the standing permission and
+        the current door; ``/fallback on`` / ``off`` gives or
+        withdraws the standing permission; ``/fallback add <model>
+        [url]`` or ``/fallback add --provider <name>`` appends a
+        door; ``/fallback clear`` empties the chain. The agent
+        layer owns every change (validated through the M-028
+        resolver, journaled as a session event, saved to config);
+        when a provider later fails, the walk itself is announced
+        by the agent in the chat path — never silent.
+        """
+        from ..core.fallback_chain import (
+            format_chain,
+            format_fallback_change,
+            parse_fallback_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_fallback_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_chain(primary.config)}[/bold cyan]\n"
+                     "[dim]Add a door with /fallback add <model> [url] "
+                     "or /fallback add --provider <name>; give standing "
+                     "permission with /fallback on.[/dim]\n")
+            return
+        try:
+            if request["action"] == "permission":
+                record = primary.set_fallback_permission(request["enabled"])
+            elif request["action"] == "clear":
+                record = primary.clear_fallback_chain()
+            else:
+                record = primary.add_fallback_entry(
+                    model=request["model"], provider=request["provider"],
+                    base_url=request["base_url"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync("agent_chat_chunk", agent_name="Primary",
+                     text=f"\n[green]{format_fallback_change(record)}[/green]\n")
 
     def _handle_tutorial(self):
         tutorial_text = """

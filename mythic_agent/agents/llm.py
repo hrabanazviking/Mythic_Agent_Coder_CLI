@@ -812,6 +812,101 @@ class Agent:
         self._apply_role_routes()
         return change.record(self.session_id, journaled)
 
+    def fallback_status(self) -> dict[str, Any]:
+        """The fallback chain and its standing permission (M-030).
+
+        The chain exactly as stored (validated — a malformed
+        stored chain raises, never vanishes), the permission
+        exactly as stored, and the session's current door. This is
+        the answer ``/fallback`` shows; nothing about it is hidden.
+        """
+        from ..core import fallback_chain
+        from ..core.model_switch import infer_provider
+
+        entries = fallback_chain.chain_from_config(self.config)
+        return {
+            "permission": fallback_chain.permission_from_config(self.config),
+            "chain": [entry.selection() for entry in entries],
+            "current": {"model": self.config.get("model"),
+                        "base_url": self.config.get("base_url"),
+                        "provider": infer_provider(self.config.get("base_url"))},
+        }
+
+    def set_fallback_permission(self, enabled: bool) -> dict[str, Any]:
+        """Give or withdraw standing fallback permission (M-030).
+
+        Validated by :mod:`mythic_agent.core.fallback_chain` before
+        anything mutates; journaled first as a
+        ``fallback_permission_changed`` event when a session is
+        attached; a failed save restores the previous value exactly
+        and journals a compensating ``fallback_change_reverted``.
+        """
+        return self._change_fallback("permission", enabled=enabled)
+
+    def add_fallback_entry(self, *, model: str | None = None,
+                           provider: str | None = None,
+                           base_url: str | None = None) -> dict[str, Any]:
+        """Append one door to the fallback chain (M-030).
+
+        The entry is validated through the M-028 resolver (native
+        doors refused plainly, the current door refused, duplicates
+        refused) before anything mutates; journaled first as a
+        ``fallback_chain_changed`` event; a failed save restores
+        the previous chain exactly and journals the revert.
+        """
+        return self._change_fallback("add", model=model,
+                                     provider=provider, base_url=base_url)
+
+    def clear_fallback_chain(self) -> dict[str, Any]:
+        """Empty the fallback chain (M-030). Journaled like any change."""
+        return self._change_fallback("clear")
+
+    def _change_fallback(self, action: str, *, enabled: bool | None = None,
+                         model: str | None = None,
+                         provider: str | None = None,
+                         base_url: str | None = None) -> dict[str, Any]:
+        import copy
+
+        from ..core import fallback_chain
+
+        if action == "permission":
+            new_value, change = fallback_chain.set_permission(
+                self.config, enabled)
+            key = fallback_chain.PERMISSION_KEY
+        elif action == "add":
+            new_value, change = fallback_chain.set_chain_entry(
+                self.config, model=model, provider=provider,
+                base_url=base_url)
+            key = fallback_chain.CHAIN_KEY
+        elif action == "clear":
+            new_value, change = fallback_chain.clear_chain(self.config)
+            key = fallback_chain.CHAIN_KEY
+        else:  # pragma: no cover - internal dispatch only
+            raise ValueError(f"Unknown fallback change {action!r}")
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[key] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "fallback_change_reverted",
+                        "kind": change.kind,
+                        "reason": "The fallback change could not be "
+                                  "saved; the previous chain and "
+                                  "permission were preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Fallback change could not be saved; previous "
+                "settings were preserved")
+        return change.record(self.session_id, journaled)
+
     def _apply_role_route_to(self, member: Any) -> None:
         """Apply *member*'s office route to its config, if one is set."""
         route = _role_route_for(self.config, member.name)
@@ -913,10 +1008,9 @@ class Agent:
             recalled = self._recall(prompt)
             file_context = self._compile_prompt_context(prompt)
             self._append_message({"role": "user", "content": prompt + file_context + recalled})
-        client = self.get_client()
         for _ in range(settings["max_tool_rounds"]):
             self._check_cancelled()
-            response, streamed = self._request_response(client, settings)
+            response, streamed = self._request_with_fallback(settings)
             self._check_cancelled()
             if not response.choices:
                 raise RuntimeError("Provider returned no response choices")
@@ -989,6 +1083,109 @@ class Agent:
                 if self._cancel.wait(delay):
                     raise TurnCancelled("Turn cancelled during retry") from exc
         raise RuntimeError("Provider retry budget exhausted")
+
+    def _request_with_fallback(self, settings: dict[str, Any]) -> tuple[Any, bool]:
+        """One provider request, with the M-030 fallback walk.
+
+        The request goes to the session's current door first (the
+        client is built from the current selection, and the
+        request's own retry budget runs first — a walk is what
+        happens *after* a door has honestly failed, never instead
+        of its retries). Any failure of that request — connection,
+        status (including rate-limit 429s that exhausted retries),
+        credentials, or an empty/garbled response — is handed to
+        :meth:`_walk_fallback`; a cancellation is never walked.
+        """
+        try:
+            client = self.get_client()
+            return self._request_response(client, settings)
+        except TurnCancelled:
+            raise
+        except Exception as exc:
+            return self._walk_fallback(exc, settings)
+
+    def _walk_fallback(self, exc: Exception,
+                       settings: dict[str, Any]) -> tuple[Any, bool]:
+        """Walk the fallback chain after a provider failure (M-030).
+
+        With no standing permission, or an empty chain, the
+        original failure is re-raised untouched — the chain never
+        stirs uninvited. Otherwise each door in the user's order
+        is walked to in turn: the walk is **announced first**
+        (published to the chat surface and journaled as a
+        ``fallback_walked`` session event naming the failed door,
+        its error, and the door being tried), the selection is
+        applied and saved, and the request is retried on the new
+        door. A door that also fails is announced as failed by the
+        next walk's record. If every door fails, the original
+        selection is restored and saved, a
+        ``fallback_exhausted`` event is journaled, and the last
+        failure is raised — the session is left exactly where it
+        was, with every walk on the record.
+        """
+        import copy
+
+        from ..core import fallback_chain
+        from ..core.model_switch import infer_provider
+
+        entries = fallback_chain.walk_entries(self.config)
+        if not fallback_chain.permission_from_config(self.config) \
+                or not entries:
+            raise exc
+        original = copy.deepcopy(self.config)
+        last_exc: Exception = exc
+        for position, entry in enumerate(entries, start=1):
+            record = {
+                "from": {"model": self.config.get("model"),
+                         "base_url": self.config.get("base_url"),
+                         "provider": infer_provider(
+                             self.config.get("base_url"))},
+                "to": entry.selection(),
+                "error": str(last_exc),
+                "position": position,
+            }
+            if self._session_store and self.session_id:
+                self._checkpoint({"type": "fallback_walked", **record})
+            publish_sync(
+                "agent_chat_chunk", agent_name=self.name,
+                text=f"\n{fallback_chain.format_walk(record)}\n")
+            previous = copy.deepcopy(self.config)
+            self.config["model"] = entry.model
+            self.config["base_url"] = entry.base_url
+            if not self.save_config():
+                self.config = previous
+                last_exc = RuntimeError(
+                    "Fallback walk to "
+                    f"{entry.model} ({entry.base_url}) could not be "
+                    "saved; that door was skipped")
+                continue
+            self.redactor = SecretRedactor(self.config)
+            protect_logging(self.redactor)
+            try:
+                client = self.get_client()
+                return self._request_response(client, settings)
+            except TurnCancelled:
+                raise
+            except Exception as next_exc:
+                last_exc = next_exc
+                continue
+        # Every door failed: restore the original selection so the
+        # session is left where it was, and put the exhaustion on
+        # the journal beside the walks that led to it.
+        self.config = original
+        self.save_config()
+        self.redactor = SecretRedactor(self.config)
+        protect_logging(self.redactor)
+        if self._session_store and self.session_id:
+            try:
+                self._checkpoint({
+                    "type": "fallback_exhausted",
+                    "error": str(last_exc),
+                    "doors_tried": len(entries),
+                })
+            except Exception:
+                pass  # the failure below is the truth owed
+        raise last_exc
 
     def _request_streaming(self, client: CancellableChatClient,
                            settings: dict[str, Any]) -> Any:

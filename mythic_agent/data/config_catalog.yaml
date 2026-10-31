@@ -263,6 +263,20 @@ settings:
   default: '{}'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Per-office model routes (M-029): office id to {model, base_url}; an office with no route uses the session default model/base_url.'
+- id: S-37
+  name: fallback_chain
+  scope: top-level
+  type: list
+  default: '[]'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Ordered fallback doors (M-030): a list of {model, base_url} entries the session walks, in this order, when a provider fails or rate-limits and standing permission is on.'
+- id: S-38
+  name: fallback_permission
+  scope: top-level
+  type: bool
+  default: 'False'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Standing permission for fallback walks (M-030): when true, a failed provider request walks fallback_chain with every walk announced and journaled; when false, failures are reported and the chain is never walked.'
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
