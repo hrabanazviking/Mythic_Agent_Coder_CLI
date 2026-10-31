@@ -135,6 +135,16 @@ workspace sessions, and a dual-layer memory.
   NO_COLOR is claimed in progress.py's docstring but never read
   (F-04). 6 findings, all owned by Part VIII; M-199 re-runs these
   tests as its gate.
+- `mythic_agent/core/roadmap_slices.py` + `mythic_agent/data/roadmap_slices.yaml`
+  — the Roadmap Made Data (M-017): all 272 All-Features slices as a
+  validated machine file the app can display, check off, and report
+  (Part IX eats first from its own kitchen). 11 parts with contiguous
+  ranges and roman numerals, sequential ids M-001..M-272, every slice
+  carrying the roadmap's own title and summary (generated from the
+  roadmap text by the M-017 generator), and a check-off ledger whose
+  done marks must form a prefix of the road and agree with
+  CAMPAIGN_STATE.md's ledger — both enforced by tests. Accessors give
+  per-part progress and the next unbanked slice.
 - `mythic_agent/providers/` — provider adapters + negotiation
   (structured output, vision, reasoning, streaming, usage, health,
   failover — the MIM-026–050 Pantheon work).
