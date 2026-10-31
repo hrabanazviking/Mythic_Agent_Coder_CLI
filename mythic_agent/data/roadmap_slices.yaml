@@ -187,7 +187,7 @@ slices:
   title: Anthropic-native adapter v2
   summary: prompt caching, extended thinking controls, and tool-use dialect handled natively, not through
     the compatible shim.
-  status: queued
+  status: done
 - id: M-022
   part: 2
   title: Google/Gemini-native adapter
