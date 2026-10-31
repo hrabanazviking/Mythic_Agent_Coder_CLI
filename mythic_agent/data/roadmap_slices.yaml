@@ -175,7 +175,7 @@ slices:
   title: Provider registry as data
   summary: provider definitions (endpoints, auth style, model lists, capabilities) in data files; adding
     a provider never touches Python.
-  status: queued
+  status: done
 - id: M-020
   part: 2
   title: The OpenAI-compatible universal adapter

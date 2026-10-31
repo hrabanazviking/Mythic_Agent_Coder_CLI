@@ -63,10 +63,13 @@ def test_artefact_titles_match_the_roadmap(gate):
     for art in gate.artefacts:
         assert road.slice(art.slice).title == art.title, art.slice
     # The gate's own road position: all eighteen Part I slices are
-    # done in the roadmap data (this gate banked last), and the road
-    # moves on to Part II.
-    assert [s.id for s in road.done()] == [f"M-{n:03d}" for n in range(1, 19)]
-    assert road.next_slice().id == "M-019"
+    # done in the roadmap data (this gate banked last in Part I), and
+    # the road moves on to Part II. This is a prefix claim, not an
+    # exact done-list: Part II slices bank done beyond M-018 without
+    # reopening the gate (first exercised at M-019's closure).
+    done_ids = [s.id for s in road.done()]
+    assert done_ids[:18] == [f"M-{n:03d}" for n in range(1, 19)]
+    assert road.next_slice().part == 2
     assert road.part(1).title == gate.part_title
 
 
