@@ -218,6 +218,37 @@ where the provider's terms allow, else NOT OFFERED with the
 reason. Nothing is built in this slice: it is a study, on the
 M-014/M-015 pattern (data + validated loader + tests).*
 
+*M-034 scoping note (2026-10-31 19:20 EDT tick, M-033's closure
+tick): M-034 (Streaming discipline) is the next slice. Counted
+from the tree: the streaming floor already ships from the elder
+road — `Agent._request_streaming` (agents/llm.py) assembles one
+normalized response from SSE deltas via `_StreamAccumulator`,
+retries only before the first chunk, and refuses malformed or
+incomplete streams before any tool fragment becomes executable
+(pinned by tests/test_streaming_normalization.py, 269 lines, and
+tests/test_cancellation.py, 263 lines); streaming is opt-in via
+the `streaming` config flag (default False). On a mid-stream
+cancel, `_request_streaming` checkpoints
+`{"type": "stream_interrupted", "partial_text": ...}` and
+raises TurnCancelled — but that checkpoint has NO consumer
+anywhere in the package or the tests (grep-proven this tick):
+the partial answer is journaled yet never salvaged. M-034's
+gap is exactly the roadmap's remaining three promises: (1)
+partial-answer SALVAGE — the interrupted partial becomes a
+marked partial assistant message the conversation and the
+journal both hold truthfully (restored from the checkpoint on
+resume if the live turn died), never silently dropped and
+never presented as complete; (2) RESUME-THE-THOUGHT — a
+continue road that asks the model to carry on from the
+salvaged partial where the door allows (M-027 capability truth
+governs: a model whose streaming truth is not known-true gets
+a plain refusal with the reason, not a fake resume); (3)
+journal-integrity proofs that a killed stream leaves history
++ journal consistent (no dangling tool calls, checkpoint
+replay clean — building on the shipped `pending_calls_closed`
+recovery). The interrupt must also surface honestly to the
+user: what was kept, that it is partial, and how to resume.*
+
 ## Transport war (opening night, recorded so no one re-fights it)
 
 GitHub bulk transfer from this VM was severely degraded on
