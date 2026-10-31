@@ -232,7 +232,7 @@ slices:
   title: Role routing
   summary: different models for different offices (a deep thinker for the Architect, a fast hand for grunt
     edits, a cheap scout for searches) — set per crew role, visible, changeable.
-  status: queued
+  status: done
 - id: M-030
   part: 2
   title: Fallback chains
