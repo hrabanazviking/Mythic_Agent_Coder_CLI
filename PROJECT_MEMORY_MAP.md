@@ -44,6 +44,13 @@ workspace sessions, and a dual-layer memory.
   FAILS on every seed alone and PASSES on every seed+solution.
   `materialize(task, root, solved=...)` writes a repo ready for
   M-042's gate runs and M-255's harness.
+- `mythic_agent/core/config_catalog.py` + `mythic_agent/data/config_catalog.yaml`
+  — the Config Catalogue (M-009): every current setting (35: top-level,
+  github.*, runtime.*, config-managed), every environment variable the
+  package names (16), and every file the configuration system reads or
+  writes (10), each with its source in the tree. It is the compatibility
+  contract for Part VIII's settings redesign; tests cross-check it
+  against the defaults files, CONFIG_SCHEMA, and a live env-var scan.
 - `mythic_agent/providers/` — provider adapters + negotiation
   (structured output, vision, reasoning, streaming, usage, health,
   failover — the MIM-026–050 Pantheon work).
