@@ -275,6 +275,29 @@ class _StreamAccumulator:
             message["tool_calls"] = calls
         return message
 
+def _role_route_for(config: dict, name: str):
+    """The explicit role route for crew member *name*, or None (M-029).
+
+    Shared by :class:`Agent` (route changes reaching live members)
+    and :class:`AgentManager` (routes applied at spawn): the route
+    is read from *config* — the manager has no config of its own, so
+    it passes the freshly loaded one. An office with no explicit
+    route, a name no office claims, and a malformed stored route
+    all yield None here: spawn never breaks over routing, and the
+    malformed route still surfaces at set/show time.
+    """
+    from ..core.role_routing import office_for_agent_name, resolve_route
+
+    office = office_for_agent_name(name)
+    if office is None:
+        return None
+    try:
+        route = resolve_route(config, office)
+    except ValueError:
+        return None
+    return route if route.source == "route" else None
+
+
 class Agent:
     def __init__(self, project_root: Path | None = None, name: str = "Primary", config: dict[str, Any] | None = None):
         import copy
@@ -791,16 +814,8 @@ class Agent:
 
     def _apply_role_route_to(self, member: Any) -> None:
         """Apply *member*'s office route to its config, if one is set."""
-        from ..core.role_routing import office_for_agent_name, resolve_route
-
-        office = office_for_agent_name(member.name)
-        if office is None:
-            return
-        try:
-            route = resolve_route(self.config, office)
-        except ValueError:
-            return  # a malformed stored route surfaces at set/show time
-        if route.source != "route":
+        route = _role_route_for(self.config, member.name)
+        if route is None:
             return
         member.config["model"] = route.model
         member.config["base_url"] = route.base_url
@@ -814,21 +829,13 @@ class Agent:
         The Primary agent itself is never re-routed here: its
         selection is the session default (M-028 owns it).
         """
-        from ..core.role_routing import office_for_agent_name, resolve_route
-
         for member_name, member in list(AGENT_REGISTRY.items()):
             if member is self or member_name == self.name:
                 continue
-            office = office_for_agent_name(member_name)
-            if office is None:
-                continue
-            try:
-                route = resolve_route(self.config, office)
-            except ValueError:
-                continue  # a malformed stored route surfaces at set/show time
-            if route.source != "route":
-                continue
             if member._turn_lock.locked():
+                continue
+            route = _role_route_for(self.config, member_name)
+            if route is None:
                 continue
             member.config["model"] = route.model
             member.config["base_url"] = route.base_url
@@ -1114,7 +1121,10 @@ class AgentManager:
             existing.tool_policy = inherited.fork()
             existing._permission_override = inherited.mode
             existing.tui_app = tui_app
-            self._apply_role_routes()
+            _route = _role_route_for(config_manager.load_config(), name)
+            if _route is not None:
+                existing.config["model"] = _route.model
+                existing.config["base_url"] = _route.base_url
             if tui_app:
                 existing.bind_tui(tui_app, mode=inherited.mode)
             return existing
@@ -1129,7 +1139,10 @@ class AgentManager:
             
         logging.info(f"Dynamically spawning subagent: {name}")
         sub_agent = Agent(project_root=project_root, name=name)
-        self._apply_role_route_to(sub_agent)
+        _route = _role_route_for(config, name)
+        if _route is not None:
+            sub_agent.config["model"] = _route.model
+            sub_agent.config["base_url"] = _route.base_url
         sub_agent.tool_policy = (policy or ToolPolicy("read-only")).fork()
         sub_agent._permission_override = sub_agent.tool_policy.mode
         if tui_app:

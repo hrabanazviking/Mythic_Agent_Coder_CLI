@@ -459,6 +459,80 @@ class TestAgentRoutes:
                             member._handle_compact_history)
 
 
+class TestManagerSpawnRouting:
+    """Regression: spawn_subagent lives on AgentManager, which has no
+    config of its own — routes there are read from the loaded config.
+    (The first M-029 cut called an Agent-only helper on the manager
+    and broke delegation; test_policy caught it in the full suite.)
+    """
+
+    def _setup_manager(self, agent, monkeypatch):
+        from unittest.mock import Mock
+
+        from mythic_agent.agents import llm
+
+        monkeypatch.setattr(llm.config_manager, "load_config",
+                            lambda: agent.config.copy())
+        monkeypatch.setattr(llm, "AGENT_REGISTRY", {})
+        monkeypatch.setattr(llm.threading, "Thread", Mock())
+        return llm
+
+    @staticmethod
+    def _forget_thread(name):
+        # The mocked spawn thread stays "alive" in the global thread
+        # registry; forget it so neighbouring spawn tests (in any
+        # file order) are not refused as duplicate owners.
+        from mythic_agent.core.thread_audit import THREAD_REGISTRY
+
+        THREAD_REGISTRY.forget(f"mythic-subagent-loop:{name}")
+
+    def _arch_name(self, agent):
+        return next(entry["name"] for entry in agent.config["sub_agents"]
+                    if entry["name"].startswith("Architect"))
+
+    def test_fresh_spawn_takes_the_office_route(self, agent, monkeypatch):
+        from mythic_agent.core.policy import ToolPolicy
+
+        llm = self._setup_manager(agent, monkeypatch)
+        agent.set_role_route("architect", provider="groq")
+        name = self._arch_name(agent)
+        self._forget_thread(name)  # a stale mock registration may linger
+        child = llm.agent_manager.spawn_subagent(
+            name, agent.project_root, policy=ToolPolicy("read-only"))
+        try:
+            assert child is not None
+            assert child.config["model"] == "llama-3.3-70b-versatile"
+            assert child.config["base_url"] == \
+                "https://api.groq.com/openai/v1"
+        finally:
+            if child is not None:
+                child.close()
+            self._forget_thread(name)
+
+    def test_existing_member_is_rerouted_on_respawn(self, agent, monkeypatch):
+        from mythic_agent.core.policy import ToolPolicy
+
+        llm = self._setup_manager(agent, monkeypatch)
+        # A different member than the fresh-spawn test's: the mocked
+        # thread stays "alive" in the global thread registry.
+        name = next(entry["name"] for entry in agent.config["sub_agents"]
+                    if entry["name"].startswith("Forge Worker"))
+        self._forget_thread(name)  # a stale mock registration may linger
+        child = llm.agent_manager.spawn_subagent(
+            name, agent.project_root, policy=ToolPolicy("read-only"))
+        try:
+            assert child.config["model"] == "test-model"
+            agent.set_role_route("forge_worker", provider="groq")
+            again = llm.agent_manager.spawn_subagent(
+                name, agent.project_root, policy=ToolPolicy("read-only"))
+            assert again is child
+            assert child.config["model"] == "llama-3.3-70b-versatile"
+        finally:
+            if child is not None:
+                child.close()
+            self._forget_thread(name)
+
+
 # ----------------------------------------------------------------------
 # The surfaces
 # ----------------------------------------------------------------------
