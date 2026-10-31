@@ -201,7 +201,7 @@ class MainChatScreen(Screen):
                 with Horizontal(id="chat-input-container"):
                     yield Label(" [bold yellow]ᛟ❯[/bold yellow] ", id="prompt-label")
                     from textual.suggester import SuggestFromList
-                    COMMANDS = ["/setup", "/add", "/commit", "/issue", "/pr", "/status", "/gh", "/test", "/undo", "/doctor", "/ollama", "/clear", "/compact", "/cost", "/review", "/flirt", "/lick", "/hug", "/kiss", "/snuggle", "/cuddle", "/tickle", "/wink", "/rose", "/mead", "/ale", "/beer", "/cookies", "/candy", "/love", "/btw", "/steer", "/stop", "/tutorial", "/quit", "/help", "/exit"]
+                    COMMANDS = ["/setup", "/add", "/commit", "/issue", "/pr", "/status", "/gh", "/test", "/undo", "/doctor", "/ollama", "/local", "/clear", "/compact", "/cost", "/review", "/flirt", "/lick", "/hug", "/kiss", "/snuggle", "/cuddle", "/tickle", "/wink", "/rose", "/mead", "/ale", "/beer", "/cookies", "/candy", "/love", "/btw", "/steer", "/stop", "/tutorial", "/quit", "/help", "/exit"]
                     yield Input(placeholder="Speak to the Seer... (Press Enter to send)", id="chat-input", suggester=SuggestFromList(COMMANDS))
             with VerticalScroll(id="sidebar"):
                 yield Label("[bold cyan]Instructions[/bold cyan]\n")
@@ -578,7 +578,7 @@ class MainChatScreen(Screen):
         try:
             lbl = self.query_one("#autocomplete-suggestions", Label)
             if val.startswith("/"):
-                COMMANDS = ["/setup", "/add", "/commit", "/issue", "/pr", "/status", "/gh", "/test", "/undo", "/doctor", "/ollama", "/clear", "/compact", "/cost", "/review", "/flirt", "/lick", "/hug", "/kiss", "/snuggle", "/cuddle", "/tickle", "/wink", "/rose", "/mead", "/ale", "/beer", "/cookies", "/candy", "/love", "/btw", "/steer", "/stop", "/tutorial", "/quit", "/help", "/exit"]
+                COMMANDS = ["/setup", "/add", "/commit", "/issue", "/pr", "/status", "/gh", "/test", "/undo", "/doctor", "/ollama", "/local", "/clear", "/compact", "/cost", "/review", "/flirt", "/lick", "/hug", "/kiss", "/snuggle", "/cuddle", "/tickle", "/wink", "/rose", "/mead", "/ale", "/beer", "/cookies", "/candy", "/love", "/btw", "/steer", "/stop", "/tutorial", "/quit", "/help", "/exit"]
                 matches = [c for c in COMMANDS if c.startswith(val.lower())]
                 if matches:
                     formatted = []
@@ -641,6 +641,7 @@ class MainChatScreen(Screen):
                 chat_log.write("  [green]/undo[/green]      - Roll back last file edit")
                 chat_log.write("  [green]/doctor[/green]    - Auto-fix a command output")
                 chat_log.write("  [green]/ollama[/green]    - Local Ollama models: list / pull / show")
+                chat_log.write("  [green]/local[/green]     - Local runtimes (LM Studio / llama.cpp / any port): list / show")
                 chat_log.write("  [green]/clear[/green]     - Clear agent memory")
                 chat_log.write("  [green]/compact[/green]   - Compact agent memory")
                 chat_log.write("  [green]/cost[/green]      - Estimate token cost")
@@ -682,6 +683,7 @@ class MainChatScreen(Screen):
                     "/undo": "Usage: /undo\nRestores the last unchanged agent edit from the workspace journal. Preserves Git history, staged changes and unrelated files.",
                     "/doctor": "Usage: /doctor\nExamines the output of the last failed command and automatically generates a fix.",
                     "/ollama": "Usage: /ollama [list] | /ollama pull <model> | /ollama show <model>\nTalks to the local Ollama server (OLLAMA_HOST or http://localhost:11434): list shows installed and running models, pull downloads a model, show gives one model's details — or an honest 'not present' answer.",
+                    "/local": "Usage: /local [list] | /local <lmstudio|llama.cpp|local-openai> show <model>\nDiscovers the local OpenAI-compatible runtimes (LM Studio http://localhost:1234, llama.cpp http://localhost:8080, or any local port): list shows what each server is serving, show gives one model's presence — or an honest 'not present' answer with its remedy.",
                     "/clear": "Usage: /clear\nClears the agent's memory window (except the system prompt).",
                     "/compact": "Usage: /compact\nForces the LLM's context pruner to run early, archiving old messages to the VectorDB.",
                     "/cost": "Usage: /cost\nComputes and displays the token cost of the current session.",
@@ -770,8 +772,9 @@ class MainChatScreen(Screen):
             else:
                 SecureAPI.publish_chat_request(f"{action_text} {args}", target_agent=active)
             chat_log.write(f"[magenta]{action_text}[/magenta] {args}")
-        elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr", "/stop", "/clear", "/compact", "/cost", "/review", "/ollama"]:
+        elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr", "/stop", "/clear", "/compact", "/cost", "/review", "/ollama", "/local"]:
             # M-023: /ollama rides this same system-command road — the
+            # M-024: /local rides it too, for the same reason.
             # UI stays presentation-only (arch-conformance: no
             # providers.* imports here); the agents-layer
             # CommandHandler talks to the local Ollama server.
