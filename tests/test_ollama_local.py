@@ -1,6 +1,9 @@
 """M-023 — Local runtimes I: Ollama discovery, pull/list, honest absence.
 
-TIER: unit + one loopback integration class
+TIER: unit
+
+(The loopback class below runs a real local HTTP server, but it is
+still unit-tier: loopback only, no external network, no live Ollama.)
 
 Covers the M-023 surface on OllamaProvider and the TUI ``/ollama``
 command:
@@ -330,7 +333,7 @@ class TestLoopback:
 
 
 # ----------------------------------------------------------------------
-# TUI /ollama command
+# TUI /ollama command: chat screen routing + CommandHandler behaviour
 # ----------------------------------------------------------------------
 
 class _FakeLog:
@@ -346,7 +349,7 @@ class _FakeLog:
 
 
 class _FakeProvider:
-    """Stands in for OllamaProvider in the TUI handler (no sockets)."""
+    """Stands in for OllamaProvider in the handler (no sockets)."""
 
     last = None
 
@@ -377,53 +380,102 @@ class _FakeProvider:
 
 
 @pytest.fixture()
-def screen(monkeypatch):
-    from mythic_agent.providers import ollama as ollama_module
-    from mythic_agent.ui.screens.chat_screen import MainChatScreen
+def fake_registry(monkeypatch):
+    from mythic_agent.providers import registry as registry_module
 
-    monkeypatch.setattr(ollama_module, "OllamaProvider", _FakeProvider)
-    return MainChatScreen.__new__(MainChatScreen)
+    # The handler obtains its provider through the shared registry,
+    # so the fake is patched into the registry's own table.
+    monkeypatch.setitem(registry_module._REGISTRY, "ollama", _FakeProvider)
+    return registry_module
 
 
-class TestTuiOllamaCommand:
-    def test_list_is_default_and_marks_running(self, screen):
-        log = _FakeLog()
-        screen.handle_command("/ollama", log)
-        assert "llama3.1:latest" in log.text
-        assert "mistral" in log.text
-        assert "(running)" in log.text
+class _AllowPolicy:
+    def authorize(self, name, arguments):
+        return True
 
-    def test_list_explicit(self, screen):
-        log = _FakeLog()
-        screen.handle_command("/ollama list", log)
-        assert "Installed models:" in log.text
 
-    def test_pull(self, screen):
-        log = _FakeLog()
-        screen.handle_command("/ollama pull phi4", log)
+class _DenyPolicy:
+    def authorize(self, name, arguments):
+        return False
+
+
+@pytest.fixture()
+def handler(monkeypatch, fake_registry):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.policy = _AllowPolicy()
+    instance.published = published
+    return instance
+
+
+def _published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestChatScreenRouting:
+    def test_ollama_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/ollama pull phi4", _FakeLog())
+        assert calls == [("/ollama", "pull phi4")]
+
+
+class TestOllamaCommandHandler:
+    def test_list_is_default_and_marks_running(self, handler):
+        handler._handle_ollama("")
+        text = _published_text(handler)
+        assert "llama3.1:latest" in text
+        assert "mistral" in text
+        assert "(running)" in text
+
+    def test_list_explicit(self, handler):
+        handler._handle_ollama("list")
+        assert "Installed models:" in _published_text(handler)
+
+    def test_pull(self, handler):
+        handler._handle_ollama("pull phi4")
         assert _FakeProvider.last.pulled == "phi4"
-        assert "success" in log.text
+        assert "success" in _published_text(handler)
 
-    def test_show_present(self, screen):
-        log = _FakeLog()
-        screen.handle_command("/ollama show mistral", log)
-        assert "mistral" in log.text
-        assert "llama 7B" in log.text
+    def test_pull_denied_by_policy(self, handler):
+        handler.policy = _DenyPolicy()
+        handler._handle_ollama("pull phi4")
+        assert getattr(_FakeProvider.last, "pulled", None) is None
+        assert "Permission denied" in _published_text(handler)
 
-    def test_show_absent_is_honest_with_remedy(self, screen):
-        log = _FakeLog()
-        screen.handle_command("/ollama show ghost", log)
-        assert "not present" in log.text
-        assert "/ollama pull ghost" in log.text
+    def test_show_present(self, handler):
+        handler._handle_ollama("show mistral")
+        text = _published_text(handler)
+        assert "mistral" in text
+        assert "llama 7B" in text
 
-    def test_usage_on_bad_shape(self, screen):
-        log = _FakeLog()
-        screen.handle_command("/ollama pull", log)
-        assert "Usage: /ollama" in log.text
+    def test_show_absent_is_honest_with_remedy(self, handler):
+        handler._handle_ollama("show ghost")
+        text = _published_text(handler)
+        assert "not present" in text
+        assert "/ollama pull ghost" in text
 
-    def test_unreachable_server_error_carries_remedy(self, screen,
+    def test_usage_on_bad_shape(self, handler):
+        handler._handle_ollama("pull")
+        assert "Usage: /ollama" in _published_text(handler)
+
+    def test_unreachable_server_error_carries_remedy(self, handler,
                                                      monkeypatch):
-        from mythic_agent.providers import ollama as ollama_module
+        from mythic_agent.providers import registry as registry_module
 
         class _DownProvider(_FakeProvider):
             def discover(self):
@@ -432,7 +484,7 @@ class TestTuiOllamaCommand:
                     "Start it with `ollama serve` and pull a model with "
                     "`ollama pull <model>`.")
 
-        monkeypatch.setattr(ollama_module, "OllamaProvider", _DownProvider)
-        log = _FakeLog()
-        screen.handle_command("/ollama list", log)
-        assert "ollama serve" in log.text
+        monkeypatch.setitem(registry_module._REGISTRY, "ollama",
+                            _DownProvider)
+        handler._handle_ollama("list")
+        assert "ollama serve" in _published_text(handler)
