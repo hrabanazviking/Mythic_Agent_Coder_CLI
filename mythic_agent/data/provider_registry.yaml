@@ -24,6 +24,35 @@ aliases:
   lm-studio: lmstudio
   local: ollama
 providers:
+- name: aesir
+  title: Project Aesir (Volmarr's own engine)
+  adapter: mythic_agent.providers.aesir:AesirProvider
+  dialect: aesir_native
+  locality: local
+  endpoint: http://127.0.0.1:18434/v1
+  auth_style: api_key_env
+  api_key_env: AESIR_API_KEY
+  default_model: aesir-local
+  models:
+  - aesir-local
+  capabilities:
+    streaming: true
+    tool_calling: false
+    vision: false
+    json_mode: false
+  quirks: []
+  notes: 'Project Aesir''s native authenticated door (loopback 18434, Bearer
+    key from an aesir keygen file — a LOCAL provider that nevertheless
+    authenticates, by Aesir''s own design). M-025: chat via its OpenAI-subset
+    /v1/chat/completions, native generation via /v1/generate, health via
+    /health/ready + /health/live, catalog via /v1/models, residency via the
+    readiness record. Capability limits as Aesir reports them: streaming yes
+    (NDJSON/SSE subsets); general tool calling no (single zero-argument Gemma
+    function only); vision no; general JSON mode no (strict Boolean schema
+    subset only); one resident model at a time and the catalog is not
+    readiness. Its --ollama door (127.0.0.1:11434) is snapshotted by the
+    adapter, not chatted through here. The default model is a placeholder —
+    Aesir serves the one model it was launched with.'
 - name: anthropic
   title: Anthropic (Claude)
   adapter: mythic_agent.providers.anthropic:AnthropicProvider

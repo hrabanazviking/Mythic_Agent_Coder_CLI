@@ -73,8 +73,12 @@ REGISTRY_SCHEMA = "mythic.provider_registry/1"
 #: The slice that owns this registry.
 REGISTRY_SLICE = "M-019"
 
-#: The provider dialects the registry knows.
-DIALECTS = ("native_sdk", "ollama_native", "openai_compatible")
+#: The provider dialects the registry knows. M-025 adds
+#: ``aesir_native``: Project Aesir's own authenticated HTTP door,
+#: which is neither a vendor SDK nor Ollama's API nor a plain
+#: OpenAI-compatible endpoint (its native /v1/generate shape, health
+#: routes and one-resident-model rule are Aesir's own).
+DIALECTS = ("aesir_native", "native_sdk", "ollama_native", "openai_compatible")
 
 #: Where a provider's models live.
 LOCALITIES = ("local", "remote")

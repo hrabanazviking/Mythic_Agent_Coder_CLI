@@ -24,7 +24,7 @@ def test_provider_base_is_abstract():
 def test_registry_lists_all_providers():
     names = registry.list_providers()
     assert names == [
-        "anthropic", "deepseek", "google", "llama.cpp", "lmstudio",
+        "aesir", "anthropic", "deepseek", "google", "llama.cpp", "lmstudio",
         "local-openai", "ollama", "openai", "openrouter", "vllm",
     ]
 
