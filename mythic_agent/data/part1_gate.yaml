@@ -1,0 +1,138 @@
+schema: mythic.part1_gate/1
+gate_slice: M-018
+part: 1
+part_title: The Census & The Charter
+verdict: PASS
+gate_note: 'The Part I gate: every artefact Part I produced is published in-repo and is re-proven here,
+  not merely listed - the gate''s tests load every data artefact through its own shipped loader, open
+  the Concordance document, cross-check the baseline totals below against the frozen baseline itself,
+  and pin Volmarr''s 500-slice Mimisbrunnr file by sha256 so ''untouched'' is a measurement, not a claim.
+  The gate passes only while all of that stays true.'
+artefacts:
+- slice: M-001
+  title: The Feature Census
+  kind: data
+  location: feature_census.yaml
+  loader: mythic_agent.core.feature_census:load_census
+  evidence: The feature x rival matrix as validated data; every gap row names its owning slice.
+- slice: M-002
+  title: The Concordance
+  kind: doc
+  location: docs/CONCORDANCE_MIMISBRUNNR_FEATURE_ROADMAP.md
+  loader: ''
+  evidence: The Concordance page mapping the 500-slice Mimisbrunnr road onto this road's parts and back;
+    conflicts listed, none silently resolved.
+- slice: M-003
+  title: The Gap Audit
+  kind: data
+  location: gap_audit.yaml
+  loader: mythic_agent.core.gap_audit:load_audit
+  evidence: Every census gap traced to the module that would own its fix; the audit seeds Parts II-X.
+- slice: M-004
+  title: UX Principles charter
+  kind: data
+  location: ux_charter.yaml
+  loader: mythic_agent.core.ux_charter:load_charter
+  evidence: 'The UX Principles charter as validated data: the kindness rules later parts are reviewed
+    against.'
+- slice: M-005
+  title: The Method Charter in-app
+  kind: data
+  location: method_charter.yaml
+  loader: mythic_agent.core.method_charter:load_charter
+  evidence: 'The Method Charter in-app: the Forge Protocol plugs summarised as tenets the Part IX engine
+    can execute.'
+- slice: M-006
+  title: Terminology bridge
+  kind: data
+  location: terminology.yaml
+  loader: mythic_agent.core.terminology:load_bridge
+  evidence: 'The terminology bridge: every field term given its Mythic name and kept searchable by its
+    common name.'
+- slice: M-007
+  title: Baseline freeze
+  kind: data
+  location: baseline_freeze.yaml
+  loader: mythic_agent.core.baseline_freeze:load_freeze
+  evidence: 'The baseline freeze: full suite, startup profile, and scripted end-to-end steps frozen as
+    the ''before'' evidence for Part XI.'
+- slice: M-008
+  title: Benchmark task pack v1
+  kind: data
+  location: benchmark_tasks.yaml
+  loader: mythic_agent.core.benchmark_tasks:load_pack
+  evidence: 'Benchmark task pack v1: twenty real tasks in throwaway repos, the yardstick later parts are
+    measured with.'
+- slice: M-009
+  title: Config archaeology
+  kind: data
+  location: config_catalog.yaml
+  loader: mythic_agent.core.config_catalog:load_catalog
+  evidence: 'Config archaeology: every setting, file, and env var catalogued; the compatibility contract
+    for Part VIII.'
+- slice: M-010
+  title: Session archaeology
+  kind: data
+  location: session_catalog.yaml
+  loader: mythic_agent.core.session_catalog:load_catalog
+  evidence: 'Session archaeology: every session/journal format catalogued with its forward-compat rule.'
+- slice: M-011
+  title: The arcanum review
+  kind: data
+  location: arcanum_review.yaml
+  loader: mythic_agent.core.arcanum_review:load_review
+  evidence: 'The arcanum review: the 118 KB arcanum.py mapped with absorb/leave verdicts for Parts III/VI/VII.'
+- slice: M-012
+  title: Dependency census
+  kind: data
+  location: dependency_census.yaml
+  loader: mythic_agent.core.dependency_census:load_census
+  evidence: 'The dependency census: every dependency weighed, with a stdlib-first replacement list where
+    the win is real.'
+- slice: M-013
+  title: Platform truth table
+  kind: data
+  location: platform_truth.yaml
+  loader: mythic_agent.core.platform_truth:load_truth
+  evidence: 'The platform truth table: Linux/Windows/macOS x install/run/TUI/voice, each cell PROVEN or
+    NOT PROVEN.'
+- slice: M-014
+  title: The rivals' config import study
+  kind: data
+  location: rival_config_study.yaml
+  loader: mythic_agent.core.rival_config_study:load_study
+  evidence: 'The rivals'' config import study (clean-room, formats only): the spec for Part X''s importers.'
+- slice: M-015
+  title: Telemetry honesty review
+  kind: data
+  location: telemetry_review.yaml
+  loader: mythic_agent.core.telemetry_review:load_review
+  evidence: 'The telemetry honesty review: what the app records and the rule that it never phones home.'
+- slice: M-016
+  title: Accessibility baseline
+  kind: data
+  location: accessibility_baseline.yaml
+  loader: mythic_agent.core.accessibility_baseline:load_baseline
+  evidence: 'The accessibility baseline: keyboard-only completion, screen-reader pass, and contrast audit
+    - the ''before'' for Part VIII.'
+- slice: M-017
+  title: The roadmap made data
+  kind: data
+  location: roadmap_slices.yaml
+  loader: mythic_agent.core.roadmap_slices:load_roadmap
+  evidence: 'The roadmap made data: all 272 slices in a validated machine file the app can display, check
+    off, and report.'
+baseline:
+  resource: baseline_freeze.yaml
+  collected: 1467
+  passed: 1464
+  failed: 2
+  skipped: 1
+mimisbrunnr:
+  path: MYTHIC_AGENT_CODER_CLI_500_SLICE_ULTIMATE_MIMISBRUNNR_ROADMAP.md
+  sha256: ae320c5a332735bb8756e8c5dffca9871156300173aa08c677966049d918e17e
+  bytes: 437402
+  lines: 9469
+  note: 'Volmarr''s own 500-slice roadmap file, untouched by this campaign: the gate pins its sha256,
+    byte count, and line count, and the gate''s tests compare the live file against this pin on every
+    run.'

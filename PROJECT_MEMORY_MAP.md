@@ -145,6 +145,15 @@ workspace sessions, and a dual-layer memory.
   done marks must form a prefix of the road and agree with
   CAMPAIGN_STATE.md's ledger — both enforced by tests. Accessors give
   per-part progress and the next unbanked slice.
+- `mythic_agent/core/part1_gate.py` + `mythic_agent/data/part1_gate.yaml`
+  — the Part I Gate (M-018): all seventeen Part I artefacts (M-001..M-017)
+  recorded as one validated gate with verdict PASS — sixteen shipped data
+  resources plus the Concordance doc — the banked baseline totals (which
+  must equal the M-007 freeze's own totals), and Volmarr's 500-slice
+  Mimisbrunnr file pinned by sha256/bytes/lines so "untouched" is a
+  measurement. The gate's tests re-load every data artefact through its
+  own shipped loader on every run; a non-PASS verdict is invalid data,
+  not a recordable state.
 - `mythic_agent/providers/` — provider adapters + negotiation
   (structured output, vision, reasoning, streaming, usage, health,
   failover — the MIM-026–050 Pantheon work).
