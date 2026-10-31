@@ -21,7 +21,7 @@ from mythic_agent.providers import tool_negotiation
 # ----------------------------------------------------------------------
 
 class _AnthropicStyleProvider(Provider):
-    """Anthropic-named provider WITH tool calling (native adapter lacks it)."""
+    """Anthropic-named fake provider with tool calling."""
 
     name = "anthropic"
 
@@ -92,10 +92,29 @@ def test_negotiate_falls_back_to_openai_style_for_other_names():
     assert payload["tools"][0]["function"]["name"] == "get_weather"
 
 
+class _NoToolsProvider(Provider):
+    """A provider that honestly reports tool_calling=False."""
+
+    name = "no-tools"
+
+    def capabilities(self):
+        return {"streaming": False, "tool_calling": False,
+                "vision": False, "json_mode": False}
+
+    def chat(self, messages, **kwargs):
+        raise ProviderError("stub")
+
+
 def test_negotiate_unsupported_provider_raises():
-    # The native Anthropic adapter reports tool_calling=False.
+    # A provider reporting tool_calling=False is refused. (Before
+    # M-021 the native Anthropic adapter was that example; it now
+    # implements native tool calling, so a fake carries the case.)
     with pytest.raises(ProviderError):
-        tool_negotiation.negotiate(AnthropicProvider(api_key="x"), _tools())
+        tool_negotiation.negotiate(_NoToolsProvider(), _tools())
+    # ...and the grown Anthropic adapter now negotiates natively.
+    payload = tool_negotiation.negotiate(
+        AnthropicProvider(api_key="x"), _tools())
+    assert payload["tools"][0]["input_schema"]["type"] == "object"
 
 
 def test_negotiate_rejects_empty_tools():

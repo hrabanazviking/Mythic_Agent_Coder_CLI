@@ -143,8 +143,9 @@ def test_render_markdown_reports_every_door(registry):
         assert provider.default_model in text
     for alias, _canonical in registry.aliases:
         assert f"`{alias}`" in text
-    # The one honestly-false capability in the ocean is rendered.
-    assert "tool_calling=no" in text
+    # An honestly-false capability is rendered (M-021: anthropic's
+    # tool_calling grew to yes; its json_mode stays honestly no).
+    assert "json_mode=no" in text
 
 
 def _mutated(mutator):
