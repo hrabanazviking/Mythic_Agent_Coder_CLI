@@ -247,11 +247,15 @@ baseline_failures:
   verdict: test-timing
   fixed_in: M-003
   evidence: >
-    The modal does define its Allow button (mythic_agent/ui/components/
-    modals.py compose, id="allow"), but the test polled only ~1 s for the
-    screen class and clicked immediately; under this VM's load the button
-    had not mounted yet (NoMatches on '#allow'), and the orphaned worker
-    thread then waited out the approval timeout. Test hardened to wait
-    for the button itself to mount (all assertions unchanged). Test
-    passes; the same test also passed pre-fix when the machine was quiet,
-    confirming timing, not product behaviour.
+    Suite-context timing, not product behaviour: the modal does define
+    its Allow button (mythic_agent/ui/components/modals.py compose,
+    id="allow"), and the test passes solo and in small sets, but in
+    full-suite runs its single early click raced the modal's
+    mount/layout - first as NoMatches on '#allow' (the test polled only
+    ~1 s for the screen class), then, after a wait-for-mount hardening,
+    as pilot.click() returning False before layout settled; the
+    orphaned worker thread then waited out the approval timeout.
+    Hardened in-slice to a bounded click-retry loop (a missed click has
+    no effect; a landed click approves exactly once; all assertions
+    unchanged) and verified green in a full-suite run (2026-10-30
+    22:15 EDT, 1428 passed / 2 known-environment failures).
