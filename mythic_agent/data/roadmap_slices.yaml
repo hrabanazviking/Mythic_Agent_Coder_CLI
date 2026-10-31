@@ -220,7 +220,7 @@ slices:
   title: Capability truth per model
   summary: context size, tool use, vision, reasoning, max output — stored per model, shown before selection,
     never guessed (unknown = unknown).
-  status: queued
+  status: done
 - id: M-028
   part: 2
   title: Mid-session model switching
