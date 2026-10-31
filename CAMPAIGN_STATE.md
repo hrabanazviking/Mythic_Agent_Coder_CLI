@@ -204,6 +204,19 @@ entries (data-first, per the M-019/M-020 pattern — a gateway joins
 only with its real endpoint/auth/catalogue shape, nothing guessed).
 Capability truth per model proper is M-027's road, not this slice's.*
 
+*M-033 scoping note (2026-10-31 19:00 EDT tick): M-033
+(Subscription doors study) is IN PROGRESS this tick. Studied
+behaviourally from the vendors' own public documentation and
+legal pages, clean-room like M-014: the OAuth-style subscription
+sign-ins rivals offer (Claude Pro/Max via Claude Code, ChatGPT
+Plus/Pro via Codex and via OpenAI's Sign in with ChatGPT
+programme, Google via Gemini CLI / Code Assist, GitHub Copilot
+via Copilot CLI) — each door recorded with its flow, plans,
+credential locus, and billing, and a terms verdict: built only
+where the provider's terms allow, else NOT OFFERED with the
+reason. Nothing is built in this slice: it is a study, on the
+M-014/M-015 pattern (data + validated loader + tests).*
+
 ## Transport war (opening night, recorded so no one re-fights it)
 
 GitHub bulk transfer from this VM was severely degraded on
