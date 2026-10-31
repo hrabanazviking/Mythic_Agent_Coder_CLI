@@ -1,0 +1,179 @@
+schema: mythic.terminology/1
+slice: M-006
+title: Mythic Agent Coder - Terminology Bridge (every field word honoured)
+bridged: '2026-10-30'
+source_note: >
+  The Terminology Bridge from the All-Features roadmap's slice M-006.
+  Every field term a user brings from another coding tool is given its
+  Mythic name here, and stays searchable by its common name and its
+  usual aliases: a user coming from any rival finds their word honoured,
+  never corrected away. The common terms are the field's own vocabulary
+  (the census features of M-001 and the roadmap's named examples -
+  checkpoint, hook, skill, plan mode); the Mythic names use this house's
+  standing words (forge, slice, crew, hall, waymark, Kista) where the
+  roadmap itself uses them, and plain descriptive names elsewhere.
+terms:
+- id: T-01
+  common: plan mode
+  mythic: The Drawing Board
+  aliases: [planning mode, plan-then-build]
+  definition: >
+    A mode where the agent works out and shows a plan first, and does
+    not change any files until the user approves that plan.
+- id: T-02
+  common: checkpoint
+  mythic: Waymark
+  aliases: [restore point, snapshot, undo point]
+  definition: >
+    A saved state of the work that the user can return to, so an edit
+    path that goes wrong can be undone to exactly this point.
+- id: T-03
+  common: hook
+  mythic: Trigger-rune
+  aliases: [lifecycle hook, event hook, pre-tool hook, post-tool hook]
+  definition: >
+    A user-defined command or action the app runs automatically at a
+    named moment in its lifecycle, such as before or after a tool runs.
+- id: T-04
+  common: skill
+  mythic: Craft-plug
+  aliases: [plugin, extension, skill pack]
+  definition: >
+    A packaged, reusable bundle of instructions and tools that gives
+    the agent a named capability it can be given or taught once and
+    use from then on.
+- id: T-05
+  common: agentic loop
+  mythic: The Forge Loop
+  aliases: [agent loop, read-edit-run loop]
+  definition: >
+    The core working cycle: read the code, make an edit, run tools or
+    tests, read the result, and repeat until the task is done.
+- id: T-06
+  common: permission prompt
+  mythic: Approval card
+  aliases: [approval prompt, confirmation prompt]
+  definition: >
+    The moment the app stops and asks the user to approve or refuse an
+    action before running it, with the action and its target named.
+- id: T-07
+  common: permission profile
+  mythic: Remembered scope
+  aliases: [remembered approval, approval scope, allowlist profile]
+  definition: >
+    A named, remembered approval: what was approved, where it applies,
+    and until when - so the same question is not asked again inside
+    its scope, and can be revoked in one step.
+- id: T-08
+  common: project instruction file
+  mythic: House law file
+  aliases: [AGENTS.md, CLAUDE.md, instructions file, rules file]
+  definition: >
+    A file in the project that carries the project's standing
+    instructions to any coding agent working in it, read before work
+    begins.
+- id: T-09
+  common: slash command
+  mythic: Quick word
+  aliases: [chat command, in-app command]
+  definition: >
+    A short command typed in the chat (usually starting with a slash)
+    that runs an app action directly instead of asking in prose.
+- id: T-10
+  common: subagent
+  mythic: Crew hand
+  aliases: [worker agent, delegated agent, child agent]
+  definition: >
+    A second agent given a bounded piece of the work to carry out,
+    whose result returns to the agent - or the user - who sent it.
+- id: T-11
+  common: MCP server
+  mythic: Outward bridge
+  aliases: [tool server, MCP tool server]
+  definition: >
+    A server that offers tools over the Model Context Protocol; when
+    Mythic runs one, other apps can call Mythic's tools through it.
+- id: T-12
+  common: MCP client
+  mythic: Inward bridge
+  aliases: [MCP host, tool consumer]
+  definition: >
+    The side of the Model Context Protocol that connects to MCP
+    servers and uses the tools they offer inside this app.
+- id: T-13
+  common: session resume
+  mythic: Returning to the hall
+  aliases: [resume session, continue session, session search]
+  definition: >
+    Picking an earlier work session back up - or finding it by
+    searching past sessions - with its context and state intact.
+- id: T-14
+  common: context compaction
+  mythic: Tight-packing
+  aliases: [compaction, context summarising, summarization]
+  definition: >
+    Shrinking the conversation and context the model carries - by
+    summarising what matters and dropping what does not - so long
+    work fits inside the model's context window.
+- id: T-15
+  common: sandbox
+  mythic: Walled yard
+  aliases: [sandboxing, command sandbox, isolation]
+  definition: >
+    A bounded place commands run in, limiting what files, network,
+    and system powers they can touch while they run.
+- id: T-16
+  common: worktree
+  mythic: Side bench
+  aliases: [git worktree, parallel checkout]
+  definition: >
+    A second checkout of the same repository on its own branch, so
+    two pieces of work - often two crew hands - never share one
+    working tree.
+- id: T-17
+  common: repo map
+  mythic: The Survey
+  aliases: [repository map, codebase map, code map]
+  definition: >
+    A token-ranked outline of the whole repository - its files and
+    important symbols - that lets the agent navigate a large codebase
+    without reading every file.
+- id: T-18
+  common: diff
+  mythic: The change-lines
+  aliases: [patch, change set, unified diff]
+  definition: >
+    The exact lines an edit adds, removes, or changes, shown so the
+    user can review precisely what is different before it is kept.
+- id: T-19
+  common: headless mode
+  mythic: Unattended forge
+  aliases: [CI mode, scripting mode, non-interactive mode]
+  definition: >
+    Running the app with no interactive screen - from a script or a
+    CI job - taking its task from arguments and reporting by exit
+    code and output.
+- id: T-20
+  common: provider
+  mythic: Model door
+  aliases: [model provider, vendor, model vendor]
+  definition: >
+    A service or local engine that supplies the model the agent thinks
+    with; Mythic treats every provider as one door among many, never
+    the only door.
+- id: T-21
+  common: secrets store
+  mythic: Kista
+  aliases: [key store, credential vault, API key store]
+  definition: >
+    The protected place API keys and other secrets live. In this
+    house that place is Kista; secrets never go in project files,
+    logs, or chat.
+- id: T-22
+  common: unit of work
+  mythic: Slice
+  aliases: [task slice, work slice, vertical slice]
+  definition: >
+    One complete, verified piece of work - behaviour, tests, and
+    documentation together - small enough to finish and bank before
+    the next begins.
