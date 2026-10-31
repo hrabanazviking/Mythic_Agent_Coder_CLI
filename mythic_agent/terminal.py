@@ -273,13 +273,22 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command == "/session":
         return True, False, f"Session: {agent.session_id}\nResume: mythic chat --workspace {shlex.quote(str(agent.project_root))} --resume {agent.session_id}"
     if command == "/model":
-        values = shlex.split(arguments)
-        if not values:
-            return True, False, f"Model: {agent.config['model']} ({agent.config['base_url']})"
-        if len(values) > 2:
-            return True, False, "Usage: /model <name> [url]"
-        agent.set_model(values[0], values[1] if len(values) == 2 else agent.config["base_url"])
-        return True, False, f"Model changed to {values[0]}."
+        from .core.model_switch import format_switch_record, parse_switch_args
+        try:
+            request = parse_switch_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if not any(request.values()):
+            provider = agent.active_provider()
+            label = f" via {provider}" if provider else ""
+            return True, False, f"Model: {agent.config['model']}{label} ({agent.config['base_url']})"
+        try:
+            record = agent.switch_model(
+                request["model"], provider=request["provider"],
+                base_url=request["base_url"], reason=request["reason"])
+        except (ValueError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_switch_record(record)
     if command == "/status":
         agent._cancel.clear()
         settings = runtime_settings(agent.config)

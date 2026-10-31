@@ -193,6 +193,8 @@ class CommandHandler:
                 self._handle_local(args)
             elif cmd == "/gateway":
                 self._handle_gateway(args)
+            elif cmd == "/model":
+                self._handle_model(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -664,6 +666,56 @@ class CommandHandler:
         except MythicProviderError as e:
             text = f"\n[red]{e}[/red]\n"
         publish_sync("agent_chat_chunk", agent_name="Primary", text=text)
+
+    def _handle_model(self, args: str):
+        """M-028: /model — mid-session model/provider switching.
+
+        ``/model`` shows the Primary agent's current selection;
+        ``/model <model> [url]`` switches model (and door) on the
+        live session; ``/model --provider <name> [--model <model>]
+        [--reason <words...>]`` switches provider through the
+        M-019 registry. The agent layer owns the switch itself
+        (between-turns only, journaled as a session event, session /
+        plan / crew preserved); every refusal — unknown provider, a
+        native-dialect door the live session cannot speak, a turn
+        in flight, a failed save — is published verbatim, and a
+        refused switch changes nothing.
+        """
+        from ..core.model_switch import format_switch_record, parse_switch_args
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_switch_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if not any(request.values()):
+            provider = primary.active_provider()
+            label = f" via {provider}" if provider else ""
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]Model:[/bold cyan] "
+                     f"{primary.config.get('model')}{label} "
+                     f"({primary.config.get('base_url')})\n"
+                     "[dim]Switch with /model <model> [url] or "
+                     "/model --provider <name> — the session, its "
+                     "plan and the crew are kept.[/dim]\n")
+            return
+        try:
+            record = primary.switch_model(
+                request["model"], provider=request["provider"],
+                base_url=request["base_url"], reason=request["reason"])
+        except (ValueError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync("agent_chat_chunk", agent_name="Primary",
+                     text=f"\n[green]{format_switch_record(record)}[/green]\n")
 
     def _handle_tutorial(self):
         tutorial_text = """
