@@ -1207,6 +1207,29 @@ class Agent:
             "plain_explanation": long_context.PLAIN_EXPLANATION,
         }
 
+    def provider_health(self, probe: bool = True) -> dict[str, Any]:
+        """The per-provider health board for this session (M-039).
+
+        Every M-019 registry door side by side: reachable /
+        unreachable with a measured latency and the probe's
+        own last error, ``needs-key`` with its M-032 custody
+        state for a remote door whose key is not held, and an
+        honest ``unknown`` for a door that was not probed.
+        The crew's shared M-036 weather board's remembered
+        state rides along where it has seen a door. With
+        ``probe`` false no door is probed and every entry is
+        ``unknown`` — the offline board.
+        """
+        from ..core import provider_health
+        from ..core.rate_limit_weather import shared_board
+
+        board = provider_health.build_board(
+            self.config, weather_board=shared_board(), probe=probe)
+        return {
+            "board": board.record(),
+            "plain_explanation": provider_health.PLAIN_EXPLANATION,
+        }
+
     def salvaged_partial(self) -> dict[str, Any] | None:
         """The salvaged partial answer waiting in this history (M-034).
 
