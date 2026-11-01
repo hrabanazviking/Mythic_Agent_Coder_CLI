@@ -205,6 +205,8 @@ class CommandHandler:
                 self._handle_kista(args)
             elif cmd == "/resume-thought":
                 self._handle_resume_thought(args)
+            elif cmd == "/retry":
+                self._handle_retry(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1016,6 +1018,45 @@ class CommandHandler:
             return
         publish_sync("agent_chat_chunk", agent_name="Primary",
                      text=f"\n{text}\n")
+
+    def _handle_retry(self, args: str):
+        """M-035: /retry — retry and backoff honesty, in plain words.
+
+        ``/retry`` (or ``/retry show``) shows the plain-words
+        explanation, the named bounds the current settings
+        imply (budget, waits, planned and worst-case totals),
+        the mutating rule and the replay boundaries, and the
+        last provider request's retry report — or, plainly,
+        that no provider request has been retried yet in this
+        session.
+        """
+        from ..core.retry_honesty import (
+            bounds_from_settings,
+            format_retry_status,
+            parse_retry_args,
+        )
+        from ..core.runtime import runtime_settings
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_retry_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.retry_status()
+            assert status["bounds"] == bounds_from_settings(
+                runtime_settings(primary.config))
+            assert status["report"] is primary.last_retry_report
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_retry_status(status['bounds'], status['report'])}[/bold cyan]\n")
+            return
 
     def _handle_tutorial(self):
         tutorial_text = """
