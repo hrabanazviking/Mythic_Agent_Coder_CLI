@@ -66,9 +66,11 @@ with ``mythic_agent/tools/review.py`` as its basis):
   and formatters.
 
 Debugger-in-the-loop (M-055 — re-running a failing test
-under the debugger by the coder itself) is a later slice
-on this road; it consumes this slice's session records
-and is not built or claimed here.
+under the debugger by the coder itself) lives in
+``mythic_agent/tools/debug_loop.py``; it consumes this
+slice's client and session records. The one road it
+needed back here is the client's module launch
+(``launch(module="pytest", ...)``), added with M-055.
 
 Honesty rules, pinned by the slice's tests:
 
@@ -617,21 +619,39 @@ class DAPClient:
                 f"the {self.adapter.name} debug adapter is not "
                 f"running; start the client first")
 
-    def launch(self, program: Path | str, *,
+    def launch(self, program: Optional[Path | str] = None, *,
+               module: Optional[str] = None,
                args: Optional[List[str]] = None,
                stop_on_entry: bool = False) -> Dict[str, Any]:
-        """Launch *program* under the adapter."""
+        """Launch *program* — or the named *module* — under the adapter.
+
+        Exactly one of *program* / *module* is required. The
+        module road (added for M-055's debugger-in-the-loop,
+        which launches ``pytest`` itself) is debugpy's own
+        module launch: the adapter runs the module the way
+        ``python -m <module>`` would, with *args* as its
+        arguments.
+        """
         self._require_running()
-        target = Path(program)
-        if not target.is_absolute():
-            target = self.root / target
-        return self._request("launch", {
-            "program": str(target),
+        if (program is None) == (module is None):
+            raise ValueError(
+                "launch needs exactly one of a program or a module")
+        arguments: Dict[str, Any] = {
             "args": list(args or []),
             "cwd": str(self.root),
             "stopOnEntry": bool(stop_on_entry),
             "noDebug": False,
-        })
+        }
+        if module is not None:
+            if not str(module).strip():
+                raise ValueError("a launch module must be named")
+            arguments["module"] = str(module)
+        else:
+            target = Path(program)  # type: ignore[arg-type]
+            if not target.is_absolute():
+                target = self.root / target
+            arguments["program"] = str(target)
+        return self._request("launch", arguments)
 
     def attach(self, *, process_id: Optional[int] = None,
                port: Optional[int] = None,

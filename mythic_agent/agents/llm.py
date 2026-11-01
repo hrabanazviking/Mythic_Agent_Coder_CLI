@@ -1604,6 +1604,35 @@ class Agent:
             "plain_explanation": debugger_module.PLAIN_EXPLANATION,
         }
 
+    def debug_loop(self, test: str, *, breakpoints: Any = None) -> dict[str, Any]:
+        """Re-run one failing test under the debugger (M-055).
+
+        The test node names a file inside this session's
+        workspace (a path escaping it is refused) and,
+        after ``::``, the test itself. The re-run launches
+        the pytest module under M-054's adapter with
+        exception stops on; the report's evidence is the
+        stop's frames and locals exactly as the adapter
+        reported them. Absence is honest: an adapter that
+        is not installed, a re-run that never stops, and
+        the loop switched off each come back as the
+        report's status — never as invented evidence.
+        """
+        from ..core.workspace import assert_within_workspace
+        from ..tools import debug_loop as loop_module
+
+        file_part, _name = loop_module.split_test_node(test)
+        resolved = assert_within_workspace(self.project_root, file_part)
+        report = loop_module.debug_failing_test(
+            test, root=self.project_root,
+            breakpoints=list(breakpoints or []),
+            enabled=loop_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": loop_module.PLAIN_EXPLANATION,
+        }
+
     def lsp_workspace_symbols(self, query: str = "") -> dict[str, Any]:
         """The workspace's symbols, per the language server (M-050)."""
         from ..integrations import lsp as lsp_module

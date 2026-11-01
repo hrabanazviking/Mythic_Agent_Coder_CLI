@@ -169,7 +169,17 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             result = run_process(command, root_path, shell=True, cancel=cancel,
                                  timeout=settings["command_timeout"], grace=settings["process_kill_grace"],
                                  progress=progress)
-            return result.render()
+            rendered = result.render()
+            # M-055: the debugger in the loop — a failed
+            # pytest run's first named failing test is
+            # re-run under the debugger and the evidence
+            # (or the honest absence) is appended here.
+            if result.status == "failed":
+                from ..tools.debug_loop import debug_note_for_command, enabled_from_config
+                if enabled_from_config(getattr(agent, "config", None)):
+                    rendered += debug_note_for_command(
+                        command, result.output, root=root_path)
+            return rendered
         except Exception as exc:
             return f"Command failed: {exc}"
             

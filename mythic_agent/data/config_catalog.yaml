@@ -312,6 +312,13 @@ settings:
   default: 'True'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'The Debugger (M-054): when true, the debugger road is open — a program may be run under a catalogued debug adapter (debugpy for Python first, the DAP-general client) with breakpoints, exception stops, stepping, and variable inspection reported exactly as the adapter reports them; when false, a debug run refuses plainly and no adapter is launched.'
+- id: S-44
+  name: debugger_in_loop
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Debugger in the loop (M-055): when true, a failing test — named on the /debugloop road or detected from a pytest run_command result''s own FAILED lines — may be re-run under the M-054 debugger as a pytest module launch with exception stops on, its frames and locals appended as evidence; when false, no test is re-run under the debugger. The debugger switch (S-43) gates this road too.'
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
