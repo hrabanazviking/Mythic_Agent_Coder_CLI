@@ -304,7 +304,7 @@ slices:
   title: New-provider test kit
   summary: a conformance script any new registry entry must pass (chat, tools, streaming, errors) before
     it ships.
-  status: queued
+  status: done
 - id: M-042
   part: 2
   title: Part II gate
