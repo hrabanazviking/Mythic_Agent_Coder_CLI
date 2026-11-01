@@ -850,3 +850,32 @@ its tool and TUI surfaces on the established patterns.
 The building tick settles the pattern syntax's exact
 shape from the tree (ast-grep's `$NAME` / `$$$` words are
 the roadmap's own example) before designing further.*
+
+*M-047 IN PROGRESS (2026-11-01 07:20 EST tick): build under
+way on the settled design — the pattern layer lives in the
+gap audit's owning module `mythic_agent/tools/
+structural_search.py`: a pure layer over the M-043 parses
+(never a second parser). The pattern is written in the
+target language with ast-grep's metavariables — `$NAME`
+matches exactly one node and captures it, `$$$` / `$$$NAME`
+matches zero or more sibling nodes — substituted with
+placeholder identifiers so the pattern itself parses through
+the foundation, then matched structurally against every
+node of each target parse: node types must agree, leaf text
+must agree, a repeated metavariable must capture the same
+text twice, and captures carry their source spans. Honesty
+bounds like M-043/M-046's: a pattern that does not parse in
+its language is refused (never text-searched instead), a
+grammar-less language (Mojo) is refused with the
+foundation's own reason, files that cannot be parsed land
+in the result's skipped list with their reasons, and only
+files of the pattern's language are searched — the rest are
+not silently passed over, they are simply not this search's
+population and the result says which language it searched.
+Surfaces on the established roads: `Agent.structural_search()`
+(the tool), `/ssearch <language> <pattern>` on the terminal
++ TUI system-command road sharing one parser + formatter,
+TUI help surfaces. The gap audit's structural-search-rewrite
+row flips module_kind proposed -> existing in-slice (its
+state stays MISSING — the rewrite half is M-048, not
+claimed here).*
