@@ -1255,6 +1255,28 @@ class Agent:
             "plain_explanation": offline_honesty.PLAIN_EXPLANATION,
         }
 
+    def test_kit(self, provider: str, base_url: str | None = None,
+                 model: str | None = None) -> dict[str, Any]:
+        """Run the new-provider test kit for one door (M-041).
+
+        The five kit checks (registry, chat, tools, streaming,
+        errors) proven against the named registry entry's door
+        — or against *base_url* when given — with the evidence
+        stated plainly per check. A check the door does not
+        claim is skipped with the reason; a dialect the
+        universal adapter cannot serve is ``not-proven``,
+        never passed. An unknown provider name raises
+        KeyError. No key value rides the report.
+        """
+        from ..core import provider_test_kit
+
+        report = provider_test_kit.run_kit(
+            provider, base_url=base_url, model=model)
+        return {
+            "report": report.record(),
+            "plain_explanation": provider_test_kit.PLAIN_EXPLANATION,
+        }
+
     def salvaged_partial(self) -> dict[str, Any] | None:
         """The salvaged partial answer waiting in this history (M-034).
 
