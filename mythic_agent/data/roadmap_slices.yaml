@@ -339,7 +339,7 @@ slices:
   part: 3
   title: Structural search
   summary: ast-grep-style pattern search ("find every call like `foo($A, $$$)`) as a tool and a TUI panel.
-  status: queued
+  status: done
 - id: M-048
   part: 3
   title: Structural rewrite
