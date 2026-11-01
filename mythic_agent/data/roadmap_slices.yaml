@@ -344,7 +344,7 @@ slices:
   part: 3
   title: Structural rewrite
   summary: the same patterns as safe codemods with per-site diff preview — never a blind global replace.
-  status: queued
+  status: done
 - id: M-049
   part: 3
   title: LSP client I — diagnostics
