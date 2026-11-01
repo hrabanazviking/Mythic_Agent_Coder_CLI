@@ -1102,6 +1102,23 @@ class Agent:
 
         return route_images(self.config, parts)
 
+    def _outgoing_image_parts(self) -> list[Any]:
+        """Every image part in the conversation about to be sent.
+
+        History messages whose content is a list of canonical
+        content parts contribute their parts; plain-text
+        content contributes none. This is the set the vision
+        gate judges before a request leaves for the door.
+        """
+        parts: list[Any] = []
+        for message in self.history_snapshot():
+            if not isinstance(message, dict):
+                continue
+            content = message.get("content")
+            if isinstance(content, list):
+                parts.extend(content)
+        return parts
+
     def gate_image_parts(self, parts: Any) -> Any:
         """Gate *parts* before any image work is sent (M-037).
 
@@ -1724,7 +1741,15 @@ class Agent:
         status (including rate-limit 429s that exhausted retries),
         credentials, or an empty/garbled response — is handed to
         :meth:`_walk_fallback`; a cancellation is never walked.
+
+        Before anything is queued or sent, the conversation's
+        image parts are gated by M-037's vision routing: a
+        model that is not known to see never receives them.
+        A refusal is not a provider failure — it is raised
+        plainly, journaled as ``vision_refused``, and never
+        walked to a fallback door.
         """
+        self.gate_image_parts(self._outgoing_image_parts())
         self._queue_around_rate_limit()
         try:
             client = self.get_client()
