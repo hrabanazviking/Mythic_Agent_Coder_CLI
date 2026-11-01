@@ -113,7 +113,7 @@ rows:
   part: III
   state: MISSING
   owning_module: mythic_agent/context/repo_map.py
-  module_kind: proposed
+  module_kind: existing
   basis: mythic_agent/context/compiler.py
   fix_shape: A token-budgeted repo map built with the context compiler and the code index.
 - feature: lsp-integration
