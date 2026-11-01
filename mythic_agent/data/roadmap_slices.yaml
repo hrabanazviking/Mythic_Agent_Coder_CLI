@@ -334,7 +334,7 @@ slices:
   title: Symbol graph
   summary: definitions, references, imports, call edges extracted per language; the graph feeds the map,
     the search, and Part VI's task splitting.
-  status: queued
+  status: done
 - id: M-047
   part: 3
   title: Structural search
