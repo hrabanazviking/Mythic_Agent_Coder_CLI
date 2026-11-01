@@ -2,7 +2,7 @@
 
 > **GENERATED FILE — do not edit by hand.**
 > Regenerate with: `python scripts/gen_ownership.py`
-> Generated at: 2026-11-01T15:47:50Z
+> Generated at: 2026-11-01T16:45:30Z
 
 Ownership is derived from real git history: for each module the owner is the top author by commit count touching that file (ties resolve to the most recently active author). Share is the owner's commit count divided by the total commit count on the file.
 
@@ -12,7 +12,7 @@ Total modules: **168**
 
 | Author | Modules owned | File commits | Share of modules |
 | --- | ---: | ---: | ---: |
-| Yrsa Freydisdottir | 141 | 292 | 83.9% |
+| Yrsa Freydisdottir | 141 | 293 | 83.9% |
 | Volmarr Wyrd | 27 | 168 | 16.1% |
 
 ## Per-module ownership
@@ -124,7 +124,7 @@ Total modules: **168**
 | `mythic_agent/doctor.py` | Yrsa Freydisdottir | 100.0% | 5 / 5 | 2026-11-01 |
 | `mythic_agent/integrations/__init__.py` | Yrsa Freydisdottir | 100.0% | 1 / 1 | 2026-10-09 |
 | `mythic_agent/integrations/github.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
-| `mythic_agent/integrations/lsp.py` | Yrsa Freydisdottir | 100.0% | 1 / 1 | 2026-11-01 |
+| `mythic_agent/integrations/lsp.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-11-01 |
 | `mythic_agent/knowledge/__init__.py` | Yrsa Freydisdottir | 100.0% | 1 / 1 | 2026-10-09 |
 | `mythic_agent/knowledge/graph.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
 | `mythic_agent/mcp_server.py` | Yrsa Freydisdottir | 57.1% | 4 / 7 | 2026-10-31 |
@@ -1038,8 +1038,8 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
     {
       "module": "mythic_agent/integrations/lsp.py",
       "owner": "Yrsa Freydisdottir",
-      "owner_commits": 1,
-      "total_commits": 1,
+      "owner_commits": 2,
+      "total_commits": 2,
       "share": 1.0,
       "last_touch": "2026-11-01"
     },
@@ -1544,7 +1544,7 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
     {
       "author": "Yrsa Freydisdottir",
       "modules_owned": 141,
-      "file_commits": 292
+      "file_commits": 293
     },
     {
       "author": "Volmarr Wyrd",
