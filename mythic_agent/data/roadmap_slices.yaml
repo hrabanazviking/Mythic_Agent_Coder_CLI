@@ -274,7 +274,7 @@ slices:
   title: Rate-limit weather
   summary: per-provider quota/limit state surfaced in the status line *before* it bites; queueing of crew
     work around it.
-  status: queued
+  status: done
 - id: M-037
   part: 2
   title: Vision input routing
