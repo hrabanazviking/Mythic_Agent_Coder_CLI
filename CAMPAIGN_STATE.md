@@ -987,3 +987,32 @@ hidden_files/m048-rate-warm1..3.log, load 5–8) — so its
 window is hardened in scope per the M-003 pattern
 (retry_after widened, elapsed assertions adjusted, product
 code untouched).*
+
+*M-048 BUILT + BANKED, CLOSURE PENDING (2026-11-01 08:50 EST
+tick, verdict written ~10:45 EST): the slice is banked
+(`b56d090` + regen `f85c7bf`, PUBLIC_API 1835 → 1850) and
+parent-verified from disk — targeted set 166 passed
+(m048-targeted.log: 55 rewrite + 47 search + 64 rate-limit,
+incl. the hardened live-queue test), inventory set 47 passed
++ the 1 PortAudio env failure, collect-only 2884 (closes:
+2829 + 55). The worker's gap-audit finding stands: the
+structural-search-rewrite row's state is pinned to the census
+by validate_audit and stays MISSING like M-044's shipped
+repo-map row — no honest flip exists inside the validators'
+current shape. FULL SUITE: chunks 0–2 counted from on-disk
+logs (m048-chunk0..2.log): 354+537+483 passed, 6 failed —
+chunk 0's PortAudio env case, chunk 2's tiktoken env case,
+and chunk 2's 4 test_cli subprocess-budget timeouts (the
+known load class under load ~10; solo proofs still owed).
+Chunks 3–5 are DISCARDED, never counted: a VM write-denial
+(EPERM) episode struck mid-chunk-3 (INTERNALERROR
+PermissionError on flush, m048-chunk3.log) and chunks 4/5
+wrote 0 bytes; a tempfile probe at the verdict still fails
+('No usable temporary directory'), and git writes fail the
+same way, so this closure note sits UNCOMMITTED in the
+working tree. NEXT TICK: probe writes healthy (tempfile +
+git), then commit this note, re-run chunks 3–5
+(m048-chunkfiles-03..05), solo-prove chunk 2's 4 cli
+failures, flip roadmap data to 48 done, closure commit,
+push (fetch + ls-remote verify), scope M-049. Campaign
+total: 47/272 closed; M-048 banked pending suite verdict.*
