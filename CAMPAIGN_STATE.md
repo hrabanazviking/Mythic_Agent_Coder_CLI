@@ -1249,3 +1249,32 @@ unconfigured is reported, never invented (M-053 owns the
 formatter covenant itself). The building tick settles from
 the tree where edits actually land (the EditJournal call
 sites and the Agent's turn loop) before designing further.*
+
+*M-052 IN PROGRESS (2026-11-01 13:50 EST tick): build under
+way this tick on the scoped design — new module
+`mythic_agent/tools/edit_truth.py` (the gap audit's
+formatter-linter-loop row, basis `tools/review.py`): the
+post-edit truth loop. Before an edit the file's findings
+are captured (house review on the before-content, LSP
+diagnostics where a server truly runs, a configured
+linter where one truly exists); after the edit the same
+legs run again and only NEW findings — a multiset diff on
+(source, severity, check, message), line numbers ignored
+so a shifted pre-existing finding is not charged to the
+edit — return to the coder. Legs that cannot run report
+honestly: no language server installed means the LSP leg
+says not-installed, never a clean bill; no linter
+configured/installed means that leg says so, never an
+invented run (M-053 owns the formatter covenant itself,
+so no formatter is run here). The loop wires into the
+agent tool edit road (`write_file` /
+`replace_file_content` in `agents/tools.py`): a
+successful edit with new error-severity findings appends
+the truth report to the tool result, so the coder sees
+the facts before the turn ends; a clean edit's result is
+unchanged. Setting `edit_truth_loop` ships ON in
+config_defaults + the M-009 catalogue (S-41), with
+`/truth <path>` on the terminal + TUI system-command
+roads and `Agent.edit_truth()` sharing the one parser
+and formatter. A truth-loop failure never breaks the
+edit itself — it is appended as an honest note.*
