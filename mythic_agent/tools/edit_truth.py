@@ -202,6 +202,7 @@ class TruthReport:
             "resolved_count": self.resolved_count,
             "preexisting_count": self.preexisting_count,
             "has_new_errors": self.has_new_errors,
+            "leg_statuses": self.leg_statuses(),
         }
 
 
