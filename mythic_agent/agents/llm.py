@@ -323,6 +323,11 @@ class Agent:
         self._closed = False
         self.last_result = TurnResult("idle")
         self.last_retry_report = None
+        from ..core.rate_limit_weather import shared_board
+
+        # M-036: the crew-shared rate-limit weather board — one
+        # member's limit signal is every member's weather.
+        self._weather_board = shared_board()
         self.tui_app = None
         self.tool_policy = ToolPolicy("read-only")
         self._permission_override = None
@@ -1134,6 +1139,125 @@ class Agent:
             "mutating_rule": MUTATING_RULE,
         }
 
+    # -- M-036: rate-limit weather -------------------------------------
+
+    def _weather_key(self) -> str:
+        """The weather-board key for this agent's current door."""
+        from ..core.rate_limit_weather import weather_key_for
+
+        return weather_key_for(self.config)
+
+    def _note_limit_error(self, exc: Exception) -> None:
+        """Record a failed request's limit signal (M-036).
+
+        Only a real signal is recorded — a 429, or the limit
+        headers the door actually sent; any other failure
+        records nothing. When the door newly turns limited,
+        the turn is journaled as a ``rate_limit_seen``
+        checkpoint. Recording never raises: the failure being
+        handled is the truth owed, not the weather.
+        """
+        try:
+            key = self._weather_key()
+            before = self._weather_board.weather_for(key)
+            weather = self._weather_board.record_error(key, exc)
+        except Exception:
+            return
+        if weather is None:
+            return
+        if weather.state == "limited" and before.state != "limited" \
+                and self._session_store and self.session_id:
+            try:
+                self._checkpoint({
+                    "type": "rate_limit_seen",
+                    "provider": key,
+                    "limited_until": weather.limited_until,
+                    "source": weather.source,
+                })
+            except Exception:
+                pass  # the weather is recorded; the request's
+                # own outcome is handled by the caller
+
+    def _note_weather_success(self) -> None:
+        """Record that this agent's door just answered (M-036)."""
+        try:
+            self._weather_board.record_success(self._weather_key())
+        except Exception:
+            pass
+
+    def weather_status(self) -> dict[str, Any]:
+        """The shared board's weather, in plain data (M-036).
+
+        Every recorded door's weather (state, the quota the
+        door itself reported, its reset when known), this
+        agent's own door and its queue decision, and the
+        plain explanation. This is the answer ``/weather``
+        shows; nothing about it is hidden, and a door with no
+        recorded signal is honestly ``unknown``.
+        """
+        from ..core.rate_limit_weather import (
+            PLAIN_EXPLANATION,
+            QUEUE_MAX_WAIT_S,
+            queue_decision,
+        )
+
+        now = time.time()
+        key = self._weather_key()
+        weather = self._weather_board.weather_for(key, now=now)
+        decision = queue_decision(weather, now=now)
+        return {
+            "providers": [
+                entry.to_dict(now)
+                for entry in self._weather_board.snapshot(now=now)],
+            "current_provider": key,
+            "current": weather.to_dict(now),
+            "decision": decision,
+            "queue_max_wait_s": QUEUE_MAX_WAIT_S,
+            "plain_explanation": PLAIN_EXPLANATION,
+        }
+
+    def _queue_around_rate_limit(self) -> None:
+        """Queue this request around a known limit (M-036).
+
+        When the current door's recorded weather says it is
+        limited until a known reset within the queueing
+        bound, the request waits — announced on the chat
+        surface and journaled as ``rate_limit_queued`` —
+        until the reset passes. The wait rides the agent's
+        cancel event, so a cancelled queue sends nothing and
+        raises TurnCancelled. Every other weather (clear,
+        unknown, a reset beyond the bound, or no known reset)
+        proceeds at once: the decision's reason has already
+        been surfaced by /weather, and M-035's retries /
+        M-030's fallback walk own what happens next.
+        """
+        from ..core.rate_limit_weather import queue_decision
+
+        key = self._weather_key()
+        weather = self._weather_board.weather_for(key)
+        decision = queue_decision(weather, now=time.time())
+        if decision.action != "wait":
+            return
+        if self._session_store and self.session_id:
+            try:
+                self._checkpoint({
+                    "type": "rate_limit_queued",
+                    "provider": key,
+                    "wait_s": decision.wait_s,
+                    "limited_until": decision.limited_until,
+                })
+            except Exception:
+                pass  # the wait itself is the road; a journal
+                # failure must not un-queue the request
+        publish_sync(
+            "agent_chat_chunk", agent_name=self.name,
+            text=f"\nRate-limit weather: {decision.reason} "
+                 f"Waiting {decision.wait_s:.0f}s before "
+                 f"sending.\n")
+        if self._cancel.wait(decision.wait_s):
+            raise TurnCancelled(
+                "Turn cancelled while queued around a rate limit")
+
     def _make_retry_event(self, exc: Exception, attempt: int,
                           limit: int, decision: str,
                           delay: float | None = None) -> Any:
@@ -1453,12 +1577,14 @@ class Agent:
                     messages=self.history_snapshot(), tools=get_agent_tools(),
                     stream=False, timeout=settings["request_timeout"],
                 )
+                self._note_weather_success()
                 self._finish_retry(recorder, "succeeded", attempt + 1)
                 return response, False
             except TurnCancelled:
                 self._finish_retry(recorder, "cancelled", attempt + 1)
                 raise
             except (APIConnectionError, APIStatusError) as exc:
+                self._note_limit_error(exc)
                 if not _is_transient(exc):
                     recorder.record(self._make_retry_event(
                         exc, attempt, limit, "stopped-not-transient"))
@@ -1494,6 +1620,7 @@ class Agent:
         credentials, or an empty/garbled response — is handed to
         :meth:`_walk_fallback`; a cancellation is never walked.
         """
+        self._queue_around_rate_limit()
         try:
             client = self.get_client()
             return self._request_response(client, settings)
@@ -1642,6 +1769,7 @@ class Agent:
                 self._finish_retry(recorder, "cancelled", attempt + 1)
                 raise
             except (APIConnectionError, APIStatusError) as exc:
+                self._note_limit_error(exc)
                 if accumulator.emitted:
                     recorder.record(self._make_retry_event(
                         exc, attempt, limit, "stopped-partial-streamed"))
@@ -1676,6 +1804,7 @@ class Agent:
                 self._finish_retry(recorder, "failed", attempt + 1)
                 raise
             usage = accumulator._usage
+            self._note_weather_success()
             self._finish_retry(recorder, "succeeded", attempt + 1)
             return SimpleNamespace(
                 choices=[SimpleNamespace(message=message,

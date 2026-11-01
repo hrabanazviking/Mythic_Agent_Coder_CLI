@@ -121,6 +121,16 @@ class OpenRouterProvider(OpenAICompatProvider):
                 f"{self.name} is unreachable at {self.base_url}: "
                 f"{type(exc).__name__}. Check your network connection, "
                 "then try again.") from exc
+        # M-036: the catalogue door's own limit headers, when it
+        # sends any, are rate-limit weather for this provider —
+        # recorded on the crew's shared board, never allowed to
+        # break the catalogue read itself.
+        try:
+            from ..core.rate_limit_weather import shared_board
+
+            shared_board().record_headers(self.name, response.headers)
+        except Exception:
+            pass
         try:
             return response.status_code, response.json()
         except ValueError:
