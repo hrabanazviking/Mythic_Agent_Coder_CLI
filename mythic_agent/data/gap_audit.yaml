@@ -129,7 +129,7 @@ rows:
   part: III
   state: MISSING
   owning_module: mythic_agent/tools/structural_search.py
-  module_kind: proposed
+  module_kind: existing
   basis: mythic_agent/tools/code_index.py
   fix_shape: Structural pattern search and codemods beside the existing code index.
 - feature: hash-anchored-edits

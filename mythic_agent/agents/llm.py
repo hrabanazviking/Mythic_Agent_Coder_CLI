@@ -1300,6 +1300,33 @@ class Agent:
             "plain_explanation": repo_map_view.PLAIN_EXPLANATION,
         }
 
+    def structural_search(self, pattern: str,
+                          language: str) -> dict[str, Any]:
+        """Search this workspace by code shape (M-047).
+
+        An ast-grep-style pattern — code in *language*
+        itself, with ``$NAME`` matching and capturing one
+        node and ``$$$`` / ``$$$NAME`` matching zero or more
+        siblings — run over every file of that language in
+        the session's workspace, through the M-043 parse
+        foundation. The result names every match with its
+        captures and spans, and every file it honestly
+        skipped, with the reason. A pattern that does not
+        parse in its language raises PatternError (a
+        ValueError); a grammar-less language raises
+        ParseUnavailableError; an uncatalogued language
+        raises KeyError. Search only — nothing is edited.
+        """
+        from ..tools import structural_search as search_module
+
+        compiled = search_module.compile_pattern(pattern, language)
+        result = search_module.search_workspace(
+            self.project_root, compiled)
+        return {
+            "result": result.record(),
+            "plain_explanation": search_module.PLAIN_EXPLANATION,
+        }
+
     def repo_map_detail(self, path: str) -> dict[str, Any]:
         """One file's full account from the repo map (M-045).
 
