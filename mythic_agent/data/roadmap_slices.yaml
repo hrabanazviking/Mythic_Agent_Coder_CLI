@@ -286,7 +286,7 @@ slices:
   title: Long-context strategy per model
   summary: 1M-class contexts get map-first loading; small contexts get aggressive repo-map + retrieval
     (Part III/VII) — the strategy is chosen from capability truth.
-  status: queued
+  status: done
 - id: M-039
   part: 2
   title: Provider health board
