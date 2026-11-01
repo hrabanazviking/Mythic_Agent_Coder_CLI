@@ -316,7 +316,7 @@ slices:
   title: Tree-sitter foundation
   summary: grammar-backed parsing for the major languages (Python first, then JS/TS, Rust, Go, Mojo-aware),
     vendored cleanly with licences noticed.
-  status: queued
+  status: done
 - id: M-044
   part: 3
   title: The Repo Map (Aider's crown, made kinder)
