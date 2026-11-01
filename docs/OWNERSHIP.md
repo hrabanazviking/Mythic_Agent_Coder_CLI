@@ -2,7 +2,7 @@
 
 > **GENERATED FILE — do not edit by hand.**
 > Regenerate with: `python scripts/gen_ownership.py`
-> Generated at: 2026-11-01T17:30:01Z
+> Generated at: 2026-11-01T17:55:48Z
 
 Ownership is derived from real git history: for each module the owner is the top author by commit count touching that file (ties resolve to the most recently active author). Share is the owner's commit count divided by the total commit count on the file.
 
@@ -12,8 +12,8 @@ Total modules: **168**
 
 | Author | Modules owned | File commits | Share of modules |
 | --- | ---: | ---: | ---: |
-| Yrsa Freydisdottir | 141 | 296 | 83.9% |
-| Volmarr Wyrd | 27 | 168 | 16.1% |
+| Yrsa Freydisdottir | 142 | 326 | 84.5% |
+| Volmarr Wyrd | 26 | 141 | 15.5% |
 
 ## Per-module ownership
 
@@ -22,9 +22,9 @@ Total modules: **168**
 | `mythic_agent/__init__.py` | Volmarr Wyrd | 100.0% | 1 / 1 | 2026-06-05 |
 | `mythic_agent/__version__.py` | Yrsa Freydisdottir | 100.0% | 1 / 1 | 2026-10-09 |
 | `mythic_agent/agents/__init__.py` | Volmarr Wyrd | 100.0% | 1 / 1 | 2026-06-06 |
-| `mythic_agent/agents/command_handler.py` | Yrsa Freydisdottir | 80.6% | 25 / 31 | 2026-11-01 |
+| `mythic_agent/agents/command_handler.py` | Yrsa Freydisdottir | 81.2% | 26 / 32 | 2026-11-01 |
 | `mythic_agent/agents/context.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
-| `mythic_agent/agents/llm.py` | Volmarr Wyrd | 50.9% | 27 / 53 | 2026-11-01 |
+| `mythic_agent/agents/llm.py` | Yrsa Freydisdottir | 50.0% | 27 / 54 | 2026-11-01 |
 | `mythic_agent/agents/parallel.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
 | `mythic_agent/agents/planning.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
 | `mythic_agent/agents/prompts.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
@@ -124,7 +124,7 @@ Total modules: **168**
 | `mythic_agent/doctor.py` | Yrsa Freydisdottir | 100.0% | 5 / 5 | 2026-11-01 |
 | `mythic_agent/integrations/__init__.py` | Yrsa Freydisdottir | 100.0% | 1 / 1 | 2026-10-09 |
 | `mythic_agent/integrations/github.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
-| `mythic_agent/integrations/lsp.py` | Yrsa Freydisdottir | 100.0% | 3 / 3 | 2026-11-01 |
+| `mythic_agent/integrations/lsp.py` | Yrsa Freydisdottir | 100.0% | 4 / 4 | 2026-11-01 |
 | `mythic_agent/knowledge/__init__.py` | Yrsa Freydisdottir | 100.0% | 1 / 1 | 2026-10-09 |
 | `mythic_agent/knowledge/graph.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
 | `mythic_agent/mcp_server.py` | Yrsa Freydisdottir | 57.1% | 4 / 7 | 2026-10-31 |
@@ -163,7 +163,7 @@ Total modules: **168**
 | `mythic_agent/providers/vision.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-31 |
 | `mythic_agent/providers/vllm.py` | Yrsa Freydisdottir | 100.0% | 1 / 1 | 2026-10-10 |
 | `mythic_agent/resources.py` | Yrsa Freydisdottir | 66.7% | 2 / 3 | 2026-10-10 |
-| `mythic_agent/terminal.py` | Yrsa Freydisdottir | 84.0% | 21 / 25 | 2026-11-01 |
+| `mythic_agent/terminal.py` | Yrsa Freydisdottir | 84.6% | 22 / 26 | 2026-11-01 |
 | `mythic_agent/tools/__init__.py` | Yrsa Freydisdottir | 100.0% | 1 / 1 | 2026-10-09 |
 | `mythic_agent/tools/code_index.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
 | `mythic_agent/tools/docgen.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
@@ -222,9 +222,9 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
     {
       "module": "mythic_agent/agents/command_handler.py",
       "owner": "Yrsa Freydisdottir",
-      "owner_commits": 25,
-      "total_commits": 31,
-      "share": 0.8065,
+      "owner_commits": 26,
+      "total_commits": 32,
+      "share": 0.8125,
       "last_touch": "2026-11-01"
     },
     {
@@ -237,10 +237,10 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
     },
     {
       "module": "mythic_agent/agents/llm.py",
-      "owner": "Volmarr Wyrd",
+      "owner": "Yrsa Freydisdottir",
       "owner_commits": 27,
-      "total_commits": 53,
-      "share": 0.5094,
+      "total_commits": 54,
+      "share": 0.5,
       "last_touch": "2026-11-01"
     },
     {
@@ -1038,8 +1038,8 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
     {
       "module": "mythic_agent/integrations/lsp.py",
       "owner": "Yrsa Freydisdottir",
-      "owner_commits": 3,
-      "total_commits": 3,
+      "owner_commits": 4,
+      "total_commits": 4,
       "share": 1.0,
       "last_touch": "2026-11-01"
     },
@@ -1350,9 +1350,9 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
     {
       "module": "mythic_agent/terminal.py",
       "owner": "Yrsa Freydisdottir",
-      "owner_commits": 21,
-      "total_commits": 25,
-      "share": 0.84,
+      "owner_commits": 22,
+      "total_commits": 26,
+      "share": 0.8462,
       "last_touch": "2026-11-01"
     },
     {
@@ -1543,13 +1543,13 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
   "rollup": [
     {
       "author": "Yrsa Freydisdottir",
-      "modules_owned": 141,
-      "file_commits": 296
+      "modules_owned": 142,
+      "file_commits": 326
     },
     {
       "author": "Volmarr Wyrd",
-      "modules_owned": 27,
-      "file_commits": 168
+      "modules_owned": 26,
+      "file_commits": 141
     }
   ],
   "total_modules": 168
