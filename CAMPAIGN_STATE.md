@@ -649,6 +649,15 @@ roadmap's words, Python first) before designing further —
 nothing is assumed here.*
 
 
+*M-043 IN PROGRESS (2026-11-01 03:20 EST tick): build under
+way — tree-sitter foundation: languages as data with licence
+notices, a pure parse layer that uses tree-sitter grammars
+when the optional code-intelligence extra is installed,
+falls back to the stdlib ast for Python only (backend named
+honestly on every parse), and reports every other language
+unavailable — never invents a parse. Grammar-backed status
+per language is probed live from imports, never assumed.*
+
 ## Laws in force (from the roadmap + Volmarr's standing rulings)
 
 Mythic Engineering is the method, not a mode · plain language first ·
