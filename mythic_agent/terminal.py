@@ -260,7 +260,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /status /session /add <path> /stop /undo /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /status /session /add <path> /stop /undo /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
         return True, False, "Conversation cleared."
@@ -460,6 +460,25 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         assert status["plan"] == plan.record()
         assert status["strategy"] == plan.strategy
         return True, False, format_longcontext_status(status)
+    if command == "/offline":
+        from .core.offline_honesty import (
+            format_offline_status,
+            parse_offline_args,
+        )
+        try:
+            request = parse_offline_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.offline_status()
+            from .core.offline_honesty import assess_board
+            from .core.provider_health import Board, HealthEntry
+            entries = tuple(HealthEntry(**e)
+                            for e in status["board"]["entries"])
+            board = Board(entries=entries,
+                          generated_at=status["board"]["generated_at"])
+            assert status["assessment"] == assess_board(board).record()
+            return True, False, format_offline_status(status)
     if command == "/resume-thought":
         from .core.streaming_discipline import (
             can_resume,
@@ -538,6 +557,18 @@ def chat_loop(args: Any) -> int:
     console.print(f"Mythic chat · {agent.project_root} · {agent.config['model']}")
     console.print(f"Session: {agent.session_id}", markup=False)
     console.print("Use /help for commands, /quit or Ctrl+D to leave, Ctrl+C to interrupt.")
+    # M-040: at session start, say it once and exactly when the
+    # app is offline — a probed board with no door that can
+    # serve — instead of letting each request die on its own
+    # error. Any failure to assess claims nothing and never
+    # blocks the chat.
+    try:
+        _offline = agent.offline_status()
+        if _offline["assessment"]["state"] == "offline":
+            from .core.offline_honesty import format_offline_status
+            console.print(format_offline_status(_offline), markup=False)
+    except Exception:
+        pass
     try:
         while True:
             try:
