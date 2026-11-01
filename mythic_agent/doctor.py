@@ -324,7 +324,40 @@ def main(argv: list[str] | None = None) -> int:
         if args.live:
             results.append(check_provider_live())
 
-    code = print_results(results, as_json=args.json)
+    # M-039: --live grows into the per-provider health board —
+    # every registry door probed (or honestly not probed),
+    # side by side, carried in --json as provider_health.
+    board = None
+    if args.live and not args.provider:
+        try:
+            from mythic_agent.core.config_manager import config_manager
+            from mythic_agent.core.provider_health import build_board
+            from mythic_agent.core.rate_limit_weather import shared_board
+
+            board = build_board(
+                config_manager.load_config(), weather_board=shared_board())
+        except Exception as exc:
+            results.append(HealthResult(
+                "provider-health", HealthStatus.FAIL,
+                f"Provider health board failed: {exc}"))
+
+    if args.json and board is not None:
+        print(json.dumps({
+            "checks": [
+                {"name": r.name, "status": r.status.value,
+                 "message": r.message, "fix_hint": r.fix_hint}
+                for r in results
+            ],
+            "provider_health": board.record(),
+        }, indent=2))
+        code = 1 if any(r.status == HealthStatus.FAIL for r in results) else 0
+    else:
+        code = print_results(results, as_json=args.json)
+        if board is not None:
+            from mythic_agent.core.provider_health import format_board
+
+            print()
+            print(format_board(board))
     if code == 0:
         print("\nAll checks passed.")
     else:
