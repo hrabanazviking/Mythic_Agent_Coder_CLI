@@ -1326,3 +1326,42 @@ inventing a house style. The building tick settles
 formatter discovery (config files + pyproject sections
 + installed binaries) from the tree before designing
 further.*
+
+*M-053 IN PROGRESS (2026-11-01 15:10 EST tick): build under
+way this tick on the scoped design — new module
+`mythic_agent/tools/format_covenant.py`: the formatter
+covenant. Discovery mirrors M-052's linter honesty: a
+formatter (black / ruff format / isort / yapf, in that
+preference order) counts only when its binary is on PATH
+AND the project itself names it — a `[tool.<name>]`
+section in pyproject.toml, its own config file at the
+root (ruff.toml/.ruff.toml, .isort.cfg, .style.yapf), or
+its section in setup.cfg/tox.ini. No formatter configured
+says not-configured and formats nothing; a configured
+formatter whose binary is absent says not-installed —
+never an invented house style (measured this tick: no
+formatter binary is installed in this environment and
+this repo's pyproject declares no formatter section, so
+live proof rides a fake formatter binary on PATH in the
+slice tests, speaking the real stdin contract).
+The formatter runs ONLY on files the caller names as
+touched by the edit — a file outside the touched set is
+refused plainly (not-touched), never reformatted. It
+runs in stdin/stdout mode, never in-place, so preview
+changes nothing on disk. Diffs are separated as data:
+logic diff = before → edited, format diff = edited →
+formatted (difflib unified diffs + line counts), so
+review can show format changes apart from logic changes.
+Application is preview-by-default: only an explicit
+apply writes, and then only through the house
+EditJournal (journal-first), only for a touched file,
+only when the file still matches the previewed content
+(a file changed since the preview is refused whole).
+Setting `formatter_covenant` ships ON by default in
+config_defaults + the M-009 catalogue (S-42); when off,
+the preview/apply road refuses plainly. Surfaces:
+`Agent.format_covenant(path, touched=..., apply=...)`
+plus `/format <path> [apply]` on the terminal + TUI
+system-command roads, sharing the one parser and
+formatter; on the /format road the named file itself is
+the touched file (the user's own act names it).*
