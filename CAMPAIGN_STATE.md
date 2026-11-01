@@ -774,3 +774,20 @@ commits, the doc/ownership/public-api subset re-ran — 63 passed,
 3 failed, the failures being exactly the three already-classified
 environment cases above. The opening commits broke nothing.*
 
+
+*M-045 IN PROGRESS (2026-11-01 05:1x EST tick): build under
+way on the settled M-044-closure scoping — the map made
+visible on the established system-command road: a pure view
+layer `mythic_agent/context/repo_map_view.py` over M-044's
+map (browse in rank order WITH each entry's own reasons —
+never a second ranking; one file's full detail: rank, score
+arithmetic, definitions, references, reasons; pinning as a
+config-held list `repo_map_pins`, catalogued per M-009,
+journaled like every user setting change, with a pinned
+file shown first while its rank and score stay exactly
+M-044's, and a pin naming an omitted/skipped/absent file
+explained honestly, never invented as an entry), surfaced
+through `Agent.repo_map_status()` / `repo_map_detail()` /
+pin + unpin methods, `/map` on the terminal + TUI
+system-command road sharing one parser + formatters, and
+the TUI help surfaces.*
