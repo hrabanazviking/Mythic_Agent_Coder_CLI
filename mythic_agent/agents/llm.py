@@ -173,45 +173,28 @@ def diagnose_provider(config: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _retry_after_seconds(exc: Exception) -> float | None:
-    """Bounded Retry-After hint in seconds, or None when absent/unparseable.
-
-    Only the numeric (delay-seconds) form is honored; HTTP-date forms are
-    ignored rather than misinterpreted.
-    """
-    try:
-        headers = getattr(getattr(exc, "response", None), "headers", None)
-        if not headers:
-            return None
-        value = headers.get("retry-after")
-        if value is None:
-            return None
-        return max(0.0, float(value))
-    except (TypeError, ValueError):
-        return None
-
-
 def _retry_delay(exc: Exception, attempt: int, settings: dict[str, Any]) -> float:
-    """Capped backoff for one retry: server Retry-After wins when present."""
-    cap = settings["retry_delay_cap"]
-    hinted = _retry_after_seconds(exc)
-    if hinted is not None:
-        return min(cap, hinted)
-    return min(cap, settings["retry_delay"] * 2 ** attempt)
+    """Capped backoff for one retry: server Retry-After wins when present.
+
+    Thin wrapper over :func:`mythic_agent.core.retry_honesty.delay_for`
+    (M-035); the semantics are unchanged.
+    """
+    from ..core.retry_honesty import delay_for
+
+    return delay_for(exc, attempt, settings)
 
 
 def _is_transient(exc: Exception) -> bool:
     """Classify provider errors: retry connection issues and 408/409/429/5xx.
 
     Auth (401/403), bad model (404), invalid requests (400/422), and
-    capability failures fail promptly and are never retried.
+    capability failures fail promptly and are never retried. Thin
+    wrapper over :func:`mythic_agent.core.retry_honesty.is_transient_error`
+    (M-035); the classification is unchanged.
     """
-    from openai import APIConnectionError, APIStatusError
-    if isinstance(exc, APIConnectionError):
-        return True
-    if isinstance(exc, APIStatusError):
-        return exc.status_code in (408, 409, 429) or exc.status_code >= 500
-    return False
+    from ..core.retry_honesty import is_transient_error
+
+    return is_transient_error(exc)
 
 
 class _StreamAccumulator:
@@ -339,6 +322,7 @@ class Agent:
         self._session_status = "idle"
         self._closed = False
         self.last_result = TurnResult("idle")
+        self.last_retry_report = None
         self.tui_app = None
         self.tool_policy = ToolPolicy("read-only")
         self._permission_override = None
@@ -1125,6 +1109,99 @@ class Agent:
             })
         return self.chat(resume_prompt(partial["partial_text"]))
 
+    def retry_status(self) -> dict[str, Any]:
+        """The retry bounds and the last request's report (M-035).
+
+        The bounds the current runtime settings imply (named,
+        with their planned and worst-case wait totals), the
+        last finished retry report for a provider request in
+        this session (None until a request finishes), and the
+        plain explanation. This is the answer ``/retry``
+        shows; nothing about it is hidden.
+        """
+        from ..core.retry_honesty import (
+            MUTATING_RULE,
+            PLAIN_EXPLANATION,
+            bounds_from_settings,
+        )
+
+        bounds = bounds_from_settings(runtime_settings(self.config))
+        return {
+            "bounds": bounds,
+            "report": self.last_retry_report,
+            "last_report": self.last_retry_report,
+            "plain_explanation": PLAIN_EXPLANATION,
+            "mutating_rule": MUTATING_RULE,
+        }
+
+    def _make_retry_event(self, exc: Exception, attempt: int,
+                          limit: int, decision: str,
+                          delay: float | None = None) -> Any:
+        """One retry event for *exc* at 0-based loop *attempt* (M-035)."""
+        from ..core.retry_honesty import RetryEvent, classify_error
+
+        failure = classify_error(exc)
+        return RetryEvent(
+            attempt=attempt + 1, limit=limit, kind=failure.kind,
+            status=failure.status, error=str(exc), delay=delay,
+            decision=decision)
+
+    def _emit_retrying(self, recorder: Any, exc: Exception, attempt: int,
+                       settings: dict[str, Any]) -> float:
+        """Record, announce, and journal one retrying event (M-035).
+
+        Returns the wait before the next attempt. The formatted
+        event sentence — attempt and budget, the reason, and
+        the wait — is published on the chat-tool channel, and
+        the event is journaled as a ``retry_attempt`` session
+        event when a session store is attached; a journaling
+        failure never breaks the request.
+        """
+        from ..core.retry_honesty import format_retry_event
+
+        delay = _retry_delay(exc, attempt, settings)
+        event = self._make_retry_event(
+            exc, attempt, settings["max_retries"], "retrying",
+            delay=delay)
+        recorder.record(event)
+        publish_sync("agent_chat_tool", agent_name=self.name,
+                     text=f"\n{format_retry_event(event)}\n")
+        if self._session_store and self.session_id:
+            try:
+                self._checkpoint({"type": "retry_attempt",
+                                  **event.record()})
+            except Exception:
+                pass  # journaling never breaks the request
+        return delay
+
+    def _finish_retry(self, recorder: Any, stopped_reason: str,
+                      attempts_made: int) -> Any:
+        """Finish a request's retry report and keep it (M-035).
+
+        The finished report becomes ``last_retry_report``; when
+        the request used at least one retry, its termination is
+        journaled as a ``retry_stopped`` session event when a
+        session store is attached (a journaling failure never
+        breaks the request).
+        """
+        report = recorder.finish(stopped_reason, attempts_made)
+        self.last_retry_report = report
+        if report.retries_used >= 1 \
+                and self._session_store and self.session_id:
+            try:
+                self._checkpoint({
+                    "type": "retry_stopped",
+                    "stopped_reason": report.stopped_reason,
+                    "retries_used": report.retries_used,
+                    "attempts_made": report.attempts_made,
+                    "succeeded": report.succeeded,
+                    "events": [event.record()
+                               for event in report.events],
+                })
+            except Exception:
+                pass  # journaling never breaks the request
+        return report
+
     def kista_status(self) -> dict[str, Any]:
         """Where every door's key lives, and whether one is held (M-032).
 
@@ -1360,22 +1437,49 @@ class Agent:
         """
         if self.config.get("streaming"):
             return self._request_streaming(client, settings), True
-        for attempt in range(settings["max_retries"] + 1):
-            self._check_cancelled()
+        from ..core.retry_honesty import RetryRecorder
+
+        recorder = RetryRecorder()
+        limit = settings["max_retries"]
+        for attempt in range(limit + 1):
             try:
-                return client.chat.completions.create(
+                self._check_cancelled()
+            except TurnCancelled:
+                self._finish_retry(recorder, "cancelled", attempt)
+                raise
+            try:
+                response = client.chat.completions.create(
                     model=self.config.get("model", config_manager.DEFAULT_MODEL),
                     messages=self.history_snapshot(), tools=get_agent_tools(),
                     stream=False, timeout=settings["request_timeout"],
-                ), False
+                )
+                self._finish_retry(recorder, "succeeded", attempt + 1)
+                return response, False
+            except TurnCancelled:
+                self._finish_retry(recorder, "cancelled", attempt + 1)
+                raise
             except (APIConnectionError, APIStatusError) as exc:
-                if not _is_transient(exc) or attempt == settings["max_retries"]:
+                if not _is_transient(exc):
+                    recorder.record(self._make_retry_event(
+                        exc, attempt, limit, "stopped-not-transient"))
+                    self._finish_retry(recorder, "not-transient",
+                                       attempt + 1)
                     raise
-                delay = _retry_delay(exc, attempt, settings)
-                publish_sync("agent_chat_tool", agent_name=self.name,
-                             text=f"\nProvider temporarily unavailable; retry {attempt + 1}.\n")
+                if attempt == limit:
+                    recorder.record(self._make_retry_event(
+                        exc, attempt, limit, "stopped-budget-exhausted"))
+                    self._finish_retry(recorder, "budget-exhausted",
+                                       attempt + 1)
+                    raise
+                delay = self._emit_retrying(recorder, exc, attempt, settings)
                 if self._cancel.wait(delay):
+                    recorder.record(self._make_retry_event(
+                        exc, attempt, limit, "stopped-cancelled"))
+                    self._finish_retry(recorder, "cancelled", attempt + 1)
                     raise TurnCancelled("Turn cancelled during retry") from exc
+            except Exception:
+                self._finish_retry(recorder, "failed", attempt + 1)
+                raise
         raise RuntimeError("Provider retry budget exhausted")
 
     def _request_with_fallback(self, settings: dict[str, Any]) -> tuple[Any, bool]:
@@ -1490,9 +1594,18 @@ class Agent:
         streams raise before any tool fragment becomes executable.
         """
         from types import SimpleNamespace
+
+        from ..core.retry_honesty import RetryRecorder
+
         accumulator = _StreamAccumulator(self.name)
-        for attempt in range(settings["max_retries"] + 1):
-            self._check_cancelled()
+        recorder = RetryRecorder()
+        limit = settings["max_retries"]
+        for attempt in range(limit + 1):
+            try:
+                self._check_cancelled()
+            except TurnCancelled:
+                self._finish_retry(recorder, "cancelled", attempt)
+                raise
             accumulator.reset()
             try:
                 client.stream_chat(
@@ -1526,21 +1639,44 @@ class Agent:
                     publish_sync(
                         "agent_chat_chunk", agent_name=self.name,
                         text=f"\n{salvage_notice(accumulator.text)}\n")
+                self._finish_retry(recorder, "cancelled", attempt + 1)
                 raise
             except (APIConnectionError, APIStatusError) as exc:
-                if not _is_transient(exc) or accumulator.emitted \
-                        or attempt == settings["max_retries"]:
+                if accumulator.emitted:
+                    recorder.record(self._make_retry_event(
+                        exc, attempt, limit, "stopped-partial-streamed"))
+                    self._finish_retry(recorder, "partial-streamed",
+                                       attempt + 1)
                     raise
-                delay = _retry_delay(exc, attempt, settings)
-                publish_sync("agent_chat_tool", agent_name=self.name,
-                             text=f"\nProvider temporarily unavailable; retry {attempt + 1}.\n")
+                if not _is_transient(exc):
+                    recorder.record(self._make_retry_event(
+                        exc, attempt, limit, "stopped-not-transient"))
+                    self._finish_retry(recorder, "not-transient",
+                                       attempt + 1)
+                    raise
+                if attempt == limit:
+                    recorder.record(self._make_retry_event(
+                        exc, attempt, limit, "stopped-budget-exhausted"))
+                    self._finish_retry(recorder, "budget-exhausted",
+                                       attempt + 1)
+                    raise
+                delay = self._emit_retrying(recorder, exc, attempt, settings)
                 if self._cancel.wait(delay):
+                    recorder.record(self._make_retry_event(
+                        exc, attempt, limit, "stopped-cancelled"))
+                    self._finish_retry(recorder, "cancelled", attempt + 1)
                     raise TurnCancelled("Turn cancelled during retry") from exc
                 continue
             except Exception as exc:
+                self._finish_retry(recorder, "failed", attempt + 1)
                 raise RuntimeError(f"Provider stream failed: {exc}") from exc
-            message = accumulator.message()
+            try:
+                message = accumulator.message()
+            except Exception:
+                self._finish_retry(recorder, "failed", attempt + 1)
+                raise
             usage = accumulator._usage
+            self._finish_retry(recorder, "succeeded", attempt + 1)
             return SimpleNamespace(
                 choices=[SimpleNamespace(message=message,
                                          finish_reason=accumulator._finish_reason)],

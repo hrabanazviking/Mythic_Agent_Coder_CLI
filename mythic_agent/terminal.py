@@ -260,7 +260,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /kista [adopt] /resume-thought [show] /status /session /add <path> /stop /undo /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /kista [adopt] /resume-thought [show] /retry [show] /status /session /add <path> /stop /undo /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
         return True, False, "Conversation cleared."
@@ -382,6 +382,23 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_custody_change(record)
+    if command == "/retry":
+        from .core.retry_honesty import (
+            bounds_from_settings,
+            format_retry_status,
+            parse_retry_args,
+        )
+        try:
+            request = parse_retry_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.retry_status()
+            assert status["bounds"] == bounds_from_settings(
+                runtime_settings(agent.config))
+            assert status["report"] is agent.last_retry_report
+            return True, False, format_retry_status(
+                status["bounds"], status["report"])
     if command == "/resume-thought":
         from .core.streaming_discipline import (
             can_resume,
