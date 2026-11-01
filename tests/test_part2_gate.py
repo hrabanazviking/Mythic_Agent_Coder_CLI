@@ -91,7 +91,8 @@ def test_slices_cover_part2_in_order(gate):
     assert [f"M-{n:03d}" for n in range(19, 42)] == [
         d for d in done_ids if "M-019" <= d <= "M-041"]
     nxt = road.next_slice()
-    assert nxt is None or nxt.id in ("M-042",) or nxt.part >= 3 or True
+    assert nxt is not None
+    assert nxt.id == "M-042" or nxt.part >= 3
 
 
 def test_benchmark_task_matches_the_live_pack(gate, task):
