@@ -298,7 +298,7 @@ slices:
   title: Offline honesty
   summary: with no network and no local model, the app says exactly that and still offers its non-model
     tools (review, metrics, session search) instead of dying.
-  status: queued
+  status: done
 - id: M-041
   part: 2
   title: New-provider test kit
