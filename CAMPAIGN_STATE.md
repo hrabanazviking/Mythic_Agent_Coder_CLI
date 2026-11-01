@@ -600,6 +600,25 @@ its reason — never a claimed completion without evidence.
 The building tick counts what the benchmark pack's grading
 actually consumes before designing further.*
 
+*M-042 IN PROGRESS (2026-11-01 02:30 EST tick): build under
+way on the settled design — a Part II gate artefact in the
+M-018 pattern (`mythic_agent/data/part2_gate.yaml` +
+validated loader `mythic_agent/core/part2_gate.py` + tests).
+The fixed task is B-01 (the pagination bugfix: one seed file,
+one solution file, 4 hidden grading tests counted from the
+pack). The provider leg runs B-01's prompt + seed through
+seven doors over loopback, each door scripted to answer with
+the reference solution as a real model door would: five
+OpenAI-compatible registry entries (openai, deepseek,
+openrouter, groq, together) through the M-020 universal
+adapter, Ollama through its own native adapter, and Aesir
+through its own native adapter; each reply is materialised
+over the seed and graded by B-01's own hidden tests in a
+subprocess — completed only when all 4 pass. Every other
+registry entry, and every named door's LIVE vendor service,
+is recorded NOT PROVEN with its reason in the gate data —
+loopback completion is never dressed as a live vendor call.*
+
 
 ## Laws in force (from the roadmap + Volmarr's standing rulings)
 
