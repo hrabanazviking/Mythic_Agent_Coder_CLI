@@ -1572,3 +1572,35 @@ them, with an honest whole-suite fallback when the
 graph cannot answer), and the history store's shape
 from the tree before designing further. M-057
 (coverage sight) is NOT built here.*
+
+*M-056 IN PROGRESS (2026-11-01 18:46 EST tick): build under
+way on the scoped design — new module
+`mythic_agent/tools/test_intelligence.py` (Test
+intelligence): discovery is pytest collection as ground
+truth (`pytest --collect-only -q` on the project root,
+nodeids parsed from its own output; a missing/failing
+pytest is an honest error, never an invented list);
+selection takes changed files, reads the symbols they
+define from the house code index (M-046 `SymbolIndex`),
+and selects discovered tests that import the changed
+modules, reference those symbols, or are themselves
+changed — when there are no changed files, the graph
+cannot answer, or nothing matches, the selection is an
+honest whole-suite fallback with its reason, never an
+empty confident list; flaky marking comes only from a
+real recorded history (a JSONL store under the project's
+`.mythic/` state dir, appended by `record_run` parsing a
+pytest run's own PASSED/FAILED words, reusing M-055's
+detection ideas) — a test is flaky only when recorded
+history shows BOTH pass and fail for the same nodeid
+across at least the threshold of runs, no history means
+no mark. Setting `test_intelligence` ON by default in
+config_defaults + the M-009 catalogue (S-45). Light
+wiring on the M-055 pattern: a pytest `run_command`
+result records its outcomes to history, gated by the
+setting. Surfaces: `Agent.test_intelligence()` plus
+`/testintel [show] | select <file> ... | history` on the
+terminal + TUI roads sharing the one parser and
+formatters. Live proof builds a tiny throwaway project
+and runs real pytest collection against it. M-057
+(coverage sight) is NOT built here.*
