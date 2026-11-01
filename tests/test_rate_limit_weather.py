@@ -486,9 +486,18 @@ class TestLiveWeather:
         store = SessionStore(tmp_path, tmp_path / "state")
         session_id = agent.attach_session(store)
         key = agent._weather_key()
+        # Window hardened in M-048 (M-003 pattern, product code
+        # untouched): the original 0.3 s reset window is eaten
+        # by the cold record->decision gap on a loaded VM —
+        # M-037's vision gate runs before the queue check and
+        # its first-call cost plus VM stalls exceed 0.3 s,
+        # after which proceeding without queueing is the
+        # CORRECT product behaviour (see CAMPAIGN_STATE's
+        # M-047 correction of record). 3.0 s keeps the queue
+        # the thing under test, not the machine's load.
         agent._weather_board.record(LimitSignal(
             provider=key, kind="limited", observed_at=time.time(),
-            source="status-429", retry_after_s=0.3))
+            source="status-429", retry_after_s=3.0))
         client, create = client_for(agent, reply("After the wait"))
         settings = fast(agent)
         started = time.monotonic()
@@ -496,7 +505,7 @@ class TestLiveWeather:
         elapsed = time.monotonic() - started
         assert response.choices[0].message["content"] == "After the wait"
         assert create.call_count == 1
-        assert elapsed >= 0.25
+        assert elapsed >= 2.0
         events = store.export(session_id)["events"]
         queued = [e for e in events if e["type"] == "rate_limit_queued"]
         assert len(queued) == 1

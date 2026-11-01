@@ -129,8 +129,8 @@ PLAIN_EXPLANATION = (
     "A pattern that does not parse in its language is "
     "refused, never quietly text-searched instead; a "
     "language with no grammar is refused the same way. "
-    "Search only — the rewrite that would change the "
-    "matched code is the next slice (M-048), not this one."
+    "Search only — changing matched code is the rewrite's "
+    "work (/srewrite, M-048), not this one's."
 )
 
 _USAGE = "Usage: /ssearch <language> <pattern>"
@@ -807,7 +807,7 @@ def render_markdown(result: StructuralSearchResult) -> str:
         "",
         f"*Slice {STRUCTURAL_SEARCH_SLICE} of the All-Features "
         "road (Part III — Code Intelligence). Search only; "
-        "the rewrite is M-048.*",
+        "the rewrite is /srewrite (M-048).*",
         "",
         f"**Pattern** `{result.pattern}` "
         f"({result.language}): {len(result.matches)} match(es) "
