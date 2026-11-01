@@ -438,6 +438,37 @@ the object store from a sibling clone's `.git/objects` on local
 disk. PyPI was unaffected and fast. Every number in this file was
 re-measured in the foreground or read from a checked-out file.
 
+*M-038 IN PROGRESS (2026-11-01 00:1x EDT tick): M-038
+(Long-context strategy per model) is being built this tick.
+Scoping counted from the tree: the strategy choice today is
+nowhere made from capability truth — `context/runtime.py`'s
+`prompt_file_context` runs every model with the same fixed
+2,000-token file-context budget (FILE_CONTEXT_BUDGET_TOKENS),
+the same top_n=3 semantic/symbol selection, whatever the
+model's M-027 `context_tokens` record says (Gemini records
+1,048,576; gpt-3.5-turbo 16,385; placeholders/grok-4 unknown).
+The build, on the M-031/M-037 pattern: a pure strategy layer
+`mythic_agent/core/long_context.py` — the strategy is chosen
+ONLY from M-027's recorded context truth: a known context of
+1,000,000+ tokens is the 1M class and gets MAP-FIRST loading
+(the repo map leads, broad file loading follows, a large
+share of the window as the file-context budget); a known
+smaller context gets AGGRESSIVE REPO-MAP + RETRIEVAL (the
+map and the retrieval sources do the work inside a small,
+named share of the window — the Parts III/VII machinery this
+feeds is the shipped semantic/symbol/deps selection, tuned
+harder); an UNKNOWN context chooses nothing — the plan says
+so plainly and falls back to the shipped default budget on
+the retrieval road, never claiming a window it does not
+know. The plan (strategy, budget, selection counts, load
+order, plain reason) is wired into the live road:
+`context/runtime.py prompt_file_context` takes the plan's
+budget + top_n from the config's model unless the caller
+passes an explicit budget (an explicit budget always wins),
+and `Agent.context_strategy()` + `/longcontext` on the
+terminal + the TUI system-command road show the current
+model's strategy in plain words.*
+
 ## Laws in force (from the roadmap + Volmarr's standing rulings)
 
 Mythic Engineering is the method, not a mode · plain language first ·
