@@ -1,5 +1,7 @@
 """M-052 — Edit-time truth loop.
 
+TIER: integration
+
 Only NEW errors are charged to an edit (multiset diff,
 line-blind); legs that cannot run report their absence,
 never a clean bill; the loop wires into the agent tool
