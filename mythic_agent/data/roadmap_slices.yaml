@@ -268,7 +268,7 @@ slices:
   title: Retry and backoff honesty
   summary: bounded retries on transient failures only; mutating calls never silently replayed (the house
     rule from Sagnaskemma's hardening, applied here).
-  status: queued
+  status: done
 - id: M-036
   part: 2
   title: Rate-limit weather
