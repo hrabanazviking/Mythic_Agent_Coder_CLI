@@ -362,7 +362,7 @@ slices:
   title: LSP client III — rename and code actions
   summary: a rename propagates through re-exports and imports by the server's own knowledge, diffed for
     approval like any edit.
-  status: queued
+  status: done
 - id: M-052
   part: 3
   title: Edit-time truth loop
