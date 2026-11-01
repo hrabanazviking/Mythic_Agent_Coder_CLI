@@ -350,6 +350,24 @@ known-seeing model (through M-028's journaled switch
 machinery) — wired where image parts enter the chat path,
 with the family negotiation kept for the shape.*
 
+*M-037 IN PROGRESS (2026-10-31 22:30 EDT tick): build under
+way on the settled design — pure layer
+`mythic_agent/core/vision_routing.py` (image-part counting
+matching `providers/vision.py`'s own definition, the routing
+gate keyed on M-027's per-model `vision` truth — only
+known-true may receive image work; known-false and unknown
+refuse plainly naming the model and its record — and the
+switch offer: the first configured door, among the doors the
+user already set up per M-031's candidate pool and M-028's
+switchable bound, whose model is known to see); the gate is
+wired into `providers/vision.py::normalize` for every named
+model under the raise policy (the explicit strip downgrade
+keeps its counted-drop behaviour), and into the Agent layer
+(`vision_status` / `vision_decision` / `gate_image_parts`
+journaling `vision_refused` / `apply_vision_switch` through
+M-028's journaled switch); `/vision` surface on the terminal
++ TUI system-command road, sharing one parser + formatters.*
+
 ## Transport war (opening night, recorded so no one re-fights it)
 
 GitHub bulk transfer from this VM was severely degraded on
