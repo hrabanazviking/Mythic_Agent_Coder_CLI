@@ -179,6 +179,7 @@ and scoped M-024 below.*
 | M-044 | The Repo Map (Aider's crown, made kinder) | **DONE** — banked 2026-11-01 (`a774a44` + regen, PUBLIC_API 1764 → 1777): `mythic_agent/context/repo_map.py` — the gap audit's own proposed owning module, now standing. Definitions + signature lines come from the M-043 parses (backend named per file, never a second extractor); the reference graph is name-mention truth (a file references every other file whose defined symbols it mentions); ranking is PageRank over that graph (damping 0.85, deterministic, ranks sum to 1) with task relevance as explainable arithmetic — score = pagerank × (1 + matched symbols/path), every entry carrying plain reasons (inbound count, matched symbols, what it defines/references). The token budget is enforced by the shipped TokenEstimator: entries in rank order while the rendered map fits, the remainder named in `omitted` (never silently dropped), the rendered map never over budget under its build estimator. Refresh is incremental by sha256 content hash (reused/reparsed counted on the map; graph, ranks, reasons, and budget always recomputed — a reused parse is never a reused ranking). Honest skips carry their reasons (Mojo grammar-less in every environment, oversized, binary, unparseable). `RepoMapSource` serves the rendered map through the real context compiler (proven in tests); the runtime's default source list is NOT changed — M-045 is the map's TUI road, runtime wiring a later named step, not claimed here. +27 tests in tests/test_repo_map.py. ONE in-scope truth flip the slice forced: the M-003 gap audit's validator demands live-tree truth (a proposed module must be absent), so the repo-map row flips proposed → existing now the module stands, and the audit test's lying-kind mutation re-pins to the still-proposed lsp-integration row. Targeted sets counted from on-disk logs: repo_map+gap_audit+roadmap+part gates+tree-sitter+context set 204 passed + 1 failure that was the pre-flip audit state (healed by the flip; gap_audit+census re-run 36 passed); dead-code + arch-conformance 17 passed; public_api + ownership 10 passed + the 1 PortAudio env failure. Full suite counted in six monitored chunks (134 test files, logs hidden_files/m044-chunk0.log..chunk5.log, all read from disk): chunk totals 420+475+485+415+517+381 = **2693 passed, 3 failed, 1 skipped (2697 collected — closes exactly against collect-only; M-043's 2670 + 27 new tests)**. The 3 failures: the 2 long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3) plus chunk 1's `test_providers_coverage_ratchet`, PROVEN a load flake by solo re-run read from its on-disk log (hidden_files/m044-solo.log: **1 passed in 89.69 s**; its coverage subprocess died under load ~9.7 in the chunk run). EPISODE NOTE: the first chunk-0 run was destroyed by the recorded intermittent VM write-denial (EPERM) episode plus a VM reboot (58 failures, mass PermissionError on writes across unrelated files — preserved as hidden_files/m044-chunk0-dead1.log, DISCARDED never counted); writes probed healthy post-reboot and chunk 0 was re-run clean. TRANSPORT NOTE: two delivered excerpts this tick diverged from on-disk truth and were discarded per the transport-war rule (a background regen chain's 'total 1780' — the foreground-verified PUBLIC_API total is 1777, 1764 + repo_map's 13 names; and a chunk-0 '23 passed' excerpt while the real run was at 34%). Roadmap data flipped to 44 done in this closure. **44 / 272 slices banked (M-001..M-044).** Next slice: M-045 (Map in the TUI). |
 | M-045 | Map in the TUI | **DONE** — banked 2026-11-01 (`22f9662` + regens `efefadd`, `bb239ad`, PUBLIC_API 1777 → 1802): pure view layer `mythic_agent/context/repo_map_view.py` over M-044's map — browse in display order (pinned first, true rank kept) with each entry's own reasons verbatim, never a second ranking; one file's full detail (rank, score arithmetic, definitions, references, reasons; omitted/skipped/absent answered honestly, ambiguous names refused); pins as the validated config setting `repo_map_pins` (config_defaults + M-009 catalogue S-40) changed through the agent's journal-first save-guarded road; `Agent.repo_map_status()`/`repo_map_detail()`/`repo_map_pins()`/pin+unpin; `/map` on the terminal + TUI system-command road sharing one parser + formatters; TUI help surfaces. Tests in tests/test_repo_map_view.py — CORRECTION: the slice commit message's "+56 tests" is superseded by collect-only truth: the file collects **55** tests (counted in the foreground at this closure), and the full suite closes exactly on that basis. Verification (on-disk logs only): targeted set (hidden_files/m045-targeted2.log) 148 passed; inventory set after the bb239ad OWNERSHIP correction (hidden_files/m045-inventory-verify.log) 10 passed + the 1 PortAudio env failure. Full suite counted in six monitored chunks (135 test files, logs hidden_files/m045-chunk0.log..chunk5.log, all read from disk; chunk 0 counted by the building tick, chunks 1–5 counted by the 2026-11-01 05:50 EST keeper tick after the 05:40 tick correctly stood down as work-live): chunk totals 539+513+465+490+406+335 = **2748 passed, 3 failed, 1 skipped (2752 collected — closes exactly against collect-only; M-044's 2697 + 55 new tests)**. The 3 failures: the 2 long-classified environment cases (tiktoken-premise estimator, chunk 1; PortAudio public-api import, chunk 5) plus chunk 0's `test_providers_coverage_ratchet`, PROVEN a load flake by solo re-run read from its on-disk log (hidden_files/m045-solo.log: **1 passed in 59.00 s**; its coverage subprocess died on the 120 s timeout under load ~15 in the chunk run; M-045 touches no providers code). EPISODE NOTE: the building tick's chunk-0 attempts were disrupted by an intermittent EPERM phase, a duplicate overlapped run (discarded), and diverged delivered excerpts — all discarded per the transport-war rule; a parallel-instance chunk-1 figure recorded in the run log (443 passed, 2 failed) has no on-disk log and is likewise superseded by this closure's counted chunk 1 (513 passed, 1 failed). Roadmap data flipped to 45 done in this closure. **45 / 272 slices banked (M-001..M-045).** Next slice: M-046 (Symbol graph). |
 | M-046 | Symbol graph | **DONE** — banked 2026-11-01 (`2126367` + dead-code fix `50c96c5` + regens `c6a2da6`, `93c9a22`, PUBLIC_API 1802 → 1819): `mythic_agent/context/symbol_graph.py` — per-symbol graph over the M-043 parses, never a second parser: definitions exactly as the foundation extracts them (backend named per file); references, imports, and call edges from the grammars' own node vocabularies per language (call/import/identifier node types proven per language in the slice tests; node text recovered by slicing the source at the node's byte span), and Python's `python_ast` fallback backend extracts the same four kinds via stdlib ast (the fallback's own road, mirroring context/symbols.py + context/deps.py). Resolution is NAME-BASED and recorded as such: a reference is an identifier occurrence matching a defined name (definition name sites, parameter names, JS variable bindings, and Go package clauses are bindings/declarations, not references — each exclusion proven by a test; the Go package-clause defect was caught by the slice's own smoke test and fixed in scope), resolved to EVERY definition site carrying the name (ambiguity recorded, never picked; type-true resolution is M-050's LSP road). Call edges run from the enclosing definition (or `<module>`) to the callee with its resolved sites; unresolved callees are kept and queryable. Imports carry the module as written plus its resolved workspace file where a road exists (Python dotted + relative, JS/TS relative — both proven against real files; Go package paths and Rust use paths honestly `resolved_path=None`). Capability table per catalogued language rides the graph (all four kinds for the five grammar-backed languages; none for Mojo, with the reason). Queries serve the named consumers — definitions_named/in, references_to, callers_of, callees_of, unresolved_calls, imports_of, and derived file_edges() for the map/search/Part VI splitting (file edges proven to agree with M-044's map on the shared app→core edge) — and `render_markdown` builds the graph's human report genuinely from those queries (added in-slice when the dead-code gate flagged the query methods as test-only: 7 methods, proven by a foreground scan). Honest skips like M-044's (Mojo grammar-less, oversized, binary, unparseable-on-ast-fallback) carry their reasons. +30 tests in tests/test_symbol_graph.py. Verification (on-disk logs only): targeted set (hidden_files/m046-targeted.log) 151 passed; inventory set 39 passed + the 1 PortAudio env failure. Full suite counted in six monitored chunks (136 test files, logs hidden_files/m046-chunk0.log..chunk5.log, all read from disk): chunk totals 415+475+488+426+562+407 = **2773 passed, 8 failed, 1 skipped (2782 collected — closes exactly against collect-only; M-045's 2752 + 30 new tests)**. The 8 failures: the 2 long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3) plus 6 proven load flakes under severe post-reboot contention (load 12+): chunk 0's five test_cli subprocess-budget failures, PROVEN by solo re-run (hidden_files/m046-solo-cli.log: **5 passed in 71.93 s**), and chunk 1's `test_providers_coverage_ratchet`, PROVEN by solo re-run (hidden_files/m046-solo-ratchet.log: **1 passed in 68.05 s**). EPISODE NOTES: the first chunk run this tick was killed at chunk 0 ~34% by a VM/service restart (preserved as hidden_files/m046-chunk0-dead1.log, DISCARDED, never counted) and was relaunched whole after the dead-code fix; two delivered background excerpts diverged from on-disk truth and were discarded per the transport-war rule (a regen chain claiming PUBLIC_API 1825 — foreground-verified total is 1819; and two mutually contradictory targeted-set summaries, superseded by the on-disk m046-targeted.log). Roadmap data flipped to 46 done in this closure. **46 / 272 slices banked (M-001..M-046).** Next slice: M-047 (Structural search). |
+| M-047 | Structural search | **DONE** — banked 2026-11-01 (`5925ce4` + regen `9fab3a7`, PUBLIC_API 1819 → 1835): ast-grep-style pattern search in the gap audit's owning module `mythic_agent/tools/structural_search.py` over the M-043 parses (never a second parser): the pattern is code in the target language with $NAME (exactly one node, captured) and $$$ / $$$NAME (zero or more siblings, captured joined) metavariables, substituted with placeholder identifiers and parsed through the foundation; matching is structural (node types agree, leaf text agrees, a repeated metavariable must capture the same text twice, bracket/separator punctuation and the ast fallback's Load/Store/Del context nodes are scaffolding and dropped — operators are not, so $A + $B never matches $A - $B), a bare-expression pattern is unwrapped from its statement wrapper so it matches inside returns/assignments/other calls, nested matches are each reported, and Go/Rust patterns that parse nowhere bare are tried inside declared context wraps (package clause / function body / variable initialiser — scaffolding located by byte range, never part of the shape). Honesty bounds: an unparseable pattern is refused with PatternError (never text-searched), a stray $ is a pattern error, one name as both $NAME and $$$NAME is refused, Mojo raises the foundation's ParseUnavailableError, an uncatalogued language is KeyError; workspace search covers only files of the pattern's language (files_seen counted over that population), oversized/binary/unparseable files land in skipped with reasons, grammar-error files are searched with the error named in warnings. Python's ast fallback backend matches the same shapes, labelled. Surfaces: Agent.structural_search() (the tool) + /ssearch <language> <pattern> on the terminal + TUI system-command road sharing parse_search_args/format_search_status, TUI help surfaces. +47 tests in tests/test_structural_search.py. Gap audit structural-search-rewrite row flips module_kind proposed -> existing; its state stays MISSING — the rewrite half is M-048, not claimed here. Full suite counted in six monitored chunks (logs hidden_files/m047-chunk0.log..m047-chunk5.log, all read from disk): **2812 passed, 16 failed, 1 skipped (2829 collected — closes exactly against collect-only: M-046's 2782 + 47 new tests)**. The 16 failures: the 2 long-classified environment cases (PortAudio public-api import, chunk 5; tiktoken-premise estimator, chunk 1) + 14 proven load flakes under severe multi-campaign contention, each solo-passing from on-disk logs — the 9 test_cli subprocess-budget timeouts (m047-solo-cli.log: 9 passed in 125.85 s) and chunk 0's coverage ratchet + 3 static-gate timeouts (m047-solo-gates.log: 4 passed) — plus the rate-limit live-queue test, whose proof needed the deeper trail recorded in the closure note below (instrumented replica + two calm-window passes; a standing watch item, not a defect verdict). **47 / 272 slices banked (M-001..M-047).** |
 
 *M-032 scoping note (2026-10-31 18:00 EDT tick): M-032 (Key
 custody via Kista) was built and closed the same tick — DONE,
@@ -851,31 +852,74 @@ The building tick settles the pattern syntax's exact
 shape from the tree (ast-grep's `$NAME` / `$$$` words are
 the roadmap's own example) before designing further.*
 
-*M-047 IN PROGRESS (2026-11-01 07:20 EST tick): build under
-way on the settled design — the pattern layer lives in the
-gap audit's owning module `mythic_agent/tools/
-structural_search.py`: a pure layer over the M-043 parses
-(never a second parser). The pattern is written in the
-target language with ast-grep's metavariables — `$NAME`
-matches exactly one node and captures it, `$$$` / `$$$NAME`
-matches zero or more sibling nodes — substituted with
-placeholder identifiers so the pattern itself parses through
-the foundation, then matched structurally against every
-node of each target parse: node types must agree, leaf text
-must agree, a repeated metavariable must capture the same
-text twice, and captures carry their source spans. Honesty
-bounds like M-043/M-046's: a pattern that does not parse in
-its language is refused (never text-searched instead), a
-grammar-less language (Mojo) is refused with the
-foundation's own reason, files that cannot be parsed land
-in the result's skipped list with their reasons, and only
-files of the pattern's language are searched — the rest are
-not silently passed over, they are simply not this search's
-population and the result says which language it searched.
-Surfaces on the established roads: `Agent.structural_search()`
-(the tool), `/ssearch <language> <pattern>` on the terminal
-+ TUI system-command road sharing one parser + formatter,
-TUI help surfaces. The gap audit's structural-search-rewrite
-row flips module_kind proposed -> existing in-slice (its
-state stays MISSING — the rewrite half is M-048, not
-claimed here).*
+*M-047 IN PROGRESS → DONE (2026-11-01 08:00 EST tick; CLOSED
+the same tick — DONE, see its ledger row above): built on the
+settled design exactly as scoped in the 07:20 note this
+replaces; three defects the slice's own tests caught were
+fixed in scope before banking (the $NAME/$$$NAME collision
+check compared capture names against placeholder keys and
+never fired; on the ast fallback a Name's Load context child
+kept it from ever reaching its own text comparison, so any
+callee matched — scaffolding children are now dropped before
+the leaf check; and tree-sitter child sequences carry
+bracket/separator punctuation, which a zero-length $$$ could
+not step over — punctuation is dropped from child sequences
+on both sides, operators kept). ENVIRONMENT NOTE: the build
+tick (07:20–07:52) ran under an intermittent VM write-denial
+(EPERM) episode — exec-process writes (python tempfile
+probes, git index.lock, file copies) failed or were silently
+swallowed in stretches while dedicated file tools and
+shell-builtin writes stayed healthy; one casualty,
+mythic_agent/data/gap_audit.yaml, was truncated to 0 bytes
+by a failed write and was restored byte-exactly from the
+HEAD blob (git diff afterwards showed only the intended
+module_kind flip). The slice stood built-but-unbanked at
+that tick's end; this 08:00 tick probed writes healthy
+(tempfile + tree writes OK), ran the remaining 11 fixture
+tests green (47/47, m047-targeted2.log), and finished the
+banking in the order the blocked tick prescribed. Suite
+counting followed the on-disk-log rule throughout — one
+delivered chunk excerpt (chunk 5: 319 passed) diverged from
+its on-disk log (318 passed) and was discarded; the ledger
+totals are the on-disk ones, closing exactly against
+collect-only. RATE-LIMIT WATCH ITEM (discovered this tick,
+recorded per the never-leave-a-bug law):
+test_rate_limit_weather.py's live-queue test
+(test_request_queues_around_a_near_limit, M-036's) failed in
+chunk 0 and twice more solo under load 8–14, then passed
+twice in a calmer window (the real file and an exact copy,
+1 passed each). An instrumented replica proved the
+mechanism sound: setup between recording the limit and the
+queue decision took 1.5 ms, the decision was wait 0.298 s,
+and the rate_limit_queued event journaled. The failure mode
+is exact: the test records a limit with a 0.3 s reset window,
+and a load stall longer than that window between the record
+and the queue decision makes proceeding without queueing the
+CORRECT product behaviour — the test's window is
+load-fragile, a test-timing sensitivity of the M-003 family,
+not a product defect. Standing watch, per the M-016 pattern:
+if it fails in M-048's suite on a calm box, it reopens as a
+suspected defect and the fix is to widen the test's window;
+it is NOT silently dropped.*
+
+*M-048 scoping note (2026-11-01, M-047's closure tick):
+M-048 (Structural rewrite) is the next slice. The roadmap's
+words: the same patterns as safe codemods with per-site diff
+preview — never a blind global replace. Counted from the
+tree: M-047's layer compiles patterns and finds matches with
+capture spans over the M-043 parses; no rewrite exists yet —
+nothing in the package turns a match + a replacement
+template (the pattern language with the same metavariables)
+into per-site edits. M-048's gap is that templating (a
+replacement parsed the same way, its metavariable nodes
+substituted with the match's captured source text), the
+per-site diff preview as data, and the application road
+through the house edit machinery (the journal-first,
+approval-shaped edit path the elder tools use) — with
+honesty bounds like M-047's: a replacement that does not
+parse in the language is refused, a site whose source
+changed since the search is refused rather than
+force-edited, and no site is ever applied without its
+preview. The building tick settles the application road from
+the tree (core/edits.py and the review tool are the named
+neighbours) before designing further.*
