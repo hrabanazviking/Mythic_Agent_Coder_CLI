@@ -223,6 +223,8 @@ class CommandHandler:
                 self._handle_ssearch(args)
             elif cmd == "/srewrite":
                 self._handle_srewrite(args)
+            elif cmd == "/lsp":
+                self._handle_lsp(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1446,6 +1448,50 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_rewrite_status(status)}[/bold cyan]\n")
+        return
+
+    def _handle_lsp(self, args: str):
+        """M-049: /lsp — language-server diagnostics, in the TUI.
+
+        ``/lsp`` (or ``/lsp show``) shows the discovery
+        board: which catalogued language servers this
+        machine has, and each missing one's install remedy.
+        ``/lsp check <path>`` runs the file's language
+        server and shows its diagnostics in its own words;
+        a file whose server is not installed is reported
+        NOT CHECKED with the remedy, never as clean.
+        """
+        from ..integrations.lsp import (
+            format_lsp_diagnostics,
+            format_lsp_status,
+            parse_lsp_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_lsp_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_lsp_status(primary.lsp_status())}[/bold cyan]\n")
+            return
+        try:
+            status = primary.lsp_diagnostics(request["path"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_lsp_diagnostics(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):
