@@ -1124,3 +1124,24 @@ result shapes (definition's Location/LocationLink duality,
 hover's MarkupContent, workspace/symbol's SymbolInformation
 vs DocumentSymbol) from the LSP spec's observable shapes
 before designing further.*
+
+*M-050 IN PROGRESS (2026-11-01 11:50 EST tick): build under
+way this tick on the scoped design — extend
+`mythic_agent/integrations/lsp.py` (M-049's module) with
+the four navigation requests: go-to-definition,
+references, hover, and workspace symbols as agent tools
+('where is this used?' gets a true answer from the
+server, never a name-based guess). Plain records beside
+Diagnostic (NavLocation, HoverInfo, WorkspaceSymbol —
+1-based house records, Location/LocationLink duality,
+hover contents extraction, SymbolInformation and
+hierarchical DocumentSymbol flattening), LSPClient
+navigation methods over the existing request road with
+didOpen sent once per URI, end-to-end helpers with honest
+absence mirroring diagnostics_for_file (no-server and
+not-installed are reports, never dressed as a found
+answer), Agent tools + `/lsp def|refs|hover|symbols` on
+the terminal + TUI system-command roads sharing the one
+parser, proven live against a real subprocess fake server
+extended with navigation handlers. The gap audit's lsp
+row state stays MISSING (rename M-051 still owed).*
