@@ -635,6 +635,20 @@ is recorded NOT PROVEN with its reason in the gate data —
 loopback completion is never dressed as a live vendor call.*
 
 
+*M-043 scoping note (2026-11-01 02:30 EST tick, M-042's
+closure tick): M-043 (Tree-sitter foundation) is the next
+slice and OPENS Part III (Code Intelligence, M-043..M-070).
+Counted from the tree: no tree-sitter dependency is declared
+in pyproject.toml, none is installed in the baseline venv,
+and no grammar-backed parsing exists in the package — code
+understanding today rides `mythic_agent/context/symbols.py`
+and the code-index tests' surfaces (regex/AST class). The
+building tick settles the foundation's shape from the tree
+(dependency vs vendored grammars, licence notices per the
+roadmap's words, Python first) before designing further —
+nothing is assumed here.*
+
+
 ## Laws in force (from the roadmap + Volmarr's standing rulings)
 
 Mythic Engineering is the method, not a mode · plain language first ·
