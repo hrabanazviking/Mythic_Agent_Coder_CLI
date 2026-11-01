@@ -512,6 +512,27 @@ existing single-door live check stays) with the board carried
 in `--json` output, and surfaced through
 `Agent.provider_health()`.*
 
+*M-040 IN PROGRESS (2026-11-01 01:50 EDT tick): M-040
+(Offline honesty) build under way on the M-039 closure's
+settled scoping — a pure offline-truth layer
+`mythic_agent/core/offline_honesty.py` over the M-039 health
+board: offline is declared ONLY when the board was actually
+probed, no door is reachable, and no keyed-but-unprobed door
+(a native-SDK door whose address belongs to its vendor's
+kit) could still serve — a keyed remote door over a live
+network is not offline, and an unprobed board claims nothing
+(state `unknown`). The declaration is exact — no network
+and no local model — and names the non-model tools that
+still work, each verified against the live CLI surface:
+`mythic review <path>` (static review), `mythic metrics`,
+`mythic sessions --search <query>`. Wiring: `Agent.offline_status()`,
+`/offline` on the terminal + TUI system-command road sharing
+one parser + formatters, the declaration printed once at
+terminal chat start when the state is offline, and the
+assessment carried beside the board in `mythic doctor --live`
+(text + `--json`).*
+
+
 ## Laws in force (from the roadmap + Volmarr's standing rulings)
 
 Mythic Engineering is the method, not a mode · plain language first ·
