@@ -2,7 +2,7 @@ schema: mythic.dependency_census/1
 slice: M-012
 censused: '2026-10-31'
 scope_note: 'Every unique requirement declared in pyproject.toml — the 7 core dependencies, every optional
-  extra (anthropic, google, tui, mcp, context, knowledge, voice, voice-cloning, dev), and the hatchling
+  extra (anthropic, google, tui, mcp, context, code-intelligence, knowledge, voice, voice-cloning, dev), and the hatchling
   build backend — counted once, with every group that declares it. Transitive dependencies are out of
   scope and named so here: they are the declared dependencies'' own business (openai alone pulls httpx2''s
   chain), and the census weighs what this project chooses, not what its choices pull in. Installed sizes
@@ -358,6 +358,80 @@ dependencies:
     venv, so unmeasured.
   measured_kb: 0
   weight: unmeasured
+- id: D-30
+  name: tree-sitter
+  import_name: tree_sitter
+  declared_in:
+  - code-intelligence
+  spec: '>=0.23,<0.27'
+  licence: MIT
+  necessity: optional-feature
+  purpose: 'The tree-sitter parsing core for Part III code intelligence (core/tree_sitter_foundation.py,
+    M-043): grammar packages load through it, and Python falls back to the stdlib ast when it is absent.
+    Behind the code-intelligence extra only; measured in the baseline venv on 2026-11-01 after the
+    M-043 install (version 0.26.0).'
+  measured_kb: 2042
+  weight: moderate
+- id: D-31
+  name: tree-sitter-python
+  import_name: tree_sitter_python
+  declared_in:
+  - code-intelligence
+  spec: '>=0.23,<0.26'
+  licence: MIT
+  necessity: optional-feature
+  purpose: 'The Python grammar for the M-043 foundation (catalogued in tree_sitter_languages.yaml,
+    licence noticed there). Measured in the baseline venv on 2026-11-01 (version 0.25.0).'
+  measured_kb: 584
+  weight: light
+- id: D-32
+  name: tree-sitter-javascript
+  import_name: tree_sitter_javascript
+  declared_in:
+  - code-intelligence
+  spec: '>=0.23,<0.26'
+  licence: MIT
+  necessity: optional-feature
+  purpose: 'The JavaScript grammar for the M-043 foundation (catalogued in tree_sitter_languages.yaml,
+    licence noticed there). Measured in the baseline venv on 2026-11-01 (version 0.25.0).'
+  measured_kb: 562
+  weight: light
+- id: D-33
+  name: tree-sitter-typescript
+  import_name: tree_sitter_typescript
+  declared_in:
+  - code-intelligence
+  spec: '>=0.23,<0.24'
+  licence: MIT
+  necessity: optional-feature
+  purpose: 'The TypeScript grammar for the M-043 foundation (catalogued in tree_sitter_languages.yaml,
+    licence noticed there). Measured in the baseline venv on 2026-11-01 (version 0.23.2).'
+  measured_kb: 3064
+  weight: moderate
+- id: D-34
+  name: tree-sitter-rust
+  import_name: tree_sitter_rust
+  declared_in:
+  - code-intelligence
+  spec: '>=0.23,<0.25'
+  licence: MIT
+  necessity: optional-feature
+  purpose: 'The Rust grammar for the M-043 foundation (catalogued in tree_sitter_languages.yaml,
+    licence noticed there). Measured in the baseline venv on 2026-11-01 (version 0.24.2).'
+  measured_kb: 1250
+  weight: moderate
+- id: D-35
+  name: tree-sitter-go
+  import_name: tree_sitter_go
+  declared_in:
+  - code-intelligence
+  spec: '>=0.23,<0.26'
+  licence: MIT
+  necessity: optional-feature
+  purpose: 'The Go grammar for the M-043 foundation (catalogued in tree_sitter_languages.yaml,
+    licence noticed there). Measured in the baseline venv on 2026-11-01 (version 0.25.0).'
+  measured_kb: 299
+  weight: light
 replacements:
 - id: R-01
   dependency: scipy
