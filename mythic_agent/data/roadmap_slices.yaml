@@ -374,7 +374,7 @@ slices:
   title: Formatter covenant
   summary: the project’s own formatter config is honoured exactly; the coder never reformats untouched
     code; format diffs are separated from logic diffs in review.
-  status: queued
+  status: done
 - id: M-054
   part: 3
   title: The Debugger (DAP)
