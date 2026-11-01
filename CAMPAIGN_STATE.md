@@ -803,3 +803,28 @@ tree on those pieces — never a second parser — with
 honesty bounds like M-043/M-044's: a language whose
 extraction cannot be proven per-edge-kind is recorded
 as such, never invented.*
+
+*M-046 IN PROGRESS (2026-11-01 06:20 EST tick): build under
+way on the settled design — the graph lives in
+`mythic_agent/context/symbol_graph.py`: a pure build layer
+over the M-043 parses (definitions exactly as the foundation
+extracts them, backend named per file — never a second
+parser), plus per-language edge extraction driven by the
+grammars' own node vocabularies (call / import nodes proven
+per language in the slice tests): reference sites are
+identifier occurrences matching a defined name (name-based
+resolution, recorded as such — type-true resolution is the
+LSP road, M-050), call edges run from the enclosing
+definition (or `<module>`) to the callee name with its
+resolved definition sites, import edges carry the module
+as written plus its resolved workspace file where a road
+exists (Python dotted modules and JS/TS relative paths;
+Go package paths and Rust use paths honestly unresolved).
+Python's ast fallback backend gets its edges from stdlib
+ast — the foundation fallback's own road, mirroring
+context/symbols.py and context/deps.py. Queries serve the
+named consumers: definitions/references/callers/callees
+per symbol, imports per file, and derived file edges for
+the map, search, and Part VI task splitting. Honest skips
+like M-044's (Mojo grammar-less, oversized, binary,
+unparseable) carry their reasons.*
