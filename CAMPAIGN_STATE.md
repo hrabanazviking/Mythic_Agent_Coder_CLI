@@ -900,7 +900,39 @@ load-fragile, a test-timing sensitivity of the M-003 family,
 not a product defect. Standing watch, per the M-016 pattern:
 if it fails in M-048's suite on a calm box, it reopens as a
 suspected defect and the fix is to widen the test's window;
-it is NOT silently dropped.*
+it is NOT silently dropped.
+
+CORRECTION (2026-11-01, post-closure, same day): the
+paragraph above overstates the pass evidence — it rested on
+a diverged delivery excerpt, the exact transport-war trap
+this campaign records. The authoritative on-disk/full
+record is: the real test file failed FIVE of five
+post-chunk attempts (chunk 0, the gates solo, two single
+solos — the last at 1-minute load ~2.7 — and the real-file
+half of a copy-comparison run); an exact copy passed once
+and failed once; the instrumented replica passed once.
+What the instrumentation PROVES (m047-dbg3.log,
+m047-dbg4.log): on cold runs the record→queue-decision gap
+measured 0.731 s — M-037's vision gate runs before the
+queue check and its first-call cost (0.199 s standalone)
+plus this VM's stalls eat the test's 0.3 s window, after
+which proceeding without queueing is the CORRECT product
+behaviour; and in the proceed case no checkpoint is
+attempted, none errors, and no journal entry is left
+pending (m047-dbg4.log). One observation stays unexplained
+and is recorded as such: in one monkeypatched replica run a
+recomputed decision of wait at 0.215 s still produced no
+exported event — observed only under the patched method,
+never on the shipped path. NET VERDICT, corrected: the
+dominant failure mechanism is proven test-window timing,
+NOT a proven product defect — but the test currently fails
+more often than it passes on this VM, so the watch is
+STRENGTHENED: M-048's tick must either prove a calm/warm
+pass of the real file or harden the test's window in scope
+(the M-003 pattern: widen retry_after and adjust the
+elapsed assertions, product code untouched). The f277771
+closure commit message's shorter summary is not rewritten
+(no force-push); this note is the correction of record.*
 
 *M-048 scoping note (2026-11-01, M-047's closure tick):
 M-048 (Structural rewrite) is the next slice. The roadmap's
