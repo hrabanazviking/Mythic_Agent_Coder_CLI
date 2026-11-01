@@ -469,6 +469,27 @@ record said. The build followed the M-031/M-037 pattern —
 pure layer, live-road wiring, plain-words surface — as the
 ledger row records.*
 
+*M-039 IN PROGRESS (2026-11-01 00:50 EDT tick): M-039
+(Provider health board) is being built this tick. The build,
+on the established pattern: a pure board layer
+`mythic_agent/core/provider_health.py` over every M-019
+registry door — each door's entry carries its status
+(reachable / unreachable / needs-key / unknown), its measured
+latency (never invented: None until a probe measures it), and
+its last error in the probe's own words (never a door that was
+not probed claiming one). Remote doors without a held key are
+never probed: they report `needs-key` with their M-032 custody
+state instead of a fake reachability. Local doors probe their
+live endpoints (compatible doors their `/models`, Ollama its
+`/api/tags`, Aesir its authenticated `/health/ready`); native-SDK
+doors report `unknown` — their SDK owns the service address
+and no address is invented for a probe. The M-036 WeatherBoard's
+remembered state rides along where a session board has seen a
+door. The board is grown into `mythic doctor --live` (the
+existing single-door live check stays) with the board carried
+in `--json` output, and surfaced through
+`Agent.provider_health()`.*
+
 ## Laws in force (from the roadmap + Volmarr's standing rulings)
 
 Mythic Engineering is the method, not a mode · plain language first ·
