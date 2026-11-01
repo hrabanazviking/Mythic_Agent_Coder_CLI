@@ -1557,6 +1557,53 @@ class Agent:
             "plain_explanation": covenant_module.PLAIN_EXPLANATION,
         }
 
+    def debugger_status(self) -> dict[str, Any]:
+        """Which debug adapters this machine has (M-054).
+
+        The discovery board: every catalogued adapter with
+        its installed state — an adapter that is not
+        installed is named with its install remedy, never
+        hidden. This is the answer ``/debug`` browses.
+        """
+        from ..tools import debugger as debugger_module
+
+        return {
+            "adapters": debugger_module.discover_adapters(),
+            "plain_explanation": debugger_module.PLAIN_EXPLANATION,
+        }
+
+    def debug_run(self, path: str, *, breakpoints: Any = None,
+                  steps: Any = None,
+                  stop_on_exception: bool = False) -> dict[str, Any]:
+        """Run one workspace program under the debugger (M-054).
+
+        The program is resolved inside this session's
+        workspace; a path escaping it is refused. The
+        report is honest about absence: no catalogued
+        adapter, or an adapter that is not installed,
+        comes back as the report's status with its reason
+        — never as a faked session with invented frames.
+        An adapter that runs and fails raises DAPError.
+        Breakpoints name lines in the program file itself.
+        """
+        from ..core.workspace import assert_within_workspace
+        from ..tools import debugger as debugger_module
+
+        resolved = assert_within_workspace(self.project_root, path)
+        if not resolved.is_file():
+            raise ValueError(f"no such file to debug: {path}")
+        report = debugger_module.run_debug_session(
+            resolved, root=self.project_root,
+            breakpoints=list(breakpoints or []),
+            steps=list(steps or []),
+            stop_on_exception=bool(stop_on_exception),
+            enabled=debugger_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": debugger_module.PLAIN_EXPLANATION,
+        }
+
     def lsp_workspace_symbols(self, query: str = "") -> dict[str, Any]:
         """The workspace's symbols, per the language server (M-050)."""
         from ..integrations import lsp as lsp_module

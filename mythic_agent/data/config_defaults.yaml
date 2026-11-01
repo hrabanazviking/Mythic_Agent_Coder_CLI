@@ -8,6 +8,7 @@ fallback_permission: false
 cost_routing: false
 edit_truth_loop: true
 formatter_covenant: true
+debugger: true
 repo_map_pins: []
 working_directory: ''
 user_name: ''
