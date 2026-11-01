@@ -221,6 +221,8 @@ class CommandHandler:
                 self._handle_map(args)
             elif cmd == "/ssearch":
                 self._handle_ssearch(args)
+            elif cmd == "/srewrite":
+                self._handle_srewrite(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1371,7 +1373,7 @@ class CommandHandler:
         match with its captures. A pattern that does not
         parse, and a language with no honest parse, are
         refused plainly — never text-searched instead.
-        Search only; the rewrite is M-048.
+        Search only; the rewrite is /srewrite (M-048).
         """
         from ..tools.structural_search import (
             format_search_status,
@@ -1399,6 +1401,51 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_search_status(status)}[/bold cyan]\n")
+        return
+
+    def _handle_srewrite(self, args: str):
+        """M-048: /srewrite — structural rewrite, in the TUI.
+
+        ``/srewrite <language> <pattern> => <replacement>``
+        previews the codemod: every match of the pattern
+        (M-047) becomes a site with its rendered replacement
+        and its own diff preview, and nothing is written.
+        ``/srewrite apply ...`` applies the plan through
+        the edit journal — a file that changed since the
+        plan, and sites overlapping another match, are
+        refused plainly in the report, never force-edited.
+        A replacement that does not parse or names a
+        metavariable the pattern never captures is refused
+        the same way.
+        """
+        from ..tools.structural_rewrite import (
+            format_rewrite_status,
+            parse_rewrite_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_rewrite_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.structural_rewrite(
+                request["pattern"], request["replacement"],
+                request["language"],
+                apply=request["action"] == "apply")
+        except (ValueError, KeyError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_rewrite_status(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):

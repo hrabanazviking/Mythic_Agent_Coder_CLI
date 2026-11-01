@@ -1327,6 +1327,44 @@ class Agent:
             "plain_explanation": search_module.PLAIN_EXPLANATION,
         }
 
+    def structural_rewrite(self, pattern: str, replacement: str,
+                           language: str,
+                           apply: bool = False) -> dict[str, Any]:
+        """Rewrite this workspace by code shape (M-048).
+
+        The M-047 pattern, answered with a replacement
+        template in the same pattern language: every match
+        in the session's workspace becomes a site whose
+        metavariables are filled from that match's captures,
+        with a per-site diff preview and the file's hash at
+        plan time. Preview by default — planning writes
+        nothing. With *apply*, each file is written through
+        the edit journal only when it still matches its
+        plan hash; a changed file, and sites overlapping
+        another match, are refused plainly in the result,
+        never force-edited. A replacement that does not
+        parse, names a metavariable the pattern never
+        captures, or uses an unnamed ``$$$`` raises
+        PatternError (a ValueError); a grammar-less language
+        raises ParseUnavailableError; an uncatalogued
+        language raises KeyError. The returned record
+        carries the previews either way.
+        """
+        from ..tools import structural_rewrite as rewrite_module
+
+        plan = rewrite_module.plan_rewrite(
+            self.project_root, pattern, replacement, language)
+        if not apply:
+            return {
+                "result": plan.record(),
+                "plain_explanation": rewrite_module.PLAIN_EXPLANATION,
+            }
+        result = rewrite_module.apply_rewrite(self.project_root, plan)
+        return {
+            "result": result.record(),
+            "plain_explanation": rewrite_module.PLAIN_EXPLANATION,
+        }
+
     def repo_map_detail(self, path: str) -> dict[str, Any]:
         """One file's full account from the repo map (M-045).
 
