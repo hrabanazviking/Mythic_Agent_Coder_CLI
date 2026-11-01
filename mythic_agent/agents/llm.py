@@ -1181,6 +1181,32 @@ class Agent:
                 f"{suggestion.model} is a configured door whose "
                 "capability record says it can see."))
 
+    def context_strategy(self, model: str | None = None) -> dict[str, Any]:
+        """The long-context strategy for a model (M-038).
+
+        The strategy plan chosen from the model's recorded
+        M-027 context size — map-first for a known
+        million-class window, aggressive repo-map + retrieval
+        for a known smaller window, and an honest ``unknown``
+        (with the shipped default budget) when the size is not
+        recorded. With *model* given, that model's strategy is
+        previewed; otherwise the session's current model is
+        judged. This is the answer ``/longcontext`` shows; the
+        same plan drives the live file-context budget in
+        ``context.runtime.prompt_file_context``.
+        """
+        from ..core import long_context
+
+        plan = long_context.strategy_for_model(
+            self.config.get("model") if model is None else model)
+        return {
+            "model": plan.model,
+            "context_tokens": plan.context_tokens,
+            "strategy": plan.strategy,
+            "plan": plan.record(),
+            "plain_explanation": long_context.PLAIN_EXPLANATION,
+        }
+
     def salvaged_partial(self) -> dict[str, Any] | None:
         """The salvaged partial answer waiting in this history (M-034).
 

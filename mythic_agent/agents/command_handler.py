@@ -211,6 +211,8 @@ class CommandHandler:
                 self._handle_weather(args)
             elif cmd == "/vision":
                 self._handle_vision(args)
+            elif cmd == "/longcontext":
+                self._handle_longcontext(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1148,6 +1150,45 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_switch_record(record)}[/bold cyan]\n")
+
+    def _handle_longcontext(self, args: str):
+        """M-038: /longcontext — the model's loading strategy, plainly.
+
+        ``/longcontext`` (or ``/longcontext show``) shows the
+        current model's long-context strategy, chosen from its
+        recorded context size (M-027): map-first for a known
+        million-class window, aggressive repo-map + retrieval
+        for a known smaller window, and an honest unknown —
+        with the shipped default budget — when the size is not
+        recorded. ``/longcontext <model>`` previews another
+        model's strategy without changing the session.
+        """
+        from ..core.long_context import (
+            format_longcontext_status,
+            parse_longcontext_args,
+            strategy_for_model,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_longcontext_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        status = primary.context_strategy(request["model"])
+        plan = strategy_for_model(request["model"]
+                                  if request["model"] is not None
+                                  else primary.config.get("model"))
+        assert status["plan"] == plan.record()
+        assert status["strategy"] == plan.strategy
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_longcontext_status(status)}[/bold cyan]\n")
 
     def _handle_tutorial(self):
         tutorial_text = """

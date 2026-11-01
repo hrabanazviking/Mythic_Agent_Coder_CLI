@@ -260,7 +260,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /status /session /add <path> /stop /undo /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /status /session /add <path> /stop /undo /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
         return True, False, "Conversation cleared."
@@ -443,6 +443,23 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
             return True, False, str(exc)
         from .core.model_switch import format_switch_record
         return True, False, format_switch_record(record)
+    if command == "/longcontext":
+        from .core.long_context import (
+            format_longcontext_status,
+            parse_longcontext_args,
+            strategy_for_model,
+        )
+        try:
+            request = parse_longcontext_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        status = agent.context_strategy(request["model"])
+        plan = strategy_for_model(request["model"]
+                                  if request["model"] is not None
+                                  else agent.config.get("model"))
+        assert status["plan"] == plan.record()
+        assert status["strategy"] == plan.strategy
+        return True, False, format_longcontext_status(status)
     if command == "/resume-thought":
         from .core.streaming_discipline import (
             can_resume,
