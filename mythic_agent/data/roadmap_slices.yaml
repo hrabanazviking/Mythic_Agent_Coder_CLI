@@ -328,7 +328,7 @@ slices:
   title: Map in the TUI
   summary: the map is *visible* — browse it, pin files, see why the coder thinks a file matters; the ranking
     is explainable.
-  status: queued
+  status: done
 - id: M-046
   part: 3
   title: Symbol graph
