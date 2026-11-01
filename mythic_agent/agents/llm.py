@@ -1365,6 +1365,45 @@ class Agent:
             "plain_explanation": rewrite_module.PLAIN_EXPLANATION,
         }
 
+    def lsp_status(self) -> dict[str, Any]:
+        """Which language servers this machine has (M-049).
+
+        The discovery board: every catalogued server with
+        its installed state — a server that is not installed
+        is named with its install remedy, never hidden. This
+        is the answer ``/lsp`` browses.
+        """
+        from ..integrations import lsp as lsp_module
+
+        return {
+            "servers": lsp_module.discover_servers(),
+            "plain_explanation": lsp_module.PLAIN_EXPLANATION,
+        }
+
+    def lsp_diagnostics(self, path: str) -> dict[str, Any]:
+        """One workspace file's language-server diagnostics (M-049).
+
+        The file is resolved inside this session's workspace;
+        a path escaping it is refused. The report is honest
+        about absence: no catalogued server for the file's
+        language, or a server that is not installed, comes
+        back as the report's status with its reason — never
+        as an empty, supposedly-clean diagnostic list. A
+        server that runs and fails raises LSPError.
+        """
+        from ..core.workspace import assert_within_workspace
+        from ..integrations import lsp as lsp_module
+
+        resolved = assert_within_workspace(self.project_root, path)
+        if not resolved.is_file():
+            raise ValueError(f"no such file to check: {path}")
+        report = lsp_module.diagnostics_for_file(
+            resolved, root=self.project_root)
+        return {
+            "report": report.record(),
+            "plain_explanation": lsp_module.PLAIN_EXPLANATION,
+        }
+
     def repo_map_detail(self, path: str) -> dict[str, Any]:
         """One file's full account from the repo map (M-045).
 
