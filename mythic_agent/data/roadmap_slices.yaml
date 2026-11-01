@@ -350,7 +350,7 @@ slices:
   title: LSP client I — diagnostics
   summary: language servers (pyright, typescript, rust-analyzer, gopls…) run beside the app; their diagnostics
     flow into the coder's awareness and the TUI's margin.
-  status: queued
+  status: done
 - id: M-050
   part: 3
   title: LSP client II — navigation
