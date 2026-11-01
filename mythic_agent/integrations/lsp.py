@@ -513,12 +513,20 @@ class LSPClient:
         return result
 
     def close(self) -> None:
-        """Shut the server down politely, then firmly if needed."""
+        """Shut the server down politely, then firmly if needed.
+
+        After the ``exit`` notification the process is given
+        a bounded moment to end on its own — terminating it
+        the instant the notification is flushed would kill
+        it before it could act on the shutdown it just
+        acknowledged, which under load loses the orderly
+        end entirely.
+        """
         if self._process is None or self._closed:
             return
         self._closed = True
         try:
-            self._request("shutdown", None, timeout=2.0)
+            self._request("shutdown", None, timeout=5.0)
         except LSPError:
             pass
         try:
@@ -528,7 +536,10 @@ class LSPClient:
         process, self._process = self._process, None
         try:
             if process.poll() is None:
-                process.terminate()
+                try:
+                    process.wait(timeout=2.0)
+                except Exception:
+                    process.terminate()
         except Exception:
             pass
 
