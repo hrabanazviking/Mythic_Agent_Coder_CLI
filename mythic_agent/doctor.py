@@ -341,6 +341,14 @@ def main(argv: list[str] | None = None) -> int:
                 "provider-health", HealthStatus.FAIL,
                 f"Provider health board failed: {exc}"))
 
+    # M-040: the board read plainly — the offline assessment
+    # rides beside it in --json, and the exact declaration is
+    # printed when the board shows the app is offline.
+    assessment = None
+    if board is not None:
+        from mythic_agent.core.offline_honesty import assess_board
+        assessment = assess_board(board)
+
     if args.json and board is not None:
         print(json.dumps({
             "checks": [
@@ -349,6 +357,7 @@ def main(argv: list[str] | None = None) -> int:
                 for r in results
             ],
             "provider_health": board.record(),
+            "offline": assessment.record(),
         }, indent=2))
         code = 1 if any(r.status == HealthStatus.FAIL for r in results) else 0
     else:
@@ -358,6 +367,12 @@ def main(argv: list[str] | None = None) -> int:
 
             print()
             print(format_board(board))
+            if assessment is not None and assessment.declaration:
+                print()
+                print(assessment.declaration)
+                print("Still available without a model:")
+                for offer in assessment.still_available:
+                    print(f"  {offer.command} — {offer.what}")
     if code == 0:
         print("\nAll checks passed.")
     else:

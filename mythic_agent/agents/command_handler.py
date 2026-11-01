@@ -213,6 +213,8 @@ class CommandHandler:
                 self._handle_vision(args)
             elif cmd == "/longcontext":
                 self._handle_longcontext(args)
+            elif cmd == "/offline":
+                self._handle_offline(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1189,6 +1191,47 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_longcontext_status(status)}[/bold cyan]\n")
+
+    def _handle_offline(self, args: str):
+        """M-040: /offline — offline honesty, in plain words.
+
+        ``/offline`` (or ``/offline show``) shows the session's
+        offline assessment over the M-039 health board: online
+        when a door answered, the exact offline declaration —
+        plus the non-model tools that still work (review,
+        metrics, session search) — when a probed board shows
+        no door can serve, and an honest unknown when the
+        board cannot say.
+        """
+        from ..core.offline_honesty import (
+            assess_board,
+            format_offline_status,
+            parse_offline_args,
+        )
+        from ..core.provider_health import Board, HealthEntry
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_offline_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.offline_status()
+            entries = tuple(HealthEntry(**e)
+                            for e in status["board"]["entries"])
+            board = Board(entries=entries,
+                          generated_at=status["board"]["generated_at"])
+            assert status["assessment"] == assess_board(board).record()
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_offline_status(status)}[/bold cyan]\n")
+            return
 
     def _handle_tutorial(self):
         tutorial_text = """

@@ -1230,6 +1230,31 @@ class Agent:
             "plain_explanation": provider_health.PLAIN_EXPLANATION,
         }
 
+    def offline_status(self, probe: bool = True) -> dict[str, Any]:
+        """Whether the app is offline, read plainly (M-040).
+
+        The M-039 health board for this session, assessed by
+        the M-040 offline-truth layer: ``online`` when a door
+        answered, ``offline`` — with the exact declaration
+        and the non-model tools that still work — when a
+        probed board shows no door can serve, and ``unknown``
+        when the board cannot honestly say (never probed, or
+        a keyed door the board cannot probe still standing).
+        With ``probe`` false the board is unprobed and the
+        state is ``unknown``, never ``offline``.
+        """
+        from ..core import offline_honesty, provider_health
+        from ..core.rate_limit_weather import shared_board
+
+        board = provider_health.build_board(
+            self.config, weather_board=shared_board(), probe=probe)
+        assessment = offline_honesty.assess_board(board)
+        return {
+            "assessment": assessment.record(),
+            "board": board.record(),
+            "plain_explanation": offline_honesty.PLAIN_EXPLANATION,
+        }
+
     def salvaged_partial(self) -> dict[str, Any] | None:
         """The salvaged partial answer waiting in this history (M-034).
 
