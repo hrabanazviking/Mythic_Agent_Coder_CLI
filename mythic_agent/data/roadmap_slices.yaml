@@ -322,7 +322,7 @@ slices:
   title: The Repo Map (Aider's crown, made kinder)
   summary: a token-budgeted map of the whole repo — files, classes, functions, signatures — ranked by
     relevance to the current task (PageRank over the reference graph, as the field does), refreshed incrementally.
-  status: queued
+  status: done
 - id: M-045
   part: 3
   title: Map in the TUI
