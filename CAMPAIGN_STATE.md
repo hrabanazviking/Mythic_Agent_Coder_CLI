@@ -1057,3 +1057,30 @@ honest absence (a server that is not installed reports
 NOT PROVEN/unknown, never a fake clean bill), the
 JSON-RPC lifecycle, and which servers can be proven
 live in this environment — before designing further.*
+
+*M-049 IN PROGRESS (2026-11-01 10:30 EST tick): build under
+way this tick on the scoped design — new module
+`mythic_agent/integrations/lsp.py` (the gap audit's named
+owner): a stdio JSON-RPC language-server client beside the
+app. Server catalogue as data (pyright for Python,
+typescript-language-server for TypeScript/JavaScript,
+rust-analyzer for Rust, gopls for Go), discovery by PATH
+lookup with honest absence (a server that is not installed
+reports not-installed with its install remedy, never a fake
+clean bill — no LSP server binary is installed in this
+environment, measured this tick); the client speaks the
+real lifecycle (initialize → initialized → didOpen →
+publishDiagnostics → shutdown/exit) over Content-Length
+framing, proven live against a real subprocess fake server
+in the slice tests. Diagnostics become plain records
+(severity, range, message, source, code) flowing to the
+coder's awareness: `Agent.lsp_status()` (the discovery
+board) + `Agent.lsp_diagnostics(path)` (one file's report)
+and `/lsp [show|check <path>]` on the terminal + TUI
+system-command roads, sharing one parser + formatters.
+The gap audit's lsp row flips module_kind proposed →
+existing (state stays MISSING — navigation M-050 and
+rename M-051 are still owed, and the state is pinned to
+the census); the test_gap_audit lying-kind mutation moves
+to a still-proposed row. M-052's edit-time loop will
+consume these diagnostics; it is not built here.*
