@@ -1457,6 +1457,53 @@ class Agent:
             "plain_explanation": lsp_module.NAVIGATION_PLAIN_EXPLANATION,
         }
 
+    def lsp_rename(self, path: str, line: int, character: int,
+                   new_name: str, apply: bool = False) -> dict[str, Any]:
+        """Plan (or apply) a server rename of a name (M-051).
+
+        Preview by default: the report carries the server's
+        per-file plan with its diff previews and nothing is
+        written. With *apply* true the plan is applied
+        through the house edit journal (plan-time hashes
+        checked per file; a changed file is refused whole).
+        Absence is honest exactly as on the navigation road:
+        a missing server is the report's status, never a
+        faked rename by text substitution.
+        """
+        from ..integrations import lsp as lsp_module
+
+        resolved = self._lsp_navigation_file(path)
+        report = lsp_module.rename_for_file(
+            resolved, line, character, new_name,
+            root=self.project_root, apply=apply)
+        return {
+            "report": report.record(),
+            "plain_explanation": lsp_module.RENAME_PLAIN_EXPLANATION,
+        }
+
+    def lsp_code_actions(self, path: str, line: int, character: int,
+                         apply_index: int | None = None
+                         ) -> dict[str, Any]:
+        """The server's code actions at a spot (M-051).
+
+        Lists the actions as plain records; with
+        *apply_index* (0-based, into the listed actions)
+        the chosen action's edit is applied through the
+        edit journal. A command-only action is reported
+        honestly in the report's apply_note — its command
+        is never executed.
+        """
+        from ..integrations import lsp as lsp_module
+
+        resolved = self._lsp_navigation_file(path)
+        report = lsp_module.code_actions_for_file(
+            resolved, line, character, root=self.project_root,
+            apply_index=apply_index)
+        return {
+            "report": report.record(),
+            "plain_explanation": lsp_module.RENAME_PLAIN_EXPLANATION,
+        }
+
     def lsp_workspace_symbols(self, query: str = "") -> dict[str, Any]:
         """The workspace's symbols, per the language server (M-050)."""
         from ..integrations import lsp as lsp_module
