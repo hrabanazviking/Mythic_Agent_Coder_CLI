@@ -549,6 +549,33 @@ script a new registry entry must pass — chat, tools,
 streaming, and errors proven against a door — before it
 ships, with the pass/fail evidence stated plainly per check.*
 
+*M-041 IN PROGRESS (2026-11-01 01:40 EST tick): build under
+way on the settled design — pure kit layer
+`mythic_agent/core/provider_test_kit.py`: five checks in
+roadmap order (registry, chat, tools, streaming, errors)
+run against a real door. The live road is the M-020
+universal adapter for `openai_compatible` entries — the
+population a new registry entry joins per M-019's extension
+rule; a check a door does not claim (its registry
+capabilities say tool_calling/streaming false) is skipped
+with the reason, never passed silently; a non-compatible
+dialect's live checks are skipped with the reason and the
+verdict is NOT PROVEN, never passed. Chat goes through the
+universal adapter itself; tools forces the kit's own tool
+via tool_choice and parses the reply with the shipped
+tool-negotiation parser; streaming reads the door's SSE
+stream through the shipped streaming parser; errors proves
+a malformed request is answered with an HTTP error (never
+a success) and that the adapter raises ProviderError on
+invalid input, with no key value ever riding a check
+detail, record, or formatted line. Surfaces: the runnable
+script `scripts/provider_test_kit.py`, the CLI subcommand
+`mythic testkit`, `Agent.test_kit()`, and `/testkit` on the
+terminal + TUI system-command road, sharing one parser +
+formatter. Verdict: passed (no failures and chat actually
+proven) / failed (any check failed) / not-proven (chat was
+not run); the script and CLI exit 0 only on passed.*
+
 
 ## Laws in force (from the roadmap + Volmarr's standing rulings)
 
