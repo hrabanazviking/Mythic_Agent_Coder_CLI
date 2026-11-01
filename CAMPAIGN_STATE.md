@@ -678,6 +678,34 @@ the tree: ranked entries built on M-043 parses + the symbol
 index, ranking explainable per entry, budget enforced by
 the shipped token estimator.*
 
+*M-044 IN PROGRESS (2026-11-01 04:10 EST tick): build under
+way on the settled design — the map lives in the gap audit's
+owning module `mythic_agent/context/repo_map.py`: a pure
+build layer over the M-043 parses (definitions + signature
+lines per file, backend named per file), a reference graph
+(a file references the files whose defined symbols it
+mentions by name), PageRank over that graph (damping 0.85,
+deterministic), task relevance from query identifiers
+matching defined symbols/paths (score = PageRank ×
+(1 + matches), every entry carrying its plain reasons —
+inbound count, matched symbols, rank), token budget
+enforced by the shipped TokenEstimator (entries included
+in rank order while they fit; entries beyond the budget
+are named as omitted, never silently dropped), and
+incremental refresh (a previous map may be passed back:
+files whose content hash is unchanged reuse their parse —
+reused/reparsed counts carried on the map — changed and
+new files reparse, vanished files drop). Files that cannot
+be parsed honestly (Mojo's grammar-less catalogue entry,
+a grammar-less environment, broken Python on the ast
+fallback) are recorded in the map's skipped list with the
+reason, never invented. A `RepoMapSource` ContextSource
+serves the rendered map to the real context compiler
+(proven in tests); the runtime's default source list is
+NOT changed in this slice — M-045 is the map's TUI road
+and runtime wiring stays a named later step, not a claim
+made here.*
+
 *M-043 correction (2026-11-01, post-closure): the M-043
 closure records first wrote PUBLIC_API 1738 → 1779 — that
 1779 came from a regen scan that raced a parallel regen
