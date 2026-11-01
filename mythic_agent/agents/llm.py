@@ -1059,6 +1059,111 @@ class Agent:
             record["applied"] = True
         return record
 
+    def vision_status(self) -> dict[str, Any]:
+        """The current model's sight truth and the offer (M-037).
+
+        The current model's recorded vision truth exactly as
+        M-027 stores it (True / False / None — unknown is
+        shown as unknown, never upgraded), every configured
+        door whose model is known to see, the switch the gate
+        would offer, and the plain explanation. This is the
+        answer ``/vision`` shows; nothing about it is hidden.
+        """
+        from ..core import vision_routing
+        from ..core.model_capabilities import load_capabilities
+
+        caps = load_capabilities()
+        model = self.config.get("model")
+        vision = caps.for_model(model).vision if model else None
+        seeing = [
+            door.selection()
+            for door in vision_routing.candidate_doors(self.config)
+            if caps.for_model(door.model).vision is True]
+        suggestion = vision_routing.suggest_switch(self.config, caps)
+        return {
+            "model": model,
+            "vision": vision,
+            "seeing_doors": seeing,
+            "suggestion": (suggestion.selection()
+                           if suggestion is not None else None),
+            "plain_explanation": vision_routing.PLAIN_EXPLANATION,
+        }
+
+    def vision_decision(self, parts: Any) -> Any:
+        """The routing gate's decision for *parts* (M-037).
+
+        Pure over this agent's config: whether the image parts
+        may go to the current model, what its capability record
+        says, the plain-words reason, and the configured
+        known-seeing door a switch is offered to when the gate
+        refuses.
+        """
+        from ..core.vision_routing import route_images
+
+        return route_images(self.config, parts)
+
+    def gate_image_parts(self, parts: Any) -> Any:
+        """Gate *parts* before any image work is sent (M-037).
+
+        Returns the routing decision when the gate allows the
+        parts (including the no-images case — text work is
+        never gated). When the gate refuses, the refusal is
+        journaled first as a ``vision_refused`` checkpoint
+        event when a session is attached — announced on the
+        record, never silent — and RuntimeError is raised with
+        the decision's plain reason; nothing is sent and
+        nothing about the session changes.
+        """
+        decision = self.vision_decision(parts)
+        if decision.allowed:
+            return decision
+        if self._session_store and self.session_id:
+            try:
+                self._checkpoint({
+                    "type": "vision_refused",
+                    **decision.record(),
+                })
+            except Exception:
+                pass  # the refusal itself is the truth owed
+        raise RuntimeError(decision.reason)
+
+    def apply_vision_switch(self) -> dict[str, Any]:
+        """Take the switch the vision gate offers (M-037).
+
+        The offered door — a configured door the live session
+        can speak whose model is known to see — is applied
+        through M-028's :meth:`switch_model` with the gate's
+        own reason, so it is journaled as a ``model_switched``
+        event and preserves the session, the plan, and the
+        crew exactly as any switch does. When the current
+        model is already known to see, or no configured door
+        qualifies, this refuses plainly and changes nothing.
+        """
+        from ..core.vision_routing import gate_for_model, suggest_switch
+
+        current = gate_for_model(self.config.get("model"), 1)
+        if current.allowed:
+            raise RuntimeError(
+                f"The current model ({current.model}) is already "
+                "known to see, so there is no vision switch to "
+                "take; the session is unchanged.")
+        suggestion = suggest_switch(self.config)
+        if suggestion is None:
+            raise RuntimeError(
+                "No door you have set up is known to see, so "
+                "there is no vision switch to take; set up a "
+                "door whose model is known to see (see /vision), "
+                "then switch with /model. The session is "
+                "unchanged.")
+        return self.switch_model(
+            model=suggestion.model,
+            base_url=suggestion.base_url,
+            reason=(
+                "Vision input routing (M-037): the previous "
+                "model is not known to see, and "
+                f"{suggestion.model} is a configured door whose "
+                "capability record says it can see."))
+
     def salvaged_partial(self) -> dict[str, Any] | None:
         """The salvaged partial answer waiting in this history (M-034).
 

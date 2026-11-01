@@ -209,6 +209,8 @@ class CommandHandler:
                 self._handle_retry(args)
             elif cmd == "/weather":
                 self._handle_weather(args)
+            elif cmd == "/vision":
+                self._handle_vision(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1095,6 +1097,57 @@ class CommandHandler:
                 "agent_chat_chunk", agent_name="Primary",
                 text=f"\n[bold cyan]{format_weather_status(board, extra_providers=[status['current_provider']])}[/bold cyan]\n")
             return
+
+    def _handle_vision(self, args: str):
+        """M-037: /vision — vision input routing, in plain words.
+
+        ``/vision`` (or ``/vision show``) shows the current
+        model's recorded sight truth, the configured doors
+        whose models are known to see, and the switch on
+        offer. ``/vision switch`` takes that offered switch
+        through the primary's journaled M-028 switch.
+        """
+        from ..core.model_capabilities import load_capabilities
+        from ..core.model_switch import format_switch_record
+        from ..core.vision_routing import (
+            format_vision_status,
+            parse_vision_args,
+            suggest_switch,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_vision_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.vision_status()
+            caps = load_capabilities()
+            model = primary.config.get("model")
+            assert status["vision"] == (
+                caps.for_model(model).vision if model else None)
+            suggestion = suggest_switch(primary.config, caps)
+            assert status["suggestion"] == (
+                suggestion.selection() if suggestion is not None else None)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_vision_status(status)}[/bold cyan]\n")
+            return
+        try:
+            record = primary.apply_vision_switch()
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_switch_record(record)}[/bold cyan]\n")
 
     def _handle_tutorial(self):
         tutorial_text = """
