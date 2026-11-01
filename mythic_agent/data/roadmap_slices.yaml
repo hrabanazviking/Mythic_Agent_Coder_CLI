@@ -310,7 +310,7 @@ slices:
   title: Part II gate
   summary: the same benchmark task (M-008) completed through five different providers + Ollama + Aesir,
     evidence banked.
-  status: queued
+  status: done
 - id: M-043
   part: 3
   title: Tree-sitter foundation
