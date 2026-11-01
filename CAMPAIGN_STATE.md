@@ -1163,3 +1163,46 @@ is never presented as server truth). When M-051 lands,
 the gap audit's lsp-integration row is fully built
 (M-049+M-050+M-051) — the building tick re-checks what
 the validators allow the row's state to say.*
+
+*M-051 IN PROGRESS (2026-11-01 12:35 EST tick): build under
+way this tick on the scoped design — extend
+`mythic_agent/integrations/lsp.py` (M-049/M-050's module)
+with LSP client III: rename and code actions.
+prepareRename honesty first (a spot the server says
+cannot be renamed — null result or server error — is
+refused plainly in the server's terms, never guessed),
+then textDocument/rename: the returned WorkspaceEdit
+(both `changes` and `documentChanges` shapes) parsed
+into a per-file edit plan as plain records — plan-time
+sha256 per file and per-site/per-file unified-diff
+previews as data (the M-048 house rule: no preview, no
+application), overlapping edits in one file refused
+with the reason, malformed edits refused plainly.
+textDocument/codeAction returns plain records (title,
+kind, diagnostics carried, whether it carries an edit
+and/or a command); applying a code action applies its
+WorkspaceEdit through the same plan/journal road, and a
+command-only action is reported honestly — its command
+is NOT executed, as no house road executes server
+commands. Application only through the house
+EditJournal (journal-first), plan-time hash checked per
+file: a file changed since the plan is refused whole,
+never force-edited. End-to-end helpers
+rename_for_file / code_actions_for_file mirror the
+*_for_file honesty pattern (no-server and not-installed
+are reports, never a faked rename — no language server
+is installed in this environment, measured in M-049, so
+live proof rides the fake-server harness extended with
+prepareRename/rename/codeAction handlers). Rename and
+codeAction capabilities declared in the initialize
+handshake. Surfaces: Agent.lsp_rename() (preview by
+default; apply only when explicitly asked) +
+Agent.lsp_code_actions(), and `/lsp rename <path>
+<line> <col> <new-name> [apply]` + `/lsp actions
+<path> <line> <col> [apply <n>]` on the terminal + TUI
+system-command roads, sharing the one parser and new
+formatters. The gap audit's lsp-integration row is
+re-checked at banking: its state is pinned to the
+census by validate_audit (like the earlier rows), so it
+stays MISSING unless the validators honestly permit a
+flip — recorded, never forced.*
