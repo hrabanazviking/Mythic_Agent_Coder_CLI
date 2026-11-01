@@ -44,6 +44,7 @@ from mythic_agent.context.symbol_graph import (
     build_symbol_graph,
     extract_file_graph,
     language_capabilities,
+    render_markdown,
 )
 from mythic_agent.core.tree_sitter_foundation import (
     ParseUnavailableError,
@@ -456,6 +457,22 @@ def test_invalid_bounds_are_refused(tmp_path):
         build_symbol_graph(tmp_path, max_files=0)
     with pytest.raises(ValueError):
         build_symbol_graph(tmp_path, max_file_bytes=0)
+
+
+def test_render_markdown_reports_through_the_queries(tmp_path):
+    (tmp_path / "core.py").write_text(
+        "def build_engine():\n    return 1\n")
+    (tmp_path / "app.py").write_text(
+        "def main():\n    return build_engine() + missing()\n")
+    graph = build_symbol_graph(tmp_path)
+    text = render_markdown(graph)
+    assert "2 files seen" in text
+    assert "**build_engine**" in text
+    assert "1 caller(s)" in text
+    assert "app.py" in text and "depends on: core.py" in text
+    # the unresolved call is named, with its caller — not hidden
+    assert "main calls `missing`" in text
+    assert "mojo" in text  # the capability table is rendered
 
 
 def test_non_code_files_are_not_candidates(tmp_path):
