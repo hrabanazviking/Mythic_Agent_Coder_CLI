@@ -280,7 +280,7 @@ slices:
   title: Vision input routing
   summary: image tasks route only to models whose capability record says they can see; otherwise the app
     says so plainly and offers the switch.
-  status: queued
+  status: done
 - id: M-038
   part: 2
   title: Long-context strategy per model
