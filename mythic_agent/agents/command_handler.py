@@ -203,6 +203,8 @@ class CommandHandler:
                 self._handle_costroute(args)
             elif cmd == "/kista":
                 self._handle_kista(args)
+            elif cmd == "/resume-thought":
+                self._handle_resume_thought(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -965,6 +967,55 @@ class CommandHandler:
             return
         publish_sync("agent_chat_chunk", agent_name="Primary",
                      text=f"\n[green]{format_custody_change(record)}[/green]\n")
+
+    def _handle_resume_thought(self, args: str):
+        """M-034: /resume-thought — streaming discipline, in plain words.
+
+        ``/resume-thought show`` says whether a partial answer
+        is waiting in the conversation (and, plainly, when none
+        is) and whether the current model's streaming truth
+        opens the resume gate. ``/resume-thought`` (or
+        ``resume``) continues the waiting thought through the
+        agent layer — journaled first as ``thought_resumed`` —
+        and a refusal (no partial waiting, or a model whose
+        streaming ability is not known to support resuming) is
+        published plainly, changing nothing.
+        """
+        from ..core.streaming_discipline import (
+            can_resume,
+            find_partial,
+            format_resume_status,
+            parse_resume_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_resume_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            partial = primary.salvaged_partial()
+            found = find_partial(primary.history_snapshot())
+            assert (found is None) == (partial is None)
+            decision = can_resume(primary.config.get("model"))
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_resume_status(partial, decision)}[/bold cyan]\n")
+            return
+        try:
+            text = primary.resume_thought()
+        except RuntimeError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync("agent_chat_chunk", agent_name="Primary",
+                     text=f"\n{text}\n")
 
     def _handle_tutorial(self):
         tutorial_text = """

@@ -387,7 +387,59 @@ class Agent:
                     "base_url": self.config.get("base_url"),
                 })
             self._session_store, self.session_id = store, session_id
+            if resume is not None:
+                self._restore_salvaged_partial()
             return session_id
+
+    def _restore_salvaged_partial(self) -> None:
+        """Restore a killed stream's partial on resume (M-034).
+
+        The ``stream_interrupted`` checkpoint is the journal's
+        record of a stream that died mid-answer. When the live
+        turn lived long enough, it salvaged the partial itself
+        (see :meth:`_request_streaming`); when the process died
+        with the turn, the checkpoint is all that remains. On
+        resume, the latest such checkpoint whose partial is not
+        already present as a salvage message in the loaded
+        context is salvaged here — appended through
+        :meth:`_append_message`, so the restore itself is
+        journaled, and recorded with a
+        ``stream_salvaged_on_resume`` event. A failure to scan
+        never breaks a normal resume: it is logged, and the
+        session continues without the restore.
+        """
+        from ..core.streaming_discipline import (
+            is_partial_message,
+            partial_text_of,
+            salvage_message,
+        )
+
+        try:
+            if not self._session_store or not self.session_id:
+                return
+            events = self._session_store.export(self.session_id)["events"]
+            partial_text = None
+            for event in events:
+                if event.get("type") == "stream_interrupted":
+                    text = event.get("partial_text")
+                    if isinstance(text, str) and text.strip():
+                        partial_text = text
+            if partial_text is None:
+                return
+            for message in self.history_snapshot():
+                if is_partial_message(message) \
+                        and partial_text_of(message) == partial_text:
+                    return  # already salvaged in the loaded context
+            message = salvage_message(partial_text)
+            if message is None:
+                return
+            self._append_message(message)
+            self._checkpoint({"type": "stream_salvaged_on_resume",
+                              "partial_chars": len(partial_text)})
+        except Exception:
+            logging.exception(
+                "Salvaged-partial restore failed; resume continues "
+                "without it")
 
     def close(self) -> None:
         from ..core.secure_api import unsubscribe
@@ -1018,6 +1070,61 @@ class Agent:
             record["applied"] = True
         return record
 
+    def salvaged_partial(self) -> dict[str, Any] | None:
+        """The salvaged partial answer waiting in this history (M-034).
+
+        The last marked partial assistant message in the live
+        history, as a record with its history ``index``, its
+        verbatim ``partial_text``, and the session's current
+        ``model`` — or None when no interrupted answer is
+        waiting. This is what ``/resume-thought show`` reads.
+        """
+        from ..core.streaming_discipline import find_partial
+
+        found = find_partial(self.history_snapshot())
+        if found is None:
+            return None
+        index, text = found
+        return {"index": index, "partial_text": text,
+                "model": self.config.get("model")}
+
+    def resume_thought(self) -> str:
+        """Continue the salvaged partial answer (M-034).
+
+        Refuses plainly — raising RuntimeError, changing
+        nothing, journaling nothing — when no salvaged partial
+        waits in the history, or when the current model's
+        streaming truth (M-027) is not known-true: a resume is
+        offered only where the door is known to allow it (see
+        :func:`mythic_agent.core.streaming_discipline.can_resume`).
+        Otherwise the resume is journaled *first* as a
+        ``thought_resumed`` checkpoint event, and the
+        continuation runs as an ordinary turn through
+        :meth:`chat` with the core layer's resume prompt — the
+        partial itself stays in the history above it, marked as
+        partial, and the continuation is appended after it.
+        Returns the continuation's text.
+        """
+        from ..core.streaming_discipline import can_resume, resume_prompt
+
+        partial = self.salvaged_partial()
+        if partial is None:
+            raise RuntimeError(
+                "No interrupted answer is waiting to be resumed: "
+                "this conversation holds no partial answer, so "
+                "there is no thought to continue. Nothing was "
+                "changed.")
+        decision = can_resume(self.config.get("model"))
+        if not decision.allowed:
+            raise RuntimeError(decision.reason)
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "thought_resumed",
+                "model": decision.model,
+                "partial_chars": len(partial["partial_text"]),
+            })
+        return self.chat(resume_prompt(partial["partial_text"]))
+
     def kista_status(self) -> dict[str, Any]:
         """Where every door's key lives, and whether one is held (M-032).
 
@@ -1396,8 +1503,29 @@ class Agent:
                     timeout=settings["request_timeout"],
                 )
             except TurnCancelled:
+                from ..core.streaming_discipline import (
+                    salvage_message,
+                    salvage_notice,
+                )
+
+                salvaged = salvage_message(accumulator.text)
                 self._checkpoint({"type": "stream_interrupted",
-                                  "partial_text": accumulator.text})
+                                  "partial_text": accumulator.text,
+                                  "salvaged": salvaged is not None})
+                if salvaged is not None:
+                    # M-034 salvage: the partial becomes a marked
+                    # partial assistant message in the conversation
+                    # (journaled by _append_message as a message
+                    # event), and the interrupt surfaces honestly —
+                    # what was kept, that it is partial, and how to
+                    # resume. The salvage carries no tool calls, so
+                    # the turn's turn_finished checkpoint (chat())
+                    # holds a consistent history with no dangling
+                    # calls.
+                    self._append_message(salvaged)
+                    publish_sync(
+                        "agent_chat_chunk", agent_name=self.name,
+                        text=f"\n{salvage_notice(accumulator.text)}\n")
                 raise
             except (APIConnectionError, APIStatusError) as exc:
                 if not _is_transient(exc) or accumulator.emitted \

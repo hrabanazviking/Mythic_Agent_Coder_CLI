@@ -648,6 +648,7 @@ class MainChatScreen(Screen):
                 chat_log.write("  [green]/fallback[/green]  - Show or set the fallback chain (doors walked when a provider fails, with standing permission)")
                 chat_log.write("  [green]/costroute[/green] - Cost-aware routing: prefer the cheaper adequate door for a task class (off by default, explained in plain words)")
                 chat_log.write("  [green]/kista[/green]     - Key custody: where each door's key lives (Kista holds the keys; the config holds references)")
+                chat_log.write("  [green]/resume-thought[/green] - Streaming discipline: resume an interrupted answer from its salvaged partial (where the model is known to support it)")
                 chat_log.write("  [green]/clear[/green]     - Clear agent memory")
                 chat_log.write("  [green]/compact[/green]   - Compact agent memory")
                 chat_log.write("  [green]/cost[/green]      - Estimate token cost")
@@ -696,6 +697,7 @@ class MainChatScreen(Screen):
                     "/fallback": "Usage: /fallback | /fallback on | /fallback off | /fallback add <model> [url] | /fallback add --provider <name> [--model <model>] | /fallback clear\nFallback chains (M-030): when a provider fails or rate-limits, the session walks the configured doors in order — but only with your standing permission (/fallback on; off by default), and every walk is announced in the chat and recorded as a session journal event, never silent. Doors are validated through the provider registry; a native-SDK door, the current door, or a duplicate is refused plainly.",
                     "/costroute": "Usage: /costroute | /costroute on | /costroute off | /costroute <task-class>\nCost-aware routing (M-031): with mythic costs data, the router can prefer the cheaper adequate model for a task class (general, coding, reasoning, vision, long_context) — a setting, off by default, explained in plain words. It only chooses between doors you have already configured (your current door, your fallback chain, your role routes), only when the cheaper model's price is known and its abilities are known to fit the work, and it always says why; an applied switch is recorded as a session journal event with that reason.",
                     "/kista": "Usage: /kista | /kista adopt | /kista adopt <base-url>\nKey custody via Kista (M-032): providers read their keys from Kista, your own credential keeper; config files hold references (kista:<name>), never secrets. /kista shows, for every door, where its key lives and whether one is held — never a key value. /kista adopt moves a door's stored plain-text key into Kista's vault file (named by MYTHIC_KISTA_FILE) and leaves only the reference in the config, recorded as a session journal event. A missing key asks once, kindly, naming the reference to add.",
+                    "/resume-thought": "Usage: /resume-thought | /resume-thought resume | /resume-thought show\nStreaming discipline (M-034): when a streaming answer is interrupted, the words it managed to say are kept in the conversation as a partial answer, clearly marked as not complete — never silently dropped, never presented as finished, and a killed stream never corrupts the journal. /resume-thought show says whether a partial is waiting (plainly, when none is). /resume-thought asks the model to continue from exactly where the partial stopped, without repeating what was already said — only where the current model's streaming ability is known to support resuming (M-027 capability truth); otherwise it refuses plainly, with the reason, and the partial stays in the conversation.",
                     "/clear": "Usage: /clear\nClears the agent's memory window (except the system prompt).",
                     "/compact": "Usage: /compact\nForces the LLM's context pruner to run early, archiving old messages to the VectorDB.",
                     "/cost": "Usage: /cost\nComputes and displays the token cost of the current session.",
@@ -784,7 +786,7 @@ class MainChatScreen(Screen):
             else:
                 SecureAPI.publish_chat_request(f"{action_text} {args}", target_agent=active)
             chat_log.write(f"[magenta]{action_text}[/magenta] {args}")
-        elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr", "/stop", "/clear", "/compact", "/cost", "/review", "/ollama", "/local", "/gateway", "/model", "/route", "/fallback", "/costroute", "/kista"]:
+        elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr", "/stop", "/clear", "/compact", "/cost", "/review", "/ollama", "/local", "/gateway", "/model", "/route", "/fallback", "/costroute", "/kista", "/resume-thought"]:
             # M-023: /ollama rides this same system-command road — the
             # M-024: /local rides it too, for the same reason.
             # UI stays presentation-only (arch-conformance: no
