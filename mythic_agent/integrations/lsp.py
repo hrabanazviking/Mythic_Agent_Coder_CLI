@@ -1,14 +1,20 @@
-"""LSP client I — diagnostics (All-Features roadmap slice M-049).
+"""LSP client I — diagnostics (M-049) and II — navigation (M-050).
 
 Part III — Code Intelligence. Language servers (pyright,
 typescript-language-server, rust-analyzer, gopls…) run beside
 the app as their own processes; this module is the client that
 speaks to them, so their diagnostics flow into the coder's
-awareness and can be shown in the TUI's margin. Navigation
-(M-050), rename and code actions (M-051), and the edit-time
-truth loop that will consume these diagnostics after every
-edit (M-052) are later slices on this same road — they are
-not built here and nothing here claims them.
+awareness and can be shown in the TUI's margin, and their
+navigation answers — where a name is defined, where it is
+used, what the server says about a spot, and the workspace's
+symbols — come back as plain records the agent can act on
+(slice M-050: go-to-definition, references, hover, and
+workspace symbols as agent tools, so 'where is this used?'
+gets the server's true answer, never a name-based guess).
+Rename and code actions (M-051), and the edit-time truth
+loop that will consume these diagnostics after every edit
+(M-052), are later slices on this same road — they are not
+built here and nothing here claims them.
 
 What ships here, in ``mythic_agent/integrations/lsp.py`` (the
 gap audit's named owner for the lsp-integration feature, with
@@ -45,12 +51,34 @@ loop is where these diagnostics will land in M-052):
   it gave them. :class:`DiagnosticsReport` is one file's
   whole account: its status (``ok`` / ``not-installed`` /
   ``no-server``), the server's name, and its diagnostics.
+* **Navigation as plain records (M-050).**
+  :class:`NavLocation` is one span (a definition site, a
+  reference site, a symbol's home), :class:`HoverInfo` is
+  what the server says about one spot (its contents in
+  plain text, extracted from the protocol's string /
+  MarkupContent / MarkedString shapes), and
+  :class:`WorkspaceSymbol` is one workspace symbol
+  (SymbolInformation and hierarchical DocumentSymbol
+  answers flattened to the same record). The client's
+  ``definition`` / ``references`` / ``hover`` /
+  ``workspace_symbols`` methods ride the same request road
+  as the handshake; the end-to-end helpers
+  (:func:`definition_for_file` and its kin) report
+  no-server / not-installed exactly the way
+  :func:`diagnostics_for_file` does — an absent server is
+  a status with its remedy, never an invented answer and
+  never an empty-but-ok one.
 * **The surfaces.** ``Agent.lsp_status()`` is the discovery
   board and ``Agent.lsp_diagnostics(path)`` one file's
   report; ``/lsp`` (bare or ``show`` for the board,
   ``check <path>`` for one file) rides the terminal and the
   TUI system-command road, sharing this module's parser and
-  formatters.
+  formatters. M-050 adds the navigation agent tools
+  (``Agent.lsp_definition`` / ``lsp_references`` /
+  ``lsp_hover`` / ``lsp_workspace_symbols``) and the
+  ``/lsp def|refs|hover|symbols`` subcommands on the same
+  two roads, sharing the same parser and the navigation
+  formatter.
 
 Honesty rules, pinned by the slice's tests:
 
@@ -73,28 +101,40 @@ Honesty rules, pinned by the slice's tests:
 from __future__ import annotations
 
 __all__ = [
+    "LSP_NAVIGATION_SLICE",
     "LSP_SLICE",
+    "NAVIGATION_PLAIN_EXPLANATION",
     "PLAIN_EXPLANATION",
     "SERVERS",
     "SEVERITIES",
+    "SYMBOL_KINDS",
     "Diagnostic",
     "DiagnosticsReport",
+    "HoverInfo",
     "LSPClient",
     "LSPError",
+    "NavLocation",
+    "NavigationReport",
     "ServerDef",
+    "WorkspaceSymbol",
+    "definition_for_file",
     "diagnostics_for_file",
     "discover_servers",
     "encode_message",
     "format_lsp_diagnostics",
+    "format_lsp_navigation",
     "format_lsp_status",
+    "hover_for_file",
     "language_id_for",
     "parse_lsp_args",
     "path_to_uri",
     "read_message",
+    "references_for_file",
     "render_markdown",
     "server_for_language",
     "server_for_path",
     "uri_to_path",
+    "workspace_symbols_for",
 ]
 
 import json
@@ -110,6 +150,22 @@ from urllib.request import pathname2url
 from ..core.exceptions import MythicIntegrationError
 
 LSP_SLICE = "M-049"
+
+LSP_NAVIGATION_SLICE = "M-050"
+
+NAVIGATION_PLAIN_EXPLANATION = (
+    "The language server truly knows what a name means in "
+    "its language, so Mythic can ask it the navigation "
+    "questions and get true answers: where a name is "
+    "defined (/lsp def <path> <line> <character>), every "
+    "place it is used (/lsp refs), what the server says "
+    "about a spot (/lsp hover), and the workspace's symbols "
+    "(/lsp symbols [query]). The positions are the editor's "
+    "1-based line and character. A server that is not "
+    "installed is reported as not installed — its silence "
+    "is never dressed up as an answer, and a name-based "
+    "guess is never presented as the server's truth."
+)
 
 PLAIN_EXPLANATION = (
     "Language servers are separate programs that truly "
@@ -354,6 +410,256 @@ class Diagnostic:
                f"{self.message}{suffix}"
 
 
+# ---------------------------------------------------------------------------
+# Navigation records (M-050)
+# ---------------------------------------------------------------------------
+
+#: LSP SymbolKind numbers 1–26, as plain kind words.
+SYMBOL_KINDS = (
+    "file", "module", "namespace", "package", "class",
+    "method", "property", "field", "constructor", "enum",
+    "interface", "function", "variable", "constant", "string",
+    "number", "boolean", "array", "object", "key",
+    "null", "enum_member", "struct", "event", "operator",
+    "type_parameter",
+)
+
+_SYMBOL_KIND_BY_NUMBER = {
+    number: word for number, word in enumerate(SYMBOL_KINDS, start=1)}
+
+
+def _span_fields(span: Dict[str, Any]) -> Tuple[int, int, int, int]:
+    """One LSP Range as 1-based (line, character, end_line, end_character)."""
+    start = span.get("start") or {}
+    end = span.get("end") or {}
+    line = int(start.get("line", 0)) + 1
+    character = int(start.get("character", 0)) + 1
+    end_line = int(end.get("line", start.get("line", 0))) + 1
+    end_character = int(end.get("character",
+                                start.get("character", 0))) + 1
+    return line, character, end_line, end_character
+
+
+@dataclass
+class NavLocation:
+    """One place the server points at, as a 1-based record."""
+
+    path: str = ""
+    line: int = 1
+    character: int = 1
+    end_line: int = 1
+    end_character: int = 1
+
+    @classmethod
+    def from_lsp_location(cls, raw: Any) -> "NavLocation":
+        """Build a record from an LSP Location or LocationLink.
+
+        A Location carries ``{uri, range}``; a LocationLink
+        carries ``{targetUri, targetRange,
+        targetSelectionRange}`` — the selection range (the
+        name itself) wins over the full target range.
+        Anything else is refused plainly, never guessed.
+        """
+        if not isinstance(raw, dict):
+            raise LSPError(f"location is not an object: {raw!r}")
+        if "targetUri" in raw or "targetRange" in raw \
+                or "targetSelectionRange" in raw:
+            uri = raw.get("targetUri")
+            span = raw.get("targetSelectionRange") \
+                or raw.get("targetRange")
+        else:
+            uri = raw.get("uri")
+            span = raw.get("range")
+        if not uri or not isinstance(span, dict):
+            raise LSPError(
+                f"location is malformed (it needs a uri and a "
+                f"range): {raw!r}")
+        line, character, end_line, end_character = _span_fields(span)
+        return cls(
+            path=uri_to_path(uri) if str(uri).startswith("file://")
+            else str(uri),
+            line=line, character=character,
+            end_line=end_line, end_character=end_character)
+
+    @classmethod
+    def from_range(cls, span: Dict[str, Any], path: str) -> "NavLocation":
+        """A bare LSP Range at a known path, as a record."""
+        line, character, end_line, end_character = _span_fields(span)
+        return cls(path=path, line=line, character=character,
+                   end_line=end_line, end_character=end_character)
+
+    def record(self) -> Dict[str, Any]:
+        return {
+            "path": self.path, "line": self.line,
+            "character": self.character,
+            "end_line": self.end_line,
+            "end_character": self.end_character,
+        }
+
+    def one_line(self) -> str:
+        if self.path:
+            return f"{self.path}:{self.line}:{self.character}"
+        return f"{self.line}:{self.character}"
+
+
+def _hover_text(contents: Any) -> str:
+    """Hover contents in any protocol shape, as plain text.
+
+    The shapes: a plain string; a MarkupContent
+    ``{kind, value}``; a MarkedString — a string, or
+    ``{language, value}`` whose value (the code, for a code
+    marked string) is the text; and a list of any of those,
+    joined by a blank line.
+    """
+    if contents is None:
+        return ""
+    if isinstance(contents, str):
+        return contents
+    if isinstance(contents, dict):
+        value = contents.get("value")
+        return "" if value is None else str(value)
+    if isinstance(contents, (list, tuple)):
+        parts = [_hover_text(item) for item in contents]
+        return "\n\n".join(part for part in parts if part)
+    return ""
+
+
+@dataclass
+class HoverInfo:
+    """What the server says about one spot."""
+
+    contents: str = ""
+    range: Optional[NavLocation] = None
+
+    @classmethod
+    def from_lsp_result(cls, result: Any, path: str = "") -> "HoverInfo":
+        """Build a record from one ``textDocument/hover`` result.
+
+        A null result is the server's answer — it said
+        nothing about that spot — so it becomes an empty
+        record, not an error.
+        """
+        if result is None or result == {}:
+            return cls(contents="", range=None)
+        if not isinstance(result, dict):
+            raise LSPError(
+                f"hover result is not an object: {result!r}")
+        span = result.get("range")
+        location = NavLocation.from_range(span, path) \
+            if isinstance(span, dict) else None
+        return cls(contents=_hover_text(result.get("contents")),
+                   range=location)
+
+    def record(self) -> Dict[str, Any]:
+        return {
+            "contents": self.contents,
+            "range": self.range.record() if self.range else None,
+        }
+
+    def one_line(self) -> str:
+        return self.contents if self.contents \
+            else "(the server said nothing about that spot)"
+
+
+@dataclass
+class WorkspaceSymbol:
+    """One workspace symbol, as a plain record."""
+
+    name: str = ""
+    kind: str = "variable"
+    container_name: str = ""
+    location: NavLocation = field(default_factory=NavLocation)
+
+    def __post_init__(self) -> None:
+        if self.kind not in SYMBOL_KINDS:
+            raise ValueError(
+                f"symbol kind must be one of {SYMBOL_KINDS}, "
+                f"got {self.kind!r}")
+
+    @classmethod
+    def flatten(cls, raw: Any, uri: str = "",
+                container: str = "") -> List["WorkspaceSymbol"]:
+        """One symbol entry (and its children) as flat records.
+
+        Two wire shapes land here: SymbolInformation
+        (``{name, kind, location, containerName}``) and
+        hierarchical DocumentSymbol entries (``{name, kind,
+        range, selectionRange, children}``), flattened
+        recursively with the parent named as the children's
+        container. A kind number outside 1–26 is refused
+        plainly, never guessed.
+        """
+        if not isinstance(raw, dict):
+            raise LSPError(f"symbol is not an object: {raw!r}")
+        number = raw.get("kind")
+        if number not in _SYMBOL_KIND_BY_NUMBER:
+            raise LSPError(
+                f"symbol kind {number!r} is outside the LSP "
+                f"range 1-26")
+        name = str(raw.get("name", ""))
+        own_uri = str(raw.get("uri", "") or uri)
+        wire_location = raw.get("location")
+        if isinstance(wire_location, dict):
+            location = NavLocation.from_lsp_location(wire_location)
+            container_name = str(
+                raw.get("containerName", "") or container)
+        else:
+            span = raw.get("selectionRange") or raw.get("range")
+            if not isinstance(span, dict):
+                raise LSPError(
+                    f"symbol is malformed (it needs a location "
+                    f"or a range): {raw!r}")
+            path = uri_to_path(own_uri) \
+                if own_uri.startswith("file://") else own_uri
+            location = NavLocation.from_range(span, path)
+            container_name = container
+        found = [cls(name=name,
+                     kind=_SYMBOL_KIND_BY_NUMBER[number],
+                     container_name=container_name,
+                     location=location)]
+        for child in raw.get("children") or []:
+            found.extend(cls.flatten(child, uri=own_uri,
+                                     container=name))
+        return found
+
+    def record(self) -> Dict[str, Any]:
+        return {
+            "name": self.name, "kind": self.kind,
+            "container_name": self.container_name,
+            "location": self.location.record(),
+        }
+
+    def one_line(self) -> str:
+        text = f"{self.name} ({self.kind}) at {self.location.one_line()}"
+        if self.container_name:
+            text += f" in {self.container_name}"
+        return text
+
+
+@dataclass
+class NavigationReport:
+    """One navigation question's whole account (M-050)."""
+
+    action: str = ""
+    path: str = ""
+    server: Optional[str] = None
+    status: str = "ok"   # ok | not-installed | no-server
+    note: str = ""
+    locations: List[NavLocation] = field(default_factory=list)
+    hover: Optional[HoverInfo] = None
+    symbols: List[WorkspaceSymbol] = field(default_factory=list)
+
+    def record(self) -> Dict[str, Any]:
+        return {
+            "action": self.action, "path": self.path,
+            "server": self.server, "status": self.status,
+            "note": self.note,
+            "locations": [loc.record() for loc in self.locations],
+            "hover": self.hover.record() if self.hover else None,
+            "symbols": [sym.record() for sym in self.symbols],
+        }
+
+
 @dataclass
 class DiagnosticsReport:
     """One file's whole diagnostics account."""
@@ -458,6 +764,7 @@ class LSPClient:
         self._reader_error: Optional[str] = None
         self._server_name = server.name
         self._closed = False
+        self._opened_uris: set = set()
 
     # -- lifecycle ----------------------------------------------------
 
@@ -500,8 +807,16 @@ class LSPClient:
                         "versionSupport": True,
                     },
                     "synchronization": {"didSave": True},
+                    "definition": {},
+                    "references": {},
+                    "hover": {
+                        "contentFormat": ["markdown", "plaintext"],
+                    },
                 },
-                "workspace": {"configuration": True},
+                "workspace": {
+                    "configuration": True,
+                    "symbol": {},
+                },
             },
             "workspaceFolders": [{"uri": root_uri,
                                   "name": self.root.name}],
@@ -550,6 +865,67 @@ class LSPClient:
     def __exit__(self, *exc: Any) -> None:
         self.close()
 
+    # -- documents ------------------------------------------------------
+
+    def _require_running(self) -> None:
+        if self._process is None:
+            raise LSPError(
+                f"the {self.server.name} language server is not "
+                f"running; start the client first")
+
+    def _resolve_target(self, path: Path | str) -> Path:
+        target = Path(path)
+        if not target.is_absolute():
+            target = self.root / target
+        if not target.is_file():
+            raise LSPError(f"no such file to check: {target}")
+        return target
+
+    def _open_document(self, path: Path | str) -> Tuple[Path, str]:
+        """Open one file in the server, once per URI per client.
+
+        Returns the resolved target and its URI. Every
+        question about a file (diagnostics, definition,
+        references, hover) opens it through here, so the
+        ``didOpen`` notification is sent exactly once.
+        """
+        self._require_running()
+        target = self._resolve_target(path)
+        uri = path_to_uri(target)
+        if uri not in self._opened_uris:
+            text = target.read_text(encoding="utf-8",
+                                    errors="replace")
+            language_id = language_id_for(target) or "plaintext"
+            self._notify("textDocument/didOpen", {
+                "textDocument": {
+                    "uri": uri, "languageId": language_id,
+                    "version": 1, "text": text,
+                },
+            })
+            self._opened_uris.add(uri)
+        return target, uri
+
+    @staticmethod
+    def _validate_position(line: Any, character: Any) -> None:
+        if isinstance(line, bool) or isinstance(character, bool) \
+                or not isinstance(line, int) \
+                or not isinstance(character, int) \
+                or line < 1 or character < 1:
+            raise ValueError(
+                f"line and character must be positive integers "
+                f"(1-based, the way editors count), got "
+                f"line={line!r}, character={character!r}")
+
+    def _position_params(self, path: Path | str, line: int,
+                         character: int) -> Tuple[Path, Dict[str, Any]]:
+        self._validate_position(line, character)
+        target, uri = self._open_document(path)
+        return target, {
+            "textDocument": {"uri": uri},
+            "position": {"line": line - 1,
+                         "character": character - 1},
+        }
+
     # -- diagnostics ----------------------------------------------------
 
     def diagnostics_for(self, path: Path | str, *,
@@ -563,24 +939,7 @@ class LSPClient:
         never arrived is not the same as a clean file, and it
         is never reported as one.
         """
-        if self._process is None:
-            raise LSPError(
-                f"the {self.server.name} language server is not "
-                f"running; start the client first")
-        target = Path(path)
-        if not target.is_absolute():
-            target = self.root / target
-        if not target.is_file():
-            raise LSPError(f"no such file to check: {target}")
-        uri = path_to_uri(target)
-        text = target.read_text(encoding="utf-8", errors="replace")
-        language_id = language_id_for(target) or "plaintext"
-        self._notify("textDocument/didOpen", {
-            "textDocument": {
-                "uri": uri, "languageId": language_id,
-                "version": 1, "text": text,
-            },
-        })
+        target, uri = self._open_document(path)
         wait = self.timeout if timeout is None else timeout
         with self._condition:
             arrived = self._condition.wait_for(
@@ -598,6 +957,65 @@ class LSPClient:
         return DiagnosticsReport(
             path=str(target), server=self._server_name,
             status="ok", diagnostics=found)
+
+    # -- navigation (M-050) ---------------------------------------------
+
+    @staticmethod
+    def _locations_from_result(result: Any) -> List[NavLocation]:
+        """A definition/references result as location records.
+
+        The wire answer may be null (no answer — an empty
+        list, the server's own answer), one Location or
+        LocationLink object, or a list of them.
+        """
+        if result is None or result == {} or result == []:
+            return []
+        if isinstance(result, dict):
+            return [NavLocation.from_lsp_location(result)]
+        if isinstance(result, list):
+            return [NavLocation.from_lsp_location(raw)
+                    for raw in result]
+        raise LSPError(
+            f"navigation result is not a location or a list: "
+            f"{result!r}")
+
+    def definition(self, path: Path | str, line: int,
+                   character: int) -> List[NavLocation]:
+        """Where the name at a 1-based position is defined."""
+        _target, params = self._position_params(path, line, character)
+        result = self._request("textDocument/definition", params)
+        return self._locations_from_result(result)
+
+    def references(self, path: Path | str, line: int, character: int,
+                   include_declaration: bool = True
+                   ) -> List[NavLocation]:
+        """Every place the name at a 1-based position is used."""
+        _target, params = self._position_params(path, line, character)
+        params["context"] = {
+            "includeDeclaration": bool(include_declaration)}
+        result = self._request("textDocument/references", params)
+        return self._locations_from_result(result)
+
+    def hover(self, path: Path | str, line: int,
+              character: int) -> HoverInfo:
+        """What the server says about a 1-based position."""
+        target, params = self._position_params(path, line, character)
+        result = self._request("textDocument/hover", params)
+        return HoverInfo.from_lsp_result(result, path=str(target))
+
+    def workspace_symbols(self, query: str = "") -> List[WorkspaceSymbol]:
+        """The workspace's symbols, optionally filtered by *query*."""
+        self._require_running()
+        result = self._request("workspace/symbol", {"query": query})
+        if result is None or result == {} or result == []:
+            return []
+        if not isinstance(result, list):
+            raise LSPError(
+                f"workspace/symbol result is not a list: {result!r}")
+        found: List[WorkspaceSymbol] = []
+        for raw in result:
+            found.extend(WorkspaceSymbol.flatten(raw))
+        return found
 
     # -- wire machinery -------------------------------------------------
 
@@ -746,14 +1164,196 @@ def diagnostics_for_file(path: Path | str, *,
 
 
 # ---------------------------------------------------------------------------
+# Navigation questions, end to end (M-050)
+# ---------------------------------------------------------------------------
+
+def _navigation_report(action: str, target: Path,
+                       server: Optional[ServerDef], status: str,
+                       note: str) -> NavigationReport:
+    return NavigationReport(
+        action=action, path=str(target),
+        server=server.name if server is not None else None,
+        status=status, note=note)
+
+
+def _file_navigation(action: str, path: Path | str, line: int,
+                     character: int, *,
+                     root: Optional[Path | str],
+                     timeout: float,
+                     client_factory: Optional[
+                         Callable[..., LSPClient]],
+                     ask: Callable[..., Any]
+                     ) -> NavigationReport:
+    """One file navigation question, with honest absence.
+
+    Mirrors :func:`diagnostics_for_file`: no catalogued
+    server and a server that is not installed are reports —
+    never raised, never dressed as a found answer. A server
+    that runs and then fails raises :class:`LSPError`.
+    """
+    LSPClient._validate_position(line, character)
+    target = Path(path)
+    base = Path(root).resolve() if root is not None \
+        else target.resolve().parent
+    if not target.is_absolute():
+        target = base / target
+    server = server_for_path(target)
+    if server is None:
+        return _navigation_report(
+            action, target, None, "no-server",
+            f"no language server is catalogued for "
+            f"{target.suffix or 'this file'} files — "
+            f"nothing answered this question")
+    if server.installed_path() is None and client_factory is None:
+        return _navigation_report(
+            action, target, server, "not-installed",
+            f"the {server.name} language server is not "
+            f"installed, so nothing answered this question; "
+            f"{server.install_remedy}")
+    factory = client_factory or (
+        lambda srv, rt: LSPClient(srv, rt, timeout=timeout))
+    client = factory(server, base)
+    client.start()
+    try:
+        report = _navigation_report(action, target, server, "ok", "")
+        report.server = getattr(client, "_server_name", server.name)
+        ask(client, target, report)
+        return report
+    finally:
+        client.close()
+
+
+def definition_for_file(path: Path | str, line: int, character: int, *,
+                        root: Optional[Path | str] = None,
+                        timeout: float = 10.0,
+                        client_factory: Optional[
+                            Callable[..., LSPClient]] = None
+                        ) -> NavigationReport:
+    """Where the name at a 1-based position is defined, end to end."""
+    def _ask(client: LSPClient, target: Path,
+             report: NavigationReport) -> None:
+        report.locations = client.definition(target, line, character)
+
+    return _file_navigation(
+        "definition", path, line, character, root=root,
+        timeout=timeout, client_factory=client_factory, ask=_ask)
+
+
+def references_for_file(path: Path | str, line: int, character: int, *,
+                        root: Optional[Path | str] = None,
+                        timeout: float = 10.0,
+                        client_factory: Optional[
+                            Callable[..., LSPClient]] = None
+                        ) -> NavigationReport:
+    """Every use of the name at a 1-based position, end to end."""
+    def _ask(client: LSPClient, target: Path,
+             report: NavigationReport) -> None:
+        report.locations = client.references(target, line, character)
+
+    return _file_navigation(
+        "references", path, line, character, root=root,
+        timeout=timeout, client_factory=client_factory, ask=_ask)
+
+
+def hover_for_file(path: Path | str, line: int, character: int, *,
+                   root: Optional[Path | str] = None,
+                   timeout: float = 10.0,
+                   client_factory: Optional[
+                       Callable[..., LSPClient]] = None
+                   ) -> NavigationReport:
+    """What the server says about a 1-based position, end to end."""
+    def _ask(client: LSPClient, target: Path,
+             report: NavigationReport) -> None:
+        report.hover = client.hover(target, line, character)
+
+    return _file_navigation(
+        "hover", path, line, character, root=root,
+        timeout=timeout, client_factory=client_factory, ask=_ask)
+
+
+def workspace_symbols_for(*, root: Optional[Path | str] = None,
+                          query: str = "",
+                          server_name: Optional[str] = None,
+                          timeout: float = 10.0,
+                          client_factory: Optional[
+                              Callable[..., LSPClient]] = None
+                          ) -> NavigationReport:
+    """The workspace's symbols, with honest absence.
+
+    The server is chosen by: an explicit *server_name*
+    (an unknown name raises :class:`ValueError` plainly),
+    else the first installed catalogued server, else —
+    when a *client_factory* is supplied — the first
+    catalogued server, else a not-installed report naming
+    that no language server is installed, with the remedies.
+    """
+    base = Path(root).resolve() if root is not None else Path.cwd()
+    server: Optional[ServerDef] = None
+    if server_name is not None:
+        wanted = server_name.strip().lower()
+        for candidate in SERVERS:
+            if candidate.name.lower() == wanted:
+                server = candidate
+                break
+        if server is None:
+            raise ValueError(
+                f"unknown language server {server_name!r} — the "
+                f"catalogued servers are "
+                f"{', '.join(s.name for s in SERVERS)}")
+    else:
+        for candidate in SERVERS:
+            if candidate.installed_path() is not None:
+                server = candidate
+                break
+        if server is None and client_factory is not None:
+            server = SERVERS[0]
+    if server is None:
+        remedies = "; ".join(
+            f"{s.name}: {s.install_remedy}" for s in SERVERS)
+        return NavigationReport(
+            action="symbols", path=str(base), server=None,
+            status="not-installed",
+            note=f"no language server is installed, so nothing "
+                 f"answered this question; {remedies}")
+    if server.installed_path() is None and client_factory is None:
+        return _navigation_report(
+            "symbols", base, server, "not-installed",
+            f"the {server.name} language server is not "
+            f"installed, so nothing answered this question; "
+            f"{server.install_remedy}")
+    factory = client_factory or (
+        lambda srv, rt: LSPClient(srv, rt, timeout=timeout))
+    client = factory(server, base)
+    client.start()
+    try:
+        report = _navigation_report("symbols", base, server, "ok", "")
+        report.server = getattr(client, "_server_name", server.name)
+        report.symbols = client.workspace_symbols(query)
+        return report
+    finally:
+        client.close()
+
+
+# ---------------------------------------------------------------------------
 # Surfaces: parser, formatters, markdown
 # ---------------------------------------------------------------------------
 
-_USAGE = "Usage: /lsp [show] | /lsp check <path>"
+_USAGE = (
+    "Usage: /lsp [show] | /lsp check <path> | "
+    "/lsp def <path> <line> <character> | "
+    "/lsp refs <path> <line> <character> | "
+    "/lsp hover <path> <line> <character> | "
+    "/lsp symbols [query...]")
+
+_POSITION_ACTIONS = {
+    "def": "definition", "definition": "definition",
+    "refs": "references", "references": "references",
+    "hover": "hover",
+}
 
 
 def parse_lsp_args(arguments: str) -> Dict[str, Any]:
-    """Parse ``/lsp`` arguments: the board, or one file's check."""
+    """Parse ``/lsp`` arguments: the board, a check, or navigation."""
     text = (arguments or "").strip()
     if not text or text == "show":
         return {"action": "show"}
@@ -764,6 +1364,25 @@ def parse_lsp_args(arguments: str) -> Dict[str, Any]:
         return {"action": "check", "path": parts[1].strip()}
     if parts[0] == "show":
         raise ValueError(f"{_USAGE} — show takes no further words")
+    if parts[0] in _POSITION_ACTIONS:
+        action = _POSITION_ACTIONS[parts[0]]
+        tokens = text.split()
+        if len(tokens) != 4:
+            raise ValueError(
+                f"{_USAGE} — {parts[0]} needs a file path, a "
+                f"line, and a character")
+        try:
+            line = int(tokens[2])
+            character = int(tokens[3])
+        except ValueError:
+            raise ValueError(
+                f"{_USAGE} — line and character must be "
+                f"whole numbers") from None
+        return {"action": action, "path": tokens[1],
+                "line": line, "character": character}
+    if parts[0] == "symbols":
+        query = parts[1].strip() if len(parts) > 1 else ""
+        return {"action": "symbols", "query": query}
     # A bare path is a check of that path, the kind reading.
     return {"action": "check", "path": text}
 
@@ -814,11 +1433,80 @@ def format_lsp_diagnostics(status: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+_NAVIGATION_TITLES = {
+    "definition": "Definition",
+    "references": "References",
+    "hover": "Hover",
+    "symbols": "Workspace symbols",
+}
+
+
+def format_lsp_navigation(status: Dict[str, Any]) -> str:
+    """One navigation report, as plain words (M-050)."""
+    report = status["report"]
+    action = report["action"]
+    title = _NAVIGATION_TITLES.get(action, "Navigation")
+    if action == "symbols":
+        lines = [f"Workspace symbols in {report['path']}:"]
+    else:
+        lines = [f"{title} for {report['path']}:"]
+    if report["status"] in ("no-server", "not-installed"):
+        lines.append(f"  NOT ANSWERED — {report['note']}")
+        return "\n".join(lines)
+    if action in ("definition", "references"):
+        found = report["locations"]
+        if not found:
+            lines.append(
+                f"  the server found no "
+                f"{'definition' if action == 'definition' else 'references'}.")
+            return "\n".join(lines)
+        lines.append(
+            f"  {report['server']} found {len(found)} "
+            f"{'definition' if action == 'definition' else 'reference'}(s):")
+        for raw in found:
+            location = NavLocation(**{
+                key: raw[key] for key in (
+                    "path", "line", "character", "end_line",
+                    "end_character")})
+            lines.append(f"  {location.one_line()}")
+        return "\n".join(lines)
+    if action == "hover":
+        hover = report["hover"]
+        contents = hover["contents"] if hover else ""
+        if not contents:
+            lines.append("  the server said nothing about that spot")
+            return "\n".join(lines)
+        lines.append(f"  {report['server']} says:")
+        for chunk in contents.splitlines():
+            lines.append(f"  {chunk}")
+        return "\n".join(lines)
+    if action == "symbols":
+        found = report["symbols"]
+        if not found:
+            lines.append(f"  {report['server']} found no symbols.")
+            return "\n".join(lines)
+        lines.append(
+            f"  {report['server']} found {len(found)} symbol(s):")
+        for raw in found:
+            location = NavLocation(**{
+                key: raw["location"][key] for key in (
+                    "path", "line", "character", "end_line",
+                    "end_character")})
+            symbol = WorkspaceSymbol(
+                name=raw["name"], kind=raw["kind"],
+                container_name=raw["container_name"],
+                location=location)
+            lines.append(f"  {symbol.one_line()}")
+        return "\n".join(lines)
+    lines.append(f"  {report['note']}")
+    return "\n".join(lines)
+
+
 def render_markdown(servers: Optional[List[Dict[str, Any]]] = None
                     ) -> str:
     """The server catalogue as markdown (the human report)."""
     board = discover_servers() if servers is None else servers
-    lines = ["# Language servers (M-049)", ""]
+    lines = ["# Language servers (M-049, navigation M-050)", ""]
     for entry in board:
         state = "installed" if entry["installed"] \
             else "not installed"

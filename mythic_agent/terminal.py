@@ -260,7 +260,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>] /status /session /add <path> /stop /undo /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /status /session /add <path> /stop /undo /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
         return True, False, "Conversation cleared."
@@ -530,6 +530,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command == "/lsp":
         from .integrations.lsp import (
             format_lsp_diagnostics,
+            format_lsp_navigation,
             format_lsp_status,
             parse_lsp_args,
         )
@@ -539,11 +540,30 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
             return True, False, str(exc)
         if request["action"] == "show":
             return True, False, format_lsp_status(agent.lsp_status())
+        if request["action"] == "check":
+            try:
+                status = agent.lsp_diagnostics(request["path"])
+            except (ValueError, KeyError, RuntimeError) as exc:
+                return True, False, str(exc)
+            return True, False, format_lsp_diagnostics(status)
         try:
-            status = agent.lsp_diagnostics(request["path"])
+            if request["action"] == "definition":
+                status = agent.lsp_definition(
+                    request["path"], request["line"],
+                    request["character"])
+            elif request["action"] == "references":
+                status = agent.lsp_references(
+                    request["path"], request["line"],
+                    request["character"])
+            elif request["action"] == "hover":
+                status = agent.lsp_hover(
+                    request["path"], request["line"],
+                    request["character"])
+            else:
+                status = agent.lsp_workspace_symbols(request["query"])
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
-        return True, False, format_lsp_diagnostics(status)
+        return True, False, format_lsp_navigation(status)
     if command == "/map":
         from .context.repo_map import build_repo_map
         from .context.repo_map_view import (

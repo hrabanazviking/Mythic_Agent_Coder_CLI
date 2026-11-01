@@ -1404,6 +1404,70 @@ class Agent:
             "plain_explanation": lsp_module.PLAIN_EXPLANATION,
         }
 
+    def _lsp_navigation_file(self, path: str) -> Any:
+        from ..core.workspace import assert_within_workspace
+
+        resolved = assert_within_workspace(self.project_root, path)
+        if not resolved.is_file():
+            raise ValueError(f"no such file to check: {path}")
+        return resolved
+
+    def lsp_definition(self, path: str, line: int,
+                       character: int) -> dict[str, Any]:
+        """Where a name is defined, per the language server (M-050).
+
+        The file is resolved inside this session's workspace;
+        a path escaping it is refused. Absence is honest: a
+        missing server comes back as the report's status,
+        never as a found answer.
+        """
+        from ..integrations import lsp as lsp_module
+
+        resolved = self._lsp_navigation_file(path)
+        report = lsp_module.definition_for_file(
+            resolved, line, character, root=self.project_root)
+        return {
+            "report": report.record(),
+            "plain_explanation": lsp_module.NAVIGATION_PLAIN_EXPLANATION,
+        }
+
+    def lsp_references(self, path: str, line: int,
+                       character: int) -> dict[str, Any]:
+        """Every use of a name, per the language server (M-050)."""
+        from ..integrations import lsp as lsp_module
+
+        resolved = self._lsp_navigation_file(path)
+        report = lsp_module.references_for_file(
+            resolved, line, character, root=self.project_root)
+        return {
+            "report": report.record(),
+            "plain_explanation": lsp_module.NAVIGATION_PLAIN_EXPLANATION,
+        }
+
+    def lsp_hover(self, path: str, line: int,
+                  character: int) -> dict[str, Any]:
+        """What the language server says about a spot (M-050)."""
+        from ..integrations import lsp as lsp_module
+
+        resolved = self._lsp_navigation_file(path)
+        report = lsp_module.hover_for_file(
+            resolved, line, character, root=self.project_root)
+        return {
+            "report": report.record(),
+            "plain_explanation": lsp_module.NAVIGATION_PLAIN_EXPLANATION,
+        }
+
+    def lsp_workspace_symbols(self, query: str = "") -> dict[str, Any]:
+        """The workspace's symbols, per the language server (M-050)."""
+        from ..integrations import lsp as lsp_module
+
+        report = lsp_module.workspace_symbols_for(
+            root=self.project_root, query=query)
+        return {
+            "report": report.record(),
+            "plain_explanation": lsp_module.NAVIGATION_PLAIN_EXPLANATION,
+        }
+
     def repo_map_detail(self, path: str) -> dict[str, Any]:
         """One file's full account from the repo map (M-045).
 

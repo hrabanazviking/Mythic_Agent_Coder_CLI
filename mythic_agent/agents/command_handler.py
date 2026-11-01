@@ -1451,7 +1451,7 @@ class CommandHandler:
         return
 
     def _handle_lsp(self, args: str):
-        """M-049: /lsp — language-server diagnostics, in the TUI.
+        """M-049/M-050: /lsp — language-server truth, in the TUI.
 
         ``/lsp`` (or ``/lsp show``) shows the discovery
         board: which catalogued language servers this
@@ -1460,9 +1460,14 @@ class CommandHandler:
         server and shows its diagnostics in its own words;
         a file whose server is not installed is reported
         NOT CHECKED with the remedy, never as clean.
+        ``/lsp def|refs|hover <path> <line> <character>``
+        and ``/lsp symbols [query]`` (M-050) ask the server
+        the navigation questions; an absent server is
+        reported NOT ANSWERED, never as a found answer.
         """
         from ..integrations.lsp import (
             format_lsp_diagnostics,
+            format_lsp_navigation,
             format_lsp_status,
             parse_lsp_args,
         )
@@ -1483,15 +1488,40 @@ class CommandHandler:
                 "agent_chat_chunk", agent_name="Primary",
                 text=f"\n[bold cyan]{format_lsp_status(primary.lsp_status())}[/bold cyan]\n")
             return
+        if request["action"] == "check":
+            try:
+                status = primary.lsp_diagnostics(request["path"])
+            except (ValueError, KeyError, RuntimeError) as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_lsp_diagnostics(status)}[/bold cyan]\n")
+            return
         try:
-            status = primary.lsp_diagnostics(request["path"])
+            if request["action"] == "definition":
+                status = primary.lsp_definition(
+                    request["path"], request["line"],
+                    request["character"])
+            elif request["action"] == "references":
+                status = primary.lsp_references(
+                    request["path"], request["line"],
+                    request["character"])
+            elif request["action"] == "hover":
+                status = primary.lsp_hover(
+                    request["path"], request["line"],
+                    request["character"])
+            else:
+                status = primary.lsp_workspace_symbols(
+                    request["query"])
         except (ValueError, KeyError, RuntimeError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
             return
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
-            text=f"\n[bold cyan]{format_lsp_diagnostics(status)}[/bold cyan]\n")
+            text=f"\n[bold cyan]{format_lsp_navigation(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):
