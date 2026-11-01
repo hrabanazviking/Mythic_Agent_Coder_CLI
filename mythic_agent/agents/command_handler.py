@@ -1464,10 +1464,17 @@ class CommandHandler:
         and ``/lsp symbols [query]`` (M-050) ask the server
         the navigation questions; an absent server is
         reported NOT ANSWERED, never as a found answer.
+        ``/lsp rename <path> <line> <character> <new-name>
+        [apply]`` and ``/lsp actions <path> <line>
+        <character> [apply <n>]`` (M-051) preview a rename
+        or the server's code actions; ``apply`` writes the
+        plan through the edit journal only.
         """
         from ..integrations.lsp import (
+            format_lsp_code_actions,
             format_lsp_diagnostics,
             format_lsp_navigation,
+            format_lsp_rename,
             format_lsp_status,
             parse_lsp_args,
         )
@@ -1498,6 +1505,34 @@ class CommandHandler:
             publish_sync(
                 "agent_chat_chunk", agent_name="Primary",
                 text=f"\n[bold cyan]{format_lsp_diagnostics(status)}[/bold cyan]\n")
+            return
+        if request["action"] == "rename":
+            try:
+                status = primary.lsp_rename(
+                    request["path"], request["line"],
+                    request["character"], request["new_name"],
+                    apply=request["apply"])
+            except (ValueError, KeyError, RuntimeError) as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_lsp_rename(status)}[/bold cyan]\n")
+            return
+        if request["action"] == "code_actions":
+            try:
+                status = primary.lsp_code_actions(
+                    request["path"], request["line"],
+                    request["character"],
+                    apply_index=request["apply_index"])
+            except (ValueError, KeyError, RuntimeError) as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_lsp_code_actions(status)}[/bold cyan]\n")
             return
         try:
             if request["action"] == "definition":

@@ -529,8 +529,10 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         return True, False, format_rewrite_status(status)
     if command == "/lsp":
         from .integrations.lsp import (
+            format_lsp_code_actions,
             format_lsp_diagnostics,
             format_lsp_navigation,
+            format_lsp_rename,
             format_lsp_status,
             parse_lsp_args,
         )
@@ -546,6 +548,24 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
             except (ValueError, KeyError, RuntimeError) as exc:
                 return True, False, str(exc)
             return True, False, format_lsp_diagnostics(status)
+        if request["action"] == "rename":
+            try:
+                status = agent.lsp_rename(
+                    request["path"], request["line"],
+                    request["character"], request["new_name"],
+                    apply=request["apply"])
+            except (ValueError, KeyError, RuntimeError) as exc:
+                return True, False, str(exc)
+            return True, False, format_lsp_rename(status)
+        if request["action"] == "code_actions":
+            try:
+                status = agent.lsp_code_actions(
+                    request["path"], request["line"],
+                    request["character"],
+                    apply_index=request["apply_index"])
+            except (ValueError, KeyError, RuntimeError) as exc:
+                return True, False, str(exc)
+            return True, False, format_lsp_code_actions(status)
         try:
             if request["action"] == "definition":
                 status = agent.lsp_definition(
