@@ -368,7 +368,7 @@ slices:
   title: Edit-time truth loop
   summary: after every edit, diagnostics + the project's formatter/linter run; new errors return to the
     coder as facts to fix *before* the turn ends (the field's quiet superpower).
-  status: queued
+  status: done
 - id: M-053
   part: 3
   title: Formatter covenant
