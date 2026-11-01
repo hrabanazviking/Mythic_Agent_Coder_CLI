@@ -260,7 +260,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /status /session /add <path> /stop /undo /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /status /session /add <path> /stop /undo /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
         return True, False, "Conversation cleared."
@@ -495,6 +495,52 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
             except KeyError as exc:
                 return True, False, str(exc)
             return True, False, format_kit_status(status)
+    if command == "/map":
+        from .context.repo_map import build_repo_map
+        from .context.repo_map_view import (
+            build_map_view,
+            format_map_change,
+            format_map_detail,
+            format_map_pins,
+            format_map_view,
+            parse_map_args,
+            pins_from_config,
+            resolve_detail,
+        )
+        try:
+            request = parse_map_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "list":
+            status = agent.repo_map_status(request["query"])
+            view = build_map_view(
+                build_repo_map(agent.project_root,
+                               query=request["query"]),
+                pins_from_config(agent.config))
+            assert status["view"] == view.record()
+            return True, False, format_map_view(status)
+        if request["action"] == "detail":
+            try:
+                status = agent.repo_map_detail(request["path"])
+            except ValueError as exc:
+                return True, False, str(exc)
+            detail = resolve_detail(
+                build_repo_map(agent.project_root),
+                pins_from_config(agent.config), request["path"])
+            assert status["detail"] == detail.record()
+            return True, False, format_map_detail(status)
+        if request["action"] == "pins":
+            status = agent.repo_map_pins()
+            assert status["pins"] == list(pins_from_config(agent.config))
+            return True, False, format_map_pins(status)
+        try:
+            if request["action"] == "pin":
+                record = agent.pin_repo_map_file(request["path"])
+            else:
+                record = agent.unpin_repo_map_file(request["path"])
+        except (ValueError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_map_change(record)
     if command == "/resume-thought":
         from .core.streaming_discipline import (
             can_resume,

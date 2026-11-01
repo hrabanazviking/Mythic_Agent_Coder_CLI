@@ -284,6 +284,13 @@ settings:
   default: 'False'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Cost-aware routing (M-031): when true, the router may prefer the cheapest adequate door among the configured doors (current door, fallback chain, role routes) for a task class, priced by the mythic costs data with adequacy from per-model capability truth; when false, the router changes nothing.'
+- id: S-40
+  name: repo_map_pins
+  scope: top-level
+  type: list
+  default: '[]'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Pinned repo-map files (M-045): workspace-relative paths the user pinned with /map pin; a pinned file is shown first when the repo map is browsed, with its rank and score unchanged, and a pinned file the map build left out is explained (over the budget, skipped, or absent), never invented as an entry.'
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
