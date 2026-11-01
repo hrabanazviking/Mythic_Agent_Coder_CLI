@@ -219,6 +219,8 @@ class CommandHandler:
                 self._handle_testkit(args)
             elif cmd == "/map":
                 self._handle_map(args)
+            elif cmd == "/ssearch":
+                self._handle_ssearch(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1357,6 +1359,47 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_map_change(record)}[/bold cyan]\n")
+
+    def _handle_ssearch(self, args: str):
+        """M-047: /ssearch — structural search, in the TUI.
+
+        ``/ssearch <language> <pattern>`` runs an
+        ast-grep-style pattern (``$NAME`` captures one node,
+        ``$$$`` / ``$$$NAME`` captures zero or more siblings)
+        over every file of that language in the workspace,
+        through the M-043 parse foundation, and lists each
+        match with its captures. A pattern that does not
+        parse, and a language with no honest parse, are
+        refused plainly — never text-searched instead.
+        Search only; the rewrite is M-048.
+        """
+        from ..tools.structural_search import (
+            format_search_status,
+            parse_search_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_search_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.structural_search(
+                request["pattern"], request["language"])
+        except (ValueError, KeyError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_search_status(status)}[/bold cyan]\n")
+        return
 
     def _handle_tutorial(self):
         tutorial_text = """
