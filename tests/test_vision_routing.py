@@ -56,7 +56,7 @@ from mythic_agent.providers.base import Provider, ProviderError
 
 OPENAI = "https://api.openai.com/v1"
 DEEPSEEK = "https://api.deepseek.com/v1"
-ANTHROPIC = "https://api.anthropic.com/v1"
+OLLAMA = "http://localhost:11434"
 CUSTOM = "http://localhost:9999/v1"
 
 _TINY_B64 = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"\x00" * 64).decode()
@@ -181,15 +181,19 @@ class TestSuggestion:
         assert suggestion.source == "fallback chain"
 
     def test_native_door_is_never_offered(self):
-        config = config_with(chain=[("claude-sonnet-4-5", ANTHROPIC)])
+        # The Ollama door is the registry's native-dialect door
+        # with an endpoint: even a known-seeing model behind it
+        # is not offered, because the live session cannot speak
+        # that dialect (M-028's bound).
+        config = config_with(chain=[("gpt-4o", OLLAMA)])
         assert suggest_switch(config) is None
 
     def test_native_door_skipped_for_a_speakable_seeing_door(self):
-        config = config_with(chain=[("claude-sonnet-4-5", ANTHROPIC),
-                                    ("gpt-4o", CUSTOM)])
+        config = config_with(chain=[("gpt-4o", OLLAMA),
+                                    ("gpt-4o-mini", CUSTOM)])
         suggestion = suggest_switch(config)
         assert suggestion is not None
-        assert suggestion.model == "gpt-4o"
+        assert suggestion.model == "gpt-4o-mini"
         assert suggestion.base_url == CUSTOM
 
     def test_blind_chain_doors_do_not_qualify(self):
@@ -237,7 +241,7 @@ class TestRouteImages:
         assert decision.allowed is False
         assert decision.suggestion is None
         assert "No door you have set up is known to see" in decision.reason
-        assert "gpt-4o" in decision.reason
+        assert known_seeing_models()[0] in decision.reason
 
 
 # ----------------------------------------------------------------------
@@ -280,7 +284,7 @@ class TestNormalizeWiring:
         assert payload.content[1]["type"] == "image_url"
 
     def test_strip_downgrade_keeps_its_counted_behaviour(self):
-        provider = _make_provider("openai", "deepseek-chat", True)
+        provider = _make_provider("openai", "deepseek-chat", False)
         payload = vision_module.normalize(
             provider, parts_with_images(), on_unsupported="strip")
         assert payload.dropped == 1
@@ -409,6 +413,29 @@ class TestAgentVision:
         with pytest.raises(RuntimeError, match="already known to see"):
             agent.apply_vision_switch()
         assert agent.config["model"] == "gpt-4o"
+
+    def test_request_path_gates_image_parts_in_the_history(self, agent):
+        from unittest.mock import Mock
+
+        agent = self._rich_agent(agent)
+        agent._append_message(
+            {"role": "user", "content": parts_with_images()})
+        agent.get_client = Mock(
+            side_effect=AssertionError("client must not be built"))
+        with pytest.raises(RuntimeError, match="cannot see"):
+            agent._request_with_fallback({})
+        agent.get_client.assert_not_called()
+
+    def test_request_path_passes_text_and_seeing_histories(self, agent):
+        from unittest.mock import Mock
+
+        agent.config.update({"model": "gpt-4o", "base_url": OPENAI})
+        agent._append_message(
+            {"role": "user", "content": parts_with_images()})
+        agent.get_client = Mock(
+            side_effect=AssertionError("client built — gate passed"))
+        with pytest.raises(AssertionError, match="gate passed"):
+            agent._request_with_fallback({})
 
     def test_apply_switch_refuses_without_a_qualifying_door(self, agent):
         agent = self._rich_agent(agent)
