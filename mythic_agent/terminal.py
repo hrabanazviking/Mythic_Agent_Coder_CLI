@@ -260,7 +260,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /kista [adopt] /status /session /add <path> /stop /undo /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /kista [adopt] /resume-thought [show] /status /session /add <path> /stop /undo /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
         return True, False, "Conversation cleared."
@@ -382,6 +382,28 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_custody_change(record)
+    if command == "/resume-thought":
+        from .core.streaming_discipline import (
+            can_resume,
+            find_partial,
+            format_resume_status,
+            parse_resume_args,
+        )
+        try:
+            request = parse_resume_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            partial = agent.salvaged_partial()
+            found = find_partial(agent.history_snapshot())
+            assert (found is None) == (partial is None)
+            decision = can_resume(agent.config.get("model"))
+            return True, False, format_resume_status(partial, decision)
+        try:
+            text = agent.resume_thought()
+        except RuntimeError as exc:
+            return True, False, str(exc)
+        return True, False, text
     if command == "/model":
         from .core.model_switch import format_switch_record, parse_switch_args
         try:
