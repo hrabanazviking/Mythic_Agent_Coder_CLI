@@ -386,7 +386,7 @@ slices:
   title: Debugger in the loop
   summary: a failing test can be re-run under the debugger by the coder itself, frames and locals reported
     as evidence.
-  status: queued
+  status: done
 - id: M-056
   part: 3
   title: Test intelligence
