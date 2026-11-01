@@ -225,6 +225,8 @@ class CommandHandler:
                 self._handle_srewrite(args)
             elif cmd == "/lsp":
                 self._handle_lsp(args)
+            elif cmd == "/truth":
+                self._handle_truth(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1557,6 +1559,38 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_lsp_navigation(status)}[/bold cyan]\n")
+        return
+
+    def _handle_truth(self, args: str):
+        """M-052: /truth <path> — one file's edit-time truth, in the TUI.
+
+        Shows every leg that truly ran and the file's
+        current errors; a leg that cannot run (no language
+        server installed, no linter configured) is shown
+        as its absence, never as a clean file.
+        """
+        from ..tools.edit_truth import format_truth_report, parse_truth_args
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_truth_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.edit_truth(request["path"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_truth_report(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):

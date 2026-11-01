@@ -1504,6 +1504,29 @@ class Agent:
             "plain_explanation": lsp_module.RENAME_PLAIN_EXPLANATION,
         }
 
+    def edit_truth(self, path: str) -> dict[str, Any]:
+        """One file's standing edit-time truth account (M-052).
+
+        Every leg that truly runs reports its current
+        error findings; a leg that cannot run — no
+        language server installed, no linter configured —
+        reports its absence as its status, never as a
+        clean file. The file is resolved inside this
+        session's workspace; a path escaping it is refused.
+        """
+        from ..core.workspace import assert_within_workspace
+        from ..tools import edit_truth as truth_module
+
+        resolved = assert_within_workspace(self.project_root, path)
+        if not resolved.is_file():
+            raise ValueError(f"no such file to check: {path}")
+        report = truth_module.check_file_now(
+            resolved, root=self.project_root)
+        return {
+            "report": report.record(),
+            "plain_explanation": truth_module.PLAIN_EXPLANATION,
+        }
+
     def lsp_workspace_symbols(self, query: str = "") -> dict[str, Any]:
         """The workspace's symbols, per the language server (M-050)."""
         from ..integrations import lsp as lsp_module

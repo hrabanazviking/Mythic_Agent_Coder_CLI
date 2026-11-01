@@ -291,6 +291,13 @@ settings:
   default: '[]'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Pinned repo-map files (M-045): workspace-relative paths the user pinned with /map pin; a pinned file is shown first when the repo map is browsed, with its rank and score unchanged, and a pinned file the map build left out is explained (over the budget, skipped, or absent), never invented as an entry.'
+- id: S-41
+  name: edit_truth_loop
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Edit-time truth loop (M-052): when true, every agent edit (write_file / replace_file_content) is rechecked — house review, language-server diagnostics where a server truly runs, the project linter where one is truly configured — and new error-severity findings the edit introduced are appended to the tool result in the same turn; when false, edits are not rechecked.'
 env_vars:
 - id: V-01
   name: MYTHIC_HOME

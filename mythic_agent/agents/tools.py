@@ -140,14 +140,22 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
     if name == "write_file":
         try:
             path = resolve_file(root_path, arguments["path"], write=True)
-            old_content = path.read_text(encoding="utf-8") if path.exists() else ""
+            existed = path.exists()
+            old_content = path.read_text(encoding="utf-8") if existed else ""
             new_content = arguments["content"]
             import difflib
             diff = list(difflib.ndiff(old_content.splitlines(), new_content.splitlines()))
             added = sum(line.startswith("+ ") for line in diff)
             removed = sum(line.startswith("- ") for line in diff)
             EditJournal(root_path).write(arguments["path"], new_content)
-            return f"Successfully wrote to {path} (+{added} lines, -{removed} lines)"
+            result = f"Successfully wrote to {path} (+{added} lines, -{removed} lines)"
+            # M-052: the edit-time truth loop — new errors the
+            # edit introduced return in this same tool result.
+            from ..tools.edit_truth import enabled_from_config, truth_note_for_edit
+            if enabled_from_config(getattr(agent, "config", None)):
+                result += truth_note_for_edit(
+                    path, old_content if existed else None, root=root_path)
+            return result
         except Exception as exc:
             return f"Failed to write file: {exc}"
 
@@ -186,7 +194,12 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             added = sum(line.startswith("+ ") for line in diff)
             removed = sum(line.startswith("- ") for line in diff)
             EditJournal(root_path).replace(arguments["path"], target, replacement)
-            return f"Successfully replaced content in {path} (+{added} lines, -{removed} lines)"
+            result = f"Successfully replaced content in {path} (+{added} lines, -{removed} lines)"
+            # M-052: the edit-time truth loop, as on write_file.
+            from ..tools.edit_truth import enabled_from_config, truth_note_for_edit
+            if enabled_from_config(getattr(agent, "config", None)):
+                result += truth_note_for_edit(path, content, root=root_path)
+            return result
         except Exception as exc:
             return f"Failed to replace content: {exc}"
 
