@@ -439,6 +439,26 @@ the object store from a sibling clone's `.git/objects` on local
 disk. PyPI was unaffected and fast. Every number in this file was
 re-measured in the foreground or read from a checked-out file.
 
+*M-039 scoping note (2026-11-01 ~01:00 EDT tick, M-038's
+closure tick): M-039 (Provider health board) is the next
+slice. Counted from the tree: `mythic_agent/doctor.py` (336
+lines) already runs named health checks and its `--live`
+road probes THE configured provider only
+(`check_provider_live`, one door, one result); there is no
+per-provider board — nothing walks the M-019 registry's
+doors to report each one's reachable / latency / last error
+side by side, and the M-036 WeatherBoard holds the crew's
+remembered rate-limit weather + last outcomes in the agent
+layer only. The build, on the established pattern: a pure
+board layer over the registry doors (each door probed
+honestly — a door never probed reports unknown, never
+reachable; latency measured, never invented; the last error
+is the probe's own words), grown into `mythic doctor --live`
+with `--json`, reusing the M-036 board's remembered state
+where a session exists. Local doors probe their live
+endpoints; remote doors without a key report their custody
+state (M-032) instead of a fake reachability.*
+
 *M-038 scoping note (2026-11-01 00:1x EDT tick): M-038 was
 built and closed the same tick — DONE, see its ledger row
 above. The strategy choice was nowhere made from capability
