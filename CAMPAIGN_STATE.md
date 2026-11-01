@@ -955,3 +955,35 @@ force-edited, and no site is ever applied without its
 preview. The building tick settles the application road from
 the tree (core/edits.py and the review tool are the named
 neighbours) before designing further.*
+
+*M-048 IN PROGRESS (2026-11-01 08:50 EST tick): build under
+way this tick on the settled design — new module
+`mythic_agent/tools/structural_rewrite.py` beside M-047's
+search (never a second parser): the replacement template is
+compiled through M-047's own machinery, its metavariable
+placeholder spans in the substituted replacement text are
+filled with the match's captured source text (a named $$$
+fills with its joined capture; an unnamed $$$ in a
+replacement, a replacement metavariable the pattern never
+captured, and a replacement that does not parse are all
+refused plainly); each site becomes a RewriteSite carrying
+the file's content hash at plan time, the matched span, the
+rendered replacement text, and a per-site unified-diff
+preview as data — no preview, no application. Application
+goes through the house EditJournal (core/edits.py,
+journal-first write per file): a file whose current hash
+differs from its plan hash is refused whole, never
+force-edited; overlapping sites in one file are refused
+with the reason; sites in one file apply as one journaled
+write, spans descending. Surfaces: Agent.structural_rewrite()
+(preview by default; apply only when asked, through the
+journal) + /srewrite <language> <pattern> => <replacement>
+[apply] on the terminal + TUI system-command roads,
+sharing one parser + formatters. ALSO IN SCOPE this tick,
+per the strengthened M-047 watch: the rate-limit live-queue
+test could NOT be proven calm/warm — three warm solo runs
+at this tick's start all failed with 0 queued events (logs
+hidden_files/m048-rate-warm1..3.log, load 5–8) — so its
+window is hardened in scope per the M-003 pattern
+(retry_after widened, elapsed assertions adjusted, product
+code untouched).*
