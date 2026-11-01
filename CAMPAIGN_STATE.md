@@ -601,6 +601,18 @@ its reason — never a claimed completion without evidence.
 The building tick counts what the benchmark pack's grading
 actually consumes before designing further.*
 
+*M-042 closure fix (2026-11-01, same tick, `dc54a4b`):
+flipping M-042 done broke `test_part1_gate::
+test_artefact_titles_match_the_roadmap`, which hard-pinned
+`next_slice().part == 2` — an exact claim Part II's own
+completion necessarily breaks, the same defect class as the
+M-019 closure fix; the assertion is now the prefix claim it
+meant (part >= 2). The Part II gate test's own next-slice
+claim was made exact in the same commit. Post-fix targeted
+set counted from its on-disk log
+(hidden_files/m042-closure-targeted2.log): 57 passed + the
+1 PortAudio env failure.*
+
 *M-042 IN PROGRESS → DONE (2026-11-01 02:30 EST tick;
 CLOSED the same tick — DONE, see its ledger row above;
 PART II COMPLETE): build under
