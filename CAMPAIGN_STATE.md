@@ -1414,3 +1414,28 @@ real adapter is installed here. The building tick settles
 the debugpy road (declared extra vs stdlib-only client
 speaking to an external adapter) from the tree before
 designing further.*
+
+*M-054 IN PROGRESS (2026-11-01 16:10 EST tick): build
+under way on the scoped design — new module
+`mythic_agent/tools/debugger.py` (the gap audit's
+debugger-dap row): a DAP client beside the app on the
+M-049 LSP pattern. It speaks the real Debug Adapter
+Protocol over Content-Length framing to an adapter
+subprocess (initialize → launch → setBreakpoints →
+configurationDone → stopped events → threads /
+stackTrace / scopes / variables → next / stepIn /
+stepOut / continue → disconnect), shaping breakpoints,
+frames, scopes and variables as plain records.
+Python first via debugpy's adapter road, DAP-general
+by construction (the client knows the protocol, not
+one language). Honesty bounds: debugpy is NOT installed
+in this environment (measured at scoping), so an absent
+adapter reports not-installed with its remedy — never a
+fake session — and live proof rides a fake DAP adapter
+subprocess in the slice tests speaking the real
+protocol, extended from M-049's fake-server harness.
+Surfaces and the setting follow the house pattern
+(Agent tools + terminal/TUI system-command road sharing
+one parser) and are settled by the building tick from
+the tree. M-055 (debugger in the loop) is NOT built
+here — it consumes this slice's session records.*
