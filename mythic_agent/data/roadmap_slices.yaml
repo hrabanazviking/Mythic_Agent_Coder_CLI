@@ -292,7 +292,7 @@ slices:
   title: Provider health board
   summary: '`mythic doctor --live` grown into a per-provider board (reachable, latency, last error) with
     --json.'
-  status: queued
+  status: done
 - id: M-040
   part: 2
   title: Offline honesty
