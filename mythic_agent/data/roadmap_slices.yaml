@@ -356,7 +356,7 @@ slices:
   title: LSP client II — navigation
   summary: go-to-definition, references, hover, workspace symbols as agent tools ("where is this used?"
     gets a true answer).
-  status: queued
+  status: done
 - id: M-051
   part: 3
   title: LSP client III — rename and code actions
