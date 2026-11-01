@@ -1277,6 +1277,134 @@ class Agent:
             "plain_explanation": provider_test_kit.PLAIN_EXPLANATION,
         }
 
+    def repo_map_status(self, query: str = "") -> dict[str, Any]:
+        """The repo map for this workspace, made visible (M-045).
+
+        M-044's map built for the session's workspace —
+        ranked for *query* when one is given — presented
+        through the M-045 view: entries in display order
+        (pinned files first, each with its true rank, score,
+        and reasons), the omitted and skipped files named,
+        and any pinned file the build left out explained.
+        The view never re-ranks: its scores are the map's
+        own. This is the answer ``/map`` browses.
+        """
+        from ..context import repo_map_view
+        from ..context.repo_map import build_repo_map
+
+        repo_map = build_repo_map(self.project_root, query=query or "")
+        view = repo_map_view.build_map_view(
+            repo_map, repo_map_view.pins_from_config(self.config))
+        return {
+            "view": view.record(),
+            "plain_explanation": repo_map_view.PLAIN_EXPLANATION,
+        }
+
+    def repo_map_detail(self, path: str) -> dict[str, Any]:
+        """One file's full account from the repo map (M-045).
+
+        The map is built with no task query, so the detail
+        is the file's standing account: its rank, its score
+        arithmetic, its definitions, its references, and
+        every reason — or, when the build did not rank it,
+        its honest state (omitted over the budget, skipped
+        with the build's reason, or absent). The name is
+        resolved as the user gave it: an exact path, or a
+        unique file name or path tail.
+        """
+        from ..context import repo_map_view
+        from ..context.repo_map import build_repo_map
+
+        repo_map = build_repo_map(self.project_root)
+        detail = repo_map_view.resolve_detail(
+            repo_map, repo_map_view.pins_from_config(self.config), path)
+        return {
+            "detail": detail.record(),
+            "plain_explanation": repo_map_view.PLAIN_EXPLANATION,
+        }
+
+    def repo_map_pins(self) -> dict[str, Any]:
+        """The session's pinned map files (M-045).
+
+        The validated pins exactly as stored — a malformed
+        stored list raises, never vanishes.
+        """
+        from ..context import repo_map_view
+
+        return {
+            "pins": list(repo_map_view.pins_from_config(self.config)),
+            "plain_explanation": repo_map_view.PLAIN_EXPLANATION,
+        }
+
+    def pin_repo_map_file(self, path: str) -> dict[str, Any]:
+        """Pin one workspace file to the map view (M-045).
+
+        The path is validated by the view layer (relative,
+        inside the workspace, not already pinned) and the
+        file must exist in this workspace — pinning a file
+        that is not there is refused plainly. The change is
+        journaled first as a ``repo_map_pins_changed``
+        event when a session is attached; a failed save
+        restores the previous pins exactly.
+        """
+        from ..context import repo_map_view
+        from ..core.workspace import assert_within_workspace
+
+        named = repo_map_view.normalize_pin_path(path)
+        try:
+            resolved = assert_within_workspace(
+                self.project_root, self.project_root / named)
+        except Exception as exc:
+            raise ValueError(
+                f"Cannot pin {named}: it is not inside this "
+                f"workspace. {exc}") from exc
+        if not resolved.is_file():
+            raise ValueError(
+                f"Cannot pin {named}: no such file exists in "
+                "this workspace, so there is nothing to pin.")
+        return self._change_repo_map_pins("pin", named)
+
+    def unpin_repo_map_file(self, path: str) -> dict[str, Any]:
+        """Unpin one file (M-045). Journaled like any pin change."""
+        return self._change_repo_map_pins("unpin", path)
+
+    def _change_repo_map_pins(self, action: str,
+                              path: str) -> dict[str, Any]:
+        import copy
+
+        from ..context import repo_map_view
+
+        if action == "pin":
+            new_value, change = repo_map_view.pin_file(self.config, path)
+        elif action == "unpin":
+            new_value, change = repo_map_view.unpin_file(self.config, path)
+        else:  # pragma: no cover - internal dispatch only
+            raise ValueError(f"Unknown repo-map pin change {action!r}")
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[repo_map_view.PINS_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "repo_map_pins_change_reverted",
+                        "action": change.kind,
+                        "path": change.path,
+                        "reason": "The pin change could not be "
+                                  "saved; the previous pins were "
+                                  "preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Pin change could not be saved; previous pins "
+                "were preserved")
+        return change.record(self.session_id, journaled)
+
     def salvaged_partial(self) -> dict[str, Any] | None:
         """The salvaged partial answer waiting in this history (M-034).
 

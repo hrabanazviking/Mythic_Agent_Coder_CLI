@@ -217,6 +217,8 @@ class CommandHandler:
                 self._handle_offline(args)
             elif cmd == "/testkit":
                 self._handle_testkit(args)
+            elif cmd == "/map":
+                self._handle_map(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1272,6 +1274,89 @@ class CommandHandler:
                 "agent_chat_chunk", agent_name="Primary",
                 text=f"\n[bold cyan]{format_kit_status(status)}[/bold cyan]\n")
             return
+
+    def _handle_map(self, args: str):
+        """M-045: /map — the repo map, visible in the TUI.
+
+        ``/map`` browses M-044's map for the workspace (or
+        ranked for the task words given), each file with its
+        true rank, its score, and the reasons the coder
+        thinks it matters; ``/map show <path>`` gives one
+        file's full account (or its honest unmapped state);
+        ``/map pin <path>`` / ``/map unpin <path>`` keep the
+        user's pins — a pinned file is shown first, with its
+        rank and score unchanged — and ``/map pins`` lists
+        them.
+        """
+        from ..context.repo_map import build_repo_map
+        from ..context.repo_map_view import (
+            build_map_view,
+            format_map_change,
+            format_map_detail,
+            format_map_pins,
+            format_map_view,
+            parse_map_args,
+            pins_from_config,
+            resolve_detail,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_map_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "list":
+            status = primary.repo_map_status(request["query"])
+            view = build_map_view(
+                build_repo_map(primary.project_root,
+                               query=request["query"]),
+                pins_from_config(primary.config))
+            assert status["view"] == view.record()
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_map_view(status)}[/bold cyan]\n")
+            return
+        if request["action"] == "detail":
+            try:
+                status = primary.repo_map_detail(request["path"])
+            except ValueError as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            detail = resolve_detail(
+                build_repo_map(primary.project_root),
+                pins_from_config(primary.config), request["path"])
+            assert status["detail"] == detail.record()
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_map_detail(status)}[/bold cyan]\n")
+            return
+        if request["action"] == "pins":
+            status = primary.repo_map_pins()
+            assert status["pins"] == list(
+                pins_from_config(primary.config))
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_map_pins(status)}[/bold cyan]\n")
+            return
+        try:
+            if request["action"] == "pin":
+                record = primary.pin_repo_map_file(request["path"])
+            else:
+                record = primary.unpin_repo_map_file(request["path"])
+        except (ValueError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_map_change(record)}[/bold cyan]\n")
 
     def _handle_tutorial(self):
         tutorial_text = """

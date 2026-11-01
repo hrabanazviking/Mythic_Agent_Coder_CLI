@@ -6,6 +6,7 @@ role_routes: {}
 fallback_chain: []
 fallback_permission: false
 cost_routing: false
+repo_map_pins: []
 working_directory: ''
 user_name: ''
 user_data: ''
