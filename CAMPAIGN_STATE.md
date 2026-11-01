@@ -294,6 +294,23 @@ that state surfaced in the status line BEFORE it bites, and
 queueing of crew work around a provider whose weather says
 it is limited.*
 
+*M-036 IN PROGRESS (2026-10-31 21:30 EDT tick): build under
+way on the settled design — pure layer
+`mythic_agent/core/rate_limit_weather.py` (limit-header
+parsing for the doors' real header families, a per-provider
+WeatherBoard recording only real signals — 429s, limit
+headers, successes — with unknown staying unknown, a queue
+decision + crew-work planner, and the shared board every
+agent in the crew records into); Agent wiring records every
+429/limit-header signal and every success into the shared
+board, journals `rate_limit_seen` when a door turns limited
+and `rate_limit_queued` when a request waits, and queues a
+request (cancellably, up to a named cap) around a door whose
+weather says limited-with-a-known-reset before sending it —
+crew members are Agents, so crew work rides the same queue;
+`/weather` surface on the terminal + TUI system-command
+road, sharing one parser + formatters.*
+
 *M-035 IN PROGRESS (2026-10-31 20:40 EDT tick; CLOSED the
 same tick — DONE, see its ledger row above): build under
 way on the settled design — pure layer
