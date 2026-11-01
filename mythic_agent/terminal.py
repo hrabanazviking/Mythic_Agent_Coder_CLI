@@ -260,7 +260,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /kista [adopt] /resume-thought [show] /retry [show] /status /session /add <path> /stop /undo /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /status /session /add <path> /stop /undo /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
         return True, False, "Conversation cleared."
@@ -416,6 +416,33 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
             assert status["current_provider"] == agent._weather_key()
             return True, False, format_weather_status(
                 board, extra_providers=[status["current_provider"]])
+    if command == "/vision":
+        from .core.model_capabilities import load_capabilities
+        from .core.vision_routing import (
+            format_vision_status,
+            parse_vision_args,
+            suggest_switch,
+        )
+        try:
+            request = parse_vision_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.vision_status()
+            caps = load_capabilities()
+            model = agent.config.get("model")
+            assert status["vision"] == (
+                caps.for_model(model).vision if model else None)
+            suggestion = suggest_switch(agent.config, caps)
+            assert status["suggestion"] == (
+                suggestion.selection() if suggestion is not None else None)
+            return True, False, format_vision_status(status)
+        try:
+            record = agent.apply_vision_switch()
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        from .core.model_switch import format_switch_record
+        return True, False, format_switch_record(record)
     if command == "/resume-thought":
         from .core.streaming_discipline import (
             can_resume,
