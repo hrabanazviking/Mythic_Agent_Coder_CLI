@@ -91,6 +91,7 @@ __all__ = [
     "build_symbol_graph",
     "extract_file_graph",
     "language_capabilities",
+    "render_markdown",
 ]
 
 import ast as _ast
@@ -433,6 +434,83 @@ class SymbolGraph:
             "file_edges": {k: list(v)
                            for k, v in self.file_edges().items()},
         }
+
+
+def render_markdown(graph: SymbolGraph) -> str:
+    """Render *graph* as a human report, built from its queries.
+
+    This is the graph's plain-words surface: what each file
+    defines and imports, what each symbol's references and
+    callers are, which calls no definition in the graph can
+    answer for, and the derived file edges — every figure
+    read through the query methods a consumer would use.
+    """
+    lines = [
+        "# Symbol Graph — definitions, references, imports, calls",
+        "",
+        f"*Slice {SYMBOL_GRAPH_SLICE} of the All-Features road "
+        "(Part III — Code Intelligence). Resolution is name-based; "
+        "type-true resolution is the LSP road (M-050).*",
+        "",
+        f"**{graph.files_seen} files seen**: "
+        f"{len(graph.definitions)} definitions, "
+        f"{len(graph.references)} references, "
+        f"{len(graph.imports)} imports, {len(graph.calls)} calls, "
+        f"{len(graph.skipped)} skipped.",
+        "",
+        "## Capabilities per language",
+        "",
+    ]
+    for capability in graph.capabilities:
+        kinds = ", ".join(capability.kinds) if capability.kinds else \
+            "none"
+        lines.append(
+            f"- **{capability.language}**: {kinds} — {capability.note}")
+    lines += ["", "## Files", ""]
+    edges = graph.file_edges()
+    for path in sorted(edges):
+        definitions = graph.definitions_in(path)
+        imports = graph.imports_of(path)
+        defined = ", ".join(d.name for d in definitions) or "nothing"
+        lines.append(f"- **{path}** defines {defined}")
+        for edge in imports:
+            resolved = edge.resolved_path or "unresolved"
+            lines.append(
+                f"  - imports `{edge.module}` (line {edge.line}) "
+                f"→ {resolved}")
+        if edges[path]:
+            lines.append(
+                f"  - depends on: {', '.join(edges[path])}")
+    lines += ["", "## Symbols", ""]
+    names = sorted({d.name for d in graph.definitions},
+                   key=lambda n: (n.lower(), n))
+    for name in names:
+        sites = graph.definitions_named(name)
+        references = graph.references_to(name)
+        callers = graph.callers_of(name)
+        callees = graph.callees_of(name)
+        lines.append(
+            f"- **{name}**: defined at "
+            f"{', '.join(d.id for d in sites)}; "
+            f"{len(references)} reference(s), "
+            f"{len(callers)} caller(s), "
+            f"{len(callees)} call(s) made from it")
+    unresolved = graph.unresolved_calls()
+    lines += ["", "## Unresolved calls", ""]
+    if unresolved:
+        for edge in unresolved:
+            lines.append(
+                f"- {edge.caller} calls `{edge.callee}` at "
+                f"{edge.path}:{edge.line} — no definition in the "
+                "graph carries that name")
+    else:
+        lines.append("- none: every call resolves to a definition")
+    if graph.skipped:
+        lines += ["", "## Skipped files", ""]
+        for skip in graph.skipped:
+            lines.append(f"- **{skip.path}**: {skip.reason}")
+    lines.append("")
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
