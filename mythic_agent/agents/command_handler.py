@@ -227,6 +227,8 @@ class CommandHandler:
                 self._handle_lsp(args)
             elif cmd == "/truth":
                 self._handle_truth(args)
+            elif cmd == "/format":
+                self._handle_format(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1591,6 +1593,42 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_truth_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_format(self, args: str):
+        """M-053: /format <path> [apply] — the formatter covenant, in the TUI.
+
+        Shows what the project's own configured formatter
+        would change in the named (touched) file, with the
+        format diff separated from the logic diff; apply
+        writes through the edit journal. No configured
+        formatter is shown as its absence, never as a
+        made-up style, and untouched code is never
+        reformatted.
+        """
+        from ..tools.format_covenant import format_format_report, parse_format_args
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_format_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.format_covenant(
+                request["path"], apply=request["action"] == "apply")
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_format_report(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):

@@ -1527,6 +1527,36 @@ class Agent:
             "plain_explanation": truth_module.PLAIN_EXPLANATION,
         }
 
+    def format_covenant(self, path: str, *, apply: bool = False) -> dict[str, Any]:
+        """One touched file's formatter-covenant account (M-053).
+
+        The file the user names on this road is itself the
+        touched file — their own act names it. The preview
+        runs the project's own configured formatter (never
+        an invented style, never on untouched code) and
+        separates the format diff from the logic diff;
+        *apply* writes only through the edit journal, and
+        only while the file still matches the preview.
+        A project with no formatter configured, or the
+        covenant switched off in config, is reported
+        plainly and nothing is formatted.
+        """
+        from ..core.workspace import assert_within_workspace
+        from ..tools import format_covenant as covenant_module
+
+        resolved = assert_within_workspace(self.project_root, path)
+        if not resolved.is_file():
+            raise ValueError(f"no such file to format-check: {path}")
+        report = covenant_module.format_covenant_report(
+            resolved, root=self.project_root, touched=[resolved],
+            apply=apply,
+            enabled=covenant_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": covenant_module.PLAIN_EXPLANATION,
+        }
+
     def lsp_workspace_symbols(self, query: str = "") -> dict[str, Any]:
         """The workspace's symbols, per the language server (M-050)."""
         from ..integrations import lsp as lsp_module

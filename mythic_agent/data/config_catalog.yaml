@@ -298,6 +298,13 @@ settings:
   default: 'True'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Edit-time truth loop (M-052): when true, every agent edit (write_file / replace_file_content) is rechecked — house review, language-server diagnostics where a server truly runs, the project linter where one is truly configured — and new error-severity findings the edit introduced are appended to the tool result in the same turn; when false, edits are not rechecked.'
+- id: S-42
+  name: formatter_covenant
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Formatter covenant (M-053): when true, the formatter road is open — the project''s own configured formatter (black/ruff/isort/yapf, named by its own config and installed) may be previewed on files an edit touched and applied only on explicit request through the edit journal, with format diffs shown separately from logic diffs; when false, the formatter road refuses plainly and nothing is formatted.'
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
