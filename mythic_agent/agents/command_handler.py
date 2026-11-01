@@ -231,6 +231,8 @@ class CommandHandler:
                 self._handle_format(args)
             elif cmd == "/debug":
                 self._handle_debug(args)
+            elif cmd == "/debugloop":
+                self._handle_debug_loop(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1673,6 +1675,48 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_debug_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_debug_loop(self, args: str):
+        """M-055: /debugloop [show] | /debugloop <test> [...] — the debugger in the loop, in the TUI.
+
+        Re-runs one named failing test under the M-054
+        adapter with exception stops on and shows the
+        stop's frames and locals as evidence. A missing
+        adapter, a re-run that never stops, and the loop
+        switched off are each shown as their honest
+        status, never as invented evidence.
+        """
+        from ..tools.debug_loop import (
+            format_debug_loop_board, format_debug_loop_report,
+            parse_debug_loop_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_debug_loop_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_debug_loop_board(primary.debugger_status())}[/bold cyan]\n")
+            return
+        try:
+            status = primary.debug_loop(
+                request["test"], breakpoints=request["breakpoints"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_debug_loop_report(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):

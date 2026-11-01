@@ -567,6 +567,22 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_debug_report(status)
+    if command == "/debugloop":
+        from .tools.debug_loop import (
+            format_debug_loop_board, format_debug_loop_report,
+            parse_debug_loop_args)
+        try:
+            request = parse_debug_loop_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            return True, False, format_debug_loop_board(agent.debugger_status())
+        try:
+            status = agent.debug_loop(
+                request["test"], breakpoints=request["breakpoints"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_debug_loop_report(status)
     if command == "/lsp":
         from .integrations.lsp import (
             format_lsp_code_actions,
