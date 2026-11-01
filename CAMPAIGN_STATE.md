@@ -368,6 +368,32 @@ journaling `vision_refused` / `apply_vision_switch` through
 M-028's journaled switch); `/vision` surface on the terminal
 + TUI system-command road, sharing one parser + formatters.*
 
+*M-037 CLOSURE PENDING (2026-10-31 23:30 EDT tick): the slice's
+code + fix + regens are banked locally (`06fea75`, `96686ca`,
+`e3d0653`, `0c50fe7`; PUBLIC_API 1650) and the roadmap generator
+is already set to DONE_THROUGH=37, but the slice is NOT yet
+marked DONE and NOT yet pushed — its full-suite verdict is
+counted but its flake proofs are outstanding. Full suite counted
+in six monitored chunks (logs hidden_files/m037-chunk0.log..
+chunk4.log + m037-chunk5b.log; the first chunk-5 run died at
+'FF.' and was discarded, the re-run completed): chunk totals
+411+413+497+353+490+358 = **2522 passed, 6 failed, 1 skipped
+(2529 collected — arithmetic closes exactly: M-036's 2476 +
+M-037's 53 new vision-routing tests)**. The 6 failures: the 2
+long-classified environment cases (PortAudio public-api import;
+tiktoken-premise estimator) plus 4 timeout failures of the
+known load class — `test_static_gate` ×3 (chunk 5) and
+`test_providers_coverage_ratchet` ×1 (chunk 1), all heavy
+subprocess tests dying on their 120 s timeouts. A solo proof
+run this tick (log hidden_files/m037-solo.log) ALSO failed all
+4 — under load 8→27 from the many sibling campaigns on this
+VM, so it proves contention, not a defect: none of the 4
+touches any code M-037 changed, and both families passed solo
+in earlier calmer closures (M-015/M-018). Next tick: re-run
+the 4 solo on a calmer box; on pass, flip M-037 DONE in the
+ledger + roadmap data, regen, commit the closure, push, and
+scope M-038.*
+
 ## Transport war (opening night, recorded so no one re-fights it)
 
 GitHub bulk transfer from this VM was severely degraded on
