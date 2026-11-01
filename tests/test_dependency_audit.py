@@ -66,6 +66,7 @@ IMPORT_TO_REQUIREMENT = {
     "torch": "torch",
     "anthropic": "anthropic",
     "google": "google-generativeai",
+    "tree_sitter": "tree-sitter",
 }
 
 # Every third-party import that lives inside a ``try/except ImportError``
@@ -88,6 +89,7 @@ OPTIONAL_IMPORT_FEATURES = {
     "tiktoken": "precise token counting for the context compiler (optional; deterministic heuristic fallback otherwise)",
     "httpx": "async HTTP client fallback for provider calls (core dependency)",
     "httpx2": "async HTTP client preferred for provider calls; openai 3.x's httpx fork (core dependency)",
+    "tree_sitter": "grammar-backed code parsing (code-intelligence extra, M-043)",
 }
 
 # Extras that are intentionally never imported by ``mythic_agent/`` itself
