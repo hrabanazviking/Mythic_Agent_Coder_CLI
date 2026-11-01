@@ -1487,3 +1487,37 @@ a test result). The building tick settles from the tree
 how tests are run today (the test-runner road and the
 M-056 test-intelligence neighbours it must not swallow)
 before designing further.*
+
+*M-055 IN PROGRESS (2026-11-01 17:50 EST tick): build under
+way on the scoped design — new module
+`mythic_agent/tools/debug_loop.py` (Debugger in the loop):
+a failing test, named by the user or detected from a
+pytest run's own output (the FAILED summary lines and
+verbose FAILED rows of a `run_command` pytest result —
+never guessed from prose), is re-run under M-054's DAP
+client with exception stops on (and user breakpoints in
+the test file when named), launched as the pytest module
+(`launch` gains a `module` road in debugger.py — debugpy's
+module launch, `module: pytest`, args = the one test node);
+the stop's frames and the top frame's locals return as an
+evidence record. Honesty bounds, on the M-052 pattern: an
+adapter that is not installed reports not-installed with
+its remedy and NO evidence is invented; a re-run that ends
+without a stop reports terminated — the failure did not
+reproduce under the debugger — never dressed as evidence;
+a debugger failure is an honest note, never a test result.
+The loop wires into the coder's road exactly as M-052's
+truth loop does: in `agents/tools.py` run_command, a pytest
+command whose result failed appends the loop's note for the
+first failing test (evidence when a stop was reached, the
+honest absence when not), under the new setting
+`debugger_in_loop` ON by default in config_defaults + the
+M-009 catalogue (S-44), and the M-054 `debugger` switch
+still gates the whole road. Surfaces: `Agent.debug_loop()`
+plus `/debugloop <test> [break <line> ...]` (bare = the
+board) on the terminal + TUI roads sharing the one parser
+and formatter. Live proof rides a fake DAP adapter
+subprocess speaking the real protocol (module launch args
+proven from the adapter's own log), since debugpy is not
+installed here. M-056 (test intelligence — discovery,
+selection, flaky marking) is NOT built here.*
