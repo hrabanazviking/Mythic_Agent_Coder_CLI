@@ -262,7 +262,7 @@ slices:
   title: Streaming discipline
   summary: token streaming with clean interrupt, partial-answer salvage, and resume-the-thought where
     the provider allows; a killed stream never corrupts the journal.
-  status: queued
+  status: done
 - id: M-035
   part: 2
   title: Retry and backoff honesty
