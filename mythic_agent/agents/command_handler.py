@@ -215,6 +215,8 @@ class CommandHandler:
                 self._handle_longcontext(args)
             elif cmd == "/offline":
                 self._handle_offline(args)
+            elif cmd == "/testkit":
+                self._handle_testkit(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1231,6 +1233,44 @@ class CommandHandler:
             publish_sync(
                 "agent_chat_chunk", agent_name="Primary",
                 text=f"\n[bold cyan]{format_offline_status(status)}[/bold cyan]\n")
+            return
+
+    def _handle_testkit(self, args: str):
+        """M-041: /testkit — the new-provider test kit.
+
+        ``/testkit <provider> [base-url]`` runs the five kit
+        checks (registry, chat, tools, streaming, errors)
+        against the named registry entry's door and states
+        the evidence plainly per check, with the verdict —
+        passed, failed, or not-proven.
+        """
+        from ..core.provider_test_kit import (
+            format_kit_status,
+            parse_kit_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_kit_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "run":
+            try:
+                status = primary.test_kit(request["provider"],
+                                          base_url=request["base_url"])
+            except KeyError as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_kit_status(status)}[/bold cyan]\n")
             return
 
     def _handle_tutorial(self):

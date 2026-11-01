@@ -260,7 +260,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /status /session /add <path> /stop /undo /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /status /session /add <path> /stop /undo /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
         return True, False, "Conversation cleared."
@@ -479,6 +479,22 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
                           generated_at=status["board"]["generated_at"])
             assert status["assessment"] == assess_board(board).record()
             return True, False, format_offline_status(status)
+    if command == "/testkit":
+        from .core.provider_test_kit import (
+            format_kit_status,
+            parse_kit_args,
+        )
+        try:
+            request = parse_kit_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "run":
+            try:
+                status = agent.test_kit(request["provider"],
+                                        base_url=request["base_url"])
+            except KeyError as exc:
+                return True, False, str(exc)
+            return True, False, format_kit_status(status)
     if command == "/resume-thought":
         from .core.streaming_discipline import (
             can_resume,
