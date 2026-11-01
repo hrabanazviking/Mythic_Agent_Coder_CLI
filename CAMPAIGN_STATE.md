@@ -271,6 +271,20 @@ never silently replayed: tool execution and other effectful
 calls must be shown never to re-run on any retry, fallback,
 or continuation path.*
 
+*M-035 IN PROGRESS (2026-10-31 20:40 EDT tick): build under
+way on the settled design — pure layer
+`mythic_agent/core/retry_honesty.py` (transient classification
++ capped-delay truth delegated to by `llm._is_transient` /
+`llm._retry_delay` wrappers, named bounds from the catalogued
+`max_retries` / `retry_delay` / `retry_delay_cap` settings, a
+per-request retry report, and the replay-boundary audit);
+Agent wiring records every retry (published with attempt,
+reason, and wait; journaled `retry_attempt`, with a closing
+`retry_stopped` record naming why it stopped) and exposes
+`retry_status()`; `/retry` surface on the terminal + TUI
+system-command road; live proofs that a tool call executes
+exactly once across retry, streaming, and fallback paths.*
+
 ## Transport war (opening night, recorded so no one re-fights it)
 
 GitHub bulk transfer from this VM was severely degraded on
