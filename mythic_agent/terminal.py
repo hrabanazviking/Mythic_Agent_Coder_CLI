@@ -399,6 +399,23 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
             assert status["report"] is agent.last_retry_report
             return True, False, format_retry_status(
                 status["bounds"], status["report"])
+    if command == "/weather":
+        from .core.rate_limit_weather import (
+            format_weather_status,
+            parse_weather_args,
+        )
+        try:
+            request = parse_weather_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.weather_status()
+            board = agent._weather_board
+            assert [p["provider"] for p in status["providers"]] == [
+                w.provider for w in board.snapshot()]
+            assert status["current_provider"] == agent._weather_key()
+            return True, False, format_weather_status(
+                board, extra_providers=[status["current_provider"]])
     if command == "/resume-thought":
         from .core.streaming_discipline import (
             can_resume,

@@ -207,6 +207,8 @@ class CommandHandler:
                 self._handle_resume_thought(args)
             elif cmd == "/retry":
                 self._handle_retry(args)
+            elif cmd == "/weather":
+                self._handle_weather(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1056,6 +1058,42 @@ class CommandHandler:
             publish_sync(
                 "agent_chat_chunk", agent_name="Primary",
                 text=f"\n[bold cyan]{format_retry_status(status['bounds'], status['report'])}[/bold cyan]\n")
+            return
+
+    def _handle_weather(self, args: str):
+        """M-036: /weather — rate-limit weather, in plain words.
+
+        ``/weather`` (or ``/weather show``) shows the plain-words
+        explanation and, for every door on the crew's shared
+        weather board plus the primary's current door, whether
+        it is limited and until when, what quota the door
+        itself reported, and what is simply unknown.
+        """
+        from ..core.rate_limit_weather import (
+            format_weather_status,
+            parse_weather_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_weather_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.weather_status()
+            board = primary._weather_board
+            assert [p["provider"] for p in status["providers"]] == [
+                w.provider for w in board.snapshot()]
+            assert status["current_provider"] == primary._weather_key()
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_weather_status(board, extra_providers=[status['current_provider']])}[/bold cyan]\n")
             return
 
     def _handle_tutorial(self):
