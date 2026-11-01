@@ -380,7 +380,7 @@ slices:
   title: The Debugger (DAP)
   summary: breakpoints, step, continue, variable inspection, exception stops for Python first (debugpy),
     then the DAP-general road — the coder can *watch* a bug happen.
-  status: queued
+  status: done
 - id: M-055
   part: 3
   title: Debugger in the loop
