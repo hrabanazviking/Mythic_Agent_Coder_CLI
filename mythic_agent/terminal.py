@@ -550,6 +550,23 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_format_report(status)
+    if command == "/debug":
+        from .tools.debugger import (
+            format_debug_board, format_debug_report, parse_debug_args)
+        try:
+            request = parse_debug_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            return True, False, format_debug_board(agent.debugger_status())
+        try:
+            status = agent.debug_run(
+                request["program"], breakpoints=request["breakpoints"],
+                steps=request["steps"],
+                stop_on_exception=request["stop_on_exception"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_debug_report(status)
     if command == "/lsp":
         from .integrations.lsp import (
             format_lsp_code_actions,

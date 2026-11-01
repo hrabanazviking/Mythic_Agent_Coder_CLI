@@ -229,6 +229,8 @@ class CommandHandler:
                 self._handle_truth(args)
             elif cmd == "/format":
                 self._handle_format(args)
+            elif cmd == "/debug":
+                self._handle_debug(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1629,6 +1631,48 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_format_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_debug(self, args: str):
+        """M-054: /debug [show] | /debug run <program> [...] — the debugger, in the TUI.
+
+        Shows the adapter board, or runs one program under
+        the adapter and shows the stop, the stack, and the
+        variables exactly as the adapter reported them. A
+        missing adapter is shown as its absence, never as
+        a faked session.
+        """
+        from ..tools.debugger import (
+            format_debug_board, format_debug_report, parse_debug_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_debug_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_debug_board(primary.debugger_status())}[/bold cyan]\n")
+            return
+        try:
+            status = primary.debug_run(
+                request["program"], breakpoints=request["breakpoints"],
+                steps=request["steps"],
+                stop_on_exception=request["stop_on_exception"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_debug_report(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):

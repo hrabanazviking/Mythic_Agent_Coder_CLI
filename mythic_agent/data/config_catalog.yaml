@@ -305,6 +305,13 @@ settings:
   default: 'True'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Formatter covenant (M-053): when true, the formatter road is open — the project''s own configured formatter (black/ruff/isort/yapf, named by its own config and installed) may be previewed on files an edit touched and applied only on explicit request through the edit journal, with format diffs shown separately from logic diffs; when false, the formatter road refuses plainly and nothing is formatted.'
+- id: S-43
+  name: debugger
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'The Debugger (M-054): when true, the debugger road is open — a program may be run under a catalogued debug adapter (debugpy for Python first, the DAP-general client) with breakpoints, exception stops, stepping, and variable inspection reported exactly as the adapter reports them; when false, a debug run refuses plainly and no adapter is launched.'
 env_vars:
 - id: V-01
   name: MYTHIC_HOME

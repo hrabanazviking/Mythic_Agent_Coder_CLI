@@ -145,7 +145,7 @@ rows:
   part: III
   state: MISSING
   owning_module: mythic_agent/tools/debugger.py
-  module_kind: proposed
+  module_kind: existing
   basis: mythic_agent/tools/review.py
   fix_shape: A DAP debugger tool (breakpoints, step, inspect) in the tools package.
 - feature: formatter-linter-loop
