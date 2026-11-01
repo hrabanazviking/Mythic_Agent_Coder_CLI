@@ -375,7 +375,17 @@ class TestClientLive:
         assert found.source == "fake-ls"
         assert found.code == "F001"
         assert report.counts()["error"] == 1
-        methods = log.read_text(encoding="utf-8").splitlines()
+        # close() returns once the exit notification is sent;
+        # the server's own log line lands when it reads it, so
+        # wait (bounded) for the server's record, not the clock.
+        import time as _time
+        deadline = _time.monotonic() + 5.0
+        methods = []
+        while _time.monotonic() < deadline:
+            methods = log.read_text(encoding="utf-8").splitlines()
+            if methods and methods[-1] == "exit":
+                break
+            _time.sleep(0.05)
         assert methods[0] == "initialize"
         assert "textDocument/didOpen" in methods
         assert methods[-2:] == ["shutdown", "exit"]
