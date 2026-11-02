@@ -2355,3 +2355,45 @@ available in the environment, honestly NOT PROVEN
 where none is; how Mojo files are recognised and
 parsed; and the knowledge surface) from the tree
 before designing further. M-065 is NOT built here.*
+
+*M-064 IN PROGRESS (2026-11-02 04:5x EST tick): build under
+way. Shape settled from the tree: a new module
+`mythic_agent/tools/mojo_sight.py` on the house pattern
+— module + setting + catalogue entry + Agent methods +
+terminal/TUI roads — building on M-043's tree-sitter
+foundation (`core/tree_sitter_foundation.py` + the
+L-06 catalogue entry), never duplicating it. Measured
+in this environment: the tree-sitter core package IS
+installed in the baseline venv, but NO Mojo grammar
+package exists (`tree_sitter_mojo` not importable; the
+catalogue's L-06 status is no-grammar-package, checked
+2026-11-01) — so a tree-sitter parse of Mojo here is
+honestly NOT PROVEN / unavailable, never invented, and
+the module's structural scan is labelled with its own
+backend name (`mojo-scan`), never `tree_sitter`. The
+scan recognises `.mojo` files through the foundation's
+own catalogue (`detect_language`), extracts definitions
+(functions, structs, traits, comptime/alias constants),
+imports and decorators, and watches for the removed
+syntax the house Mojo skills record (alias→comptime,
+let→var, borrowed/inout/owned→imm/mut/var, @parameter
+if/for→comptime, @value→@fieldwise_init,
+@register_passable→traits, Stringable→Writable,
+non-std imports→std.*, fn→def in the latest Mojo) —
+each finding names its replacement. Where a real
+grammar ever loads, the foundation's parse is tried
+first and its definitions ride the same report with
+backend `tree_sitter`. The house Mojo skills are wired
+as knowledge: distilled, searchable in-repo entries
+(K-01..), each naming its source skill (mojo-syntax,
+mojo-gpu-fundamentals, mojo-python-interop — those full
+texts live outside the repo and are named as external
+references, never copied wholesale); the Mojo Docs MCP
+is likewise named as an external reference, not faked
+in-repo. Setting `mojo_sight` ON by default in
+config_defaults + M-009 catalogue S-54; Agent.mojo_sight()
++ `/mojo [show|<path>|knowledge [term]]` on the terminal
++ TUI roads sharing one parser + formatter. Gap audit
+checked at scoping: no census-gap row is owned by
+M-064, so no module_kind flip exists to make. M-065 is
+NOT built here.*
