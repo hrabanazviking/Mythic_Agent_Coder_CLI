@@ -1736,6 +1736,63 @@ class Agent:
             "plain_explanation": search_module.PLAIN_EXPLANATION,
         }
 
+    def web_search(self, query: str) -> dict[str, Any]:
+        """Search the web once, through the configured endpoint (M-059).
+
+        The query text goes to the ``web_search_endpoint``
+        host (the shipped default is DuckDuckGo's keyless
+        HTML road) and nowhere else; the results come back
+        as numbered citations. When a session is attached,
+        the sources are cited into the session journal as
+        a ``web_citation`` checkpoint event before the
+        status is returned. A failed call is an honest
+        error report; a switched-off road sends nothing.
+        """
+        from ..tools import web_search as web_module
+
+        report = web_module.web_search(
+            query,
+            endpoint=web_module.endpoint_from_config(
+                getattr(self, "config", None)),
+            enabled=web_module.enabled_from_config(
+                getattr(self, "config", None)))
+        self._journal_web_citation(report)
+        return {
+            "report": report.record(),
+            "plain_explanation": web_module.PLAIN_EXPLANATION,
+        }
+
+    def web_fetch(self, url: str) -> dict[str, Any]:
+        """Fetch one http(s) page's readable text (M-059).
+
+        Only the named page is requested; its title and
+        text come back under the module's caps, and the
+        page is cited into the session journal as a
+        ``web_citation`` event when a session is attached.
+        Non-http(s) URLs are refused before anything is
+        sent; a failed call is an honest error report.
+        """
+        from ..tools import web_search as web_module
+
+        report = web_module.web_fetch(
+            url,
+            enabled=web_module.enabled_from_config(
+                getattr(self, "config", None)))
+        self._journal_web_citation(report)
+        return {
+            "report": report.record(),
+            "plain_explanation": web_module.PLAIN_EXPLANATION,
+        }
+
+    def _journal_web_citation(self, report: Any) -> None:
+        """Cite one web report's sources into the journal (M-059)."""
+        if report.status != "ok":
+            return
+        if getattr(self, "_session_store", None) and \
+                getattr(self, "session_id", None):
+            self._checkpoint(report.citation_event())
+            report.journaled = True
+
     def lsp_workspace_symbols(self, query: str = "") -> dict[str, Any]:
         """The workspace's symbols, per the language server (M-050)."""
         from ..integrations import lsp as lsp_module

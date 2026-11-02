@@ -13,6 +13,8 @@ debugger_in_loop: true
 test_intelligence: true
 coverage_sight: true
 local_search: true
+web_tools: true
+web_search_endpoint: https://html.duckduckgo.com/html/?q={query}
 repo_map_pins: []
 working_directory: ''
 user_name: ''

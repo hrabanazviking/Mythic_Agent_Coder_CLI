@@ -239,6 +239,8 @@ class CommandHandler:
                 self._handle_coverage(args)
             elif cmd == "/search":
                 self._handle_local_search(args)
+            elif cmd == "/web":
+                self._handle_web(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1841,6 +1843,41 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_local_search(status)}[/bold cyan]\n")
+        return
+
+    def _handle_web(self, args: str):
+        """M-059: /web search <query> | /web fetch <url> — web knowledge tools, in the TUI.
+
+        One search through the configured endpoint or one
+        fetched page, results as numbered citations, cited
+        into the session journal by the Agent when a
+        session is attached.
+        """
+        from ..tools.web_search import format_web_report, parse_web_args
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_web_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if request["action"] == "search":
+                status = primary.web_search(request["query"])
+            else:
+                status = primary.web_fetch(request["url"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_web_report(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):
