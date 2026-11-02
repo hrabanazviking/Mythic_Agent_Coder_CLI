@@ -479,7 +479,7 @@ slices:
   title: Edit-format plurality
   summary: whole-file, unified-diff, search-and- replace blocks, and Aider-style architect/editor splitting
     — the coder picks per task and per model strength; the choice is journaled.
-  status: queued
+  status: done
 - id: M-072
   part: 4
   title: Hash-anchored edits
