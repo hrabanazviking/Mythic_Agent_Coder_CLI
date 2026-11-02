@@ -769,6 +769,19 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_language_pack_report(status)
+    if command == "/intelcache":
+        from .tools.intelligence_cache import (
+            format_intelligence_cache_report, parse_intelcache_args)
+        try:
+            request = parse_intelcache_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.intelligence_cache(
+                request["action"], target=request.get("target"))
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_intelligence_cache_report(status)
     if command == "/lsp":
         from .integrations.lsp import (
             format_lsp_code_actions,

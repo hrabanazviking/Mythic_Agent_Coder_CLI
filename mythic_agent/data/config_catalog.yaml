@@ -417,6 +417,13 @@ settings:
   default: 'True'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Language packs (M-068): when true, the langpacks road is open — /langpacks show reports every language pack''s declared toolchain (one pack per language in the M-043 tree-sitter catalogue, declared in mythic_agent/data/language_packs.yaml: its language server with its stdio command, its formatters, and its test runners), each declared binary carrying a live installed check from PATH alone (shutil.which on the command''s first word), and /langpacks <language> reports just that pack, an unknown language refused plainly naming the packed languages; the servers are the live LSP catalogue''s servers for every language but Mojo, whose pack honestly declares no server, the Python pack''s formatters are the format covenant''s live candidates and its runner is test intelligence''s pytest, while the other languages'' formatters and runners are declared pack data with no live consumer yet, as each pack''s notes say; nothing is executed on this road — commands are described and PATH-checked, never run; when false, the pack data is not even loaded on that road.'
+- id: S-59
+  name: intelligence_cache
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Intelligence cache (M-069): when true, the intelcache road is open — parse, graph, and language-server results are cached per file under the workspace''s .mythic/intelligence-cache/, every entry keyed by kind, workspace-relative path, the file''s SHA-256 content hash, and producer name, written atomically with persisted hit, miss, and stale-eviction counters; a lookup recomputes the file''s current hash, so a changed file evicts its stale entry and misses — a stale result is never served — and a missing file, a corrupt entry, and a producer mismatch are likewise misses; the parse producer is the M-043 foundation''s parse and the graph producer is M-046''s per-file extraction, both honouring the symbol graph''s 262144-byte per-file cap, while language-server payloads are stored and looked up only, their producer being the live M-049/M-050 server road, never faked here; /intelcache show reports entries and counters, /intelcache <file> reports one file''s per-kind state against its current hash, /intelcache warm fills parse and graph for the workspace''s catalogued source files with caps and skips named, and /intelcache clear removes every entry and reports the count; warming writes cache entries only, never a source file; when false, nothing is read or written on that road.'
 
 env_vars:
 - id: V-01
