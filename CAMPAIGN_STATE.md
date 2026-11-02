@@ -2031,3 +2031,39 @@ data to 60 done, write the M-060 ledger row + closure
 note, scope M-061, closure targeted set, closure
 commit, push. Campaign total: 59/272 closed; M-060
 banked pending suite verdict.*
+
+*M-060 SUITE PARTIAL (2026-11-02 01:20 EST tick): the
+full suite is under way in six monitored chunks from
+on-disk logs (chunk lists m060-chunklist-00..05;
+collect-only m060-collect.log: 3352 collected — closes
+exactly against the predicted 3332 + 20). COUNTED SO
+FAR, all read from on-disk logs: chunk 0: 447 passed,
+1 failed (the tiktoken-premise estimator environment
+case); chunk 1: 590 passed, 1 skipped; chunk 2: 765
+passed; chunk 3: 436 passed, 1 failed (the PortAudio
+public-api environment case) — running total 2238
+passed, 2 failed (exactly the 2 long-classified
+environment cases), 1 skipped. EPISODE RECORD: chunk
+3's first run died on an EDQUOT flush INTERNALERROR
+after 157 passed (preserved as m060-chunk3-dead1.log,
+DISCARDED) and was re-run clean in a healed window;
+chunk 4 died twice — once at ~85% with exit 120 as
+/tmp hit 100% (m060-chunk4-dead1.log, DISCARDED) and
+once on overlay TMPDIR with 8 failures inside a fresh
+EDQUOT window plus its own flush INTERNALERROR
+(m060-chunk4-dead2.log, DISCARDED — nothing counted
+from either). /tmp is held at ~100% by other
+campaigns' files (tf140_shadow 164M, t077 gates ~146M,
+aesirwork ~62M — none of it this campaign's to
+delete) and the home quota cycles EDQUOT under the
+same multi-campaign load. NEXT TICK: probe home-write
++ /tmp space healthy first; then run chunks 4 and 5
+from m060-chunklist-04/05 (default tmpfs TMPDIR; the
+overlay road is retired again per the M-019 lesson —
+chunk 4 carries test_sessions.py, whose
+1000-creations test is ~30x slower on overlay), add
+chunks 0-3 above, classify any failures, flip roadmap
+data to 60 done, write the M-060 ledger row + closure
+note, scope M-061, closure targeted set, closure
+commit, push. Campaign total: 59/272 closed; M-060
+banked pending the last two chunks' verdict.*
