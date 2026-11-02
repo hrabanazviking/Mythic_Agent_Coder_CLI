@@ -467,7 +467,7 @@ slices:
   title: Intelligence cache
   summary: parse/graph/LSP results cached per file hash; a cold start on a big repo stays fast (measured
     in Part XI).
-  status: queued
+  status: done
 - id: M-070
   part: 3
   title: Part III gate
