@@ -1992,3 +1992,23 @@ call. The building tick settles the index's shape
 (reuse of M-058's in-process engine vs a dedicated
 docs index) from the tree before designing further.
 M-061 (Dependency sight) is NOT built here.*
+
+*M-060 IN PROGRESS (2026-11-02 00:40 EST tick): build under
+way. Shape settled from the tree: a new module
+`mythic_agent/tools/docs_at_hand.py` on the house pattern
+— module + setting + catalogue entry + Agent methods +
+terminal/TUI roads. Docs-at-hand is the OFFLINE road:
+the workspace's own documentation (root-level and
+`docs/` Markdown/text/reStructuredText) plus offline
+doc packs for the stack (pack directories under
+`.mythic/docpacks/<pack>/`) are discovered, indexed
+in-process, and searched with ranked hits carrying
+snippets and line numbers; a doc can be read whole
+under a char cap that names itself when it cuts.
+Nothing leaves the machine — no network road exists in
+the module at all (the honest complement to M-059's
+web road). A name that resolves to no doc, or to
+several, is refused plainly, never guessed; paths
+escaping the doc roots are refused. Setting
+`docs_at_hand` ON by default in config_defaults +
+M-009 catalogue S-50. M-061 is NOT built here.*
