@@ -259,6 +259,8 @@ class CommandHandler:
                 self._handle_assets(args)
             elif cmd == "/langpacks":
                 self._handle_langpacks(args)
+            elif cmd == "/intelcache":
+                self._handle_intelcache(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -2219,6 +2221,40 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_language_pack_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_intelcache(self, args: str):
+        """M-069: /intelcache [show | <file> | warm | clear] — the cache, in the TUI.
+
+        Parse/graph/LSP results cached per file hash under
+        the workspace's .mythic/intelligence-cache/: a
+        changed file's entry is evicted on lookup, never
+        served; warming writes cache entries only.
+        """
+        from ..tools.intelligence_cache import (
+            format_intelligence_cache_report, parse_intelcache_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_intelcache_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.intelligence_cache(
+                request["action"], target=request.get("target"))
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_intelligence_cache_report(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):

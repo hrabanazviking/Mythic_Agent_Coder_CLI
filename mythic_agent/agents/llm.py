@@ -2055,6 +2055,28 @@ class Agent:
             "plain_explanation": packs_module.PLAIN_EXPLANATION,
         }
 
+    def intelligence_cache(self, mode: str = "show",
+                           target: str | None = None) -> dict[str, Any]:
+        """An intelligence-cache account — results per file hash (M-069).
+
+        Parse, graph, and language-server results are cached
+        under the workspace's .mythic/intelligence-cache/,
+        keyed by each file's SHA-256 content hash; a changed
+        file's entry is evicted on lookup, never served.
+        Warming writes cache entries only, never a source
+        file; a switched-off road reads and writes nothing.
+        """
+        from ..tools import intelligence_cache as cache_module
+
+        report = cache_module.intelligence_cache_report(
+            self.project_root, mode, target=target,
+            enabled=cache_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": cache_module.PLAIN_EXPLANATION,
+        }
+
     def _journal_web_citation(self, report: Any) -> None:
         """Cite one web report's sources into the journal (M-059)."""
         if report.status != "ok":

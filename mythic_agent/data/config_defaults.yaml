@@ -24,6 +24,7 @@ sql_sight: true
 config_sight: true
 asset_sight: true
 language_packs: true
+intelligence_cache: true
 repo_map_pins: []
 working_directory: ''
 user_name: ''
