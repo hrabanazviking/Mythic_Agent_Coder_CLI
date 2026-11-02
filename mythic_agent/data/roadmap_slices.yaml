@@ -403,7 +403,7 @@ slices:
   part: 3
   title: Beyond-grep local search
   summary: in-process ripgrep with fuzzy and structural modes, results ranked by the symbol graph.
-  status: queued
+  status: done
 - id: M-059
   part: 3
   title: Web knowledge tools
