@@ -433,6 +433,14 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Edit-format plurality (M-071): how the coder changes a file — auto (the default) picks per task and per model strength from M-027 capability truth (whole-file, unified-diff, search-and-replace blocks, or an Aider-style architect/editor split for complex work; a model of unknown strength always gets the safest whole-file format, and creating a file is always whole-file); any of the four format names pins that format exactly, except that a pinned format never creates a file. Unified diffs apply only when every hunk context matches the file exactly and search blocks only when the search text matches exactly once — no fuzz, a stale target refuses and writes nothing. /editformat shows the formats and the picks, pins or unpins the setting, and asks for a pick for a kind of work; every pick is recorded as an edit_format_chosen session journal event with its plain-words reason, and applied edits ride the existing EditJournal road.'
 
+- id: S-61
+  name: hash_anchored_edits
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Hash-anchored edits (M-072): when true, the hashanchor road is open — every line of a file carries a SHA-256 content anchor (shown as its first 12 hex digits) and a range of lines anchors as the hash of its exact lines joined by newlines, the per-line form of the M-069 content-hash road; an anchored edit names the lines it touches by 1-based range (or by a search block that must match exactly once) plus the anchor it saw, the applier recomputes the anchor from the file''s true current text, and the edit applies only on an exact match — a moved or changed target refuses cleanly, names the expected and current anchors, and changes nothing, no fuzz ever (the refusal report is the whole answer; the bounded retry with the true text is M-073''s road); applied edits ride the existing EditJournal road and are recorded as hash_anchored_applied session events. /hashanchor shows the gate and a file in anchored form, and turns the gate on or off (journaled, with a save-failure revert); when false, anchored applies through the agent refuse and say so, while the pure anchor maths stays readable.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME

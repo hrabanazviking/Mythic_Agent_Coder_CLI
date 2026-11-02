@@ -120,6 +120,49 @@ class EditJournal:
             connection.commit()
             return path
 
+    def write_anchored_range(self, value: str, start: int, end: int,
+                             expected: str, replacement: str) -> Path:
+        """Write a range edit judged by its lines' anchor (M-072).
+
+        The pure layer in :mod:`mythic_agent.core.hash_anchored`
+        judges the edit against the file's true current text:
+        the range's recomputed SHA-256 anchor must match
+        *expected* or the edit refuses and this journal writes
+        nothing at all. A successful edit rides this journal's
+        own ``write`` road, so it is undoable like any edit.
+        """
+        from .hash_anchored import apply_anchored_range
+
+        path = resolve_file(self.root, value, write=True)
+        if not path.exists():
+            raise ValueError(
+                f"an anchored edit needs an existing file; "
+                f"{value} does not exist — nothing was changed")
+        current = path.read_text(encoding="utf-8")
+        new_text, _applied = apply_anchored_range(
+            current, start, end, expected, replacement)
+        return self.write(value, new_text)
+
+    def write_anchored_search(self, value: str, target: str,
+                              expected: str, replacement: str) -> Path:
+        """Write a search edit judged by its block's anchor (M-072).
+
+        The search text must match exactly once and the matched
+        lines' anchor must match *expected*; any other outcome
+        refuses and this journal writes nothing at all.
+        """
+        from .hash_anchored import apply_anchored_search
+
+        path = resolve_file(self.root, value, write=True)
+        if not path.exists():
+            raise ValueError(
+                f"an anchored edit needs an existing file; "
+                f"{value} does not exist — nothing was changed")
+        current = path.read_text(encoding="utf-8")
+        new_text, _applied = apply_anchored_search(
+            current, target, expected, replacement)
+        return self.write(value, new_text)
+
     def replace(self, value: str, target: str, replacement: str) -> Path:
         if not target:
             raise ValueError("target_content must not be empty")

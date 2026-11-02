@@ -1181,6 +1181,132 @@ class Agent:
             record["journaled"] = True
         return record
 
+    def hash_anchor_status(self) -> dict[str, Any]:
+        """The hash-anchored-edits gate, in plain data (M-072).
+
+        The setting exactly as stored (validated — a malformed
+        stored value raises, never vanishes) and the plain
+        explanation. This is the answer ``/hashanchor`` shows.
+        """
+        from ..core import hash_anchored
+
+        return {
+            "enabled": hash_anchored.enabled_from_config(self.config),
+            "explanation": hash_anchored.PLAIN_EXPLANATION,
+        }
+
+    def set_hash_anchored(self, enabled: bool) -> dict[str, Any]:
+        """Turn hash-anchored edits on or off (M-072).
+
+        Validated by :mod:`mythic_agent.core.hash_anchored`
+        before anything mutates; journaled first as a
+        ``hash_anchored_setting_changed`` event when a session
+        is attached; a failed save restores the previous value
+        exactly and journals a compensating
+        ``hash_anchored_setting_reverted``.
+        """
+        import copy
+
+        from ..core import hash_anchored
+
+        new_value, change = hash_anchored.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[hash_anchored.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "hash_anchored_setting_reverted",
+                        "reason": "The hash-anchored change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Hash-anchored change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def _write_hash_anchored(self, path: str, new_text: str,
+                             applied: Any,
+                             current: str | None) -> dict[str, Any]:
+        """Write one judged anchored edit via EditJournal (M-072)."""
+        from ..core.edits import EditJournal
+
+        EditJournal(self.project_root).write(path, new_text)
+        record: dict[str, Any] = {
+            "path": path, "start": applied.start, "end": applied.end,
+            "before": applied.before.hash, "after": applied.after_hash,
+            "units": applied.units, "changed": current != new_text,
+            "journaled": False}
+        if self._session_store and self.session_id:
+            self._checkpoint(applied.event(path))
+            record["journaled"] = True
+        return record
+
+    def apply_hash_anchored_range(self, path: str, start: int,
+                                  end: int, expected: str,
+                                  replacement: str) -> dict[str, Any]:
+        """Apply a range edit under its lines' anchor (M-072).
+
+        Refuses — writing nothing — when the gate is off, and
+        when the range's current anchor differs from
+        *expected* (a moved target, named in the refusal).
+        A successful apply rides the EditJournal road and is
+        recorded as a ``hash_anchored_applied`` session event.
+        """
+        from ..core import hash_anchored
+        from ..core.workspace import resolve_file
+
+        if not hash_anchored.enabled_from_config(self.config):
+            raise ValueError(
+                "hash-anchored edits are off — turn them on with "
+                "/hashanchor on; nothing was changed")
+        target = resolve_file(self.project_root, path, write=True)
+        if not target.exists():
+            raise ValueError(
+                f"an anchored edit needs an existing file; "
+                f"{path} does not exist — nothing was changed")
+        current = target.read_text(encoding="utf-8")
+        new_text, applied = hash_anchored.apply_anchored_range(
+            current, start, end, expected, replacement)
+        return self._write_hash_anchored(path, new_text, applied,
+                                          current)
+
+    def apply_hash_anchored_search(self, path: str, search: str,
+                                   expected: str,
+                                   replacement: str) -> dict[str, Any]:
+        """Apply a search edit under its block's anchor (M-072).
+
+        The search text must match exactly once and its lines'
+        anchor must match *expected*; any other outcome
+        refuses and writes nothing. Success rides EditJournal.
+        """
+        from ..core import hash_anchored
+        from ..core.workspace import resolve_file
+
+        if not hash_anchored.enabled_from_config(self.config):
+            raise ValueError(
+                "hash-anchored edits are off — turn them on with "
+                "/hashanchor on; nothing was changed")
+        target = resolve_file(self.project_root, path, write=True)
+        if not target.exists():
+            raise ValueError(
+                f"an anchored edit needs an existing file; "
+                f"{path} does not exist — nothing was changed")
+        current = target.read_text(encoding="utf-8")
+        new_text, applied = hash_anchored.apply_anchored_search(
+            current, search, expected, replacement)
+        return self._write_hash_anchored(path, new_text, applied,
+                                          current)
+
     def vision_status(self) -> dict[str, Any]:
         """The current model's sight truth and the offer (M-037).
 

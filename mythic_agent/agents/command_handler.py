@@ -203,6 +203,8 @@ class CommandHandler:
                 self._handle_costroute(args)
             elif cmd == "/editformat":
                 self._handle_editformat(args)
+            elif cmd == "/hashanchor":
+                self._handle_hashanchor(args)
             elif cmd == "/kista":
                 self._handle_kista(args)
             elif cmd == "/resume-thought":
@@ -971,6 +973,52 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_choice(record['choice'])}[/bold cyan]\n")
+
+    def _handle_hashanchor(self, args: str):
+        """M-072: /hashanchor — hash-anchored edits, in plain words.
+
+        ``/hashanchor`` shows the gate (on by default), the
+        plain-words explanation, and a small file in anchored
+        form; ``/hashanchor on`` / ``off`` changes the gate
+        (journaled by the agent layer).
+        """
+        from ..core.hash_anchored import (
+            enabled_from_config,
+            format_hash_anchored,
+            format_setting_change,
+            parse_hashanchor_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_hashanchor_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.hash_anchor_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_hash_anchored(primary.config)}[/bold cyan]\n"
+                     "[dim]Turn the gate off with /hashanchor off, "
+                     "or back on with /hashanchor on.[/dim]\n")
+            return
+        try:
+            record = primary.set_hash_anchored(request["enabled"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_setting_change(record)}[/green]\n")
 
     def _handle_costroute(self, args: str):
         """M-031: /costroute — cost-aware routing, in plain words.
