@@ -1711,6 +1711,31 @@ class Agent:
             "plain_explanation": coverage_module.PLAIN_EXPLANATION,
         }
 
+    def local_search(self, query: str, mode: str = "text",
+                     language: Any = None) -> dict[str, Any]:
+        """Beyond-grep local search over this workspace (M-058).
+
+        One search, three modes: text (an in-process
+        ripgrep-class regex search over every text file),
+        fuzzy (subsequence matching with an auditable
+        score), and structural (delegated to M-047's
+        engine, which needs *language*). Results are
+        ranked by the M-046 symbol graph and every match
+        carries its score and reasons; a switched-off
+        road reports disabled, and a refused pattern
+        raises — it is never searched another way.
+        """
+        from ..tools import local_search as search_module
+
+        report = search_module.search(
+            self.project_root, query, mode=mode, language=language,
+            enabled=search_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": search_module.PLAIN_EXPLANATION,
+        }
+
     def lsp_workspace_symbols(self, query: str = "") -> dict[str, Any]:
         """The workspace's symbols, per the language server (M-050)."""
         from ..integrations import lsp as lsp_module

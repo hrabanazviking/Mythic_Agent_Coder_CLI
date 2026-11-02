@@ -615,6 +615,20 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_coverage_overlay(status)
+    if command == "/search":
+        from .tools.local_search import (
+            format_local_search, parse_local_search_args)
+        try:
+            request = parse_local_search_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.local_search(
+                request["query"], mode=request["mode"],
+                language=request["language"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_local_search(status)
     if command == "/lsp":
         from .integrations.lsp import (
             format_lsp_code_actions,

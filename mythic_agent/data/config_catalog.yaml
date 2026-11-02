@@ -333,6 +333,13 @@ settings:
   default: 'True'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Coverage sight (M-057): when true, the coverage road is open — line coverage from coverage.py''s own data (its JSON report, else its .coverage data file) is overlaid on edited files, and a touched file whose measured lines never ran is flagged to the Auditor as a coverage.zero_cover entry in the workspace audit log (.mythic/audit.jsonl); when false, no coverage data is read and no flags are written on that road.'
+- id: S-47
+  name: local_search
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Beyond-grep local search (M-058): when true, the local search road is open — one /search surface with an in-process ripgrep-class text mode (regex over every text file, no external binary), a fuzzy subsequence mode, and a structural mode delegated to the M-047 engine, with results ranked by the M-046 symbol graph and every result carrying its score and reasons; when false, nothing is searched on that road.'
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
