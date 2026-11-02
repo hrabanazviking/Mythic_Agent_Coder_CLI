@@ -257,6 +257,8 @@ class CommandHandler:
                 self._handle_config(args)
             elif cmd == "/assets":
                 self._handle_assets(args)
+            elif cmd == "/langpacks":
+                self._handle_langpacks(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -2182,6 +2184,41 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_asset_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_langpacks(self, args: str):
+        """M-068: /langpacks [show | <language>] — language packs, in the TUI.
+
+        Language packs as data: each language's toolchain
+        (language server, formatters, test runners) is
+        declared in the pack data and reported with a live
+        PATH check of each declared binary — described,
+        never executed.
+        """
+        from ..tools.language_packs import (
+            format_language_pack_report, parse_langpacks_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_langpacks_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.language_packs(
+                request["action"], language=request.get("language"))
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_language_pack_report(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):

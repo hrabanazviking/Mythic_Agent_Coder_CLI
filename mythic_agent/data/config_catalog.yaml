@@ -410,6 +410,13 @@ settings:
   default: 'True'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Binary and asset sight (M-067): when true, the assets road is open — /assets describes the workspace''s images from their headers only (PNG, GIF, JPEG, BMP, WebP, ICO, TIFF dimensions and format facts from a bounded header read, SVG from its declared size or viewBox; nothing is decoded), its archives from their member listings (zip and tar listed through the stdlib readers with the listing capped and named, a plain gzip stream from its header name and trailer size, 7z and RAR described from magic with the listing honestly unavailable; nothing is extracted), and its large files (at or over 1000000 bytes) by size and sniffed kind, a large text file''s lines counted by streaming with the content never retained; every asset carries the role the map notes for it, inferred from its kind and path by named rules (test fixture, documentation asset, data file, backup or snapshot archive, project asset) with the rule recorded as evidence; when false, no project file is read on that road.'
+- id: S-58
+  name: language_packs
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Language packs (M-068): when true, the langpacks road is open — /langpacks show reports every language pack''s declared toolchain (one pack per language in the M-043 tree-sitter catalogue, declared in mythic_agent/data/language_packs.yaml: its language server with its stdio command, its formatters, and its test runners), each declared binary carrying a live installed check from PATH alone (shutil.which on the command''s first word), and /langpacks <language> reports just that pack, an unknown language refused plainly naming the packed languages; the servers are the live LSP catalogue''s servers for every language but Mojo, whose pack honestly declares no server, the Python pack''s formatters are the format covenant''s live candidates and its runner is test intelligence''s pytest, while the other languages'' formatters and runners are declared pack data with no live consumer yet, as each pack''s notes say; nothing is executed on this road — commands are described and PATH-checked, never run; when false, the pack data is not even loaded on that road.'
 
 env_vars:
 - id: V-01
