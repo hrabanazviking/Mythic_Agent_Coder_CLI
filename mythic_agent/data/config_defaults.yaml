@@ -8,6 +8,7 @@ fallback_permission: false
 cost_routing: false
 edit_format: auto
 hash_anchored_edits: true
+apply_repair_loop: true
 edit_truth_loop: true
 formatter_covenant: true
 debugger: true
