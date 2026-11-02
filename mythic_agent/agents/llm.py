@@ -1880,6 +1880,29 @@ class Agent:
             "plain_explanation": deps_module.PLAIN_EXPLANATION,
         }
 
+    def code_sensing(self, mode: str = "show") -> dict[str, Any]:
+        """A structural sensing report — dead code + duplication (M-062).
+
+        Dead code is sensed by the shipped dead-code
+        scanner over this workspace's top-level Python
+        packages; duplication clusters are function bodies
+        whose AST structure matches exactly once names and
+        literal values are normalised away, at or above
+        the slice's size floor. Sensing only — nothing is
+        deleted or edited on this road; a switched-off
+        road reads nothing.
+        """
+        from ..tools import code_sensing as sensing_module
+
+        report = sensing_module.code_sensing(
+            self.project_root, mode,
+            enabled=sensing_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": sensing_module.PLAIN_EXPLANATION,
+        }
+
     def _journal_web_citation(self, report: Any) -> None:
         """Cite one web report's sources into the journal (M-059)."""
         if report.status != "ok":

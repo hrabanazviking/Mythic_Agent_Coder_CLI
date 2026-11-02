@@ -245,6 +245,8 @@ class CommandHandler:
                 self._handle_docs(args)
             elif cmd == "/deps":
                 self._handle_deps(args)
+            elif cmd == "/sensing":
+                self._handle_sensing(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1959,6 +1961,39 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_deps_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_sensing(self, args: str):
+        """M-062: /sensing [show | dead | dup] — code sensing, in the TUI.
+
+        A structural report for the Cartographer: dead
+        code from the shipped scanner over the workspace's
+        packages, and structural duplication clusters.
+        Sensing only — nothing is deleted or edited.
+        """
+        from ..tools.code_sensing import (
+            format_sensing_report, parse_sensing_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_sensing_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.code_sensing(request["action"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_sensing_report(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):

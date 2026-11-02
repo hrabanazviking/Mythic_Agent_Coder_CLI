@@ -368,6 +368,13 @@ settings:
   default: 'True'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Dependency sight (M-061): when true, the deps road is open — /deps shows the declared dependency graph from pyproject.toml (groups, specs, and the honestly measured installed version, unknown when a package is not installed), /deps <package> adds that package''s blast radius (workspace files importing it, counted by an AST import scan), its local changelog mentions, and its local vulnerability-data state, and /deps propose <package> <version> drafts an upgrade proposal as data with its blast radius and pin state; changelogs and vulnerability data are read only from files in the workspace — with no local vulnerability data the status is NOT PROVEN, never a clean bill — a proposal is never applied and no file is changed on this road; when false, no project file is read on that road.'
+- id: S-52
+  name: code_sensing
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Code sensing (M-062): when true, the sensing road is open — /sensing shows a structural report for the Cartographer: dead code sensed by the shipped dead-code scanner over the workspace''s top-level Python packages (with the dead-code quarantine state named where its file exists) and duplication clusters of function bodies whose AST structure is identical once names and literal values are normalised away, at or above a named size floor so trivial shapes never count; sensing only — nothing is deleted or edited on this road, and deletion is always a separate, approved slice; when false, no project file is read on that road.'
 env_vars:
 - id: V-01
   name: MYTHIC_HOME

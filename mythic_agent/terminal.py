@@ -678,6 +678,18 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_deps_report(status)
+    if command == "/sensing":
+        from .tools.code_sensing import (
+            format_sensing_report, parse_sensing_args)
+        try:
+            request = parse_sensing_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.code_sensing(request["action"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_sensing_report(status)
     if command == "/lsp":
         from .integrations.lsp import (
             format_lsp_code_actions,
