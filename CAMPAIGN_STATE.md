@@ -207,7 +207,7 @@ and scoped M-024 below.*
 
 | Slice | Intent | Status |
 |---|---|---|
-| M-071 | Edit-format plurality | **IN PROGRESS** — build under way 2026-11-02 11:0x EST tick (see the M-071 IN PROGRESS note at the end of this file). |
+| M-071 | Edit-format plurality | **DONE** — banked 2026-11-02 (`a4f2a48` + regen `ab64a2d`, PUBLIC_API 2299 → 2335, + dead-code fix `cb11d2f` + fix regen `60d2825`): new pure layer `mythic_agent/core/edit_formats.py` — the four formats as data (whole-file, unified-diff, search-and-replace blocks, Aider-style architect/editor splitting); strict appliers, no fuzz ever (a unified diff applies only on exact context at the stated position, a SEARCH/REPLACE block only on an exactly-one match, a stale target refuses and changes nothing); model strength from M-027 capability truth (reasoning known-true = strong, tool_calling known-true = standard, unlisted = unknown, and unknown strength always gets the safest whole-file); complex work splits — the architect plans per-file intents and never edits, the editor picks a concrete format per file; a pinned setting is honoured exactly except file creation, which is always whole-file with the override named in the reason. Agent roads: `edit_format_status`/`set_edit_format` (journal-first `edit_format_setting_changed`, save-failure revert), `choose_edit_format` (journals `edit_format_chosen` with its reason), `apply_edit_format` (pure apply written through the existing EditJournal road); `/editformat` on terminal and TUI roads sharing one parser and formatters. Setting `edit_format` ships 'auto' in config_defaults + M-009 catalogue S-60. +69 tests in `tests/test_edit_formats.py`. Full suite counted in six monitored chunks (logs hidden_files/m071-chunk0.log, m071-chunk1-rerun.log, m071-chunk2.log..m071-chunk5.log, all read from disk): chunk totals 517+618+841+461+673+578 = **3688 passed, 7 failed, 1 skipped (3696 collected — closes exactly against collect-only, hidden_files/m071-collect.log, and against M-070's 3627 + 69 new tests)**. The 7 failures: the 2 long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 4) + 5 proven load-timeout failures under severe multi-campaign contention (load 8–13), none touching M-071 code: chunk 4's 3 static-gate timeouts are SOLO-PROVEN (hidden_files/m071-solo-gates3.log: **10 passed, 1 failed** — the whole static-gate + ownership set re-run solo, every static-gate test passing; the standalone gate script also prints GATE PASSED, hidden_files/m071-solo-staticgate-standalone.log); chunk 3's ownership `test_doc_is_fresh` timeout is proven a timeout, not staleness — the standalone generator's output is identical to the committed docs/OWNERSHIP.md except the timestamp lines (diff-verified this closure tick), and the test remains the solo set's sole failure purely on its 120 s subprocess budget; chunk 1-rerun's coverage ratchet died at exactly 121.37 s on the pytest-timeout under load 12.87 (hidden_files/m071-solo-ratchet.log) — NOT pytest-proven this tick, honestly recorded per the M-016 precedent: it measures only `mythic_agent/providers` coverage (no M-071 code), passed in earlier slices' suites, and M-072's full suite re-tests it — a failure there in a calmer window reopens it as a suspected defect, not a flake. REAL IN-SLICE DEFECT, fixed in-slice per the never-leave-a-bug law: chunk 1's first run failed the dead-code gate on two genuinely-unused roads — fixed `cb11d2f` (wiring both roads), targeted proof hidden_files/m071-fix-targeted.log: **128 passed**; chunk 1 was then re-run clean but for the ratchet timeout above. Roadmap data flipped to 71 done in this closure. **71 / 272 slices banked (M-001..M-071).** Next slice: M-072 (Hash-anchored edits). |
 
 
 *M-032 scoping note (2026-10-31 18:00 EDT tick): M-032 (Key
@@ -2962,3 +2962,47 @@ road. Setting edit_format ships as 'auto' in
 config_defaults + the M-009 catalogue (S-60); surfaces
 /editformat on terminal + TUI roads sharing one parser
 and formatter. M-072 is NOT built here.*
+
+*M-071 IN PROGRESS → DONE (2026-11-02 14:0x EST tick;
+CLOSED by the keeper tick that finished its closure —
+DONE, see its ledger row above): the slice chain
+(`a4f2a48` + regen `ab64a2d` + dead-code fix `cb11d2f` +
+fix regen `60d2825`) was found banked but UNPUSHED at
+this tick (remote still at the IN PROGRESS commit
+`9dd70fd`) with the roadmap flip to 71 done sitting
+uncommitted in the working tree and the closure targeted
+run (hidden_files/m071-closure-targeted.log) showing
+exactly the expected pre-closure ledger mismatch
+(137 passed, 1 failed — M-071 'done' in the data vs
+IN PROGRESS in this file). This tick classified the
+suite's 5 non-environment failures (all 120 s
+pytest-timeouts under load 8–13; static gate solo-proven
+in m071-solo-gates3.log, ownership freshness proven by
+standalone-regen diff, coverage ratchet disclosed
+NOT-proven per the M-016 precedent in the ledger row),
+wrote this closure, and pushes the whole chain at
+closure (fetch + ls-remote verify). Campaign total:
+71/272.*
+
+*M-072 scoping note (2026-11-02, M-071's closure tick):
+M-072 (Hash-anchored edits) is the next slice. The
+roadmap's words: edits anchored to content hashes of
+the lines they touch (the frontier trick that cuts
+failed applies and token cost); a moved target refuses
+cleanly instead of mangling. Counted neighbours in the
+tree: M-071's strict appliers in
+`mythic_agent/core/edit_formats.py` (the refusal law
+already lives there — a stale target refuses and
+changes nothing), the EditJournal road every application
+rides, and M-069's intelligence cache, which already
+keys parse/graph results by a file's SHA-256 content
+hash — the anchoring must build on those, not duplicate
+them. The building tick settles the exact shape (anchor
+granularity — per-line vs per-hunk hashes, how the
+anchor is presented to the coder, and how a refusal
+reports the moved target) from the tree before
+designing further. First duty of the M-072 tick, per
+the M-071 closure: re-check the coverage ratchet and
+the ownership freshness test in its full-suite chunks —
+a failure there in a calmer window reopens them as
+suspected defects. M-073 is NOT built here.*
