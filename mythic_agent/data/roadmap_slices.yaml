@@ -449,7 +449,7 @@ slices:
   title: Config and infra files
   summary: YAML/TOML/Dockerfile/systemd units parsed structurally, with the no-Docker law enforced as
     a *warning the coder itself raises* on Volmarr's projects.
-  status: queued
+  status: done
 - id: M-067
   part: 3
   title: Binary and asset awareness
