@@ -153,7 +153,27 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             # applier + the EditJournal, with the apply recorded
             # on the session); without an agent, the journal
             # road alone is the same write.
-            if agent is not None and hasattr(agent, "apply_edit_format"):
+            anchor = arguments.get("anchor")
+            if anchor:
+                # M-072: an anchored whole-file write — the file
+                # must still hold the anchor of its full text the
+                # coder saw, or the write refuses cleanly and
+                # changes nothing (a moved target, named).
+                if not existed:
+                    return (f"Failed to write file: an anchored "
+                            f"write needs an existing file; "
+                            f"{arguments['path']} does not exist")
+                line_count = len(old_content.splitlines()) or 1
+                if agent is not None and hasattr(
+                        agent, "apply_hash_anchored_range"):
+                    agent.apply_hash_anchored_range(
+                        arguments["path"], 1, line_count, anchor,
+                        new_content)
+                else:
+                    EditJournal(root_path).write_anchored_range(
+                        arguments["path"], 1, line_count, anchor,
+                        new_content)
+            elif agent is not None and hasattr(agent, "apply_edit_format"):
                 agent.apply_edit_format(
                     arguments["path"], "whole-file", new_content)
             else:
@@ -233,7 +253,21 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             diff = list(difflib.ndiff(content.splitlines(), new_content.splitlines()))
             added = sum(line.startswith("+ ") for line in diff)
             removed = sum(line.startswith("- ") for line in diff)
-            EditJournal(root_path).replace(arguments["path"], target, replacement)
+            anchor = arguments.get("anchor")
+            if anchor:
+                # M-072: an anchored replace — the matched block
+                # must still hold its anchor, or the replace
+                # refuses cleanly and changes nothing.
+                if agent is not None and hasattr(
+                        agent, "apply_hash_anchored_search"):
+                    agent.apply_hash_anchored_search(
+                        arguments["path"], target, anchor, replacement)
+                else:
+                    EditJournal(root_path).write_anchored_search(
+                        arguments["path"], target, anchor, replacement)
+            else:
+                EditJournal(root_path).replace(
+                    arguments["path"], target, replacement)
             result = f"Successfully replaced content in {path} (+{added} lines, -{removed} lines)"
             # M-052: the edit-time truth loop, as on write_file.
             from ..tools.edit_truth import enabled_from_config, truth_note_for_edit
