@@ -208,6 +208,7 @@ and scoped M-024 below.*
 | Slice | Intent | Status |
 |---|---|---|
 | M-071 | Edit-format plurality | **DONE** — banked 2026-11-02 (`a4f2a48` + regen `ab64a2d`, PUBLIC_API 2299 → 2335, + dead-code fix `cb11d2f` + fix regen `60d2825`): new pure layer `mythic_agent/core/edit_formats.py` — the four formats as data (whole-file, unified-diff, search-and-replace blocks, Aider-style architect/editor splitting); strict appliers, no fuzz ever (a unified diff applies only on exact context at the stated position, a SEARCH/REPLACE block only on an exactly-one match, a stale target refuses and changes nothing); model strength from M-027 capability truth (reasoning known-true = strong, tool_calling known-true = standard, unlisted = unknown, and unknown strength always gets the safest whole-file); complex work splits — the architect plans per-file intents and never edits, the editor picks a concrete format per file; a pinned setting is honoured exactly except file creation, which is always whole-file with the override named in the reason. Agent roads: `edit_format_status`/`set_edit_format` (journal-first `edit_format_setting_changed`, save-failure revert), `choose_edit_format` (journals `edit_format_chosen` with its reason), `apply_edit_format` (pure apply written through the existing EditJournal road); `/editformat` on terminal and TUI roads sharing one parser and formatters. Setting `edit_format` ships 'auto' in config_defaults + M-009 catalogue S-60. +69 tests in `tests/test_edit_formats.py`. Full suite counted in six monitored chunks (logs hidden_files/m071-chunk0.log, m071-chunk1-rerun.log, m071-chunk2.log..m071-chunk5.log, all read from disk): chunk totals 517+618+841+461+673+578 = **3688 passed, 7 failed, 1 skipped (3696 collected — closes exactly against collect-only, hidden_files/m071-collect.log, and against M-070's 3627 + 69 new tests)**. The 7 failures: the 2 long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 4) + 5 proven load-timeout failures under severe multi-campaign contention (load 8–13), none touching M-071 code: chunk 4's 3 static-gate timeouts are proven timeouts, not gate findings — the gate's own standalone script prints GATE PASSED (351 files, 0 hard findings, hidden_files/m071-solo-staticgate-standalone.log, read from disk); their pytest form was NOT solo-proven this tick (see the CORRECTION note below); chunk 3's ownership `test_doc_is_fresh` timeout is proven a timeout, not staleness — the standalone generator's output is identical to the committed docs/OWNERSHIP.md except the timestamp lines (diff-verified this closure tick), and the test remains the solo set's sole failure purely on its 120 s subprocess budget; chunk 1-rerun's coverage ratchet died at exactly 121.37 s on the pytest-timeout under load 12.87 (hidden_files/m071-solo-ratchet.log) — NOT pytest-proven this tick, honestly recorded per the M-016 precedent: it measures only `mythic_agent/providers` coverage (no M-071 code), passed in earlier slices' suites, and M-072's full suite re-tests it — a failure there in a calmer window reopens it as a suspected defect, not a flake. REAL IN-SLICE DEFECT, fixed in-slice per the never-leave-a-bug law: chunk 1's first run failed the dead-code gate on two genuinely-unused roads — fixed `cb11d2f` (wiring both roads), targeted proof hidden_files/m071-fix-targeted.log: **128 passed**; chunk 1 was then re-run clean but for the ratchet timeout above. Roadmap data flipped to 71 done in this closure. **71 / 272 slices banked (M-001..M-071).** Next slice: M-072 (Hash-anchored edits). |
+| M-072 | Hash-anchored edits | **DONE** — banked 2026-11-02 (`f178e2d` + regen `6da194f`, PUBLIC_API 2335 → 2365, + wiring fix `77262cd` + fix regen `8f12f71`): new pure layer `mythic_agent/core/hash_anchored.py` — per-line and per-range SHA-256 anchors over the exact lines (the M-069 hash road per-line); annotated presentation `number:short-hash` so the coder names a target by its anchor instead of re-sending text; anchored range edits and anchored search edits (search must match exactly once AND its anchor must match; verification accepts full or 12-digit short anchors, malformed anchors refuse instead of guessing; refusal names expected vs current anchors and writes nothing). `EditJournal.write_anchored_range`/`write_anchored_search` judge through the pure layer and write through the journal road. Agent: `hash_anchor_status`/`set_hash_anchored` (journal-first, save-failure revert), `apply_hash_anchored_range`/`apply_hash_anchored_search` (gate-checked, EditJournal-written, `hash_anchored_applied` session events). `/hashanchor` on terminal + TUI roads sharing one parser and formatters. Setting `hash_anchored_edits` ships ON in config_defaults + M-009 catalogue S-61. +45 tests in `tests/test_hash_anchored.py`. REAL IN-SLICE DEFECTS, fixed in-slice: (1) the dead-code gate caught the anchored roads unwired from the agent tool road — `77262cd` wires them (`write_file` gains an optional `anchor:` riding the anchored range road over the file's full-text anchor; `replace_file_content` gains an optional `anchor:` riding the anchored search road; unanchored calls keep the exact old roads) + 5 tool-road tests (50 slice tests total); (2) a pure-layer repair the wiring exposed — a range replacement ending in a newline gained a spurious empty line; the replacement is now split with the same line/ending law as the file. Full suite counted in six monitored chunks (logs hidden_files/m072-chunk0.log, m072-chunk1.log, hidden_files/m072-chunk2-rerun.log, m072-chunk3.log, m072-chunk4.log, m072-chunk5.log — run with tmpfs logs because home quota was exhausted mid-suite, copied into hidden_files at this closure): chunk totals 480+643+610+608+730+659 = **3730 passed, 15 failed, 1 skipped (3746 collected — closes exactly against collect-only and M-071's 3696 + 50 new tests)**. All 15 failures are environment, none touching M-072 code: the 2 long-classified cases (PortAudio public-api; tiktoken-premise estimator) + 9 quota-proven Errno 122 failures (ownership probe write; coverage ratchet's data file uncreatable in the quota-full tree; 6 write-tool tests on ~/.mythic/edits journal writes; session_search on ~/.mythic/sessions) + 4 load timeouts (ownership freshness + 3 static-gate, 120s budgets under load 8–15). The M-071 retest duty (ratchet / static gate / ownership) was discharged: all three failed again but each with a proven environmental mechanism in a window that was NOT calmer (quota full, load 8–15), so none reopens as a suspected defect; the retest duty carries to M-073 on the same terms. Roadmap data flipped to 72 done in this closure. **72 / 272 slices banked (M-001..M-072).** Next slice: M-073 (Apply-failure repair loop). |
 
 
 *M-032 scoping note (2026-10-31 18:00 EDT tick): M-032 (Key
@@ -3060,3 +3061,51 @@ applies through the Agent refuse and say so. Surfaces:
 formatters; Agent methods journal anchored applies as
 `hash_anchored_applied` and refusals are never written
 through EditJournal. M-073 is NOT built here.*
+
+*M-072 IN PROGRESS → DONE (2026-11-02 15:2x–16:0x EST ticks; CLOSED
+from on-disk evidence by the keeper tick that finished its suite):
+the slice chain (`2e4d9f1` IN PROGRESS state, `f178e2d` slice,
+`6da194f` regen, `77262cd` wiring fix, `8f12f71` fix regen) was found
+banked and pushed (remote verified at 8f12f71) with its closure suite
+half-run — chunks 0–1 counted by the prior tick, chunk 2 dead at 53
+bytes. This tick re-ran chunks 2–5 (logs on tmpfs: home quota was
+exhausted the whole window — every home write Errno 122, drive 39G
+free, quota not disk), counted the suite closed at 3730/15/1 of 3746,
+classified all 15 failures as environment with in-log proof, and prepared
+the full closure record (hidden_files/m072-closure-record.md)
+while the quota blocked CAMPAIGN_STATE.md, the roadmap data, and
+git commits alike; when a home-write probe succeeded later in the
+same tick, the closure was landed verbatim from that record.
+Campaign total: 72/272.*
+
+*ADDENDUM (same closure tick): the closure targeted set
+(hidden_files/m072-closure-targeted.log) ran **119 passed, 1 failed**
+— the failure is ownership `test_doc_is_fresh` on its 120 s budget
+again. Freshness is nonetheless PROVEN standalone this tick: the
+generator itself (scripts/gen_ownership.py) took 5m00 s wall under
+load (15 s user time — starved, not slow) and its output is
+diff-identical to the committed docs/OWNERSHIP.md except the
+Generated-at timestamp line (hidden_files/m072-ownership-standalone.log
++ m072-ownership-regen-copy.md). No regen was needed; the pytest
+failure is its subprocess budget, not staleness.*
+
+*M-073 scoping note (2026-11-02, M-072's closure tick): M-073
+(Apply-failure repair loop) is the next slice. The roadmap's words:
+a failed apply returns the true current text to the coder for one
+honest retry — bounded, visible, never a silent fuzz. Counted
+neighbours in the tree: M-071's strict appliers already refuse a
+stale target and change nothing; M-072's anchored appliers already
+refuse naming expected vs current anchors — what neither does yet
+is hand the coder the true current text of the refused target and
+let exactly one bounded retry ride on it, with the loop visible
+(journaled/surfaced), never a silent re-apply and never a fuzz.
+The building tick settles the exact shape (which refusal roads feed
+the loop, what "true current text" is bounded to, the one-retry
+budget, and the surface) from the tree before designing further.
+FIRST DUTIES of the M-073 tick, carried from M-072's closure:
+(1) the M-072 closure record (hidden_files/m072-closure-record.md)
+is landed together with this closure — no separate landing is owed;
+(2) re-check the coverage ratchet, the
+static gate, and the ownership freshness test in this tick's suite
+chunks — a failure in a CALMER window (load low, quota writable)
+reopens them as suspected defects. M-074 is NOT built here.*
