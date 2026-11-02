@@ -2638,3 +2638,35 @@ validated data file naming each language's toolchain
 with the live consumers cross-checked against it, in
 the M-019 registry pattern) from the tree before
 designing further. M-069 is NOT built here.*
+
+*M-068 IN PROGRESS (2026-11-02 08:1x EST tick): build under
+way by the keeper tick itself on the settled scoping above
+— house pattern (data + validated loader + tools surface +
+setting + catalogue entry + Agent method + terminal/TUI
+roads). Shape settled from the tree: a new data file
+`mythic_agent/data/language_packs.yaml` + validated loader
+`mythic_agent/core/language_packs.py` + surface module
+`mythic_agent/tools/language_packs.py`; one pack per
+language in the M-043 tree-sitter catalogue (python,
+javascript, typescript, rust, go, mojo — extensions
+cross-checked exactly against that catalogue), each pack
+declaring its toolchain in data: the language server
+(name + command, cross-checked exactly against the live
+`integrations/lsp.py` SERVERS catalogue — mojo honestly
+null, no server catalogued there), its formatters (the
+python pack's names cross-checked against the format
+covenant's live candidate list; other languages' standard
+formatters declared as pack data, honestly not claimed as
+live-wired consumers), and its test runners (python's
+pytest cross-checked against the live test-intelligence
+pytest detection; other runners declared as data). The
+extension rule is the roadmap's own: a new language is a
+pack, not a patch — the validator refuses a pack whose
+language is absent from the M-043 catalogue. Setting
+`language_packs` ON by default in config_defaults +
+M-009 catalogue S-58; Agent.language_packs() +
+`/langpacks [show|<language>]` on the terminal + TUI
+roads sharing one parser + formatter. Gap audit checked
+at scoping: census gaps are traced in the audit data;
+the building tick records any flip honestly in tests.
+M-069 is NOT built here.*
