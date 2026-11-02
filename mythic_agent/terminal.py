@@ -600,6 +600,21 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_test_intel_selection(status)
+    if command == "/coverage":
+        from .tools.coverage_sight import (
+            format_coverage_board, format_coverage_overlay,
+            parse_coverage_args)
+        try:
+            request = parse_coverage_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            return True, False, format_coverage_board(agent.coverage_status())
+        try:
+            status = agent.coverage_check(request["changed"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_coverage_overlay(status)
     if command == "/lsp":
         from .integrations.lsp import (
             format_lsp_code_actions,

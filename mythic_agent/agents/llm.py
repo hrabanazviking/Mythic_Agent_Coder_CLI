@@ -1677,6 +1677,40 @@ class Agent:
             "plain_explanation": intel_module.PLAIN_EXPLANATION,
         }
 
+    def coverage_status(self) -> dict[str, Any]:
+        """The coverage board for this project (M-057).
+
+        Whether coverage.py data exists for this session's
+        workspace and what it totals — a switched-off road
+        reports disabled, never an estimated percentage.
+        """
+        from ..tools import coverage_sight as coverage_module
+
+        return coverage_module.board_report(
+            self.project_root,
+            enabled=coverage_module.enabled_from_config(
+                getattr(self, "config", None)))
+
+    def coverage_check(self, changed_files: Any) -> dict[str, Any]:
+        """Lay coverage over the files a change touched (M-057).
+
+        The overlay is coverage.py's own measured lines;
+        a touched file whose measured lines never ran is
+        flagged to the Auditor in the audit log as part of
+        the check, and the report says how many flags were
+        written.
+        """
+        from ..tools import coverage_sight as coverage_module
+
+        report = coverage_module.coverage_check(
+            list(changed_files or []), root=self.project_root,
+            enabled=coverage_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": coverage_module.PLAIN_EXPLANATION,
+        }
+
     def lsp_workspace_symbols(self, query: str = "") -> dict[str, Any]:
         """The workspace's symbols, per the language server (M-050)."""
         from ..integrations import lsp as lsp_module
