@@ -2485,3 +2485,39 @@ Docker warning is raised and where it is scoped —
 Volmarr's projects, per the roadmap's words) from the
 tree before designing further. M-067 is NOT built
 here.*
+
+*M-066 IN PROGRESS (2026-11-02 06:3x EST tick): build under
+way by the keeper tick itself on the settled scoping above
+— house sight-module pattern (module + setting + catalogue
+entry + Agent method + terminal/TUI roads). Shape settled
+from the tree: a new module
+`mythic_agent/tools/config_sight.py`; YAML parsed with
+PyYAML (a core dependency, already the house config
+parser), TOML with stdlib tomllib, systemd units and INI
+files with a tolerant section/directive parser that keeps
+repeated directives (systemd allows them; configparser
+would merge them), Dockerfiles with a line parser
+(continuations joined, instructions/stages/base images/
+ports/env/volumes counted), compose files parsed as YAML
+and classified as Docker artifacts. Structural accounts
+only — top-level keys with kinds/sizes, total keys, max
+depth for mapping formats; sections + directives for
+units; stages/instructions for Dockerfiles — file
+contents are never dumped whole and nothing is ever
+executed, applied or rendered. The no-Docker law: Docker
+artifacts (Dockerfile*, *.dockerfile, docker-compose /
+compose YAML) found in a workspace detected as Volmarr's
+project raise the coder's own warning. Detection is
+honest and named: marker files at the workspace root
+(AGENTS.md, SOUL.md, MEMORY.md, RULES.AI.md, or any root
+file whose name carries 'Volmarr'), with an explicit
+override parameter; Docker artifacts in a workspace with
+no marker are listed, and the report says plainly the
+law-warning was not raised because no marker was found.
+Setting `config_sight` ON by default in config_defaults
++ M-009 catalogue S-56; Agent.config_sight() +
+`/config [show|<file>|docker]` on the terminal + TUI
+roads sharing one parser + formatter. Gap audit checked
+at scoping: no census-gap row is owned by M-066, so no
+module_kind flip exists to make. M-067 is NOT built
+here.*
