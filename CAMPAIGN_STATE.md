@@ -1928,3 +1928,28 @@ formatter. An invalid regex is refused as a pattern
 error, never silently literal-searched; a structural
 pattern error keeps M-047's refusal. M-059 is NOT
 built here.*
+
+*M-059 IN PROGRESS (2026-11-01 23:10 EST tick): build under
+way. Shape settled from the tree: a new module
+`mythic_agent/tools/web_search.py` (the gap audit's named
+owning module) on the house pattern — module + settings +
+catalogue entries + Agent methods + terminal/TUI roads.
+Search backend: a CONFIGURED endpoint template
+(`web_search_endpoint`, default the keyless DuckDuckGo
+HTML road `https://html.duckduckgo.com/html/?q={query}`) —
+no API key is required or invented; a template without
+`{query}` is refused. Fetch: http/https only, other
+schemes refused, byte/char caps named when they cut.
+Transport is the repo's httpx2/httpx fallback road
+(openai_compat pattern), injectable so tests prove the
+whole slice over a loopback server with no real network.
+Honesty (M-015's road): every call is user-initiated;
+the report names exactly what leaves the machine (the
+query text / the fetched URL, and to which host); a
+non-200 or a transport failure is an error REPORT with
+the reason named, never invented results. Results are
+numbered citations, and the Agent journals a
+`web_citation` checkpoint event (M-028 pattern) when a
+session is attached. Settings `web_tools` (on by
+default) + `web_search_endpoint` in config_defaults +
+M-009 catalogue S-48/S-49. M-060 is NOT built here.*
