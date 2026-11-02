@@ -438,7 +438,7 @@ slices:
   title: Mojo as a first-class language
   summary: parsing via tree-sitter grammar where available, the house Mojo skills wired as knowledge —
     Mythic is the only CLI that truly speaks Mojo (Aesir's home tongue).
-  status: queued
+  status: done
 - id: M-065
   part: 3
   title: SQL and data sight
