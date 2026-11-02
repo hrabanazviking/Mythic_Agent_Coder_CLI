@@ -432,7 +432,7 @@ slices:
   part: 3
   title: Type-aware Python depth
   summary: mypy/pyright findings triaged into the review; the coder fixes types it broke in the same turn.
-  status: queued
+  status: done
 - id: M-064
   part: 3
   title: Mojo as a first-class language
