@@ -1064,12 +1064,12 @@ class TarotDeck:
     def shuffle(self):
         random.shuffle(self.cards)
 
-    def draw(self, n=1):
+    def draw(self, n=1, reversal_pct=35):
         drawn = []
         for _ in range(n):
             if self.cards:
                 card = self.cards.pop()
-                card.is_reversed = random.random() < 0.35  # ~35% chance of reversal
+                card.is_reversed = random.random() < reversal_pct / 100
                 drawn.append(card)
         return drawn
 
@@ -1256,7 +1256,55 @@ def render_card_mini(card):
         line3 = f"[muted]{card.attribution}[/muted]"
     else:
         line3 = ""
-(spread_name, cards_with_positions, question, api_key, model="openai/gpt-4o"):
+    return "\n".join(filter(None, [line1, line2, line3]))
+
+
+def render_celtic_cross_layout(cards_with_positions):
+    """Render the Celtic Cross as a text layout: cross + staff.
+
+    Positions (1-based, per SPREADS['celtic_cross']): the Crown (3)
+    above, the Foundation (4) below, the Past (5) to the left, the
+    Future (6) to the right, the Present (1) crossed by the Crossing
+    Card (2) at the centre; the staff rises beside the cross with the
+    Querent's Self (7) at its base and the Outcome (10) at its top.
+    """
+    by_num = {i + 1: cwp for i, cwp in enumerate(cards_with_positions)}
+
+    def cell(num):
+        cwp = by_num[num]
+        card = cwp["card"]
+        rev = " ↯" if card.is_reversed else ""
+        return f"{card.name}{rev}"
+
+    def label(num):
+        return by_num[num]["position_name"]
+
+    lines = [
+        f"                    {label(3)}: {cell(3)}",
+        "",
+        f"{label(5)}: {cell(5)}",
+        f"    crosses -> {label(1)}: {cell(1)}  ×  {label(2)}: {cell(2)}",
+        f"{label(6)}: {cell(6)}",
+        "",
+        f"                    {label(4)}: {cell(4)}",
+        "",
+        "  The Staff:",
+        f"    {label(10)}: {cell(10)}",
+        f"    {label(9)}: {cell(9)}",
+        f"    {label(8)}: {cell(8)}",
+        f"    {label(7)}: {cell(7)}",
+    ]
+    return "\n".join(lines)
+
+
+
+
+
+
+
+# ═══════════════════════════════════════════════════════════════
+
+def ai_reading(spread_name, cards_with_positions, question, api_key, model="openai/gpt-4o"):
     """Request an AI-enhanced reading from OpenRouter."""
     if not HAS_REQUESTS:
         return None, "The 'requests' library is required. Install with: pip install requests"
@@ -1447,7 +1495,7 @@ def do_reading(spread_key, config):
     # Draw cards
     deck = TarotDeck()
     deck.shuffle()
-    drawn = deck.draw(spread["count"])
+    drawn = deck.draw(spread["count"], config.get("reversal_pct", 35))
 
     # Apply dignities
     dignified = apply_dignities(drawn)

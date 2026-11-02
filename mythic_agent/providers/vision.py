@@ -33,6 +33,13 @@ Downgrade policy (``on_unsupported``):
 * ``"strip"``: image parts are dropped, text survives; the count is
   reported in :attr:`VisionPayload.dropped` so callers can log it.
 
+Per-model routing (M-037): on the ``"raise"`` road, a provider
+that names a model is first gated by
+:func:`mythic_agent.core.vision_routing.gate_for_model` — the
+model's capability record must say it can see, or the images
+are refused with a :class:`ProviderError` naming the model and
+its record, before any family shaping happens.
+
 No network is touched; all work is on in-memory shapes.
 """
 
@@ -191,6 +198,25 @@ def normalize(
     if not isinstance(parts, list):
         raise ProviderError(
             f"parts must be a list, got {type(parts).__name__}")
+
+    # M-037: the per-model routing gate. Family negotiation
+    # shapes the parts; it does not decide whether this *model*
+    # may receive them. When the provider names a model and the
+    # request carries images, the model's M-027 capability
+    # record governs on the raise road: only a model known to
+    # see receives image parts. The explicit "strip" downgrade
+    # remains the caller's counted choice and is not gated.
+    if on_unsupported == "raise" and has_images(parts):
+        model = getattr(provider, "model", "")
+        if isinstance(model, str) and model.strip():
+            from ..core.vision_routing import gate_for_model
+
+            decision = gate_for_model(model, len([
+                p for p in parts
+                if isinstance(p, dict)
+                and p.get("type") in ("image_url", "image_bytes")]))
+            if not decision.allowed:
+                raise ProviderError(decision.reason)
 
     if not provider.capabilities().get("vision", False):
         if on_unsupported == "raise":

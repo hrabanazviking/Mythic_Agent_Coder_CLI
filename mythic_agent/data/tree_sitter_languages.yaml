@@ -1,0 +1,157 @@
+schema: mythic.tree_sitter_languages/1
+catalog_slice: M-043
+core_package: tree-sitter
+core_import_name: tree_sitter
+core_licence: MIT
+core_upstream: 'https://github.com/tree-sitter/py-tree-sitter'
+source_note: 'Tree-sitter language catalogue (All-Features roadmap slice M-043): grammar-backed parsing
+  for the major languages, Python first, then JavaScript/TypeScript, Rust, Go, and Mojo-aware, with
+  every grammar''s licence noticed here in data. The five grammar-backed languages ride the optional
+  code-intelligence extra in pyproject.toml (tree-sitter core plus one grammar package per language);
+  nothing here is a core dependency, and a machine without the extra still parses Python through the
+  stdlib ast fallback the foundation names honestly on every parse. Grammar versions and licences were
+  counted from the packages'' own wheel metadata on 2026-11-01 (tree-sitter 0.26.0, tree-sitter-python
+  0.25.0, tree-sitter-javascript 0.25.0, tree-sitter-typescript 0.23.2, tree-sitter-rust 0.24.2,
+  tree-sitter-go 0.25.0 — every one MIT), and each grammar was proven parsing in this environment
+  before this catalogue shipped. Mojo is recorded Mojo-aware and honestly grammar-less: no tree-sitter
+  grammar package for Mojo is published on PyPI (tree-sitter-mojo does not exist there, checked
+  2026-11-01), so no grammar is invented for it; its first-class road is M-064.'
+extension_rule: 'A new language is a catalogue entry plus its grammar package in the code-intelligence
+  extra — never a parser patched into code. An entry may claim grammar status only when its grammar
+  package is declared in that extra, carries its licence notice here, and names the definition node
+  types its grammar really produces.'
+languages:
+- id: L-01
+  language: python
+  title: Python
+  extensions:
+  - .py
+  - .pyi
+  status: grammar-declared
+  grammar_package: tree-sitter-python
+  grammar_module: tree_sitter_python
+  grammar_factory: language
+  grammar_version_seen: 0.25.0
+  licence: MIT
+  upstream: 'https://github.com/tree-sitter/tree-sitter-python'
+  licence_notice: 'MIT License — grammar package tree-sitter-python, upstream
+    https://github.com/tree-sitter/tree-sitter-python (licence counted from the wheel''s own
+    METADATA/LICENSE on 2026-11-01).'
+  definition_nodes:
+    class_definition: class
+    function_definition: function
+  notes: 'Python first, per the roadmap. When the code-intelligence extra is absent, Python alone
+    keeps parsing through the foundation''s stdlib ast fallback — a parse on that road is labelled
+    backend python_ast, never tree_sitter.'
+- id: L-02
+  language: javascript
+  title: JavaScript
+  extensions:
+  - .js
+  - .mjs
+  - .cjs
+  - .jsx
+  status: grammar-declared
+  grammar_package: tree-sitter-javascript
+  grammar_module: tree_sitter_javascript
+  grammar_factory: language
+  grammar_version_seen: 0.25.0
+  licence: MIT
+  upstream: 'https://github.com/tree-sitter/tree-sitter-javascript'
+  licence_notice: 'MIT License — grammar package tree-sitter-javascript, upstream
+    https://github.com/tree-sitter/tree-sitter-javascript (licence counted from the wheel''s own
+    METADATA/LICENSE on 2026-11-01).'
+  definition_nodes:
+    class_declaration: class
+    function_declaration: function
+    method_definition: function
+  notes: 'JavaScript through its own grammar; .jsx files ride the same grammar, whose JSX nodes the
+    tree carries without special-casing here.'
+- id: L-03
+  language: typescript
+  title: TypeScript
+  extensions:
+  - .ts
+  - .tsx
+  status: grammar-declared
+  grammar_package: tree-sitter-typescript
+  grammar_module: tree_sitter_typescript
+  grammar_factory: language_typescript
+  grammar_version_seen: 0.23.2
+  licence: MIT
+  upstream: 'https://github.com/tree-sitter/tree-sitter-typescript'
+  licence_notice: 'MIT License — grammar package tree-sitter-typescript, upstream
+    https://github.com/tree-sitter/tree-sitter-typescript (licence counted from the wheel''s own
+    METADATA/LICENSE on 2026-11-01).'
+  definition_nodes:
+    class_declaration: class
+    function_declaration: function
+    interface_declaration: interface
+    method_definition: function
+    type_alias_declaration: type
+  notes: 'TypeScript through the package''s language_typescript factory (its language_tsx twin
+    exists upstream; .tsx files parse through the typescript grammar here, proven in the slice
+    tests only for .ts sources — the .tsx claim is the extension mapping, not a separate grammar).'
+- id: L-04
+  language: rust
+  title: Rust
+  extensions:
+  - .rs
+  status: grammar-declared
+  grammar_package: tree-sitter-rust
+  grammar_module: tree_sitter_rust
+  grammar_factory: language
+  grammar_version_seen: 0.24.2
+  licence: MIT
+  upstream: 'https://github.com/tree-sitter/tree-sitter-rust'
+  licence_notice: 'MIT License — grammar package tree-sitter-rust, upstream
+    https://github.com/tree-sitter/tree-sitter-rust (licence counted from the wheel''s own
+    METADATA/LICENSE on 2026-11-01).'
+  definition_nodes:
+    enum_item: enum
+    function_item: function
+    impl_item: impl
+    struct_item: struct
+    trait_item: trait
+  notes: 'Rust through its own grammar; definition kinds keep Rust''s own words (struct, enum,
+    trait, impl) instead of flattening them into class.'
+- id: L-05
+  language: go
+  title: Go
+  extensions:
+  - .go
+  status: grammar-declared
+  grammar_package: tree-sitter-go
+  grammar_module: tree_sitter_go
+  grammar_factory: language
+  grammar_version_seen: 0.25.0
+  licence: MIT
+  upstream: 'https://github.com/tree-sitter/tree-sitter-go'
+  licence_notice: 'MIT License — grammar package tree-sitter-go, upstream
+    https://github.com/tree-sitter/tree-sitter-go (licence counted from the wheel''s own
+    METADATA/LICENSE on 2026-11-01).'
+  definition_nodes:
+    function_declaration: function
+    method_declaration: function
+    type_spec: type
+  notes: 'Go through its own grammar; named types arrive as type_spec nodes inside type
+    declarations, and the extractor reads them there.'
+- id: L-06
+  language: mojo
+  title: Mojo
+  extensions:
+  - .mojo
+  status: no-grammar-package
+  grammar_package: null
+  grammar_module: null
+  grammar_factory: null
+  grammar_version_seen: null
+  licence: null
+  upstream: null
+  licence_notice: null
+  definition_nodes: {}
+  notes: 'Mojo-aware, honestly grammar-less: the catalogue knows Mojo''s extension and Part III
+    knows Mojo is coming (M-064 is its first-class road), but no tree-sitter grammar package for
+    Mojo is published on PyPI (tree-sitter-mojo does not exist there, checked 2026-11-01), so this
+    entry declares no grammar and the foundation refuses to parse Mojo rather than inventing a
+    parse. The entry flips to grammar-declared only when a real grammar package exists.'

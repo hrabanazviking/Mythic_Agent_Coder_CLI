@@ -1,0 +1,141 @@
+schema: mythic.telemetry_review/1
+slice: M-015
+recorded: '2026-10-31'
+scope_note: 'The telemetry honesty review: what Mythic Agent Coder records today, where every recording stays, every channel through which information can leave the machine at all, and the telemetry systems it does not have. Every recording inventoried here stays on the user''s machine (a workspace .mythic file, a MYTHIC_HOME / ~/.mythic file, or memory alone); sending work to a provider the user chose is the work itself, not telemetry, but it is listed as an outbound channel with exactly what it sends — including OpenRouter''s app-identification headers. There is no analytics SDK, no crash upload, no update check, no background beacon, and no advertising or tracker identifier anywhere in the package: a scan of the package source for the known telemetry libraries and endpoints is part of this slice''s test gate. The rule that binds the future is H-01, carried verbatim in the rules below and enforced by the validator.'
+recorded_items:
+- id: R-01
+  name: Metrics and traces
+  owner_module: mythic_agent/core/metrics.py
+  records: 'Timers, counters, gauges, and finished trace span trees (span names, durations, caller-supplied attributes, error strings) — collected in memory by the Metrics registry.'
+  destination: 'in memory; a file only where the caller saves it (the mythic metrics command reads <workspace>/.mythic/metrics.json)'
+  destination_kind: in-memory
+  leaves_machine: false
+- id: R-02
+  name: Workspace cost tracker
+  owner_module: mythic_agent/core/costs.py
+  records: 'One usage record per priced call: model name, input/output token counts, computed cost in USD, and a UTC timestamp. Models missing from the pricing table are recorded as unknown and billed 0 — never guessed.'
+  destination: '<workspace>/.mythic/costs.json'
+  destination_kind: local-file
+  leaves_machine: false
+- id: R-03
+  name: Per-call cost ledger
+  owner_module: mythic_agent/providers/cost_ledger.py
+  records: 'One record per provider call: provider, model, prompt/completion/cached token counts, cost in USD, whether the price was known (priced), whether usage was estimated, and a timestamp.'
+  destination: '<workspace>/.mythic/cost_ledger.json (format version 1)'
+  destination_kind: local-file
+  leaves_machine: false
+- id: R-04
+  name: Audit log
+  owner_module: mythic_agent/core/audit.py
+  records: 'Append-only safety events: timestamp, action, actor, and caller-supplied details (the convenience recorders store the tool name, its arguments, a result summary truncated to 200 characters, file-write paths and byte counts, and permission decisions with their reasons).'
+  destination: '<workspace>/.mythic/audit.jsonl (append-only through this API)'
+  destination_kind: local-file
+  leaves_machine: false
+- id: R-05
+  name: Session store and write-ahead journal
+  owner_module: mythic_agent/core/sessions.py
+  records: 'Durable sessions (transcript, context, token totals, status, outcome) in SQLite, plus the sha256-checksummed write-ahead journal of uncommitted checkpoints beside it (journal.log) — the formats frozen by the M-010 session catalogue.'
+  destination: '<state>/sessions/<workspace-id>/sessions.sqlite and journal.log (state root under the user''s .mythic state dir, 0o700 directory, 0o600 database)'
+  destination_kind: local-file
+  leaves_machine: false
+- id: R-06
+  name: Crash reports
+  owner_module: mythic_agent/core/journal.py
+  records: 'On a crash, a structured report: timestamp, session id, exception type and message, traceback, Python version, platform string, and pid. When the caller passes a redactor the report is sanitised before writing. The report is a local file (0o600) — nothing uploads it.'
+  destination: '<mythic-dir>/crashes/crash_<stamp>_<pid>.json (default ~/.mythic/crashes/)'
+  destination_kind: local-file
+  leaves_machine: false
+- id: R-07
+  name: Structured application logs
+  owner_module: mythic_agent/core/mythic_logging.py
+  records: 'Level-aware log records (timestamp, level, logger name, message, structured fields) as JSON or text. Output goes to stderr, or to a log file only where configure() is given one; the redaction layer (mythic_agent/core/redaction.py) masks known secret shapes in records and exports.'
+  destination: 'stderr, or the caller-configured local log file (the config catalogue names agent.log in the Mythic state dir)'
+  destination_kind: local-file
+  leaves_machine: false
+- id: R-08
+  name: LLM response cache
+  owner_module: mythic_agent/core/cache.py
+  records: 'Cached model responses keyed by the SHA256 hash of the prompt (the prompt text itself is not the filename), each entry holding the response text and its creation time, plus hit/miss statistics — inspectable and clearable via mythic cache.'
+  destination: '<MYTHIC_HOME>/cache (default ~/.mythic/cache), directory mode 0o700, entries expire after the configured TTL (default 1 hour)'
+  destination_kind: local-file
+  leaves_machine: false
+- id: R-09
+  name: Long-term memory and preferences
+  owner_module: mythic_agent/memory/long_term.py
+  records: 'Facts and preferences the memory layer stores for later sessions (the long-term store; the companion preferences store lives in mythic_agent/memory/preferences.py) — user data kept for the user, in the workspace, under the M-010/M-007 memory design.'
+  destination: '<workspace>/.mythic/long_term.json (and preferences.json beside it)'
+  destination_kind: local-file
+  leaves_machine: false
+- id: R-10
+  name: Transcript spill
+  owner_module: mythic_agent/core/transcript.py
+  records: 'When a transcript outgrows its in-memory bound, older turns spill to plain JSON lines (the unversioned format catalogued in M-010) so the session can be reconstructed locally.'
+  destination: '<spill-dir>/spill_<pid>_<millis>.jsonl (local spill directory chosen by the transcript owner)'
+  destination_kind: local-file
+  leaves_machine: false
+outbound_channels:
+- id: O-01
+  name: Model provider calls
+  owner_module: mythic_agent/providers/openai_compat.py
+  trigger: provider-call
+  sends: 'the conversation (system prompt, user turns, tool results) and the configured API key as an auth header, to the base_url of the provider the user selected. The OpenRouter adapter (mythic_agent/providers/openrouter.py) additionally sends two app-identification headers on every request: HTTP-Referer https://github.com/hrabanazviking/Mythic_Agent_Coder_CLI and X-Title Mythic Agent Coder CLI — identification OpenRouter requires for its rankings, disclosed here, both overridable per instance.'
+  condition: 'Only when the user runs a model-backed command against the provider and model they configured; local providers (Ollama, LM Studio, llama.cpp, vLLM) keep this traffic on the user''s own machine or LAN.'
+- id: O-02
+  name: Embedding and knowledge-search calls
+  owner_module: mythic_agent/agents/tools.py
+  trigger: user-initiated
+  sends: 'the search query text to the configured embedding endpoint (the archival/knowledge tools post the query to an Ollama embed endpoint at http://gungnir:11434/api/embed, a host on the user''s own LAN, and query the knowledge database there); the generic vector layer sends texts to the embedding base_url it is configured with (OpenAI by default in mythic_agent/memory/vector_db.py).'
+  condition: 'Only when a memory/knowledge tool that needs embeddings is invoked in a session.'
+- id: O-03
+  name: Speech-to-text (Deepgram)
+  owner_module: mythic_agent/core/audio.py
+  trigger: user-configured
+  sends: 'the recorded audio file to https://api.deepgram.com/v1/listen (model nova-3) with the configured Deepgram API key, receiving a transcript.'
+  condition: 'Only when voice transcription is used and a Deepgram key is configured; without it the voice path stays local or unavailable (Linux voice is NOT PROVEN, M-013).'
+- id: O-04
+  name: Text-to-speech downloads and remote voices
+  owner_module: mythic_agent/core/tts.py
+  trigger: user-configured
+  sends: 'nothing on the download path except the request itself: Piper voice files are fetched from https://huggingface.co/rhasspy/piper-voices on demand. The remote backends send the text to be spoken: NovelAI (https://api.novelai.net/ai/generate-voice, with its key) or a configured Moss TTS URL (default http://localhost:8000/v1/audio/speech).'
+  condition: 'Only when speech output is used and that backend is the configured one; the default Piper path synthesises locally after the one-time voice download.'
+- id: O-05
+  name: Notification webhook
+  owner_module: mythic_agent/core/notifications.py
+  trigger: user-configured
+  sends: 'a small JSON payload {event, title, message} for a task notification, POSTed to the configured webhook_url, with an HMAC-SHA256 X-Mythic-Signature header when a webhook secret is configured.'
+  condition: 'Only when notifications are enabled AND webhook_url is configured (it is empty by default — the module docstring states no network traffic happens unless webhook_url is configured); the desktop path uses the local notify-send binary.'
+- id: O-06
+  name: GitHub operations via the gh CLI
+  owner_module: mythic_agent/integrations/github.py
+  trigger: user-initiated
+  sends: 'the repository operations the user asked for (status, commit, issue, pull request data) through the user''s own installed and authenticated gh CLI — the app holds no GitHub token of its own in this path.'
+  condition: 'Only on the explicit GitHub commands (/commit, /issue, /pr, /status, /gh) with gh installed and authenticated by the user.'
+absent_systems:
+- id: A-01
+  name: Product analytics / usage telemetry SDK
+  evidence: 'No analytics or telemetry library is imported anywhere in the package (no sentry_sdk, posthog, segment, mixpanel, amplitude, or analytics endpoint string appears in the source — this slice''s tests scan for them), and no dependency in the M-012 census is a telemetry library.'
+- id: A-02
+  name: Crash-report upload
+  evidence: 'Crash reports are written only by write_crash_report in mythic_agent/core/journal.py to the local crashes directory (mode 0o600); no code path in the package transmits a crash report anywhere.'
+- id: A-03
+  name: Update check / version phone-home
+  evidence: 'No module checks for a newer version: there is no PyPI, GitHub-release, or version-endpoint request anywhere in the package source; --version answers from the local package version alone.'
+- id: A-04
+  name: Background beacon or periodic sync
+  evidence: 'No timer, daemon, or scheduler in the package sends anything: every outbound channel in this review is a provider call, a user-initiated tool/command, or a user-configured endpoint (webhook/TTS/STT), and the validator refuses any channel whose trigger is background or automatic.'
+- id: A-05
+  name: Advertising, fingerprinting, or tracker identifiers
+  evidence: 'The package mints no device id, install id, or advertising id, sets no tracking cookie, and embeds no third-party tracker; session ids exist only to name the user''s own local sessions in the local store.'
+rules:
+- id: H-01
+  rule: 'never phones home: no recorded information is sent to the project, its authors, or any third party except through an outbound channel in this review that the user initiated or configured'
+- id: H-02
+  rule: 'Local by default: every new recording lands in the workspace .mythic store, the MYTHIC_HOME / ~/.mythic state dir, or memory alone — a new destination is named in this review before it ships.'
+- id: H-03
+  rule: 'No background sending: nothing transmits on a timer, at startup, at shutdown, or on a crash; a crash produces a local file and nothing else.'
+- id: H-04
+  rule: 'Honest unknowns stay unknown: costs and usage that cannot be priced or measured are recorded as unknown (billed 0, flagged), never estimated into a confident-looking number in any report the recordings feed.'
+- id: H-05
+  rule: 'Secrets are not telemetry: API keys travel only as auth headers to the provider the user chose, known secret shapes are masked by the redaction layer in logs and exports, and secret findings never carry the raw secret.'
+- id: H-06
+  rule: 'This review is the gate: any new recorded item or outbound channel amends this data file and its tests in the same slice that adds it — an unlisted recording or channel is a defect, not a detail.'

@@ -1,0 +1,75 @@
+schema: mythic.baseline_freeze/1
+slice: M-007
+title: Mythic Agent Coder - Baseline Freeze (the "before" evidence for Part XI)
+frozen: '2026-10-30'
+base_commit: 7b4e4df6f4bdd88f29f8cfc69119913463801231
+environment: >
+  Python 3.12.3 on Linux x86_64 (kernel 7.0.0-39-generic), campaign VM,
+  baseline venv (.venv-baseline/) with pytest and all optional extras
+  installed from PyPI. The PortAudio system library is absent on this
+  machine. Several other campaigns share this VM, so wall-clock
+  durations are indicative, not pristine-machine baselines.
+suite:
+  command: .venv-baseline/bin/python -m pytest tests/ -q --timeout 120
+  collected: 1467
+  passed: 1464
+  failed: 2
+  skipped: 1
+  duration_s: 347.9
+  log: goals/mythic-agent-coder-all-features-build/hidden_files/m007-baseline-fullsuite.log
+known_failures:
+- test: tests/test_public_api.py::test_all_names_exist_and_are_public
+  classification: environment
+  explanation: >
+    The PortAudio system library is absent on this machine, so
+    mythic_agent.core.audio (sounddevice) cannot be imported; the
+    inventory gate reports that single import failure. Proven
+    environment, not a product defect (M-003 classification).
+- test: tests/test_context_compiler.py::test_estimator_heuristic_backend_when_tiktoken_absent
+  classification: environment
+  explanation: >
+    The test's premise is that tiktoken is absent, but tiktoken IS
+    installed in the baseline venv, so the heuristic-backend branch
+    cannot be reached here. Premise inverted by the environment
+    (M-003 classification).
+startup:
+  command: python -m mythic_agent.cli --help
+  runs_s: [0.793, 1.092, 0.335, 1.373, 0.785]
+  context: >
+    Five timed subprocess runs on the campaign VM while several other
+    campaigns were running concurrently; the 2026-10-09 profile on a
+    quiet machine measured 0.19-0.22s (docs/STARTUP_PROFILE.md).
+    Compare behaviour and counts first; treat these walls as
+    contention-inflated.
+e2e_script: scripts/baseline_e2e.py
+e2e_steps:
+- id: E-01
+  name: one-shot reply
+  command: mythic run hello --format json
+  expected_exit: 0
+  expected: >
+    Status completed; text is the fixture echo "Reply: hello";
+    total_tokens 7 from the fixture usage block.
+- id: E-02
+  name: read-only write refusal
+  command: mythic run write --format json
+  expected_exit: 3
+  expected: >
+    Status approval_required under the default machine policy;
+    denied_tools is [write_file]; generated.py is NOT written.
+- id: E-03
+  name: trusted write executes
+  command: mythic run write --permission trusted --format json
+  expected_exit: 0
+  expected: >
+    The write_file tool runs; generated.py lands with exact content
+    "answer = 42"; total_tokens 14 across the two provider turns.
+- id: E-04
+  name: resume + sessions list
+  command: mythic run again --resume <E-01 session> --format json; mythic sessions
+  expected_exit: 0
+  expected: >
+    The resumed turn keeps E-01's session id and its token total
+    accumulates to 14; sessions lists the workspace's three sessions
+    (one per earlier run, E-01's among them); the listing itself
+    makes no provider call.
