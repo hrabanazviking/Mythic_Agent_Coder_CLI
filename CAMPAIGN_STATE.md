@@ -2712,3 +2712,47 @@ what invalidation honesty — a changed file never serves
 a stale result, proven by tests; and what is honestly
 NOT cached) from the tree before designing further.
 M-070 is NOT built here.*
+
+*M-069 IN PROGRESS (2026-11-02 09:0x EST tick): build under
+way by the keeper tick itself on the settled scoping above
+— house pattern (module + setting + catalogue entry +
+Agent method + terminal/TUI roads). Shape settled from
+the tree: a new module
+`mythic_agent/tools/intelligence_cache.py` holding a
+disk-backed cache under the workspace's
+`.mythic/intelligence-cache/` (the M-056 test-history
+precedent for workspace-local `.mythic` state), following
+`core/cache.py`'s atomic-write discipline (temp file +
+rename, stats persisted beside the entries). Every entry
+is keyed by kind + workspace-relative path + the file's
+SHA-256 content hash + producer name: kinds are exactly
+`parse`, `graph`, and `lsp`. Invalidation honesty is the
+slice's heart: a lookup recomputes the file's CURRENT
+hash — a changed file is a stale eviction and a miss,
+never a served stale result; a missing file, a corrupt
+entry, and a producer mismatch are likewise misses, each
+named in the stats. Live producers wired in-module:
+`parse` payloads from the M-043 foundation's
+`parse_source` (language, backend, has_error,
+definitions) and `graph` payloads from M-046's
+`extract_file_graph(...).record()`, both behind
+`get_or_compute` so a hit never re-runs the producer.
+`lsp` payloads are stored/looked up only — their producer
+is the live language-server road (M-049/M-050), and this
+module invents no LSP result; the report says so plainly.
+Producer file bounds follow the graph's own caps
+(262144 bytes, named when refused). Surfaces:
+`/intelcache [show|<file>|warm|clear]` — show reports
+entries/per-kind counts/size/persisted hit-miss-stale
+stats; file reports one file's per-kind state
+(hit-ready/stale/absent) against its current hash; warm
+fills parse+graph for every catalogued source file in
+the workspace (caps named, skips named) so a cold start
+is paid once; clear empties the cache and reports the
+count. Setting `intelligence_cache` ON by default in
+config_defaults + M-009 catalogue S-59; Agent method
+`Agent.intelligence_cache()` sharing one parser +
+formatter on the terminal and TUI roads. Gap audit
+checked at scoping: no census-gap row is owned by M-069,
+so no module_kind flip exists to make. M-070 is NOT
+built here.*
