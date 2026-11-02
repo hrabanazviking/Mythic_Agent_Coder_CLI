@@ -241,6 +241,8 @@ class CommandHandler:
                 self._handle_local_search(args)
             elif cmd == "/web":
                 self._handle_web(args)
+            elif cmd == "/docs":
+                self._handle_docs(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1878,6 +1880,43 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_web_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_docs(self, args: str):
+        """M-060: /docs list | search <query> | read <name> — docs-at-hand, in the TUI.
+
+        The offline shelf: the project's own docs plus
+        doc packs under .mythic/docpacks/, searched and
+        read with nothing fetched from anywhere.
+        """
+        from ..tools.docs_at_hand import (
+            format_docs_report, parse_docs_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_docs_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if request["action"] == "list":
+                status = primary.docs_list()
+            elif request["action"] == "search":
+                status = primary.docs_search(request["query"])
+            else:
+                status = primary.docs_read(request["name"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_docs_report(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):
