@@ -398,7 +398,7 @@ slices:
   title: Coverage sight
   summary: line coverage overlaid on edited files; a change landing with zero covering tests is flagged
     to the Auditor.
-  status: queued
+  status: done
 - id: M-058
   part: 3
   title: Beyond-grep local search

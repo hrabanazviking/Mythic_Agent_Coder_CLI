@@ -189,6 +189,7 @@ and scoped M-024 below.*
 | M-054 | The Debugger (DAP) | **DONE** — banked 2026-11-01 (`2fe9a9a` + regen `fab7989`, PUBLIC_API 1937 → 1963 per the committed PUBLIC_API file — the regen commit notes M-053's closure text had recorded 1939, the committed file is the truth): new module `mythic_agent/tools/debugger.py` — a DAP client on the M-049 LSP pattern speaking the real Debug Adapter Protocol over Content-Length framing to an adapter subprocess (initialize → launch/attach → setBreakpoints/setExceptionBreakpoints → configurationDone → stopped events → threads/stackTrace/scopes/variables with one-level nested expansion → next/stepIn/stepOut/continue → disconnect); debugpy catalogued Python-first via `<python> -m debugpy.adapter`, installed probed by import — measured NOT installed here, so a real run reports not-installed with its remedy, never a fake session; plain records for breakpoints/stopped/frames/scopes/variables; adapter-to-client requests answered with an honest failure, never left hanging. Setting `debugger` ON by default in config_defaults + M-009 catalogue S-43; `Agent.debugger_status`/`debug_run` + `/debug` on terminal and TUI roads sharing the one parser and formatters; gap audit debugger-dap row flipped proposed→existing truthfully. +24 tests in tests/test_debugger.py incl. a real fake DAP adapter subprocess speaking the protocol (order proven from the adapter's own log). Full suite counted in six monitored chunks (logs hidden_files/m054-chunk0.log..chunk5.log, all read from disk): chunk totals 437+543+742+422+574+509 = **3227 passed, 5 failed, 1 skipped (3233 collected — closes exactly against collect-only, hidden_files/m054-collect.log: 3233 collected; M-053's 3209 + 24 new tests)**. The 5 failures: the 2 long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3) plus 3 proven load flakes: chunk 1's `test_providers_coverage_ratchet` (120 s pytest-timeout inside its coverage subprocess; solo re-run hidden_files/m054-solo-ratchet.log: **1 passed in 43.79 s**) and chunk 4's 2 `test_static_gate` 120 s timeouts (solo re-run of the whole file, hidden_files/m054-solo-gate.log: **4 passed in 190.32 s**). NOTE: an earlier solo attempt (hidden_files/m054-solo.log, 2 bytes) was cut off at a tick boundary and is discarded, never counted. Roadmap data flipped to 54 done in this closure. **54 / 272 slices banked (M-001..M-054).** Next slice: M-055 (Debugger in the loop). |
 | M-055 | Debugger in the loop | **DONE** — banked 2026-11-01 (`24e56bc` + regen `1662361`, PUBLIC_API 1963 → 1978): new module `mythic_agent/tools/debug_loop.py` — a failing test, named outright (`file[::test]` node, non-Python nodes refused) or detected only from a pytest run's own words (the short summary's `FAILED <node>` lines and verbose `<node> FAILED` rows — nothing inferred from prose), is re-run under M-054's DAP client as a pytest MODULE launch (`debugger.py` `launch()` gains the module road: exactly one of program/module, debugpy's `module: pytest` with the one test node as its argument), exception stops on (filter `all`) plus any user breakpoints in the test file; the first stop's threads/frames/scopes/variables (M-054's own records) return as a LoopReport evidence record. Honesty bounds on the M-052 pattern: adapter not installed → `not-installed` with its remedy and NO invented evidence (debugpy is not installed here, measured at M-054); a re-run ending before any stop → `terminated` (the failure did not reproduce under the debugger), never dressed as evidence; the road switched off → `disabled` (new setting `debugger_in_loop` ON by default in config_defaults + M-009 catalogue S-44, and M-054's `debugger` switch gates the whole road); a missing test file → `not-found`; an adapter that runs and fails raises DAPError. Wired into the coder's road in `agents/tools.py` run_command: a failed pytest result appends the loop note for the FIRST failing test its output names (further failing tests accounted by name, not re-run), and a debugger failure on that road is an honest appended note, never a changed test result. Surfaces: `Agent.debug_loop()` + `/debugloop [show] | <test> [break <line> ...]` on terminal and TUI roads sharing the one parser and formatters. +20 tests in tests/test_debug_loop.py incl. a real fake DAP adapter subprocess speaking the protocol (module launch args + exception filters proven from the adapter's own log, stop reason `exception` with frames/locals as evidence) and execute_tool wiring proofs (note appended when on, plain result when off). NOTE: the slice commit message says "+19 tests" — the file carries 20 test functions (counted from the tree); the message is not rewritten (no force-push) and this row is the truth. Full suite counted in six monitored chunks (logs hidden_files/m055-chunk0.log..chunk5.log, all read from disk): chunk totals 437+564+742+422+623+462 = **3250 passed, 2 failed, 1 skipped (3253 collected — closes exactly against collect-only, hidden_files/m055-collect.log: 3253 collected; M-054's 3233 + 20 new tests)**. The 2 failures are exactly the long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3) — no load flakes this run. Roadmap data flipped to 55 done in this closure. **55 / 272 slices banked (M-001..M-055).** Next slice: M-056 (Test intelligence). |
 | M-056 | Test intelligence | **DONE** — banked 2026-11-01 (`fb70cf1` + regen `7fb1218`, PUBLIC_API 1978 → 2004): new module `mythic_agent/tools/test_intelligence.py` — discovery is pytest collection as ground truth (subprocess `pytest --collect-only -q` on the project root, nodeids parsed from its own output; a missing/failing pytest is an honest `failed` report carrying its words, an empty project is `no-tests`, never an invented list); selection takes changed files, reads the symbols they define from the M-046 house code index (`SymbolIndex`), and selects discovered tests that are themselves changed, import a changed module (or a symbol from it), or reference a symbol a changed file defines — with an honest whole-suite fallback (selected = the discovered suite, reason stated) for no changed files, discovery failure, unreadable changed files, or no matches, never an empty confident selection; flaky marking comes only from a real recorded history (JSONL store at `.mythic/test_history.jsonl` under the project root, appended by `record_run`/`record_outcomes` parsing only the outcomes a pytest run itself names — verbose PASSED/FAILED rows + short-summary FAILED/ERROR lines, on the M-055 detection pattern): a test is flaky only with BOTH a pass and a fail for the same nodeid across ≥3 recorded runs (`FLAKY_MIN_RUNS`); stable pass and stable fail are honestly not flaky, no history marks nothing, corrupt history lines are skipped. Setting `test_intelligence` ON by default in config_defaults + M-009 catalogue S-45. Light wiring on the M-055 pattern in `agents/tools.py` run_command: a pytest command's named outcomes are recorded to history gated by the setting, recording never alters the result and a history failure is swallowed there. Surfaces: `Agent.test_intel_status()` / `test_intel_select()` / `test_intel_history()` + `/testintel [show] | select <file> ... | history` on terminal and TUI roads sharing the one parser and formatters. +20 tests in tests/test_test_intelligence.py incl. real pytest collection + selection on a tiny throwaway project built in tmp_path (root conftest makes its imports honest), fallback cases, history/flaky proofs (mixed-below-threshold unmarked, mixed-at-threshold marked, stable pass/fail unmarked, no-history unmarked), and real execute_tool wiring proofs (recorded when on, unrecorded when off). Full suite counted in six monitored chunks (logs hidden_files/m056-chunk0.log..chunk5.log, all read from disk): chunk totals 447+554+749+429+631+460 = **3270 passed, 2 failed, 1 skipped (3273 collected — closes exactly against collect-only, hidden_files/m056-collect.log: 3273 collected; M-055's 3253 + 20 new tests)**. The 2 failures are exactly the long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3) — no load flakes this run. NOTE: one delivered chunk excerpt (chunk 1: "580 passed") diverged from its on-disk log (554 passed, 1 skipped) and was discarded per the transport-war rule; the totals above are the on-disk ones and they close. EPISODE NOTE: this tick ran through the recurring EPERM write-denial + EDQUOT quota episodes (exec/git writes failed in stretches while the file tools stayed healthy; one git index.lock was removed after a failed add); writes healed, the slice banked unchanged, and nothing was counted from an episode-period run. Roadmap data flipped to 56 done in this closure. **56 / 272 slices banked (M-001..M-056).** Next slice: M-057 (Coverage sight). |
+| M-057 | Coverage sight | **DONE** — banked 2026-11-01 (`77b23c9` + regen `1f9090d`, PUBLIC_API 2004 → 2023): new module `mythic_agent/tools/coverage_sight.py` — line coverage overlaid on edited files, read only from coverage.py's own data (its JSON report when present, else its `.coverage` data file through the coverage API — never an estimated overlay; a file with no coverage data reports no-data honestly, a file absent from the data reports not-in-coverage); a touched file with measured lines that never ran, or named edited lines executable and none covered, is zero-cover and `coverage_check` writes one `coverage.zero_cover` flag per such file to the house audit log (`core/audit.py` AuditLog) — the flag is a record, never a silent note. Setting `coverage_sight` ON by default in config_defaults + M-009 catalogue S-46. Surfaces: `Agent.coverage_status()`/`coverage_check()` + `/coverage [show] | check <file> ...` on terminal and TUI roads sharing the one parser and formatters. +16 tests in tests/test_coverage_sight.py incl. a real coverage.py run over a tiny throwaway project on both the JSON and data-file roads. IN-SLICE DEFECT FOUND AT CLOSURE AND FIXED, never merely noted (`712b86e`): coverage_sight imports `coverage` but the package was declared nowhere — the dependency audit's three declaration tests failed in chunk 1; pyproject's dev extra now declares coverage>=7.0, the audit maps coverage->coverage with its feature record, and the dependency census gains D-36 (dev, Apache-2.0, 1538 KiB, count 35 → 36); fix targeted set 22 passed (hidden_files/m057-fix-targeted-2200.log). Full suite counted in six monitored chunks (logs hidden_files/m057-chunk0.log, m057-chunk1-2200.log, m057-chunk2.log..chunk5.log, all read from disk): chunk totals 444+533+774+436+631+460 = **3278 passed, 7 failed, 1 skipped, 3 errors (3289 collected — closes exactly against collect-only, hidden_files/m057-collect.log: 3289 collected; M-056's 3273 + 16 new tests)**. The failures: the 2 long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3) plus shared-quota (EDQUOT) episode flakes, each solo-proven from its on-disk log — chunk 0's 3 test_cli tmp errors (hidden_files/m057-solo-cli.log: 3 passed in 8.99 s), chunk 1's 3 edit-truth + 1 format-covenant journal-write failures (hidden_files/m057-solo-edquot2.log: 4 passed in 1.96 s) and its coverage ratchet 'No data to report' (hidden_files/m057-solo-ratchet.log: 1 passed in 43.72 s). EPISODE NOTE: this closure spanned the evening's recurring EDQUOT/EPERM episodes — chunk 5's first run died at 29 dots (preserved as hidden_files/m057-chunk5-dead1.log, DISCARDED, never counted) and was re-run clean at this closure (460 passed); nothing was counted from an episode-period run. Roadmap data flipped to 57 done in this closure. **57 / 272 slices banked (M-001..M-057).** Next slice: M-058 (Beyond-grep local search). |
 
 *M-032 scoping note (2026-10-31 18:00 EDT tick): M-032 (Key
 custody via Kista) was built and closed the same tick — DONE,
@@ -1712,3 +1713,149 @@ closure note + M-058 scoping, run the closure
 targeted set, closure commit, push (fetch +
 ls-remote verify). Campaign total: 56/272 closed;
 M-057 banked pending suite verdict.*
+
+*M-057 CLOSURE INTERIM (2026-11-01 20:40 EST tick):
+chunk 1 counted from its on-disk log (m057-chunk1.log,
+re-run this tick on the default tmpfs after the earlier
+dead attempt was preserved as m057-chunk1-dead1.log):
+535 passed, 3 failed, 1 skipped. The 3 failures are a
+REAL in-slice defect, not flakes: M-057's
+coverage_sight.py imports `coverage` inside a
+try/except ImportError, but that package was declared
+nowhere — tests/test_dependency_audit.py failed all
+three of its declaration tests (every-third-party-import
+declared, import-mapping covers live tree, optional
+imports name their feature). FIX APPLIED IN SCOPE this
+tick, in the working tree, NOT yet committed (4 files,
+verified intact from disk by ast/yaml/tomllib parse):
+pyproject.toml declares coverage>=7.0 in the dev extra
+(the extra where the suite's coverage ratchet already
+required it); test_dependency_audit.py maps
+coverage->coverage and records its feature in
+OPTIONAL_IMPORT_FEATURES; dependency_census.yaml gains
+entry D-36 (coverage, dev, Apache-2.0, dev-only,
+measured 1538 KiB / moderate in the baseline venv,
+version 7.17.0) and test_dependency_census.py's count
+goes 35 -> 36. DIRECT VERIFICATION (the pytest runner
+itself is blocked, see below): every affected test
+function was executed directly this tick and PASSED —
+all 5 dependency-audit checks and all 7 census
+cross-checks (every-declared, groups, live-imports,
+ids, weights, copyleft, render). The pytest re-run of
+chunk 1 at closure remains the formal proof and is
+still owed. EPISODE: mid-tick the VM's intermittent
+write-denial returned — Python tempfile fails with
+'No usable temporary directory found' on every
+candidate dir (default tmpfs AND overlay TMPDIR alike)
+while shell and file-tool writes stay healthy and
+/tmp sits 7% used; pytest therefore cannot start
+(exit 120 / capture TemporaryFile failure), so chunks
+2–5 were NOT run and nothing was counted from an
+episode-period run. NEXT TICK: probe Python tempfile
+healthy first; then (1) commit this fix as its own
+commit, (2) re-run chunk 1 (must come back with only
+known env cases) and run chunks 2–5 from
+m057-chunklist-02..05, (3) flip roadmap data to 57
+done (m057_close_gen_roadmap.py is already set to
+DONE_THROUGH=57), add the M-057 ledger row + closure
+note + M-058 scoping (Beyond-grep local search:
+in-process ripgrep with fuzzy and structural modes,
+results ranked by the symbol graph — counted neighbours:
+tools/structural_search.py exists from Part III;
+building tick settles the rest from the tree),
+(4) closure targeted set, closure commit, push
+(fetch + ls-remote verify). Campaign total:
+56/272 closed; M-057 banked pending suite verdict.*
+
+*M-057 CLOSURE — 21:00 EST tick note (2026-11-01): probes
+run first per the interim's order — Python tempfile STILL
+fails (EPERM / "No usable temporary directory", 3/3
+retries), python writes land 0 bytes, and `git
+hash-object -w` fails EPERM, so the closure order still
+cannot run; nothing was counted from an episode-period
+run and the build was not re-attempted. Tree verified
+intact from disk: exactly the interim's 5 modified files
+(the 4-file dependency fix parses clean — census YAML
+loads with 36 entries), chunk lists 00..05 present, HEAD
+9b68b43. Four 0-byte stray tmp*.py probe leftovers at the
+tree root were removed. NEXT TICK: probes first; when
+healthy, run the interim's finish order unchanged.
+Campaign total: 56/272 closed; M-057 banked pending
+suite verdict.*
+
+*M-057 CLOSURE — 21:10 EST tick note (2026-11-01): probes
+run first per the interim's order — Python tempfile STILL
+fails ("No usable temporary directory found", system
+python 3/3 retries AND the baseline venv python alike);
+python open-write fails EPERM on /tmp, /var/tmp and the
+home tree alike, while shell writes and one git
+hash-object -w stayed healthy — the episode is the same
+box-wide write-denial other campaigns' keepers are
+hitting this evening, not a Mythic defect. The closure
+order still cannot run (pytest cannot start without
+tempfile); nothing was counted from an episode-period
+run and the build was not re-attempted. Tree verified
+intact from disk: HEAD 9b68b43, exactly the interim's 5
+modified files (dependency fix parses clean — ast OK,
+pyproject tomllib OK, census YAML loads), chunk lists
+00..05 present, no pytest process on this tree (the one
+live pytest belongs to yggdrasil-build). NEXT TICK:
+probes first; when healthy, run the interim's finish
+order unchanged. Campaign total: 56/272 closed; M-057
+banked pending suite verdict.*
+
+*M-057 IN PROGRESS → DONE (2026-11-01 22:20 EST tick;
+CLOSED by this keeper tick from on-disk evidence): the
+build was banked by the 19:50 tick (`43baabe` IN PROGRESS
+state, `77b23c9` slice, `1f9090d` regen, PUBLIC_API
+2004 → 2023) and its closure spanned the evening's
+EDQUOT/EPERM episodes across four ticks (20:40 interim,
+21:00 + 21:10 blocked probes, the 22:00 tick's fix commit
+and chunk runs, this tick's finish). The dependency-
+declaration defect chunk 1 exposed was fixed and banked
+as `712b86e` by the 22:00 tick (fix targeted set 22
+passed, m057-fix-targeted-2200.log). Full suite counted
+in six chunks, all read from on-disk logs: chunk 0
+444 passed / 1 failed / 3 errors, chunk 1 (re-run as
+m057-chunk1-2200.log) 533 passed / 5 failed / 1 skipped,
+chunk 2 774 passed, chunk 3 436 passed / 1 failed,
+chunk 4 631 passed, chunk 5 460 passed (re-run clean
+this tick after its first run died at 29 dots in the
+quota episode — preserved as m057-chunk5-dead1.log,
+DISCARDED) = 3278 passed, 7 failed, 1 skipped, 3 errors,
+3289 collected — closes exactly against collect-only.
+Every non-environment failure is a proven EDQUOT
+episode flake, solo-proven from on-disk logs this
+closure (m057-solo-cli.log 3 passed; m057-solo-edquot2.log
+4 passed in 1.96 s; m057-solo-ratchet.log 1 passed in
+43.72 s); the other 2 failures are the long-classified
+environment cases (tiktoken estimator, PortAudio
+public-api import). Closure targeted set
+(m057-closure-targeted2.log): 72 passed + the PortAudio
+env failure + the roadmap/ledger agreement failure,
+healed by the M-057 ledger row in this closure —
+re-verified (m057-closure-targeted3.log): 70 passed
+(the set minus public_api). The whole M-057 chain plus
+this closure is pushed at closure (fetch + ls-remote
+verify). Campaign total: 57/272.*
+
+*M-058 scoping note (2026-11-01, M-057's closure tick):
+M-058 (Beyond-grep local search) is the next slice. The
+roadmap's words: in-process ripgrep with fuzzy and
+structural modes, results ranked by the symbol graph.
+Counted from the tree: M-047's structural search
+(`mythic_agent/tools/structural_search.py`) already
+covers the structural mode's foundation over the M-043
+parses, and M-046's symbol graph
+(`mythic_agent/context/symbol_graph.py`) is the ranking
+source the roadmap names; the elder text/semantic
+context sources are the neighbours it must not swallow.
+M-058's gap is the unified local search itself — text
+(ripgrep-class, in-process), fuzzy, and structural
+modes behind one surface, with results ranked by the
+symbol graph rather than raw match order. The building
+tick settles the search core's shape (an in-process
+engine vs a ripgrep binary road with honest absence,
+on the house pattern) from the tree before designing
+further. M-059 (web knowledge tools) is NOT built
+here.*
