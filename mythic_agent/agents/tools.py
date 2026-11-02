@@ -147,7 +147,17 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             diff = list(difflib.ndiff(old_content.splitlines(), new_content.splitlines()))
             added = sum(line.startswith("+ ") for line in diff)
             removed = sum(line.startswith("- ") for line in diff)
-            EditJournal(root_path).write(arguments["path"], new_content)
+            # M-071: a whole-file payload is one of the four
+            # edit formats — when an agent is attached, the
+            # write rides its journaled format road (the pure
+            # applier + the EditJournal, with the apply recorded
+            # on the session); without an agent, the journal
+            # road alone is the same write.
+            if agent is not None and hasattr(agent, "apply_edit_format"):
+                agent.apply_edit_format(
+                    arguments["path"], "whole-file", new_content)
+            else:
+                EditJournal(root_path).write(arguments["path"], new_content)
             result = f"Successfully wrote to {path} (+{added} lines, -{removed} lines)"
             # M-052: the edit-time truth loop — new errors the
             # edit introduced return in this same tool result.

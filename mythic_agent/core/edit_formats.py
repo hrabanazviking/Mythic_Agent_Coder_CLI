@@ -347,6 +347,18 @@ class FormatChoice:
                 "journaled": journaled}
 
 
+def _meets_floor(strength: str, format_id: str) -> bool:
+    """True when *strength* meets *format_id*'s strength floor.
+
+    The floors are the formats' own data (``strength_floor``):
+    the auto-choice may hand a format only to a model at least
+    as strong as its floor, strengths ordered weakest first in
+    STRENGTHS.
+    """
+    floor = get_format(format_id).strength_floor
+    return STRENGTHS.index(strength) >= STRENGTHS.index(floor)
+
+
 def _auto_format(task_kind: str, strength: str) -> Tuple[str, bool, str]:
     """The auto rule: (format_id, split, plain-words reason)."""
     if task_kind == "new-file":
@@ -358,7 +370,7 @@ def _auto_format(task_kind: str, strength: str) -> Tuple[str, bool, str]:
                 "most of the file changes, so the whole file is "
                 "written — a diff would cost as much and risk more")
     if task_kind == "small-fix":
-        if strength in ("standard", "strong"):
+        if _meets_floor(strength, "search-replace"):
             return ("search-replace", False,
                     f"a targeted change and a {strength} model: "
                     "a search-and-replace block is cheap, and its "
@@ -368,12 +380,12 @@ def _auto_format(task_kind: str, strength: str) -> Tuple[str, bool, str]:
                 "unknown — the safest format wins: the whole file "
                 "is written, so nothing delicate can mis-apply")
     if task_kind == "multi-site":
-        if strength == "strong":
+        if _meets_floor(strength, "unified-diff"):
             return ("unified-diff", False,
                     "changes spread across the file and a strong "
                     "model: a unified diff covers every site in "
                     "one payload, applied only on exact context")
-        if strength == "standard":
+        if _meets_floor(strength, "search-replace"):
             return ("search-replace", False,
                     "changes spread across the file and a "
                     "standard model: one search-and-replace block "
@@ -770,7 +782,9 @@ def format_edit_formats(config: Dict[str, Any]) -> str:
     lines.append("")
     lines.append("The four formats:")
     for fmt in list_formats():
-        lines.append(f"  {fmt.id} — {fmt.title}: {fmt.plain}")
+        lines.append(f"  {fmt.id} — {fmt.title} "
+                     f"(strength floor: {fmt.strength_floor}): "
+                     f"{fmt.plain}")
     lines.append("")
     lines.append("Auto picks for this model:")
     for kind in list_task_kinds():
