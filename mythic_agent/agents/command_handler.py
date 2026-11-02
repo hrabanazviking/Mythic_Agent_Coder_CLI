@@ -253,6 +253,8 @@ class CommandHandler:
                 self._handle_mojo(args)
             elif cmd == "/sql":
                 self._handle_sql(args)
+            elif cmd == "/config":
+                self._handle_config(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -2107,6 +2109,42 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_sql_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_config(self, args: str):
+        """M-066: /config [show | <file> | docker] — config/infra, in the TUI.
+
+        Config and infra sight: YAML, TOML, INI and
+        systemd unit files, Dockerfiles and compose
+        files parsed structurally — never executed —
+        with the coder's own no-Docker-law warning
+        raised for Docker artifacts on Volmarr's
+        projects.
+        """
+        from ..tools.config_sight import (
+            format_config_report, parse_config_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_config_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.config_sight(
+                request["action"], target=request.get("target"))
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_config_report(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):

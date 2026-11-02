@@ -730,6 +730,19 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_sql_report(status)
+    if command == "/config":
+        from .tools.config_sight import (
+            format_config_report, parse_config_args)
+        try:
+            request = parse_config_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.config_sight(
+                request["action"], target=request.get("target"))
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_config_report(status)
     if command == "/lsp":
         from .integrations.lsp import (
             format_lsp_code_actions,
