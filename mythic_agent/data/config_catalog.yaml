@@ -425,6 +425,14 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Intelligence cache (M-069): when true, the intelcache road is open — parse, graph, and language-server results are cached per file under the workspace''s .mythic/intelligence-cache/, every entry keyed by kind, workspace-relative path, the file''s SHA-256 content hash, and producer name, written atomically with persisted hit, miss, and stale-eviction counters; a lookup recomputes the file''s current hash, so a changed file evicts its stale entry and misses — a stale result is never served — and a missing file, a corrupt entry, and a producer mismatch are likewise misses; the parse producer is the M-043 foundation''s parse and the graph producer is M-046''s per-file extraction, both honouring the symbol graph''s 262144-byte per-file cap, while language-server payloads are stored and looked up only, their producer being the live M-049/M-050 server road, never faked here; /intelcache show reports entries and counters, /intelcache <file> reports one file''s per-kind state against its current hash, /intelcache warm fills parse and graph for the workspace''s catalogued source files with caps and skips named, and /intelcache clear removes every entry and reports the count; warming writes cache entries only, never a source file; when false, nothing is read or written on that road.'
 
+- id: S-60
+  name: edit_format
+  scope: top-level
+  type: str
+  default: auto
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Edit-format plurality (M-071): how the coder changes a file — auto (the default) picks per task and per model strength from M-027 capability truth (whole-file, unified-diff, search-and-replace blocks, or an Aider-style architect/editor split for complex work; a model of unknown strength always gets the safest whole-file format, and creating a file is always whole-file); any of the four format names pins that format exactly, except that a pinned format never creates a file. Unified diffs apply only when every hunk context matches the file exactly and search blocks only when the search text matches exactly once — no fuzz, a stale target refuses and writes nothing. /editformat shows the formats and the picks, pins or unpins the setting, and asks for a pick for a kind of work; every pick is recorded as an edit_format_chosen session journal event with its plain-words reason, and applied edits ride the existing EditJournal road.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME

@@ -201,6 +201,8 @@ class CommandHandler:
                 self._handle_fallback(args)
             elif cmd == "/costroute":
                 self._handle_costroute(args)
+            elif cmd == "/editformat":
+                self._handle_editformat(args)
             elif cmd == "/kista":
                 self._handle_kista(args)
             elif cmd == "/resume-thought":
@@ -912,6 +914,63 @@ class CommandHandler:
             return
         publish_sync("agent_chat_chunk", agent_name="Primary",
                      text=f"\n[green]{format_fallback_change(record)}[/green]\n")
+
+    def _handle_editformat(self, args: str):
+        """M-071: /editformat — edit-format plurality, in plain words.
+
+        ``/editformat`` shows the setting (auto by default),
+        the four formats, and the auto picks for the current
+        model; ``/editformat <format>`` pins a format (or
+        ``auto`` unpins it — journaled by the agent layer);
+        ``/editformat <task-kind>`` asks for the pick for
+        that kind of work and journals the choice on the
+        session with its reason, as the roadmap requires.
+        """
+        from ..core.edit_formats import (
+            format_choice,
+            format_edit_formats,
+            format_setting_change,
+            parse_editformat_args,
+            setting_from_config,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_editformat_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.edit_format_status()
+            assert status["setting"] == setting_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_edit_formats(primary.config)}[/bold cyan]\n"
+                     "[dim]Pin a format with /editformat <format>, "
+                     "return to auto with /editformat auto, or ask "
+                     "for a pick with /editformat <task-kind>.[/dim]\n")
+            return
+        try:
+            if request["action"] == "setting":
+                record = primary.set_edit_format(request["value"])
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_setting_change(record)}[/green]\n")
+                return
+            record = primary.choose_edit_format(request["task_kind"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_choice(record['choice'])}[/bold cyan]\n")
 
     def _handle_costroute(self, args: str):
         """M-031: /costroute — cost-aware routing, in plain words.

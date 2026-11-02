@@ -260,7 +260,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
         return True, False, "Conversation cleared."
@@ -361,6 +361,30 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_decision(applied["decision"])
+    if command == "/editformat":
+        from .core.edit_formats import (
+            format_choice,
+            format_edit_formats,
+            format_setting_change,
+            parse_editformat_args,
+            setting_from_config,
+        )
+        try:
+            request = parse_editformat_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.edit_format_status()
+            assert status["setting"] == setting_from_config(agent.config)
+            return True, False, format_edit_formats(agent.config)
+        try:
+            if request["action"] == "setting":
+                record = agent.set_edit_format(request["value"])
+                return True, False, format_setting_change(record)
+            record = agent.choose_edit_format(request["task_kind"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_choice(record["choice"])
     if command == "/kista":
         from .core.key_custody import (
             custody_entries,
