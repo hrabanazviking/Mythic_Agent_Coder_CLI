@@ -2756,3 +2756,40 @@ formatter on the terminal and TUI roads. Gap audit
 checked at scoping: no census-gap row is owned by M-069,
 so no module_kind flip exists to make. M-070 is NOT
 built here.*
+
+*M-069 BANKED, SUITE RUNNING (2026-11-02 09:0x EST tick):
+the slice was built and banked by this tick (`b8b95cb`
+IN PROGRESS state, `1a03cf3` slice, `4b9adad` regen,
+PUBLIC_API 2259 → 2279) and the whole chain is pushed
+(fetch + ls-remote verified, remote == HEAD == 4b9adad).
+New module `mythic_agent/tools/intelligence_cache.py` +
+34 tests in `tests/test_intelligence_cache.py`, all
+passing in the targeted run (48 passed with the config
+catalogue set); dead-code / arch-conformance / taxonomy
+gates green (21 passed); the post-regen inventory set
+passed 71 with the only failure the long-classified
+PortAudio public-api environment case. Collect-only:
+3611 — closes exactly against M-068's 3577 + 34 new.
+FULL SUITE: two in-session chunk-0 attempts died at exit
+120 under severe multi-campaign contention (MemAvailable
+~447 MB; preserved as m069-chunk0-dead1.log — the dead2
+copy itself failed in an EDQUOT window and exists only as
+the truncated /tmp-era log, nothing counted from either).
+Chunk 0 was relaunched DETACHED via setsid (pid 125640,
+cwd verified to this tree, log /tmp/m069-chunk0.log —
+the /tmp-log road from M-060 because home writes were
+EDQUOT-struck) and verified alive and progressing
+(~27%) — then the VM REBOOTED (uptime 1 min at the
+14:37 UTC check), killing the run and wiping /tmp with
+its log: DISCARDED, never counted, exactly like the
+M-019 reboot death. Chunk 0 was relaunched detached
+again after the reboot (see the keeper run log for the
+live pid + log path). NEXT TICK'S FINISH ORDER: count
+chunk 0 from its on-disk log (copy /tmp logs to
+hidden_files in a healed window, sha256-checked), run
+chunks 1–5 from m069-chunklist-01..05 the same detached
+way, classify (expect exactly the 2 long-classified
+env failures), flip roadmap data to 69 done, add the
+M-069 ledger row + closure note, scope M-070, closure
+targeted set, closure commit, push. Campaign total:
+68/272 closed, M-069 banked pending the suite verdict.*
