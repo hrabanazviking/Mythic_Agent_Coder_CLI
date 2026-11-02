@@ -3033,3 +3033,30 @@ retest duty written into M-072's scoping note.
 No other M-071 number changes: the chunk totals,
 the 132-passed closure targeted set (rc=0), and the
 slice's own 69 tests are unaffected.*
+
+*M-072 IN PROGRESS (2026-11-02 14:2x EST tick): build under
+way by the keeper tick itself on the M-071 scoping note.
+First duty per that note: re-check the coverage ratchet,
+the static gate, and the ownership freshness test in this
+tick's suite chunks — a failure in a calmer window reopens
+them as suspected defects (load at tick start ~12, so the
+window is NOT calmer; the retest is run and classified
+honestly either way). Shape settled from the tree: a pure
+layer `mythic_agent/core/hash_anchored.py` — per-line and
+per-range SHA-256 anchors (the M-069 hash road), an
+annotated presentation of a file's lines (number + short
+hash, so the coder can name a target by its anchor instead
+of re-sending its text), anchored range edits and anchored
+search-and-replace (the expected hash of the exact lines
+touched must match the file's current hash for those lines
+or the edit refuses cleanly, naming expected vs current,
+and changes nothing — no fuzz, ever, the M-071 law), and
+the refusal report naming the moved target (the bounded
+retry that returns the true text is M-073's road, not this
+slice's). Setting `hash_anchored_edits` ON by default in
+config_defaults + M-009 catalogue S-61; when off, anchored
+applies through the Agent refuse and say so. Surfaces:
+/hashanchor on terminal + TUI roads sharing one parser and
+formatters; Agent methods journal anchored applies as
+`hash_anchored_applied` and refusals are never written
+through EditJournal. M-073 is NOT built here.*
