@@ -389,6 +389,13 @@ settings:
   default: 'True'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Mojo sight (M-064): when true, the mojo road is open — /mojo scans the workspace''s Mojo files (recognised through the tree-sitter foundation''s catalogue by their .mojo extension; parsed via the foundation''s tree-sitter grammar where one truly loads — no Mojo grammar package exists today, so files are read by the honestly named mojo-scan structural backend and a grammar-backed parse is NOT PROVEN), reading definitions, imports and decorators and flagging syntax the latest Mojo removed with its replacement from the house Mojo skills; /mojo knowledge searches the distilled house-skill knowledge wired into the module, whose full texts and the official Mojo docs are named external references, never copied in; read-only — nothing is edited on this road; when false, no project file is read on that road.'
+- id: S-55
+  name: sql_sight
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'SQL sight (M-065): when true, the sql road is open — /sql shows the schemas of the workspace''s SQLite databases (.db / .sqlite / .sqlite3 files only), every one opened through a read-only (mode=ro) connection: tables, views, columns, indexes, foreign keys and exact row counts read from sqlite_master and the PRAGMA introspection roads; /sql explain <db> <query> runs EXPLAIN / EXPLAIN QUERY PLAN for a SELECT-shaped query on that read-only connection — the query is explained, never executed, and write-shaped statements are refused outright, never run; /sql migrations reads migration files as code (SQL under a migrations/ or alembic-style versions/ directory, numbered SQL files, alembic .py revisions): version/order, up/down sections, and the tables each section creates, alters or drops — migrations are read, never applied; when false, no project file is read on that road.'
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
