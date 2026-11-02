@@ -1835,6 +1835,51 @@ class Agent:
             "plain_explanation": docs_module.PLAIN_EXPLANATION,
         }
 
+    def dependency_sight(self, package: str | None = None) -> dict[str, Any]:
+        """The declared dependency graph, or one package's account (M-061).
+
+        The graph is read from this workspace's own
+        ``pyproject.toml`` — groups, specs, and the
+        honestly measured installed version (unknown when
+        a package is not installed). A named package adds
+        its blast radius (workspace files importing it,
+        counted from the tree), its local changelog
+        mentions, and its local vulnerability-data state.
+        Changelogs and vulnerability data are local files
+        only; a switched-off road reads nothing.
+        """
+        from ..tools import dependency_sight as deps_module
+
+        report = deps_module.dependency_sight(
+            self.project_root, package,
+            enabled=deps_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": deps_module.PLAIN_EXPLANATION,
+        }
+
+    def dependency_proposal(self, package: str,
+                            target_version: str) -> dict[str, Any]:
+        """Draft one upgrade proposal — data only, never applied (M-061).
+
+        The proposal carries the declared spec(s), the
+        installed version, the target, the counted blast
+        radius, and whether anything else pins the
+        package. An undeclared package is refused
+        plainly; nothing is written on this road.
+        """
+        from ..tools import dependency_sight as deps_module
+
+        report = deps_module.dependency_proposal(
+            self.project_root, package, target_version,
+            enabled=deps_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": deps_module.PLAIN_EXPLANATION,
+        }
+
     def _journal_web_citation(self, report: Any) -> None:
         """Cite one web report's sources into the journal (M-059)."""
         if report.status != "ok":

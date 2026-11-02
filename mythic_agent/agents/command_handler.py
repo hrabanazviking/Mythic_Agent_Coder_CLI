@@ -243,6 +243,8 @@ class CommandHandler:
                 self._handle_web(args)
             elif cmd == "/docs":
                 self._handle_docs(args)
+            elif cmd == "/deps":
+                self._handle_deps(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1917,6 +1919,46 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_docs_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_deps(self, args: str):
+        """M-061: /deps [show | <package> | propose <package> <version>] — dependency sight, in the TUI.
+
+        The declared graph from pyproject.toml with honest
+        installed truth; a package adds its counted blast
+        radius, local changelog mentions and local
+        vulnerability-data state; a proposal is data only
+        and is never applied.
+        """
+        from ..tools.dependency_sight import (
+            format_deps_report, parse_deps_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_deps_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if request["action"] == "show":
+                status = primary.dependency_sight()
+            elif request["action"] == "package":
+                status = primary.dependency_sight(request["package"])
+            else:
+                status = primary.dependency_proposal(
+                    request["package"], request["version"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_deps_report(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):

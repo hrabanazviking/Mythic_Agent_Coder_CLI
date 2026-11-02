@@ -660,6 +660,24 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_docs_report(status)
+    if command == "/deps":
+        from .tools.dependency_sight import (
+            format_deps_report, parse_deps_args)
+        try:
+            request = parse_deps_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            if request["action"] == "show":
+                status = agent.dependency_sight()
+            elif request["action"] == "package":
+                status = agent.dependency_sight(request["package"])
+            else:
+                status = agent.dependency_proposal(
+                    request["package"], request["version"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_deps_report(status)
     if command == "/lsp":
         from .integrations.lsp import (
             format_lsp_code_actions,
