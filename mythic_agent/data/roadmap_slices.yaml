@@ -392,7 +392,7 @@ slices:
   title: Test intelligence
   summary: test discovery per project, "run only what this change touches" selection from the symbol graph,
     flaky-test marking from history (never from vibes).
-  status: queued
+  status: done
 - id: M-057
   part: 3
   title: Coverage sight
