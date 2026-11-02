@@ -864,15 +864,14 @@ def render_markdown(report: SqlReport) -> str:
         "migration(s)**.",
         "",
     ]
-    for database in data["databases"]:
-        lines.append(f"## `{database['path']}`")
+    for database in report.databases:
+        lines.append(f"## `{database.path}`")
         lines.append("")
-        for table in database["tables"]:
-            cols = ", ".join(table["columns"][i]["name"]
-                             for i in range(len(table["columns"])))
+        for table in database.tables:
+            cols = ", ".join(table.column_names())
             lines.append(
-                f"- `{table['name']}` [{table['kind']}] "
-                f"({table['row_count']} row(s)): {cols}")
+                f"- `{table.name}` [{table.kind}] "
+                f"({table.row_count} row(s)): {cols}")
         lines.append("")
     names = [name for database in report.databases
              for name in database.table_names()]
