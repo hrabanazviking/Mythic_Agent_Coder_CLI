@@ -18,6 +18,7 @@ web_search_endpoint: https://html.duckduckgo.com/html/?q={query}
 docs_at_hand: true
 dependency_sight: true
 code_sensing: true
+type_depth: true
 repo_map_pins: []
 working_directory: ''
 user_name: ''

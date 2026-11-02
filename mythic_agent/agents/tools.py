@@ -155,6 +155,16 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             if enabled_from_config(getattr(agent, "config", None)):
                 result += truth_note_for_edit(
                     path, old_content if existed else None, root=root_path)
+            # M-063: type depth — type errors this edit broke
+            # return in this same tool result, beside M-052's
+            # truth note; no checker installed is silence here
+            # (the standing /types account names the absence).
+            from ..tools.type_depth import (
+                enabled_from_config as type_enabled,
+                type_note_for_edit)
+            if type_enabled(getattr(agent, "config", None)):
+                result += type_note_for_edit(
+                    path, old_content if existed else None, root=root_path)
             return result
         except Exception as exc:
             return f"Failed to write file: {exc}"
@@ -219,6 +229,12 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             from ..tools.edit_truth import enabled_from_config, truth_note_for_edit
             if enabled_from_config(getattr(agent, "config", None)):
                 result += truth_note_for_edit(path, content, root=root_path)
+            # M-063: type depth, as on write_file.
+            from ..tools.type_depth import (
+                enabled_from_config as type_enabled,
+                type_note_for_edit)
+            if type_enabled(getattr(agent, "config", None)):
+                result += type_note_for_edit(path, content, root=root_path)
             return result
         except Exception as exc:
             return f"Failed to replace content: {exc}"

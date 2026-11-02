@@ -375,6 +375,13 @@ settings:
   default: 'True'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Code sensing (M-062): when true, the sensing road is open — /sensing shows a structural report for the Cartographer: dead code sensed by the shipped dead-code scanner over the workspace''s top-level Python packages (with the dead-code quarantine state named where its file exists) and duplication clusters of function bodies whose AST structure is identical once names and literal values are normalised away, at or above a named size floor so trivial shapes never count; sensing only — nothing is deleted or edited on this road, and deletion is always a separate, approved slice; when false, no project file is read on that road.'
+- id: S-53
+  name: type_depth
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Type depth (M-063): when true, the types road is open — /types shows the standing type account from the project''s type checkers (mypy and pyright, whichever truly exist), their findings parsed from their own output contracts and triaged by kind into the review, plus the annotation-coverage account from the type-coverage neighbour where its package exists; after an edit on the write/replace tool road, type findings are diffed line-blind against the before-content account and only new error-severity findings (broke-here) return in the same turn for the coder to fix, pre-existing findings counted never charged; a checker that is not installed reports not-installed — a live type verdict without a checker is NOT PROVEN, never a clean bill; when false, no project file is read on that road and no type note rides an edit.'
 env_vars:
 - id: V-01
   name: MYTHIC_HOME

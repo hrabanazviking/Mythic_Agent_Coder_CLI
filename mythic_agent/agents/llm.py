@@ -1527,6 +1527,38 @@ class Agent:
             "plain_explanation": truth_module.PLAIN_EXPLANATION,
         }
 
+    def type_depth(self, path: str | None = None) -> dict[str, Any]:
+        """A standing type account — one file's, or the workspace's (M-063).
+
+        The runners are mypy and pyright, whichever truly
+        exist; a runner that is not installed reports
+        not-installed and a live type verdict without one
+        is NOT PROVEN, never a clean bill. Findings are
+        triaged by kind into the review. A named file is
+        resolved inside this session's workspace; a path
+        escaping it is refused. A switched-off road reads
+        nothing.
+        """
+        from ..tools import type_depth as depth_module
+
+        enabled = depth_module.enabled_from_config(
+            getattr(self, "config", None))
+        if path is not None:
+            from ..core.workspace import assert_within_workspace
+
+            resolved = assert_within_workspace(self.project_root, path)
+            if not resolved.is_file():
+                raise ValueError(f"no such file to check: {path}")
+            report = depth_module.type_depth(
+                self.project_root, resolved, enabled=enabled)
+        else:
+            report = depth_module.type_depth(
+                self.project_root, enabled=enabled)
+        return {
+            "report": report.record(),
+            "plain_explanation": depth_module.PLAIN_EXPLANATION,
+        }
+
     def format_covenant(self, path: str, *, apply: bool = False) -> dict[str, Any]:
         """One touched file's formatter-covenant account (M-053).
 
