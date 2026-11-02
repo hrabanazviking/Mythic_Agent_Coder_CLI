@@ -170,6 +170,16 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
                                  timeout=settings["command_timeout"], grace=settings["process_kill_grace"],
                                  progress=progress)
             rendered = result.render()
+            # M-056: test intelligence — a pytest run's named
+            # outcomes are recorded to the project history,
+            # the only ground flaky marks may come from.
+            # Recording never alters the command's result.
+            from ..tools.test_intelligence import (
+                enabled_from_config as intel_enabled,
+                record_note_for_command)
+            if intel_enabled(getattr(agent, "config", None)):
+                record_note_for_command(
+                    command, result.output, root=root_path)
             # M-055: the debugger in the loop — a failed
             # pytest run's first named failing test is
             # re-run under the debugger and the evidence

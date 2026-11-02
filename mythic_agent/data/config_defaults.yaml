@@ -10,6 +10,7 @@ edit_truth_loop: true
 formatter_covenant: true
 debugger: true
 debugger_in_loop: true
+test_intelligence: true
 repo_map_pins: []
 working_directory: ''
 user_name: ''

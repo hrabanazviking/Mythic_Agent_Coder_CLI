@@ -583,6 +583,23 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_debug_loop_report(status)
+    if command == "/testintel":
+        from .tools.test_intelligence import (
+            format_test_intel_board, format_test_intel_history,
+            format_test_intel_selection, parse_test_intel_args)
+        try:
+            request = parse_test_intel_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            return True, False, format_test_intel_board(agent.test_intel_status())
+        if request["action"] == "history":
+            return True, False, format_test_intel_history(agent.test_intel_history())
+        try:
+            status = agent.test_intel_select(request["changed"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_test_intel_selection(status)
     if command == "/lsp":
         from .integrations.lsp import (
             format_lsp_code_actions,
