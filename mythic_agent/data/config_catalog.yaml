@@ -403,6 +403,14 @@ settings:
   default: 'True'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Config sight (M-066): when true, the config road is open — /config parses the workspace''s config and infra files structurally (YAML via PyYAML, TOML via stdlib tomllib, systemd units and INI files via a tolerant parser that keeps repeated directives, Dockerfiles via a line parser, compose files as YAML): top-level keys with kinds and sizes, total keys and depth, unit sections and directives, Dockerfile stages, base images, instruction counts, ports and env keys, compose services — structure only, scalar values are never echoed, and nothing a file describes is ever executed or applied; Docker artifacts (Dockerfile*, *.dockerfile, docker-compose / compose YAML) found in a workspace detected as one of Volmarr''s projects (root marker files AGENTS.md, SOUL.md, MEMORY.md, RULES.AI.md, or any root file whose name carries Volmarr, or an explicit ruling) raise the coder''s own no-Docker-law warning — no Docker, ever, on his projects; Docker artifacts without a marker are listed with the warning honestly withheld; when false, no project file is read on that road.'
+- id: S-57
+  name: asset_sight
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Binary and asset sight (M-067): when true, the assets road is open — /assets describes the workspace''s images from their headers only (PNG, GIF, JPEG, BMP, WebP, ICO, TIFF dimensions and format facts from a bounded header read, SVG from its declared size or viewBox; nothing is decoded), its archives from their member listings (zip and tar listed through the stdlib readers with the listing capped and named, a plain gzip stream from its header name and trailer size, 7z and RAR described from magic with the listing honestly unavailable; nothing is extracted), and its large files (at or over 1000000 bytes) by size and sniffed kind, a large text file''s lines counted by streaming with the content never retained; every asset carries the role the map notes for it, inferred from its kind and path by named rules (test fixture, documentation asset, data file, backup or snapshot archive, project asset) with the rule recorded as evidence; when false, no project file is read on that road.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
