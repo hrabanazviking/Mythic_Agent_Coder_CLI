@@ -702,6 +702,20 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_type_report(status)
+    if command == "/mojo":
+        from .tools.mojo_sight import (
+            format_mojo_report, parse_mojo_args)
+        try:
+            request = parse_mojo_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.mojo_sight(
+                request["action"], target=request.get("target"),
+                term=request.get("term", ""))
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_mojo_report(status)
     if command == "/lsp":
         from .integrations.lsp import (
             format_lsp_code_actions,

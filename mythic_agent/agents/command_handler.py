@@ -249,6 +249,8 @@ class CommandHandler:
                 self._handle_sensing(args)
             elif cmd == "/types":
                 self._handle_types(args)
+            elif cmd == "/mojo":
+                self._handle_mojo(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -2030,6 +2032,43 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_type_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_mojo(self, args: str):
+        """M-064: /mojo [show | <path> | knowledge [term]] — Mojo, in the TUI.
+
+        Mojo as a first-class language: the workspace's
+        Mojo files scanned structurally (tree-sitter
+        grammar where one truly loads — none exists
+        today, said plainly), removed syntax flagged
+        with its replacement, and the house Mojo skills'
+        distilled knowledge searchable.
+        """
+        from ..tools.mojo_sight import (
+            format_mojo_report, parse_mojo_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_mojo_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.mojo_sight(
+                request["action"], target=request.get("target"),
+                term=request.get("term", ""))
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_mojo_report(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):

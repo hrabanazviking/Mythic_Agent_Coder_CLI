@@ -382,6 +382,13 @@ settings:
   default: 'True'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Type depth (M-063): when true, the types road is open — /types shows the standing type account from the project''s type checkers (mypy and pyright, whichever truly exist), their findings parsed from their own output contracts and triaged by kind into the review, plus the annotation-coverage account from the type-coverage neighbour where its package exists; after an edit on the write/replace tool road, type findings are diffed line-blind against the before-content account and only new error-severity findings (broke-here) return in the same turn for the coder to fix, pre-existing findings counted never charged; a checker that is not installed reports not-installed — a live type verdict without a checker is NOT PROVEN, never a clean bill; when false, no project file is read on that road and no type note rides an edit.'
+- id: S-54
+  name: mojo_sight
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Mojo sight (M-064): when true, the mojo road is open — /mojo scans the workspace''s Mojo files (recognised through the tree-sitter foundation''s catalogue by their .mojo extension; parsed via the foundation''s tree-sitter grammar where one truly loads — no Mojo grammar package exists today, so files are read by the honestly named mojo-scan structural backend and a grammar-backed parse is NOT PROVEN), reading definitions, imports and decorators and flagging syntax the latest Mojo removed with its replacement from the house Mojo skills; /mojo knowledge searches the distilled house-skill knowledge wired into the module, whose full texts and the official Mojo docs are named external references, never copied in; read-only — nothing is edited on this road; when false, no project file is read on that road.'
 env_vars:
 - id: V-01
   name: MYTHIC_HOME

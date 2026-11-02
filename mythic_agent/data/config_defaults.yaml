@@ -19,6 +19,7 @@ docs_at_hand: true
 dependency_sight: true
 code_sensing: true
 type_depth: true
+mojo_sight: true
 repo_map_pins: []
 working_directory: ''
 user_name: ''

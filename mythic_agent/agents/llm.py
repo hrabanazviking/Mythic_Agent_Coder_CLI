@@ -1935,6 +1935,34 @@ class Agent:
             "plain_explanation": sensing_module.PLAIN_EXPLANATION,
         }
 
+    def mojo_sight(self, mode: str = "show",
+                   target: str | None = None,
+                   term: str = "") -> dict[str, Any]:
+        """A Mojo account — scan, one file, or knowledge (M-064).
+
+        Mojo files are recognised through the tree-sitter
+        foundation's catalogue and parsed via its grammar
+        where one truly loads; no Mojo grammar package
+        exists today, so files are read by the honestly
+        named mojo-scan structural backend and a
+        grammar-backed parse is NOT PROVEN. Removed syntax
+        is flagged with its replacement from the house
+        Mojo skills, whose distilled knowledge the
+        knowledge road searches. Read-only — nothing is
+        edited on this road; a switched-off road reads
+        nothing.
+        """
+        from ..tools import mojo_sight as mojo_module
+
+        report = mojo_module.mojo_sight(
+            self.project_root, mode, target=target, term=term,
+            enabled=mojo_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": mojo_module.PLAIN_EXPLANATION,
+        }
+
     def _journal_web_citation(self, report: Any) -> None:
         """Cite one web report's sources into the journal (M-059)."""
         if report.status != "ok":
