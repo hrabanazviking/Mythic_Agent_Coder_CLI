@@ -743,6 +743,19 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_config_report(status)
+    if command == "/assets":
+        from .tools.asset_sight import (
+            format_asset_report, parse_assets_args)
+        try:
+            request = parse_assets_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.asset_sight(
+                request["action"], target=request.get("target"))
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_asset_report(status)
     if command == "/lsp":
         from .integrations.lsp import (
             format_lsp_code_actions,

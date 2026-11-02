@@ -2011,6 +2011,28 @@ class Agent:
             "plain_explanation": config_module.PLAIN_EXPLANATION,
         }
 
+    def asset_sight(self, mode: str = "show",
+                    target: str | None = None) -> dict[str, Any]:
+        """An asset account — images, archives, large files (M-067).
+
+        Images are described from their headers, archives
+        from their member listings, and large files by
+        size and kind; every asset carries the role the
+        map notes for it. Nothing is decoded, extracted
+        or dumped. Read-only — nothing is written on this
+        road; a switched-off road reads nothing.
+        """
+        from ..tools import asset_sight as asset_module
+
+        report = asset_module.asset_sight(
+            self.project_root, mode, target=target,
+            enabled=asset_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": asset_module.PLAIN_EXPLANATION,
+        }
+
     def _journal_web_citation(self, report: Any) -> None:
         """Cite one web report's sources into the journal (M-059)."""
         if report.status != "ok":

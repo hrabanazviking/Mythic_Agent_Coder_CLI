@@ -22,6 +22,7 @@ type_depth: true
 mojo_sight: true
 sql_sight: true
 config_sight: true
+asset_sight: true
 repo_map_pins: []
 working_directory: ''
 user_name: ''

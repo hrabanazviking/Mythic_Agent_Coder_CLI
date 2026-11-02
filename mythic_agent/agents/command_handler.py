@@ -255,6 +255,8 @@ class CommandHandler:
                 self._handle_sql(args)
             elif cmd == "/config":
                 self._handle_config(args)
+            elif cmd == "/assets":
+                self._handle_assets(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -2145,6 +2147,41 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_config_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_assets(self, args: str):
+        """M-067: /assets [show | <file> | images | archives | large] — assets, in the TUI.
+
+        Binary and asset sight: images described from
+        their headers, archives from their member
+        listings, large files by size and kind — never
+        dumped, decoded or extracted — with the role
+        the map notes for each file.
+        """
+        from ..tools.asset_sight import (
+            format_asset_report, parse_assets_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_assets_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.asset_sight(
+                request["action"], target=request.get("target"))
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_asset_report(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):
