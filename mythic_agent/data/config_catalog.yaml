@@ -361,6 +361,13 @@ settings:
   default: 'True'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Docs-at-hand (M-060): when true, the docs road is open — /docs list shows the offline shelf (the project''s root and docs/ doc files plus any doc packs under .mythic/docpacks/), /docs search ranks the shelf by title, heading and body matches with snippets and line numbers, and /docs read shows one doc by shelf path, file name or title; the road is fully offline, no file outside the shelf is read and nothing is fetched; when false, no doc file is read on that road.'
+- id: S-51
+  name: dependency_sight
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Dependency sight (M-061): when true, the deps road is open — /deps shows the declared dependency graph from pyproject.toml (groups, specs, and the honestly measured installed version, unknown when a package is not installed), /deps <package> adds that package''s blast radius (workspace files importing it, counted by an AST import scan), its local changelog mentions, and its local vulnerability-data state, and /deps propose <package> <version> drafts an upgrade proposal as data with its blast radius and pin state; changelogs and vulnerability data are read only from files in the workspace — with no local vulnerability data the status is NOT PROVEN, never a clean bill — a proposal is never applied and no file is changed on this road; when false, no project file is read on that road.'
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
