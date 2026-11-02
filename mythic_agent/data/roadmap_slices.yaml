@@ -455,7 +455,7 @@ slices:
   title: Binary and asset awareness
   summary: images, archives, and large files are described, never dumped into context; the map notes their
     roles.
-  status: queued
+  status: done
 - id: M-068
   part: 3
   title: Language packs as data
