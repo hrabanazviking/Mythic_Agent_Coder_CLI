@@ -491,7 +491,7 @@ slices:
   title: Apply-failure repair loop
   summary: a failed apply returns the true current text to the coder for one honest retry — bounded, visible,
     never a silent fuzz.
-  status: queued
+  status: done
 - id: M-074
   part: 4
   title: Hunk-level review
