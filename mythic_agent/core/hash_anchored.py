@@ -343,9 +343,8 @@ def apply_anchored_range(current: str, start: int, end: int,
     before = range_anchor(current, start, end)
     if not _matches(expected, before.hash):
         raise ValueError(format_refusal(_refuse(before, expected)))
-    new_lines = (lines[:start - 1]
-                 + (replacement.split("\n") if replacement else [])
-                 + lines[end:])
+    rep_lines, _rep_ending = _split(replacement) if replacement         else ([], False)
+    new_lines = lines[:start - 1] + rep_lines + lines[end:]
     new_text = _join(new_lines, ending)
     after = _hash_text(replacement) if replacement else _hash_text("")
     return new_text, AnchoredApply(

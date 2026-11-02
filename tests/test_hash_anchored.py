@@ -384,6 +384,65 @@ class TestAgentHashAnchored:
                 "nope.py", 1, 1, "a" * 64, "x")
 
 
+class TestToolRoad:
+    """The agent tool road: anchored writes via the tools."""
+
+    def _run(self, agent, name, arguments):
+        from mythic_agent.agents.tools import execute_tool
+        from mythic_agent.core.policy import ToolPolicy
+        return execute_tool(name, arguments, agent.project_root,
+                            agent=agent, policy=ToolPolicy("trusted"))
+
+    def test_write_file_with_a_true_anchor(self, agent, tmp_path):
+        target = tmp_path / "app.py"
+        target.write_text(SOURCE, encoding="utf-8")
+        anchor = range_anchor(SOURCE, 1, 3).hash
+        result = self._run(agent, "write_file", {
+            "path": "app.py", "content": "fresh = 1\n",
+            "anchor": anchor})
+        assert result.startswith("Successfully wrote")
+        assert target.read_text(encoding="utf-8") == "fresh = 1\n"
+
+    def test_write_file_with_a_stale_anchor_refuses(self, agent, tmp_path):
+        target = tmp_path / "app.py"
+        target.write_text(SOURCE, encoding="utf-8")
+        result = self._run(agent, "write_file", {
+            "path": "app.py", "content": "fresh = 1\n",
+            "anchor": "f" * 64})
+        assert result.startswith("Failed to write file")
+        assert "refused" in result
+        assert target.read_text(encoding="utf-8") == SOURCE
+
+    def test_replace_with_a_true_anchor(self, agent, tmp_path):
+        target = tmp_path / "app.py"
+        target.write_text(SOURCE, encoding="utf-8")
+        result = self._run(agent, "replace_file_content", {
+            "path": "app.py", "target_content": "beta = 2",
+            "replacement_content": "beta = 20",
+            "anchor": range_hash(["beta = 2"])})
+        assert result.startswith("Successfully replaced")
+        assert "beta = 20" in target.read_text(encoding="utf-8")
+
+    def test_replace_with_a_stale_anchor_refuses(self, agent, tmp_path):
+        target = tmp_path / "app.py"
+        target.write_text(SOURCE, encoding="utf-8")
+        result = self._run(agent, "replace_file_content", {
+            "path": "app.py", "target_content": "beta = 2",
+            "replacement_content": "beta = 20",
+            "anchor": "f" * 64})
+        assert result.startswith("Failed to replace content")
+        assert target.read_text(encoding="utf-8") == SOURCE
+
+    def test_replace_without_an_anchor_is_the_old_road(
+            self, agent, tmp_path):
+        target = tmp_path / "app.py"
+        target.write_text(SOURCE, encoding="utf-8")
+        result = self._run(agent, "replace_file_content", {
+            "path": "app.py", "target_content": "beta = 2",
+            "replacement_content": "beta = 20"})
+        assert result.startswith("Successfully replaced")
+
+
 class TestTerminalSurface:
     def test_show_and_set(self, agent):
         from mythic_agent.terminal import _slash
