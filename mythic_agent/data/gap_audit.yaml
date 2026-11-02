@@ -81,7 +81,7 @@ rows:
   part: III
   state: MISSING
   owning_module: mythic_agent/tools/web_search.py
-  module_kind: proposed
+  module_kind: existing
   basis: mythic_agent/tools/review.py
   fix_shape: First-class web search and fetch tools in the tools package.
 - feature: sandboxing
