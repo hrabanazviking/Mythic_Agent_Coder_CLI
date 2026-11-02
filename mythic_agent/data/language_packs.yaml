@@ -1,0 +1,157 @@
+schema: mythic.language_packs/1
+packs_slice: M-068
+source_note: >-
+  Language packs as data (All-Features roadmap slice M-068): the
+  per-language toolchains — language server, formatters, and test
+  runners — for every language in the M-043 tree-sitter catalogue,
+  declared here in data. The definition lives in this file; the
+  loader and validator live in mythic_agent/core/language_packs.py,
+  and the slice's tests pin every pack against the live consumers
+  (the LSP server catalogue in mythic_agent/integrations/lsp.py,
+  the format covenant's candidate names, and test intelligence's
+  pytest detection) so the data and the code cannot drift apart.
+extension_rule: >-
+  A new language is a pack, not a patch: adding a language means
+  adding one entry here — its server, formatters, and test runners
+  declared as data — never editing loader or surface code for it.
+  A pack's language must exist in the M-043 tree-sitter catalogue
+  (mythic_agent/data/tree_sitter_languages.yaml), and its
+  extensions must be exactly that catalogue entry's extensions;
+  the validator refuses a pack for an uncatalogued language.
+packs:
+- id: LP-01
+  language: python
+  title: Python
+  extensions:
+  - .py
+  - .pyi
+  server:
+    name: pyright
+    command: ["pyright-langserver", "--stdio"]
+  formatters:
+  - name: black
+    command: ["black", "."]
+  - name: ruff
+    command: ["ruff", "format", "."]
+  - name: isort
+    command: ["isort", "."]
+  - name: yapf
+    command: ["yapf", "-r", "-i", "."]
+  test_runners:
+  - name: pytest
+    command: ["python", "-m", "pytest"]
+  notes: >-
+    Fully live-wired: the pyright server is the live LSP catalogue's
+    server for Python (M-049); the four formatter names are exactly
+    the format covenant's live candidates (M-053), which runs the
+    one a project itself configures; the pytest runner is the live
+    test-intelligence road's runner (M-056, recognised by the debug
+    loop's pytest-command detection).
+- id: LP-02
+  language: javascript
+  title: JavaScript
+  extensions:
+  - .js
+  - .mjs
+  - .cjs
+  - .jsx
+  server:
+    name: typescript
+    command: ["typescript-language-server", "--stdio"]
+  formatters:
+  - name: prettier
+    command: ["prettier", "--write", "."]
+  test_runners:
+  - name: npm
+    command: ["npm", "test"]
+  notes: >-
+    The server is live-wired: the LSP catalogue's typescript server
+    serves JavaScript as well as TypeScript (M-049). The prettier
+    formatter and the npm test runner are declared pack data only —
+    the format covenant (M-053) is a Python road and test
+    intelligence (M-056) is a pytest road, so no live consumer runs
+    them in this codebase today.
+- id: LP-03
+  language: typescript
+  title: TypeScript
+  extensions:
+  - .ts
+  - .tsx
+  server:
+    name: typescript
+    command: ["typescript-language-server", "--stdio"]
+  formatters:
+  - name: prettier
+    command: ["prettier", "--write", "."]
+  test_runners:
+  - name: npm
+    command: ["npm", "test"]
+  notes: >-
+    The server is live-wired: the LSP catalogue's typescript server
+    serves TypeScript (M-049). The prettier formatter and the npm
+    test runner are declared pack data only — the format covenant
+    (M-053) is a Python road and test intelligence (M-056) is a
+    pytest road, so no live consumer runs them in this codebase
+    today.
+- id: LP-04
+  language: rust
+  title: Rust
+  extensions:
+  - .rs
+  server:
+    name: rust-analyzer
+    command: ["rust-analyzer"]
+  formatters:
+  - name: rustfmt
+    command: ["rustfmt"]
+  test_runners:
+  - name: cargo
+    command: ["cargo", "test"]
+  notes: >-
+    The server is live-wired: rust-analyzer is the live LSP
+    catalogue's server for Rust (M-049). The rustfmt formatter and
+    the cargo test runner are declared pack data only — the format
+    covenant (M-053) is a Python road and test intelligence (M-056)
+    is a pytest road, so no live consumer runs them in this
+    codebase today.
+- id: LP-05
+  language: go
+  title: Go
+  extensions:
+  - .go
+  server:
+    name: gopls
+    command: ["gopls"]
+  formatters:
+  - name: gofmt
+    command: ["gofmt", "-w", "."]
+  test_runners:
+  - name: go
+    command: ["go", "test", "./..."]
+  notes: >-
+    The server is live-wired: gopls is the live LSP catalogue's
+    server for Go (M-049). The gofmt formatter and the go test
+    runner are declared pack data only — the format covenant
+    (M-053) is a Python road and test intelligence (M-056) is a
+    pytest road, so no live consumer runs them in this codebase
+    today.
+- id: LP-06
+  language: mojo
+  title: Mojo
+  extensions:
+  - .mojo
+  server: null
+  formatters:
+  - name: mojo
+    command: ["mojo", "format"]
+  test_runners:
+  - name: mojo
+    command: ["mojo", "test"]
+  notes: >-
+    Honestly server-less: the live LSP catalogue (M-049) catalogues
+    no Mojo server, so this pack records server null rather than
+    inventing one — the same honesty the M-043 catalogue keeps for
+    Mojo's missing tree-sitter grammar. The mojo formatter and test
+    runner are declared pack data only; Mojo's live first-class
+    road in this codebase is Mojo sight (M-064), which neither
+    formats nor runs tests.

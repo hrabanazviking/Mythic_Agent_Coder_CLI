@@ -72,7 +72,13 @@ _PLUGIN_HOOK_PREFIXES = ("register_",)
 # - ast.NodeVisitor: visit_*
 _METHOD_HOOK_PREFIXES = ("on_", "action_", "watch_", "validate_",
                          "render_", "visit_")
-_METHOD_HOOK_NAMES = {"compose"}
+_METHOD_HOOK_NAMES = {"compose"} | {
+    # stdlib html.parser.HTMLParser callbacks, invoked by the
+    # parser itself on subclasses (M-059's web page parsers).
+    "handle_starttag", "handle_startendtag", "handle_endtag",
+    "handle_data", "handle_entityref", "handle_charref",
+    "handle_comment", "handle_decl", "handle_pi", "unknown_decl",
+}
 
 # Class-level variables consumed by frameworks, not by package code.
 _FRAMEWORK_VARS = {"CSS", "DEFAULT_CSS", "BINDINGS", "DEFAULT_THEME",

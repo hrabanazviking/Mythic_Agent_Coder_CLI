@@ -201,6 +201,10 @@ class CommandHandler:
                 self._handle_fallback(args)
             elif cmd == "/costroute":
                 self._handle_costroute(args)
+            elif cmd == "/editformat":
+                self._handle_editformat(args)
+            elif cmd == "/hashanchor":
+                self._handle_hashanchor(args)
             elif cmd == "/kista":
                 self._handle_kista(args)
             elif cmd == "/resume-thought":
@@ -235,6 +239,32 @@ class CommandHandler:
                 self._handle_debug_loop(args)
             elif cmd == "/testintel":
                 self._handle_test_intel(args)
+            elif cmd == "/coverage":
+                self._handle_coverage(args)
+            elif cmd == "/search":
+                self._handle_local_search(args)
+            elif cmd == "/web":
+                self._handle_web(args)
+            elif cmd == "/docs":
+                self._handle_docs(args)
+            elif cmd == "/deps":
+                self._handle_deps(args)
+            elif cmd == "/sensing":
+                self._handle_sensing(args)
+            elif cmd == "/types":
+                self._handle_types(args)
+            elif cmd == "/mojo":
+                self._handle_mojo(args)
+            elif cmd == "/sql":
+                self._handle_sql(args)
+            elif cmd == "/config":
+                self._handle_config(args)
+            elif cmd == "/assets":
+                self._handle_assets(args)
+            elif cmd == "/langpacks":
+                self._handle_langpacks(args)
+            elif cmd == "/intelcache":
+                self._handle_intelcache(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -886,6 +916,109 @@ class CommandHandler:
             return
         publish_sync("agent_chat_chunk", agent_name="Primary",
                      text=f"\n[green]{format_fallback_change(record)}[/green]\n")
+
+    def _handle_editformat(self, args: str):
+        """M-071: /editformat — edit-format plurality, in plain words.
+
+        ``/editformat`` shows the setting (auto by default),
+        the four formats, and the auto picks for the current
+        model; ``/editformat <format>`` pins a format (or
+        ``auto`` unpins it — journaled by the agent layer);
+        ``/editformat <task-kind>`` asks for the pick for
+        that kind of work and journals the choice on the
+        session with its reason, as the roadmap requires.
+        """
+        from ..core.edit_formats import (
+            format_choice,
+            format_edit_formats,
+            format_setting_change,
+            parse_editformat_args,
+            setting_from_config,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_editformat_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.edit_format_status()
+            assert status["setting"] == setting_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_edit_formats(primary.config)}[/bold cyan]\n"
+                     "[dim]Pin a format with /editformat <format>, "
+                     "return to auto with /editformat auto, or ask "
+                     "for a pick with /editformat <task-kind>.[/dim]\n")
+            return
+        try:
+            if request["action"] == "setting":
+                record = primary.set_edit_format(request["value"])
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_setting_change(record)}[/green]\n")
+                return
+            record = primary.choose_edit_format(request["task_kind"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_choice(record['choice'])}[/bold cyan]\n")
+
+    def _handle_hashanchor(self, args: str):
+        """M-072: /hashanchor — hash-anchored edits, in plain words.
+
+        ``/hashanchor`` shows the gate (on by default), the
+        plain-words explanation, and a small file in anchored
+        form; ``/hashanchor on`` / ``off`` changes the gate
+        (journaled by the agent layer).
+        """
+        from ..core.hash_anchored import (
+            enabled_from_config,
+            format_hash_anchored,
+            format_setting_change,
+            parse_hashanchor_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_hashanchor_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.hash_anchor_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_hash_anchored(primary.config)}[/bold cyan]\n"
+                     "[dim]Turn the gate off with /hashanchor off, "
+                     "or back on with /hashanchor on.[/dim]\n")
+            return
+        try:
+            record = primary.set_hash_anchored(request["enabled"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_setting_change(record)}[/green]\n")
 
     def _handle_costroute(self, args: str):
         """M-031: /costroute — cost-aware routing, in plain words.
@@ -1763,6 +1896,472 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_test_intel_selection(status)}[/bold cyan]\n")
+        return
+
+    def _handle_coverage(self, args: str):
+        """M-057: /coverage [show] | check <file> ... — coverage sight, in the TUI.
+
+        The board shows whether coverage.py data exists and
+        what it totals; a check lays its measured lines over
+        the touched files, and a file whose measured lines
+        never ran is flagged to the Auditor in the audit log.
+        """
+        from ..tools.coverage_sight import (
+            format_coverage_board, format_coverage_overlay,
+            parse_coverage_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_coverage_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_coverage_board(primary.coverage_status())}[/bold cyan]\n")
+            return
+        try:
+            status = primary.coverage_check(request["changed"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_coverage_overlay(status)}[/bold cyan]\n")
+        return
+
+    def _handle_local_search(self, args: str):
+        """M-058: /search [text] <regex> | fuzzy <query> | structural <language> <pattern> — beyond-grep local search, in the TUI.
+
+        One surface, three modes — in-process text, fuzzy
+        subsequence, and the M-047 structural engine —
+        with results ranked by the symbol graph, every
+        result carrying its score and reasons.
+        """
+        from ..tools.local_search import (
+            format_local_search, parse_local_search_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_local_search_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.local_search(
+                request["query"], mode=request["mode"],
+                language=request["language"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_local_search(status)}[/bold cyan]\n")
+        return
+
+    def _handle_web(self, args: str):
+        """M-059: /web search <query> | /web fetch <url> — web knowledge tools, in the TUI.
+
+        One search through the configured endpoint or one
+        fetched page, results as numbered citations, cited
+        into the session journal by the Agent when a
+        session is attached.
+        """
+        from ..tools.web_search import format_web_report, parse_web_args
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_web_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if request["action"] == "search":
+                status = primary.web_search(request["query"])
+            else:
+                status = primary.web_fetch(request["url"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_web_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_docs(self, args: str):
+        """M-060: /docs list | search <query> | read <name> — docs-at-hand, in the TUI.
+
+        The offline shelf: the project's own docs plus
+        doc packs under .mythic/docpacks/, searched and
+        read with nothing fetched from anywhere.
+        """
+        from ..tools.docs_at_hand import (
+            format_docs_report, parse_docs_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_docs_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if request["action"] == "list":
+                status = primary.docs_list()
+            elif request["action"] == "search":
+                status = primary.docs_search(request["query"])
+            else:
+                status = primary.docs_read(request["name"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_docs_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_deps(self, args: str):
+        """M-061: /deps [show | <package> | propose <package> <version>] — dependency sight, in the TUI.
+
+        The declared graph from pyproject.toml with honest
+        installed truth; a package adds its counted blast
+        radius, local changelog mentions and local
+        vulnerability-data state; a proposal is data only
+        and is never applied.
+        """
+        from ..tools.dependency_sight import (
+            format_deps_report, parse_deps_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_deps_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if request["action"] == "show":
+                status = primary.dependency_sight()
+            elif request["action"] == "package":
+                status = primary.dependency_sight(request["package"])
+            else:
+                status = primary.dependency_proposal(
+                    request["package"], request["version"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_deps_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_sensing(self, args: str):
+        """M-062: /sensing [show | dead | dup] — code sensing, in the TUI.
+
+        A structural report for the Cartographer: dead
+        code from the shipped scanner over the workspace's
+        packages, and structural duplication clusters.
+        Sensing only — nothing is deleted or edited.
+        """
+        from ..tools.code_sensing import (
+            format_sensing_report, parse_sensing_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_sensing_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.code_sensing(request["action"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_sensing_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_types(self, args: str):
+        """M-063: /types [show | <path>] — type depth, in the TUI.
+
+        The standing type account from the project's type
+        checkers (mypy/pyright, whichever truly exist),
+        findings triaged by kind into the review. A
+        checker that is not installed is shown as its
+        absence, never as a clean file.
+        """
+        from ..tools.type_depth import (
+            format_type_report, parse_types_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_types_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.type_depth(request["path"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_type_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_mojo(self, args: str):
+        """M-064: /mojo [show | <path> | knowledge [term]] — Mojo, in the TUI.
+
+        Mojo as a first-class language: the workspace's
+        Mojo files scanned structurally (tree-sitter
+        grammar where one truly loads — none exists
+        today, said plainly), removed syntax flagged
+        with its replacement, and the house Mojo skills'
+        distilled knowledge searchable.
+        """
+        from ..tools.mojo_sight import (
+            format_mojo_report, parse_mojo_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_mojo_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.mojo_sight(
+                request["action"], target=request.get("target"),
+                term=request.get("term", ""))
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_mojo_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_sql(self, args: str):
+        """M-065: /sql [show | <db> | explain <db> <query> | migrations] — SQL, in the TUI.
+
+        SQL and data sight: workspace SQLite databases
+        read through read-only connections (schemas,
+        and EXPLAIN for SELECT queries — explained,
+        never executed; writes refused), and migration
+        files read as code, never applied.
+        """
+        from ..tools.sql_sight import (
+            format_sql_report, parse_sql_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_sql_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.sql_sight(
+                request["action"], db=request.get("db"),
+                query=request.get("query", ""))
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_sql_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_config(self, args: str):
+        """M-066: /config [show | <file> | docker] — config/infra, in the TUI.
+
+        Config and infra sight: YAML, TOML, INI and
+        systemd unit files, Dockerfiles and compose
+        files parsed structurally — never executed —
+        with the coder's own no-Docker-law warning
+        raised for Docker artifacts on Volmarr's
+        projects.
+        """
+        from ..tools.config_sight import (
+            format_config_report, parse_config_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_config_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.config_sight(
+                request["action"], target=request.get("target"))
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_config_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_assets(self, args: str):
+        """M-067: /assets [show | <file> | images | archives | large] — assets, in the TUI.
+
+        Binary and asset sight: images described from
+        their headers, archives from their member
+        listings, large files by size and kind — never
+        dumped, decoded or extracted — with the role
+        the map notes for each file.
+        """
+        from ..tools.asset_sight import (
+            format_asset_report, parse_assets_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_assets_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.asset_sight(
+                request["action"], target=request.get("target"))
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_asset_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_langpacks(self, args: str):
+        """M-068: /langpacks [show | <language>] — language packs, in the TUI.
+
+        Language packs as data: each language's toolchain
+        (language server, formatters, test runners) is
+        declared in the pack data and reported with a live
+        PATH check of each declared binary — described,
+        never executed.
+        """
+        from ..tools.language_packs import (
+            format_language_pack_report, parse_langpacks_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_langpacks_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.language_packs(
+                request["action"], language=request.get("language"))
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_language_pack_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_intelcache(self, args: str):
+        """M-069: /intelcache [show | <file> | warm | clear] — the cache, in the TUI.
+
+        Parse/graph/LSP results cached per file hash under
+        the workspace's .mythic/intelligence-cache/: a
+        changed file's entry is evicted on lookup, never
+        served; warming writes cache entries only.
+        """
+        from ..tools.intelligence_cache import (
+            format_intelligence_cache_report, parse_intelcache_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_intelcache_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.intelligence_cache(
+                request["action"], target=request.get("target"))
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_intelligence_cache_report(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):

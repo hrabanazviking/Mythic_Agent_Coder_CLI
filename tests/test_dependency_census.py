@@ -70,7 +70,7 @@ def test_shipped_census_loads_and_validates(census):
     assert isinstance(census, DependencyCensus)
     assert validate_census(load_resource("dependency_census.yaml")) == []
     n_deps, n_reps = census.counts()
-    assert n_deps == 35
+    assert n_deps == 36
     assert n_reps >= 5
 
 
