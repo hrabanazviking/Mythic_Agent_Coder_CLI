@@ -1963,6 +1963,30 @@ class Agent:
             "plain_explanation": mojo_module.PLAIN_EXPLANATION,
         }
 
+    def sql_sight(self, mode: str = "show",
+                  db: str | None = None,
+                  query: str = "") -> dict[str, Any]:
+        """A SQL account — schemas, explain, or migrations (M-065).
+
+        Workspace-local SQLite databases are opened
+        through read-only connections only; a query is
+        explained, never executed, and write-shaped
+        statements are refused; migration files are read
+        as code, never applied. Read-only — nothing is
+        written on this road; a switched-off road reads
+        nothing.
+        """
+        from ..tools import sql_sight as sql_module
+
+        report = sql_module.sql_sight(
+            self.project_root, mode, db=db, query=query,
+            enabled=sql_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": sql_module.PLAIN_EXPLANATION,
+        }
+
     def _journal_web_citation(self, report: Any) -> None:
         """Cite one web report's sources into the journal (M-059)."""
         if report.status != "ok":

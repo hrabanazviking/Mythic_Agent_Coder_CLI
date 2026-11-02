@@ -716,6 +716,20 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_mojo_report(status)
+    if command == "/sql":
+        from .tools.sql_sight import (
+            format_sql_report, parse_sql_args)
+        try:
+            request = parse_sql_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.sql_sight(
+                request["action"], db=request.get("db"),
+                query=request.get("query", ""))
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_sql_report(status)
     if command == "/lsp":
         from .integrations.lsp import (
             format_lsp_code_actions,

@@ -251,6 +251,8 @@ class CommandHandler:
                 self._handle_types(args)
             elif cmd == "/mojo":
                 self._handle_mojo(args)
+            elif cmd == "/sql":
+                self._handle_sql(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -2069,6 +2071,42 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_mojo_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_sql(self, args: str):
+        """M-065: /sql [show | <db> | explain <db> <query> | migrations] — SQL, in the TUI.
+
+        SQL and data sight: workspace SQLite databases
+        read through read-only connections (schemas,
+        and EXPLAIN for SELECT queries — explained,
+        never executed; writes refused), and migration
+        files read as code, never applied.
+        """
+        from ..tools.sql_sight import (
+            format_sql_report, parse_sql_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_sql_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.sql_sight(
+                request["action"], db=request.get("db"),
+                query=request.get("query", ""))
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_sql_report(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):
