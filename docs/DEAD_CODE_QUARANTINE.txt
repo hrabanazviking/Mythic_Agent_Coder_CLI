@@ -3,6 +3,7 @@
 mythic_agent/agents/context.py:69:ContextBuilder:class
 mythic_agent/agents/context.py:101:add_system:method
 mythic_agent/agents/context.py:105:add_tool_pair:method
+mythic_agent/agents/llm.py:606:set_model:method
 mythic_agent/agents/parallel.py:81:ParallelExecutor:class
 mythic_agent/agents/parallel.py:124:execute_all:method
 mythic_agent/agents/planning.py:140:Planner:class
@@ -84,3 +85,8 @@ mythic_agent/core/thread_audit.py:113:forget:method
 mythic_agent/core/thread_audit.py:158:owner_ident:method
 mythic_agent/providers/llamacpp.py:68:health:method
 mythic_agent/providers/ollama.py:77:list_models:method
+mythic_agent/providers/openai_compat.py:348:list_models:method
+mythic_agent/providers/aesir.py:315:list_models:method
+mythic_agent/providers/aesir.py:379:native_generate:method
+mythic_agent/providers/aesir.py:486:ollama_snapshot:method
+mythic_agent/providers/aesir.py:415:reported_capabilities:method

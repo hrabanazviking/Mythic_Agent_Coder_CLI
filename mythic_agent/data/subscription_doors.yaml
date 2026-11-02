@@ -1,0 +1,112 @@
+schema: mythic.subscription_doors/1
+slice: M-033
+recorded: '2026-10-31'
+scope_note: 'The subscription doors study (All-Features roadmap slice M-033): the OAuth-style sign-ins some rivals use to spend a consumer subscription instead of an API key - studied behaviourally, clean-room from the vendors'' own public documentation and legal pages as of the recorded date. No rival source code was read, no credential was borrowed, and NOTHING IS BUILT by this slice: every door below carries built: false. Each door is recorded with the plans it serves, its sign-in flow, where the official client keeps the credential, what the usage bills against, and a terms verdict in the study''s fixed vocabulary: not_offered (the vendor''s terms do not allow Mythic to build this door, or no vendor programme for it exists - the reason is recorded verbatim in spirit and the sanctioned alternative is named), first_party_only (the sign-in exists, but only inside the vendor''s own clients), or allowed_via_programme (a documented vendor programme lets a third-party app ask for this grant, under stated conditions - a future build slice may implement it only through that programme, never by borrowing a login another tool stored). The one allowed door is OpenAI''s: Sign in with ChatGPT separates an identity grant from a plan-usage grant, and OpenAI documents the plan-usage route for open-source and personal local projects as self-serve, with paid or hosted apps required to request access instead. The contrast is the finding: where one vendor publishes a programme, another (Anthropic) publishes a prohibition, a third (Google) withdrew the consumer door and called third-party use of its OAuth a policy violation, and a fourth (GitHub) documents its subscription sign-in only for its own CLI. Possible is not allowed, and this study records allowed.'
+doors:
+- id: D-01
+  door: anthropic-claude-subscription
+  name: Claude subscription sign-in (Claude Code OAuth)
+  vendor: Anthropic
+  rival: claude-code
+  mythic_provider: anthropic
+  plans: 'Claude Free, Pro, Max and Ultra subscriptions, and Claude for Teams or Enterprise seats, signed in with a claude.ai account'
+  flow: 'Browser OAuth: the official client (claude, /login, or claude auth login) opens a browser window; a paste-code fallback serves browsers that show a login code instead of redirecting; claude setup-token mints a one-year OAuth token (CLAUDE_CODE_OAUTH_TOKEN) for CI and scripts where no browser is available'
+  credential_locus: 'Inside the official Claude Code client only: its own credential store / Anthropic profile on the user''s machine; setup-token prints its token once and saves it nowhere'
+  billing: 'The subscription''s own usage limits (not API rates); the setup-token can only make model requests and counts against the same subscription'
+  verdict: not_offered
+  verdict_reason: 'Anthropic''s legal page states OAuth authentication used with Free, Pro and Max plans is intended exclusively for Claude Code and Claude.ai, that using those OAuth tokens in any other product, tool or service - including the Agent SDK - is not permitted and violates the Consumer Terms, that third-party developers may not offer Claude.ai login or route requests through Free, Pro or Max credentials on behalf of users, and that developers may not collect, store or intermediate Claude.ai credentials or session tokens'
+  mythic_action: 'NOT OFFERED, recorded with the reason. Mythic never asks for, reads, stores or replays a Claude subscription credential, and never presents itself as Claude Code to Anthropic''s servers. The sanctioned road is the one Mythic already ships: an Anthropic API key from the Claude Console, held in Kista (M-021, M-032), or a cloud-provider door (Bedrock / Vertex / Foundry) under that provider''s own terms'
+  evidence: 'Anthropic Claude Code documentation, Authentication page (login flows, account types, credential precedence, setup-token) and Anthropic''s Claude Code legal / Consumer Terms statements on OAuth credential use, both read 2026-10-31'
+  built: false
+- id: D-02
+  door: openai-codex-sign-in
+  name: Sign in with ChatGPT (Codex first-party sign-in)
+  vendor: OpenAI
+  rival: codex-cli
+  mythic_provider: openai
+  plans: 'ChatGPT Plus, Pro, Business, Edu and Enterprise plans (Codex is included with the plan)'
+  flow: 'Browser OAuth via codex login (the default, Sign in with ChatGPT); a device-code variant (codex login --device-auth) serves headless machines, redeemed at the vendor''s device page after the account enables device-code authorization; an API key may instead be piped to codex login --with-api-key'
+  credential_locus: 'The Codex client''s own auth store (~/.codex/auth.json, or $CODEX_HOME/auth.json) on the user''s machine'
+  billing: 'The ChatGPT plan''s Codex usage quota when signed in with ChatGPT; API rates when signed in with an API key'
+  verdict: first_party_only
+  verdict_reason: 'This sign-in is documented as the Codex clients'' own authentication (CLI, IDE, app-server). It is not by itself a grant for an unrelated app to spend the plan: OpenAI''s third-party grant is the separate programme recorded as D-03, and reading the token out of the Codex auth store is credential borrowing, which this study''s rules refuse outright'
+  mythic_action: 'NOT OFFERED as a Mythic sign-in, and the Codex auth store is never read by Mythic. A user who wants Codex itself uses Codex; Mythic''s OpenAI door stays the API key in Kista (M-032) unless and until the D-03 programme door is built through OpenAI''s own flow'
+  evidence: 'OpenAI Codex documentation (codex login, device-auth, --with-api-key, plan inclusion) and the Codex app-server Sign in with ChatGPT page, read 2026-10-31'
+  built: false
+- id: D-03
+  door: openai-sign-in-with-chatgpt
+  name: Sign in with ChatGPT - plan usage (third-party programme)
+  vendor: OpenAI
+  rival: codex-cli
+  mythic_provider: openai
+  plans: 'ChatGPT Plus and Pro subscriptions, in participating apps'
+  flow: 'The app runs OpenAI''s own OAuth 2.0 / OpenID Connect flow in the user''s browser: an identity grant (openid profile email) proves who the user is, and a separate, optional plan-usage grant lets the app complete eligible requests against the plan; the app receives an ID token and, with the plan grant, a short-lived access token (about one hour) plus a refresh token (about thirty days, replaced on refresh)'
+  credential_locus: 'The app''s own token store, obtained through OpenAI''s flow for that app - never another tool''s store; in Mythic any such token would live in Kista (M-032) and nowhere else'
+  billing: 'Eligible requests draw on the ChatGPT Work and Codex usage already included in the plan, under a weekly per-app cap the user sets in ChatGPT settings; when the cap is reached included usage stops rather than switching to the app''s billing; the app never receives the user''s conversations, memories or an API key'
+  verdict: allowed_via_programme
+  verdict_reason: 'OpenAI documents this programme for third-party apps: at launch, plan usage is self-serve for open-source projects, personal local projects and selected private apps, while paid or hosted apps must request access. Mythic is an open-source local CLI, so the documented road exists - but it exists only through OpenAI''s registration and flow, with the identity grant and the plan-usage grant kept separate exactly as documented'
+  mythic_action: 'ALLOWED VIA PROGRAMME - NOT BUILT in this study slice. A future build slice may implement this door only by registering Mythic under OpenAI''s programme, running OpenAI''s own browser flow, keeping the two grants separate, honouring the user''s per-app weekly cap as a hard stop, and holding the tokens in Kista. Until that slice is commissioned and built, Mythic records this door as studied-and-allowed, not offered in the app'
+  evidence: 'OpenAI developer documentation for Sign in with ChatGPT (identity vs plan usage, token lifetimes, per-app caps, developer access rules) and the Codex app-server token-sharing page, read 2026-10-31'
+  built: false
+- id: D-04
+  door: google-sign-in
+  name: Sign in with Google (Gemini CLI / Code Assist)
+  vendor: Google
+  rival: gemini-cli
+  mythic_provider: google
+  plans: 'Was: Gemini Code Assist for individuals (free) and Google AI Pro / Ultra subscriptions. Remaining: Gemini Code Assist Standard and Enterprise licences held by an organisation, with a Google Cloud project'
+  flow: 'Browser OAuth: the Gemini CLI opens a Google sign-in in the browser and caches the credentials locally for future sessions; organisation and licence users also set GOOGLE_CLOUD_PROJECT'
+  credential_locus: 'The Gemini CLI''s own local credential cache on the user''s machine'
+  billing: 'The Code Assist licence or subscription tier the account carries (request quotas per tier), not API rates, while the door served the account at all'
+  verdict: not_offered
+  verdict_reason: 'Google announced that Gemini CLI and the Code Assist IDE extensions would stop serving requests on 2026-06-18 for the free individual tier and for Google AI Pro and Ultra subscribers, moving those users to Antigravity CLI; only Standard and Enterprise organisation licences keep access, and Google has stated that using the Gemini CLI OAuth flow with third-party software is a policy-violating use case. A withdrawn consumer door offered to no third party is not a door Mythic may build'
+  mythic_action: 'NOT OFFERED, recorded with the reason. Mythic never replays a Google sign-in cached by another tool. The sanctioned roads are the ones Mythic already ships: a Gemini API key (AI Studio) or Vertex AI credentials, held in Kista (M-022, M-032)'
+  evidence: 'Google Gemini CLI authentication documentation (Sign in with Google, account types, Cloud project rule) and Google''s 2026 announcement ending consumer-tier CLI service on 2026-06-18, read 2026-10-31'
+  built: false
+- id: D-05
+  door: github-copilot-sign-in
+  name: GitHub Copilot sign-in (Copilot CLI OAuth)
+  vendor: GitHub
+  rival: copilot-cli
+  mythic_provider: none
+  plans: 'All GitHub Copilot plans (Free, Student, Pro, Pro+, Max, Business, Enterprise); an organisation that supplies Copilot must also enable its Copilot CLI policy'
+  flow: 'OAuth in the official client (copilot login or /login): a browser (web) flow with a loopback callback on a desktop, a device-code flow in remote or headless sessions; alternatively a fine-grained personal access token carrying the Copilot Requests permission, supplied via COPILOT_GITHUB_TOKEN / GH_TOKEN / GITHUB_TOKEN, or an already-authenticated GitHub CLI token as the lowest-priority fallback'
+  credential_locus: 'The Copilot CLI''s own store (the OS keyring where available, else its config file under ~/.copilot or COPILOT_HOME)'
+  billing: 'The Copilot plan''s included AI credits / premium-request allowance'
+  verdict: not_offered
+  verdict_reason: 'GitHub documents this sign-in, and the Copilot Requests token permission, for authenticating the Copilot CLI itself; no GitHub programme is documented under which an unrelated third-party agent may spend a user''s Copilot subscription, and Mythic ships no Copilot provider in its registry at all (mythic_provider: none). Unofficial plugins that reuse the VS Code / Copilot OAuth app exist in the wild and are explicitly unsupported experiments - existence is not permission'
+  mythic_action: 'NOT OFFERED, recorded with the reason. If GitHub ever publishes a third-party programme for Copilot plan usage, this door is re-studied and may move to allowed_via_programme on that evidence; until then Mythic neither offers a Copilot sign-in nor reads a Copilot, VS Code or GitHub CLI token store'
+  evidence: 'GitHub documentation, Authenticating GitHub Copilot CLI (OAuth browser and device flows, token environment variables and precedence, GitHub CLI fallback, plan availability), read 2026-10-31'
+  built: false
+findings:
+- id: F-01
+  finding: 'Possible is not allowed: more than one third-party harness has technically spent a Claude subscription by holding or replaying the official client''s OAuth credential, and Anthropic''s terms prohibit exactly that, with enforcement (the credential pathway was patched and accounts were acted against). A door that merely works is not a door.'
+  implication: 'Mythic judges every subscription door by the vendor''s published terms and programmes, never by whether a token can be made to work.'
+- id: F-02
+  finding: 'OpenAI is the documented contrast: it publishes a third-party programme (Sign in with ChatGPT) with two separate grants - identity, and plan usage - per-app weekly caps set by the user, short-lived tokens, and an access rule that is self-serve for open-source and personal local projects but request-first for paid or hosted apps.'
+  implication: 'The one buildable subscription door in this study is buildable only inside that programme''s fences; the build, when commissioned, is a programme integration, not a login scrape.'
+- id: F-03
+  finding: 'Credential borrowing is its own door, and it is refused even where a programme exists: several tools read another client''s stored login (a Codex auth file, a Claude Code credential store, a Copilot hosts file) instead of running the vendor''s flow for themselves.'
+  implication: 'Mythic never reads another tool''s credential store, for any vendor, under any verdict; a door Mythic builds runs the vendor''s flow and holds its own token in Kista.'
+- id: F-04
+  finding: 'Subscription billing is not API billing: a subscription door spends a plan allowance (quotas, five-hour or weekly windows, per-app caps) that the same user also spends in the vendor''s own apps, and hitting the limit stops the included usage instead of quietly switching meters.'
+  implication: 'Any future built door must surface the allowance state before it bites (the M-036 rate-limit weather road) and must never fall back to metered billing without the user''s explicit say-so.'
+- id: F-05
+  finding: 'Every NOT OFFERED door in this study has a sanctioned alternative that Mythic already ships: the same vendor''s API key (or its cloud-provider door), held in Kista under M-032, with the missing-key remedy asking once, kindly.'
+  implication: 'Recording a door NOT OFFERED costs the user nothing they lawfully had: the refusal names the working road in the same breath.'
+- id: F-06
+  finding: 'Doors move: Google withdrew its consumer subscription door mid-2026 and Anthropic repriced and re-fenced programmatic subscription use across the same year, while OpenAI widened its programme. A verdict recorded in 2026 is evidence with a date, not a law of nature.'
+  implication: 'This study is re-checked when a vendor publishes a change (a new programme, a withdrawal, new terms); a verdict flips only on new published evidence, recorded with its date - the M-013 platform-truth discipline applied to terms.'
+rules:
+- id: R-01
+  rule: 'never borrow a credential: Mythic never reads, copies, refreshes or replays a login token stored by or issued to another tool'
+- id: R-02
+  rule: 'never impersonate the official client: Mythic never sends another client''s name, user agent, system prompt or client identity to spend a subscription'
+- id: R-03
+  rule: 'built only where the terms allow: a subscription door is built only under a vendor programme or permission published by that vendor, else it is recorded NOT OFFERED with the reason'
+- id: R-04
+  rule: 'a subscription token, if a door is ever built, lives in Kista like every other secret (M-032): config files hold references, never tokens, and no status surface ever shows one'
+- id: R-05
+  rule: 'NOT OFFERED is a complete result: the record names the reason and the sanctioned alternative, and no door is quietly half-built behind a flag'
+- id: R-06
+  rule: 'verdicts carry their date: a door''s verdict stands on the vendor evidence recorded with it, and is re-studied on new published evidence, never on rumour or on a workaround appearing in the wild'

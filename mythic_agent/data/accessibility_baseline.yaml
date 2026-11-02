@@ -1,0 +1,234 @@
+schema: mythic.accessibility_baseline/1
+slice: M-016
+recorded: '2026-10-31'
+scope_note: 'The accessibility baseline: the "before" picture for Part VIII, measured 2026-10-31 on
+  this VM (Linux x86_64, Python 3.12, baseline venv). Three passes: keyboard-only task
+  completion, a screen-reader pass over the TUI, and a WCAG 2.x contrast audit of every shipped
+  theme, computed from the live theme colours by the loader''s own ratio functions (the slice''s
+  tests recompute every recorded ratio from mythic_agent/ui/themes.py, so the audit cannot drift
+  from the shipped colours). Verdict discipline follows the M-013 truth table: PASS requires
+  local-measured evidence; a code inspection or a documentation promise can only support PARTIAL
+  at best, and a pass never run at all is NOT PROVEN, never silently inherited. No real
+  screen-reader (NVDA, JAWS, VoiceOver, Orca) has ever been run against this TUI, and no physical
+  terminal session with an assistive-technology user is claimed anywhere here — those are Part
+  VIII''s first jobs, and M-199 re-runs this baseline''s tests as its gate.'
+keyboard_checks:
+- id: K-01
+  area: keyboard-only
+  name: CLI one-shot and session tasks without a pointer
+  verdict: PASS
+  evidence_kind: local-measured
+  evidence: 'The CLI is argv + stdin/stdout only (mythic_agent/cli.py): no pointer, drag, or
+    mouse event exists anywhere in the CLI path, and the M-007 scripted end-to-end task (one-shot
+    reply, read-only write refusal exit 3, trusted write executes, resume + sessions) passed 4/4
+    against a loopback fake provider with no terminal interaction at all. All CLI tests run in
+    subprocesses without a TTY in the counted suites.'
+- id: K-02
+  area: keyboard-only
+  name: Security approval dialog approved by keyboard alone
+  verdict: PASS
+  evidence_kind: local-measured
+  evidence: 'Measured this tick under the Textual pilot with pilot.press only (no click): the
+    CommandApproval modal opens with Allow focused, Tab cycles Allow <-> Reject, Enter on Allow
+    approves exactly once and dismisses the modal (state approved True, rejected False). The
+    approval is the one modal that gates tool use, so keyboard-only approval is the gate that
+    matters most — and it works.'
+- id: K-03
+  area: keyboard-only
+  name: Security approval dialog rejected by keyboard alone
+  verdict: PASS
+  evidence_kind: local-measured
+  evidence: 'Measured this tick under the Textual pilot with pilot.press only: pressing Escape
+    on the open CommandApproval modal rejects (state approved False, rejected True) via its
+    BINDINGS entry ("escape", "reject", "Reject"); no mouse, no click, and rejection never
+    grants permission (the modal''s decide path is guarded, per M-003).'
+- id: K-04
+  area: keyboard-only
+  name: Chat screen wired shortcuts versus the advertised registry
+  verdict: PARTIAL
+  evidence_kind: local-measured
+  evidence: 'Measured from the live tree this tick: MainChatScreen binds only ctrl+q (quit), f2
+    (setup), f3 (select agent), f4 (voice), f5 (mute), escape (exit ghost session), and MythicTUI
+    binds only ctrl+q (plus ctrl+c unbound for native copy); the chat input is auto-focused on
+    mount (chat_screen on_mount focuses #chat-input), so the main task needs no mouse. But the
+    shortcuts registry (mythic_agent/ui/shortcuts.py, 19 actions, documented in docs/SHORTCUTS.md)
+    advertises TUI keys no screen binds or implements — help (f1), clear (ctrl+l), focus_input
+    (ctrl+i), scroll_up/down (shift+up/down), new_tab (ctrl+t), next_tab (ctrl+tab), prev_tab
+    (ctrl+shift+tab), close_tab (ctrl+w), command_palette (ctrl+k), toggle_sidebar (ctrl+b) — a
+    grep of mythic_agent/ui/ finds no action for any of them. Finding F-03 hands the wiring gap
+    to Part VIII; until then the registry over-promises.'
+- id: K-05
+  area: keyboard-only
+  name: Setup wizard traversable by keyboard alone
+  verdict: PARTIAL
+  evidence_kind: code-inspected
+  evidence: 'SetupScreen (mythic_agent/ui/screens/setup_screen.py) composes only Textual widgets
+    that Tab-traverse by default (Select, Input, TextArea, Button) with a visible Label step
+    before every field, and Save ("To Valhalla!") starts disabled until a model is fetched — a
+    keyboard user can reach every field and both buttons with Tab/Shift+Tab and Enter, and no
+    field requires a pointer. NOT a PASS: no pilot-driven keyboard completion of the wizard was
+    run this tick (it needs a provider fetch), so traversal is proven by the widget composition
+    and Textual''s default focus chain, not by a measured completion.'
+- id: K-06
+  area: keyboard-only
+  name: Terminal chat loop is keyboard-only by construction
+  verdict: PASS
+  evidence_kind: local-measured
+  evidence: 'mythic_agent/terminal.py chat_loop uses prompt_toolkit PromptSession on a TTY
+    (up/down history, enter to send, ctrl+c interrupts a turn with "Turn cancelled", ctrl+d/EOF
+    leaves) and plain stdin lines when piped; slash commands (/help, /quit, /stop, ...) work
+    regardless of key bindings, as docs/SHORTCUTS.md notes for terminals that do not deliver
+    shift+enter or ctrl+tab. The loop''s exit and interrupt behaviour is exercised by the suite''s
+    terminal tests in the counted runs.'
+screen_reader_checks:
+- id: S-01
+  area: screen-reader
+  name: TUI content is real terminal text, not pictures
+  verdict: PARTIAL
+  evidence_kind: code-inspected
+  evidence: 'Every TUI surface composes text widgets (Static, Label, Input, Button, RichLog,
+    Footer) whose strings a terminal screen reader can read from the terminal buffer — the chat
+    log, sidebar instructions, approval text, and setup steps are all text. PARTIAL, not PASS:
+    no real screen reader was run (see S-06), Textual exposes no ARIA or accessibility tree of
+    its own, and the two text-free spots below (S-02, S-03) break the picture.'
+- id: S-02
+  area: screen-reader
+  name: Splash screen block-character art has no text alternative
+  verdict: FAIL
+  evidence_kind: local-measured
+  evidence: 'SplashScreen composes one Static whose content is block-character logo art (a
+    MYTHIC wordmark in block glyphs plus an ASCII longship) followed by the text "THE VIKING
+    AI". A screen reader reads the art glyph by glyph — noise with no meaning — and the art
+    itself carries no alternative: the caption names the project, not the picture. The splash
+    auto-advances after 2.0 seconds (set_timer in on_mount), so the noise is brief, but it is
+    still the first thing a screen-reader user meets. Finding F-05.'
+- id: S-03
+  area: screen-reader
+  name: Agent portrait image has no alternative text
+  verdict: FAIL
+  evidence_kind: local-measured
+  evidence: 'ChatScreen renders the agent portrait as TextualImage (id agent-image) when the
+    image widget is available, else an empty Static with the same id — and no label, description,
+    or alt text is attached anywhere in mythic_agent/ui/ (a grep for alt/description over the ui
+    package finds nothing for the image; update_agent_image only swaps the picture by filename).
+    When a portrait loads, a screen-reader user gets no name or description of it. Finding F-05.'
+- id: S-04
+  area: screen-reader
+  name: Form fields carry visible labels, not programmatic ones
+  verdict: PARTIAL
+  evidence_kind: local-measured
+  evidence: 'Measured from the live screens: SetupScreen places a visible Label step before
+    every Select/Input/TextArea, and GithubConfigModal places a Label before each Input — so a
+    sighted reader and a buffer-reading screen reader both see the label text adjacent to the
+    field. But Textual gives those labels no programmatic association with their inputs (no
+    aria-labelledby equivalent), and the chat input relies on its placeholder ("Speak to the
+    Seer...") alone, which disappears as soon as the user types. Finding F-06, in part.'
+- id: S-05
+  area: screen-reader
+  name: Key statuses are carried by text, not by colour alone
+  verdict: PARTIAL
+  evidence_kind: local-measured
+  evidence: 'Measured from the live flows: the approval modal''s heading and button texts name
+    the decision ("Security Approval Required", "Allow", "Reject"); errors are prefixed with
+    text ("Error (agent):", "Tools denied:"); token and interaction counts are text. But Button
+    variants (success/error/warning) and the dim styling of token counts still lean on colour
+    and shade, and the design lawbook''s rule (colour never the only status signal) is not
+    enforced by any test today. PARTIAL: the critical paths carry text, the garnish does not
+    always.'
+- id: S-06
+  area: screen-reader
+  name: Real screen-reader pass (NVDA/JAWS/VoiceOver/Orca)
+  verdict: NOT PROVEN
+  evidence_kind: none
+  evidence: 'No screen reader is installed on this VM, no assistive-technology session has ever
+    been recorded against this TUI, and the package uses no accessibility API (no ARIA — this is
+    a terminal app, not a web page — and no Textual accessibility hook). Nothing in this baseline
+    claims a screen-reader user has completed a task. Part VIII''s first job is to run this pass
+    for real; M-199 re-runs these baseline tests as its gate.'
+contrast_entries:
+- id: C-01
+  theme: tokyo_night
+  verdict: PARTIAL
+  ratios:
+    text_on_background: 10.59
+    text_on_surface: 9.02
+    muted_on_background: 2.76
+    muted_on_surface: 2.35
+    primary_on_background: 6.79
+    success_on_background: 9.35
+    warning_on_background: 8.55
+    error_on_background: 6.46
+- id: C-02
+  theme: viking_dark
+  verdict: PARTIAL
+  ratios:
+    text_on_background: 11.99
+    text_on_surface: 10.98
+    muted_on_background: 2.56
+    muted_on_surface: 2.35
+    primary_on_background: 6.64
+    success_on_background: 5.89
+    warning_on_background: 7.46
+    error_on_background: 2.87
+- id: C-03
+  theme: light
+  verdict: PARTIAL
+  ratios:
+    text_on_background: 14.80
+    text_on_surface: 16.41
+    muted_on_background: 3.87
+    muted_on_surface: 4.29
+    primary_on_background: 5.76
+    success_on_background: 4.70
+    warning_on_background: 4.14
+    error_on_background: 6.73
+findings:
+- id: F-01
+  name: Muted text fails WCAG AA in every theme
+  detail: 'The muted role (dim text, token counts, secondary hints) measures 2.35–2.76:1 in the
+    dark themes and 3.87–4.29:1 in the light theme — below the 4.5:1 AA bar for normal text in
+    all three, and below even the 3:1 large-text bar on surfaces in both dark themes. Anything
+    shown only in muted text is effectively unreadable for low-vision users; Part VIII must
+    darken muted (or lighten it on light) until it clears 4.5:1 on both backgrounds.'
+  owner: 'Part VIII (M-199 re-runs this baseline as its gate)'
+- id: F-02
+  name: Viking_dark error colour fails even large-text contrast
+  detail: 'viking_dark error (#a33b2e) measures 2.87:1 on background and 2.63:1 on surface —
+    below the 3:1 large-text bar, let alone 4.5:1 normal. Error text in the default-adjacent
+    Viking theme is the one place contrast matters most (approvals, failures); Part VIII must
+    brighten it until it clears 4.5:1. Body text itself is fine everywhere (10.59–16.41:1).'
+  owner: 'Part VIII (M-199 re-runs this baseline as its gate)'
+- id: F-03
+  name: Shortcut registry advertises TUI keys no screen binds
+  detail: 'mythic_agent/ui/shortcuts.py lists 19 actions and docs/SHORTCUTS.md documents them,
+    but a grep of mythic_agent/ui/ finds no action for help (f1), clear (ctrl+l), focus_input
+    (ctrl+i), scroll_up/down, new_tab, next_tab, prev_tab, close_tab, command_palette (ctrl+k),
+    or toggle_sidebar (ctrl+b). Either bind them or stop advertising them: a keyboard user who
+    reads the docs and presses f1 gets nothing. Part VIII owns the fix and the registry/doc
+    reconciliation.'
+  owner: 'Part VIII (M-199 re-runs this baseline as its gate)'
+- id: F-04
+  name: NO_COLOR claimed but never read
+  detail: 'mythic_agent/core/progress.py''s module docstring says both indicators "respect
+    NO_COLOR / non-TTY", but the code checks only isatty() — no NO_COLOR lookup exists anywhere
+    in the package (grep NO_COLOR finds only that docstring). The indicators emit no ANSI colour
+    today, so the practical harm is small, but the claim is false and a user setting NO_COLOR
+    gets no change at all. Part VIII either honours NO_COLOR (and the progress/spinner honours
+    it for real) or corrects the docstring.'
+  owner: 'Part VIII (M-199 re-runs this baseline as its gate)'
+- id: F-05
+  name: No alternative text for the portrait or the splash art
+  detail: 'S-02 and S-03 above: the agent portrait (chat_screen #agent-image) and the splash
+    screen''s block art carry no alt text, description, or skip path. Part VIII must give the
+    portrait a text name (agent name + a short description, or mark it decorative and hide it
+    from the buffer) and give the splash art a text equivalent or a skip, so a screen-reader
+    user''s first seconds are not glyph noise.'
+  owner: 'Part VIII (M-199 re-runs this baseline as its gate)'
+- id: F-06
+  name: No real screen-reader pass, no programmatic labels
+  detail: 'S-04 and S-06 above: form labels are visual adjacency only (no programmatic
+    association), the chat input relies on a placeholder, and no NVDA/JAWS/VoiceOver/Orca pass
+    has ever been run. Part VIII must run that pass for real — a keyboard-only task plus a
+    screen-reader task on the live TUI — and record its result as the new baseline; until then
+    S-06 stays NOT PROVEN.'
+  owner: 'Part VIII (M-199 re-runs this baseline as its gate)'

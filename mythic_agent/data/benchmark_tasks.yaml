@@ -1,0 +1,1274 @@
+schema: mythic.benchmark_tasks/1
+slice: M-008
+title: Mythic Agent Coder - Benchmark Task Pack v1 (the yardstick for Parts II-XI)
+created: '2026-10-30'
+note: 'Twenty real tasks in throwaway repos: four each of bugfix, feature, refactor, test-writing, and
+  docs. Every task ships its seed repo, a reference solution, and hidden grading tests. Proven property
+  of this pack (tests/test_benchmark_tasks.py): the grading tests FAIL on every seed alone and PASS on
+  every seed+solution. Part II''s gate (M-042) runs one of these tasks through five providers; Part XI''s
+  harness (M-255) automates the whole pack.'
+tasks:
+- id: B-01
+  title: Fix the one-based pagination offset
+  category: bugfix
+  difficulty: easy
+  prompt: 'Users report that page 1 of the catalogue skips the first items. Find and fix the bug in paging.py
+    so paginate(items, page, per_page) treats page as 1-based: page 1 returns the first per_page items,
+    the last page may be short, and a page past the end returns an empty list. Do not change the function
+    signature.'
+  seed_files:
+  - path: paging.py
+    content: |
+      def paginate(items, page, per_page):
+          start = page * per_page
+          return items[start:start + per_page]
+  solution_files:
+  - path: paging.py
+    content: |
+      def paginate(items, page, per_page):
+          start = (page - 1) * per_page
+          return items[start:start + per_page]
+  grading_tests: |
+    from paging import paginate
+
+    ITEMS = list(range(10))
+
+    def test_first_page_starts_at_the_beginning():
+        assert paginate(ITEMS, 1, 3) == [0, 1, 2]
+
+    def test_second_page_continues_where_the_first_stopped():
+        assert paginate(ITEMS, 2, 3) == [3, 4, 5]
+
+    def test_last_page_may_be_short():
+        assert paginate(ITEMS, 4, 3) == [9]
+
+    def test_page_past_the_end_is_empty():
+        assert paginate(ITEMS, 5, 3) == []
+  rubric:
+  - The fix changes the offset arithmetic, not the tests or the signature
+  - Page numbering stays 1-based in the public behaviour
+- id: B-02
+  title: Fix the discount that raises the price
+  category: bugfix
+  difficulty: easy
+  prompt: The shop's apply_discount is supposed to take a percentage OFF a price in cents, but customers
+    are being charged more than list. Fix pricing.py so apply_discount(1000, 10) returns 900. Keep integer
+    cents and the existing signature.
+  seed_files:
+  - path: pricing.py
+    content: |
+      def apply_discount(price_cents, percent):
+          return price_cents + price_cents * percent // 100
+  solution_files:
+  - path: pricing.py
+    content: |
+      def apply_discount(price_cents, percent):
+          return price_cents - price_cents * percent // 100
+  grading_tests: |
+    from pricing import apply_discount
+
+    def test_ten_percent_off_a_thousand_is_nine_hundred():
+        assert apply_discount(1000, 10) == 900
+
+    def test_zero_percent_changes_nothing():
+        assert apply_discount(999, 0) == 999
+
+    def test_quarter_off():
+        assert apply_discount(2000, 25) == 1500
+
+    def test_full_discount_is_free():
+        assert apply_discount(1234, 100) == 0
+  rubric:
+  - The discount is subtracted; no rounding drift is introduced
+  - Prices stay integer cents
+- id: B-03
+  title: Make the palindrome check read like a human
+  category: bugfix
+  difficulty: medium
+  prompt: 'is_palindrome in textcheck.py only accepts perfectly typed palindromes. Real phrases arrive
+    with capitals, spaces, and punctuation: ''Racecar'' and ''A man a plan a canal Panama'' must both
+    count as palindromes, while ''hello'' must not. Fix the check; keep the signature.'
+  seed_files:
+  - path: textcheck.py
+    content: |
+      def is_palindrome(text):
+          return text == text[::-1]
+  solution_files:
+  - path: textcheck.py
+    content: |
+      def is_palindrome(text):
+          cleaned = [c.lower() for c in text if c.isalnum()]
+          return cleaned == cleaned[::-1]
+  grading_tests: |
+    from textcheck import is_palindrome
+
+    def test_capitals_are_ignored():
+        assert is_palindrome("Racecar") is True
+
+    def test_spaces_and_punctuation_are_ignored():
+        assert is_palindrome("A man a plan a canal Panama") is True
+        assert is_palindrome("No 'x' in Nixon") is True
+
+    def test_plain_non_palindromes_stay_false():
+        assert is_palindrome("hello") is False
+        assert is_palindrome("palindrome") is False
+
+    def test_simple_palindrome_still_true():
+        assert is_palindrome("level") is True
+  rubric:
+  - Normalisation covers case, spaces, and punctuation
+  - Non-palindromes are not waved through
+- id: B-04
+  title: Merge intervals that arrive out of order
+  category: bugfix
+  difficulty: medium
+  prompt: merge_intervals in intervals.py merges a tidy sorted list correctly, but bookings arrive unsorted
+    and overlapping intervals then slip through unmerged. Fix it so any input order returns the sorted
+    list of merged (start, end) tuples, merging intervals that overlap or touch.
+  seed_files:
+  - path: intervals.py
+    content: |
+      def merge_intervals(intervals):
+          merged = []
+          for start, end in intervals:
+              if merged and start <= merged[-1][1]:
+                  merged[-1][1] = max(merged[-1][1], end)
+              else:
+                  merged.append([start, end])
+          return [tuple(pair) for pair in merged]
+  solution_files:
+  - path: intervals.py
+    content: |
+      def merge_intervals(intervals):
+          merged = []
+          for start, end in sorted(intervals):
+              if merged and start <= merged[-1][1]:
+                  merged[-1][1] = max(merged[-1][1], end)
+              else:
+                  merged.append([start, end])
+          return [tuple(pair) for pair in merged]
+  grading_tests: |
+    from intervals import merge_intervals
+
+    def test_unsorted_overlaps_merge():
+        assert merge_intervals([(5, 7), (1, 3), (2, 4)]) == [(1, 4), (5, 7)]
+
+    def test_sorted_input_still_works():
+        assert merge_intervals([(1, 3), (2, 4), (5, 7)]) == [(1, 4), (5, 7)]
+
+    def test_contained_interval_is_absorbed():
+        assert merge_intervals([(1, 10), (3, 5)]) == [(1, 10)]
+
+    def test_disjoint_intervals_are_kept_apart_and_sorted():
+        assert merge_intervals([(9, 10), (1, 2)]) == [(1, 2), (9, 10)]
+  rubric:
+  - Input is sorted (or equivalently ordered) before merging
+  - Output stays a list of tuples in start order
+- id: B-05
+  title: Add deep flatten to the list utilities
+  category: feature
+  difficulty: easy
+  prompt: listutils.py can chunk a list but cannot flatten one. Add flatten(nested) which takes a list
+    whose elements may be lists nested to any depth and returns one flat list in order. Non-list elements
+    are kept as they are.
+  seed_files:
+  - path: listutils.py
+    content: |
+      def chunk(items, size):
+          return [items[i:i + size] for i in range(0, len(items), size)]
+  solution_files:
+  - path: listutils.py
+    content: |
+      def chunk(items, size):
+          return [items[i:i + size] for i in range(0, len(items), size)]
+
+
+      def flatten(nested):
+          flat = []
+          for item in nested:
+              if isinstance(item, list):
+                  flat.extend(flatten(item))
+              else:
+                  flat.append(item)
+          return flat
+  grading_tests: |
+    from listutils import chunk, flatten
+
+    def test_deep_nesting_flattens_in_order():
+        assert flatten([1, [2, [3, 4]], 5]) == [1, 2, 3, 4, 5]
+
+    def test_empty_structures_vanish():
+        assert flatten([]) == []
+        assert flatten([[], [[]]]) == []
+
+    def test_flat_input_is_returned_unchanged_in_content():
+        assert flatten([1, 2, 3]) == [1, 2, 3]
+
+    def test_existing_chunk_still_works():
+        assert chunk([1, 2, 3, 4], 3) == [[1, 2, 3], [4]]
+  rubric:
+  - flatten recurses to arbitrary depth, not just one level
+  - Existing chunk behaviour is untouched
+- id: B-06
+  title: Add slugify to the text tools
+  category: feature
+  difficulty: easy
+  prompt: 'texttools.py needs slugify(text) for URL slugs: lowercase the text, turn runs of non-alphanumeric
+    characters into single hyphens, and strip hyphens from both ends. ''Hello, World!'' becomes ''hello-world''.'
+  seed_files:
+  - path: texttools.py
+    content: |
+      def title_case(text):
+          return text.title()
+  solution_files:
+  - path: texttools.py
+    content: |
+      import re
+
+
+      def title_case(text):
+          return text.title()
+
+
+      def slugify(text):
+          slug = re.sub(r"[^a-z0-9]+", "-", text.lower())
+          return slug.strip("-")
+  grading_tests: |
+    from texttools import slugify, title_case
+
+    def test_basic_slug():
+        assert slugify("Hello, World!") == "hello-world"
+
+    def test_runs_of_separators_collapse_and_trim():
+        assert slugify("  Multiple   Spaces ") == "multiple-spaces"
+
+    def test_existing_slug_is_stable():
+        assert slugify("already-slug") == "already-slug"
+
+    def test_title_case_still_works():
+        assert title_case("hello world") == "Hello World"
+  rubric:
+  - Separator runs collapse to one hyphen; ends are trimmed
+  - The existing helper keeps working
+- id: B-07
+  title: Teach the mini CSV reader quoted fields
+  category: feature
+  difficulty: medium
+  prompt: csvmini.py can join fields into a CSV line but cannot read one back. Add parse_csv_line(line)
+    returning the list of fields, honouring double-quoted fields that may contain commas and doubled double-quotes
+    as an escaped quote.
+  seed_files:
+  - path: csvmini.py
+    content: |
+      import csv
+      import io
+
+
+      def join_csv_line(fields):
+          out = io.StringIO()
+          csv.writer(out).writerow(fields)
+          return out.getvalue().strip()
+  solution_files:
+  - path: csvmini.py
+    content: |
+      import csv
+      import io
+
+
+      def join_csv_line(fields):
+          out = io.StringIO()
+          csv.writer(out).writerow(fields)
+          return out.getvalue().strip()
+
+
+      def parse_csv_line(line):
+          return next(csv.reader(io.StringIO(line)))
+  grading_tests: |
+    from csvmini import join_csv_line, parse_csv_line
+
+    def test_plain_fields():
+        assert parse_csv_line("a,b,c") == ["a", "b", "c"]
+
+    def test_quoted_field_may_contain_a_comma():
+        assert parse_csv_line('"a,b",c') == ["a,b", "c"]
+
+    def test_doubled_quote_is_an_escaped_quote():
+        assert parse_csv_line('"she said ""hi""' + '",x') == ['she said "hi"', "x"]
+
+    def test_empty_fields_survive():
+        assert parse_csv_line("a,,b") == ["a", "", "b"]
+
+    def test_round_trip_with_join():
+        fields = ["one", "two, too", "three"]
+        assert parse_csv_line(join_csv_line(fields)) == fields
+  rubric:
+  - Quoted commas and escaped quotes are both honoured
+  - parse and join round-trip
+- id: B-08
+  title: Add group_by to the collection helpers
+  category: feature
+  difficulty: easy
+  prompt: 'collectools.py needs group_by(items, key): return a dict mapping each key(item) to the list
+    of items with that key, keeping first-seen key order and the items'' original order inside each group.'
+  seed_files:
+  - path: collectools.py
+    content: |
+      def unique(items):
+          seen = []
+          for item in items:
+              if item not in seen:
+                  seen.append(item)
+          return seen
+  solution_files:
+  - path: collectools.py
+    content: |
+      def unique(items):
+          seen = []
+          for item in items:
+              if item not in seen:
+                  seen.append(item)
+          return seen
+
+
+      def group_by(items, key):
+          groups = {}
+          for item in items:
+              groups.setdefault(key(item), []).append(item)
+          return groups
+  grading_tests: |
+    from collectools import group_by, unique
+
+    def test_groups_by_length():
+        words = ["hi", "hello", "yo", "hey"]
+        assert group_by(words, len) == {2: ["hi", "yo"], 5: ["hello"], 3: ["hey"]}
+
+    def test_first_seen_key_order_is_kept():
+        assert list(group_by(["b1", "a1", "b2"], lambda s: s[0])) == ["b", "a"]
+
+    def test_empty_input_gives_empty_dict():
+        assert group_by([], len) == {}
+
+    def test_unique_still_works():
+        assert unique([1, 1, 2, 1]) == [1, 2]
+  rubric:
+  - Grouping preserves key and item order as specified
+  - unique is not disturbed
+- id: B-09
+  title: Extract the shared tax calculation
+  category: refactor
+  difficulty: easy
+  prompt: 'invoices.py works out the 8 percent tax inline in two places. Refactor: extract a public tax_amount(subtotal_cents)
+    helper that both existing functions use, returning the tax in whole cents (subtotal * 8 // 100). Behaviour
+    of invoice_total and receipt_total must not change.'
+  seed_files:
+  - path: invoices.py
+    content: |
+      def invoice_total(subtotal_cents):
+          return subtotal_cents + subtotal_cents * 8 // 100
+
+
+      def receipt_total(subtotal_cents):
+          return subtotal_cents + subtotal_cents * 8 // 100
+  solution_files:
+  - path: invoices.py
+    content: |
+      def tax_amount(subtotal_cents):
+          return subtotal_cents * 8 // 100
+
+
+      def invoice_total(subtotal_cents):
+          return subtotal_cents + tax_amount(subtotal_cents)
+
+
+      def receipt_total(subtotal_cents):
+          return subtotal_cents + tax_amount(subtotal_cents)
+  grading_tests: |
+    from invoices import invoice_total, receipt_total, tax_amount
+
+    def test_tax_amount_is_the_shared_eight_percent():
+        assert tax_amount(1000) == 80
+        assert tax_amount(0) == 0
+        assert tax_amount(999) == 79
+
+    def test_invoice_total_behaviour_unchanged():
+        assert invoice_total(1000) == 1080
+        assert invoice_total(250) == 270
+
+    def test_receipt_total_behaviour_unchanged():
+        assert receipt_total(1000) == 1080
+  rubric:
+  - One shared helper carries the tax formula; both callers use it
+  - Totals are byte-for-byte the old behaviour
+- id: B-10
+  title: Split the order summary into named helpers
+  category: refactor
+  difficulty: medium
+  prompt: 'orders.py packs a whole summary into one function. Refactor: extract public helpers line_total(item)
+    (price_cents * qty) and order_discount(subtotal_cents) (10 percent off subtotals of 10000 cents or
+    more, else 0), and have summarize_order use them. The returned dict must stay identical.'
+  seed_files:
+  - path: orders.py
+    content: |
+      def summarize_order(items):
+          subtotal = 0
+          for item in items:
+              subtotal += item["price_cents"] * item["qty"]
+          discount = subtotal * 10 // 100 if subtotal >= 10000 else 0
+          return {"subtotal": subtotal, "discount": discount,
+                  "total": subtotal - discount}
+  solution_files:
+  - path: orders.py
+    content: |
+      def line_total(item):
+          return item["price_cents"] * item["qty"]
+
+
+      def order_discount(subtotal_cents):
+          return subtotal_cents * 10 // 100 if subtotal_cents >= 10000 else 0
+
+
+      def summarize_order(items):
+          subtotal = sum(line_total(item) for item in items)
+          discount = order_discount(subtotal)
+          return {"subtotal": subtotal, "discount": discount,
+                  "total": subtotal - discount}
+  grading_tests: |
+    from orders import line_total, order_discount, summarize_order
+
+    def test_line_total_helper():
+        assert line_total({"price_cents": 500, "qty": 3}) == 1500
+
+    def test_discount_threshold():
+        assert order_discount(9999) == 0
+        assert order_discount(10000) == 1000
+
+    def test_summary_behaviour_unchanged_below_threshold():
+        items = [{"price_cents": 500, "qty": 2}]
+        assert summarize_order(items) == {"subtotal": 1000, "discount": 0, "total": 1000}
+
+    def test_summary_behaviour_unchanged_above_threshold():
+        items = [{"price_cents": 6000, "qty": 2}]
+        assert summarize_order(items) == {"subtotal": 12000, "discount": 1200, "total": 10800}
+  rubric:
+  - Both helpers exist with the specified semantics and are used
+  - summarize_order's returned dict is unchanged in every case
+- id: B-11
+  title: Name the shipping magic numbers
+  category: refactor
+  difficulty: easy
+  prompt: 'shipping.py is written in magic numbers. Refactor: introduce module-level constants FREE_SHIPPING_THRESHOLD_CENTS
+    (5000), FLAT_SHIPPING_CENTS (499), and HEAVY_ORDER_CENTS (2000, the extra charge once an order''s
+    weight passes 10 kg is already in the code) and use them in shipping_cost. Behaviour must not change.'
+  seed_files:
+  - path: shipping.py
+    content: |
+      def shipping_cost(subtotal_cents, weight_kg):
+          if subtotal_cents >= 5000:
+              cost = 0
+          else:
+              cost = 499
+          if weight_kg > 10:
+              cost += 2000
+          return cost
+  solution_files:
+  - path: shipping.py
+    content: |
+      FREE_SHIPPING_THRESHOLD_CENTS = 5000
+      FLAT_SHIPPING_CENTS = 499
+      HEAVY_ORDER_CENTS = 2000
+
+
+      def shipping_cost(subtotal_cents, weight_kg):
+          if subtotal_cents >= FREE_SHIPPING_THRESHOLD_CENTS:
+              cost = 0
+          else:
+              cost = FLAT_SHIPPING_CENTS
+          if weight_kg > 10:
+              cost += HEAVY_ORDER_CENTS
+          return cost
+  grading_tests: |
+    import shipping
+    from shipping import shipping_cost
+
+    def test_constants_carry_the_old_numbers():
+        assert shipping.FREE_SHIPPING_THRESHOLD_CENTS == 5000
+        assert shipping.FLAT_SHIPPING_CENTS == 499
+        assert shipping.HEAVY_ORDER_CENTS == 2000
+
+    def test_behaviour_unchanged():
+        assert shipping_cost(6000, 1) == 0
+        assert shipping_cost(100, 1) == 499
+        assert shipping_cost(100, 11) == 2499
+        assert shipping_cost(6000, 11) == 2000
+  rubric:
+  - The three named constants exist with exactly the old values
+  - shipping_cost returns the old numbers in all four corners
+- id: B-12
+  title: Replace the status chain with a lookup table
+  category: refactor
+  difficulty: medium
+  prompt: statuses.py answers status_label(code) through an if/elif chain. Refactor it into a module-level
+    STATUS_LABELS dict that status_label reads, keeping the 'Unknown' fallback for codes not in the table
+    and every existing label identical.
+  seed_files:
+  - path: statuses.py
+    content: |
+      def status_label(code):
+          if code == 200:
+              return "OK"
+          elif code == 201:
+              return "Created"
+          elif code == 404:
+              return "Not Found"
+          elif code == 500:
+              return "Server Error"
+          return "Unknown"
+  solution_files:
+  - path: statuses.py
+    content: |
+      STATUS_LABELS = {
+          200: "OK",
+          201: "Created",
+          404: "Not Found",
+          500: "Server Error",
+      }
+
+
+      def status_label(code):
+          return STATUS_LABELS.get(code, "Unknown")
+  grading_tests: |
+    import statuses
+    from statuses import status_label
+
+    def test_table_carries_every_label():
+        assert statuses.STATUS_LABELS == {200: "OK", 201: "Created",
+                                          404: "Not Found", 500: "Server Error"}
+
+    def test_labels_unchanged():
+        assert status_label(200) == "OK"
+        assert status_label(404) == "Not Found"
+        assert status_label(500) == "Server Error"
+
+    def test_unknown_fallback_kept():
+        assert status_label(418) == "Unknown"
+  rubric:
+  - STATUS_LABELS is the single source status_label reads
+  - Labels and the Unknown fallback are unchanged
+- id: B-13
+  title: Write the missing tests for stringtools
+  category: test-writing
+  difficulty: easy
+  prompt: 'stringtools.py ships with a single starter test. Write a real test suite in tests/test_stringtools.py:
+    at least six test functions covering count_vowels (including the empty string), truncate (short, exact,
+    and over-long inputs), and repeat. Do not change stringtools.py.'
+  seed_files:
+  - path: stringtools.py
+    content: |
+      def count_vowels(text):
+          return sum(1 for c in text.lower() if c in "aeiou")
+
+
+      def truncate(text, limit):
+          if len(text) <= limit:
+              return text
+          return text[:limit] + "..."
+
+
+      def repeat(text, times):
+          return text * times
+  - path: tests/test_stringtools.py
+    content: |
+      from stringtools import count_vowels
+
+
+      def test_count_vowels_basic():
+          assert count_vowels("hello") == 2
+  solution_files:
+  - path: tests/test_stringtools.py
+    content: |
+      from stringtools import count_vowels, repeat, truncate
+
+
+      def test_count_vowels_basic():
+          assert count_vowels("hello") == 2
+
+
+      def test_count_vowels_empty_string():
+          assert count_vowels("") == 0
+
+
+      def test_count_vowels_uppercase_counts():
+          assert count_vowels("AEIOU") == 5
+
+
+      def test_truncate_short_text_unchanged():
+          assert truncate("hi", 5) == "hi"
+
+
+      def test_truncate_exact_length_unchanged():
+          assert truncate("hello", 5) == "hello"
+
+
+      def test_truncate_long_text_gets_ellipsis():
+          assert truncate("hello world", 5) == "hello..."
+
+
+      def test_repeat():
+          assert repeat("ab", 3) == "ababab"
+          assert repeat("ab", 0) == ""
+  grading_tests: |
+    import re
+    from pathlib import Path
+
+    TEXT = Path("tests/test_stringtools.py").read_text(encoding="utf-8")
+
+    def test_suite_has_at_least_six_test_functions():
+        assert len(re.findall(r"^def test_", TEXT, re.M)) >= 6
+
+    def test_suite_asserts_plenty():
+        assert TEXT.count("assert ") >= 6
+
+    def test_suite_covers_all_three_functions():
+        for name in ("count_vowels", "truncate", "repeat"):
+            assert name in TEXT
+
+    def test_module_itself_is_unchanged_behaviour():
+        from stringtools import count_vowels, truncate
+        assert count_vowels("hello") == 2
+        assert truncate("hello world", 5) == "hello..."
+  rubric:
+  - At least six focused tests; every public function is covered
+  - Edge cases named in the prompt are actually asserted
+- id: B-14
+  title: Write the missing tests for the bank account
+  category: test-writing
+  difficulty: medium
+  prompt: 'account.py ships with a single starter test. Write a real suite in tests/test_account.py: at
+    least six test functions covering deposits, withdrawals, the starting balance, and that overdrawing
+    and non-positive amounts raise ValueError. Do not change account.py.'
+  seed_files:
+  - path: account.py
+    content: |
+      class BankAccount:
+          def __init__(self, opening=0):
+              self.balance = opening
+
+          def deposit(self, amount):
+              if amount <= 0:
+                  raise ValueError("deposit must be positive")
+              self.balance += amount
+              return self.balance
+
+          def withdraw(self, amount):
+              if amount <= 0:
+                  raise ValueError("withdrawal must be positive")
+              if amount > self.balance:
+                  raise ValueError("insufficient funds")
+              self.balance -= amount
+              return self.balance
+  - path: tests/test_account.py
+    content: |
+      from account import BankAccount
+
+
+      def test_opening_balance_defaults_to_zero():
+          assert BankAccount().balance == 0
+  solution_files:
+  - path: tests/test_account.py
+    content: |
+      import pytest
+
+      from account import BankAccount
+
+
+      def test_opening_balance_defaults_to_zero():
+          assert BankAccount().balance == 0
+
+
+      def test_opening_balance_can_be_set():
+          assert BankAccount(250).balance == 250
+
+
+      def test_deposit_increases_balance():
+          account = BankAccount(100)
+          assert account.deposit(50) == 150
+          assert account.balance == 150
+
+
+      def test_withdraw_decreases_balance():
+          account = BankAccount(100)
+          assert account.withdraw(40) == 60
+
+
+      def test_overdraw_raises():
+          with pytest.raises(ValueError):
+              BankAccount(10).withdraw(11)
+
+
+      def test_non_positive_deposit_raises():
+          with pytest.raises(ValueError):
+              BankAccount().deposit(0)
+
+
+      def test_non_positive_withdrawal_raises():
+          with pytest.raises(ValueError):
+              BankAccount(100).withdraw(-5)
+  grading_tests: |
+    import re
+    from pathlib import Path
+
+    TEXT = Path("tests/test_account.py").read_text(encoding="utf-8")
+
+    def test_suite_has_at_least_six_test_functions():
+        assert len(re.findall(r"^def test_", TEXT, re.M)) >= 6
+
+    def test_suite_checks_the_error_paths():
+        assert "ValueError" in TEXT
+        assert "raises" in TEXT
+
+    def test_suite_covers_deposit_and_withdraw():
+        assert "deposit" in TEXT and "withdraw" in TEXT
+
+    def test_module_itself_is_unchanged_behaviour():
+        from account import BankAccount
+        account = BankAccount(100)
+        account.deposit(50)
+        assert account.withdraw(40) == 110
+  rubric:
+  - Success and failure paths are both tested, errors via raises
+  - Tests use fresh accounts, not shared state
+- id: B-15
+  title: Write the missing tests for temperature conversion
+  category: test-writing
+  difficulty: easy
+  prompt: 'tempconv.py ships with a single starter test. Write a real suite in tests/test_tempconv.py:
+    at least six test functions covering freezing and boiling points in both directions, Celsius to Kelvin,
+    and a negative temperature. Do not change tempconv.py.'
+  seed_files:
+  - path: tempconv.py
+    content: |
+      def c_to_f(celsius):
+          return celsius * 9 / 5 + 32
+
+
+      def f_to_c(fahrenheit):
+          return (fahrenheit - 32) * 5 / 9
+
+
+      def c_to_k(celsius):
+          return celsius + 273.15
+  - path: tests/test_tempconv.py
+    content: |
+      from tempconv import c_to_f
+
+
+      def test_freezing_point():
+          assert c_to_f(0) == 32
+  solution_files:
+  - path: tests/test_tempconv.py
+    content: |
+      import pytest
+
+      from tempconv import c_to_f, c_to_k, f_to_c
+
+
+      def test_freezing_point():
+          assert c_to_f(0) == 32
+
+
+      def test_boiling_point():
+          assert c_to_f(100) == 212
+
+
+      def test_fahrenheit_freezing_back_to_celsius():
+          assert f_to_c(32) == 0
+
+
+      def test_fahrenheit_boiling_back_to_celsius():
+          assert f_to_c(212) == 100
+
+
+      def test_celsius_to_kelvin_at_freezing():
+          assert c_to_k(0) == 273.15
+
+
+      def test_negative_temperature():
+          assert c_to_f(-40) == -40
+
+
+      def test_round_trip():
+          assert f_to_c(c_to_f(37)) == pytest.approx(37)
+  grading_tests: |
+    import re
+    from pathlib import Path
+
+    TEXT = Path("tests/test_tempconv.py").read_text(encoding="utf-8")
+
+    def test_suite_has_at_least_six_test_functions():
+        assert len(re.findall(r"^def test_", TEXT, re.M)) >= 6
+
+    def test_suite_covers_all_three_converters():
+        for name in ("c_to_f", "f_to_c", "c_to_k"):
+            assert name in TEXT
+
+    def test_suite_asserts_plenty():
+        assert TEXT.count("assert ") >= 6
+
+    def test_module_itself_is_unchanged_behaviour():
+        from tempconv import c_to_f, f_to_c
+        assert c_to_f(100) == 212
+        assert f_to_c(212) == 100
+  rubric:
+  - Both directions and Kelvin are covered, incl. a negative case
+  - Known physical anchor points (0/100 C) are the assertions
+- id: B-16
+  title: Write the missing tests for the simple queue
+  category: test-writing
+  difficulty: medium
+  prompt: 'simplequeue.py ships with a single starter test. Write a real suite in tests/test_simplequeue.py:
+    at least six test functions covering FIFO order, peek not removing, size and is_empty transitions,
+    and that dequeue/peek on an empty queue raise IndexError. Do not change simplequeue.py.'
+  seed_files:
+  - path: simplequeue.py
+    content: |
+      class SimpleQueue:
+          def __init__(self):
+              self._items = []
+
+          def enqueue(self, item):
+              self._items.append(item)
+
+          def dequeue(self):
+              if not self._items:
+                  raise IndexError("dequeue from empty queue")
+              return self._items.pop(0)
+
+          def peek(self):
+              if not self._items:
+                  raise IndexError("peek at empty queue")
+              return self._items[0]
+
+          def is_empty(self):
+              return not self._items
+
+          def size(self):
+              return len(self._items)
+  - path: tests/test_simplequeue.py
+    content: |
+      from simplequeue import SimpleQueue
+
+
+      def test_new_queue_is_empty():
+          assert SimpleQueue().is_empty()
+  solution_files:
+  - path: tests/test_simplequeue.py
+    content: |
+      import pytest
+
+      from simplequeue import SimpleQueue
+
+
+      def test_new_queue_is_empty():
+          queue = SimpleQueue()
+          assert queue.is_empty()
+          assert queue.size() == 0
+
+
+      def test_enqueue_makes_it_non_empty():
+          queue = SimpleQueue()
+          queue.enqueue("a")
+          assert not queue.is_empty()
+          assert queue.size() == 1
+
+
+      def test_fifo_order():
+          queue = SimpleQueue()
+          for item in ("first", "second", "third"):
+              queue.enqueue(item)
+          assert queue.dequeue() == "first"
+          assert queue.dequeue() == "second"
+          assert queue.dequeue() == "third"
+
+
+      def test_peek_does_not_remove():
+          queue = SimpleQueue()
+          queue.enqueue("x")
+          assert queue.peek() == "x"
+          assert queue.size() == 1
+
+
+      def test_dequeue_from_empty_raises():
+          with pytest.raises(IndexError):
+              SimpleQueue().dequeue()
+
+
+      def test_peek_at_empty_raises():
+          with pytest.raises(IndexError):
+              SimpleQueue().peek()
+
+
+      def test_size_tracks_operations():
+          queue = SimpleQueue()
+          queue.enqueue(1)
+          queue.enqueue(2)
+          queue.dequeue()
+          assert queue.size() == 1
+  grading_tests: |
+    import re
+    from pathlib import Path
+
+    TEXT = Path("tests/test_simplequeue.py").read_text(encoding="utf-8")
+
+    def test_suite_has_at_least_six_test_functions():
+        assert len(re.findall(r"^def test_", TEXT, re.M)) >= 6
+
+    def test_suite_checks_the_empty_queue_errors():
+        assert "IndexError" in TEXT
+        assert "raises" in TEXT
+
+    def test_suite_covers_the_whole_surface():
+        for name in ("enqueue", "dequeue", "peek", "is_empty", "size"):
+            assert name in TEXT
+
+    def test_module_itself_is_unchanged_behaviour():
+        from simplequeue import SimpleQueue
+        queue = SimpleQueue()
+        queue.enqueue(1)
+        queue.enqueue(2)
+        assert queue.dequeue() == 1
+  rubric:
+  - FIFO order is proven, not just single operations
+  - Both empty-queue errors are asserted with raises
+- id: B-17
+  title: Write the README the greeter library deserves
+  category: docs
+  difficulty: easy
+  prompt: 'greeter.py is a tiny library with a one-line README. Write the real README.md: a title and
+    one-paragraph description, a Usage section with a fenced code example calling greet, and an API section
+    naming greet and farewell and what each returns. Aim for a page a stranger can use without reading
+    the source.'
+  seed_files:
+  - path: greeter.py
+    content: |
+      def greet(name):
+          return "Hello, " + name + "!"
+
+
+      def farewell(name):
+          return "Goodbye, " + name + "."
+  - path: README.md
+    content: |
+      # greeter
+  solution_files:
+  - path: README.md
+    content: |
+      # greeter
+
+      A tiny library for friendly salutations. It greets people by name
+      and bids them farewell, with no dependencies and no configuration:
+      you pass a name in, you get a salutation back.
+
+      ## Usage
+
+      ```python
+      from greeter import farewell, greet
+
+      print(greet("Ada"))       # Hello, Ada!
+      print(farewell("Ada"))    # Goodbye, Ada.
+      ```
+
+      ## API
+
+      ### greet(name)
+
+      Returns the string "Hello, <name>!" for the given name.
+
+      ### farewell(name)
+
+      Returns the string "Goodbye, <name>." for the given name.
+
+      Both functions take exactly one argument, the person's name as a
+      string, and neither has side effects: nothing is printed, stored,
+      or sent anywhere.
+  grading_tests: |
+    from pathlib import Path
+
+    TEXT = Path("README.md").read_text(encoding="utf-8")
+
+    def test_readme_is_a_real_page_not_a_stub():
+        assert len(TEXT) > 600
+
+    def test_readme_has_the_required_sections():
+        assert "## Usage" in TEXT
+        assert "## API" in TEXT
+
+    def test_readme_names_both_functions():
+        assert "greet" in TEXT
+        assert "farewell" in TEXT
+
+    def test_readme_shows_a_code_example():
+        assert "```" in TEXT
+        assert 'greet("' in TEXT or "greet('" in TEXT
+  rubric:
+  - Usage shows a runnable example, API names every function
+  - A stranger could use the library from the README alone
+- id: B-18
+  title: Document the shapes module in an API page
+  category: docs
+  difficulty: easy
+  prompt: 'shapes.py has no documentation at all. Write docs/api.md documenting every public function
+    (area_circle, area_rectangle, area_triangle): for each, what it computes, its parameters, and what
+    it returns, with at least one fenced code example overall.'
+  seed_files:
+  - path: shapes.py
+    content: |
+      import math
+
+
+      def area_circle(radius):
+          return math.pi * radius ** 2
+
+
+      def area_rectangle(width, height):
+          return width * height
+
+
+      def area_triangle(base, height):
+          return base * height / 2
+  solution_files:
+  - path: docs/api.md
+    content: |
+      # Shapes API
+
+      Small geometry helpers. All functions take numbers and return
+      numbers; all areas are in square units of whatever you pass in.
+
+      ## area_circle(radius)
+
+      Computes the area of a circle from its `radius`.
+      Returns pi * radius ** 2 as a float.
+
+      ## area_rectangle(width, height)
+
+      Computes the area of a rectangle from its `width` and `height`.
+      Returns width * height.
+
+      ## area_triangle(base, height)
+
+      Computes the area of a triangle from its `base` and `height`.
+      Returns base * height / 2.
+
+      ## Example
+
+      ```python
+      from shapes import area_circle, area_rectangle, area_triangle
+
+      print(area_circle(1))          # 3.14159...
+      print(area_rectangle(3, 4))    # 12
+      print(area_triangle(3, 4))     # 6.0
+      ```
+  grading_tests: |
+    from pathlib import Path
+
+    PATH = Path("docs/api.md")
+
+    def test_api_page_exists_and_is_substantial():
+        assert PATH.exists()
+        assert len(PATH.read_text(encoding="utf-8")) > 500
+
+    def test_every_public_function_is_documented():
+        text = PATH.read_text(encoding="utf-8")
+        for name in ("area_circle", "area_rectangle", "area_triangle"):
+            assert name in text
+
+    def test_parameters_are_named():
+        text = PATH.read_text(encoding="utf-8")
+        for word in ("radius", "width", "height", "base"):
+            assert word in text
+
+    def test_there_is_a_code_example():
+        assert "```" in PATH.read_text(encoding="utf-8")
+  rubric:
+  - Every public function is documented with its parameters
+  - At least one example shows real calls
+- id: B-19
+  title: Turn the release notes into a changelog
+  category: docs
+  difficulty: medium
+  prompt: 'release_notes.txt holds the raw notes for versions 1.0.0 and 1.1.0 of the calc library. Turn
+    them into CHANGELOG.md in Keep a Changelog style: a heading per version as ''## [1.1.0]'' and ''##
+    [1.0.0]'', with Added and Fixed sections carrying the notes'' facts. Do not invent changes the notes
+    do not mention.'
+  seed_files:
+  - path: calc.py
+    content: |
+      def add(a, b):
+          return a + b
+
+
+      def divide(a, b):
+          if b == 0:
+              raise ValueError("cannot divide by zero")
+          return a / b
+  - path: release_notes.txt
+    content: |
+      Version 1.1.0 (2026-09-14): added divide() with a clear error on
+      division by zero; fixed add() returning a string for two integers.
+
+      Version 1.0.0 (2026-08-01): first release; added add() for two
+      numbers.
+  solution_files:
+  - path: CHANGELOG.md
+    content: |
+      # Changelog
+
+      All notable changes to the calc library are recorded here.
+
+      ## [1.1.0] - 2026-09-14
+
+      ### Added
+
+      - divide() for dividing two numbers, raising a clear ValueError
+        on division by zero.
+
+      ### Fixed
+
+      - add() returning a string when given two integers; it now returns
+        their numeric sum.
+
+      ## [1.0.0] - 2026-08-01
+
+      ### Added
+
+      - First release of the library.
+      - add() for adding two numbers.
+  grading_tests: |
+    from pathlib import Path
+
+    PATH = Path("CHANGELOG.md")
+
+    def test_changelog_exists():
+        assert PATH.exists()
+
+    def test_versions_have_keep_a_changelog_headings():
+        text = PATH.read_text(encoding="utf-8")
+        assert "## [1.1.0]" in text
+        assert "## [1.0.0]" in text
+
+    def test_sections_and_facts_from_the_notes_are_carried():
+        text = PATH.read_text(encoding="utf-8")
+        assert "Added" in text and "Fixed" in text
+        assert "divide" in text
+        assert "division by zero" in text
+
+    def test_newest_version_comes_first():
+        text = PATH.read_text(encoding="utf-8")
+        assert text.index("## [1.1.0]") < text.index("## [1.0.0]")
+  rubric:
+  - Facts come from the notes only; nothing invented
+  - 'Keep a Changelog shape: bracketed versions, newest first'
+- id: B-20
+  title: Write the usage guide for the todo CLI
+  category: docs
+  difficulty: medium
+  prompt: 'todo.py implements a tiny command-line todo tool with add, list, and done commands, but nobody
+    can discover them. Write docs/usage.md: an introduction, one section per command with a fenced shell
+    example for each, and a note that tasks are kept in memory only.'
+  seed_files:
+  - path: todo.py
+    content: |
+      import sys
+
+      TASKS = []
+
+
+      def main(argv):
+          if not argv:
+              print("usage: todo.py add|list|done <...>")
+              return 2
+          command = argv[0]
+          if command == "add":
+              TASKS.append({"title": " ".join(argv[1:]), "done": False})
+              print("added")
+              return 0
+          if command == "list":
+              for i, task in enumerate(TASKS):
+                  mark = "x" if task["done"] else " "
+                  print(f"{i}: [{mark}] {task['title']}")
+              return 0
+          if command == "done":
+              TASKS[int(argv[1])]["done"] = True
+              print("done")
+              return 0
+          print("unknown command")
+          return 2
+
+
+      if __name__ == "__main__":
+          sys.exit(main(sys.argv[1:]))
+  solution_files:
+  - path: docs/usage.md
+    content: |
+      # Todo CLI usage guide
+
+      `todo.py` is a tiny command-line todo tool. It understands three
+      commands - add, list, and done - and keeps its tasks in memory
+      only: when the process exits, the list is gone.
+
+      ## Add a task
+
+      ```sh
+      python todo.py add buy milk
+      ```
+
+      Prints "added" and remembers the task as not done.
+
+      ## List tasks
+
+      ```sh
+      python todo.py list
+      ```
+
+      Prints one line per task: its number, a checkbox ("[x]" for done,
+      "[ ]" for open), and its title.
+
+      ## Mark a task done
+
+      ```sh
+      python todo.py done 0
+      ```
+
+      Marks the task with the given number (as shown by list) as done
+      and prints "done".
+
+      ## Notes
+
+      Tasks live in memory only, inside the running process; nothing is
+      written to disk.
+  grading_tests: |
+    from pathlib import Path
+
+    PATH = Path("docs/usage.md")
+
+    def test_guide_exists_and_is_substantial():
+        assert PATH.exists()
+        assert len(PATH.read_text(encoding="utf-8")) > 500
+
+    def test_every_command_is_covered():
+        text = PATH.read_text(encoding="utf-8")
+        for command in ("add", "list", "done"):
+            assert command in text
+
+    def test_each_command_gets_a_shell_example():
+        text = PATH.read_text(encoding="utf-8")
+        assert text.count("```") >= 6
+        assert "todo.py add" in text
+        assert "todo.py list" in text
+        assert "todo.py done" in text
+
+    def test_the_in_memory_note_is_present():
+        text = PATH.read_text(encoding="utf-8").lower()
+        assert "memory" in text
+  rubric:
+  - Each command has its own section and shell example
+  - The in-memory-only caveat is stated, not hidden

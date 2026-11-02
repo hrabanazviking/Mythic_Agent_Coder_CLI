@@ -194,7 +194,13 @@ def test_empty_candidates_end_to_end(monkeypatch):
 
 
 # ----------------------------------------------------------------------
-# (d) role mapping: assistant->model; tool transcripts degrade (documented)
+# (d) role mapping: assistant->model; tool transcripts are native (M-022)
+#
+# R-030 pinned tool transcripts degrading to user text because the v1
+# adapter had no native tool calling. M-022 supersedes that pin: a
+# named tool result is a function_response part now, and an unnamed
+# one is rejected — never degraded, never dropped (the full native
+# dialect is covered by tests/test_google_v2.py).
 # ----------------------------------------------------------------------
 
 def test_assistant_maps_to_model_role():
@@ -205,26 +211,36 @@ def test_assistant_maps_to_model_role():
     assert [c["role"] for c in contents] == ["model", "user"]
 
 
-def test_tool_transcript_degrades_to_user_text():
+def test_tool_transcript_becomes_function_response():
     _, contents = _gemini_contents([
         {"role": "user", "content": "run it"},
-        {"role": "tool", "content": "tool output here"},
+        {"role": "tool", "name": "run_it", "content": "tool output here"},
     ])
-    assert contents[1] == {"role": "user", "parts": ["tool output here"]}
+    assert contents[1] == {"role": "user", "parts": [
+        {"function_response": {"name": "run_it",
+                               "response": {"result": "tool output here"}}}]}
 
 
-def test_tool_degradation_reaches_sdk_call(monkeypatch):
+def test_unnamed_tool_transcript_is_rejected_never_degraded():
+    with pytest.raises(ProviderError):
+        _gemini_contents([
+            {"role": "user", "content": "run it"},
+            {"role": "tool", "content": "tool output here"},
+        ])
+
+
+def test_tool_dialect_reaches_sdk_call(monkeypatch):
     captured = {}
     _install_genai_stub(monkeypatch, captured,
                         response=_text_response("ok"))
     provider = GoogleProvider(api_key=FAKE_KEY)
     provider.chat([
         {"role": "user", "content": "run it"},
-        {"role": "tool", "content": "tool output here"},
+        {"role": "tool", "name": "run_it", "content": "tool output here"},
     ])
     contents = captured["contents"]
     assert contents[1]["role"] == "user"
-    assert contents[1]["parts"] == ["tool output here"]
+    assert contents[1]["parts"][0]["function_response"]["name"] == "run_it"
 
 
 def test_unknown_roles_also_degrade_to_user():
