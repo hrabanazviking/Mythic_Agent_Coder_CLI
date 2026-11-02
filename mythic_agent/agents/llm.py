@@ -1059,6 +1059,127 @@ class Agent:
             record["applied"] = True
         return record
 
+    def edit_format_status(self) -> dict[str, Any]:
+        """The edit-format setting, the formats, and the tasks (M-071).
+
+        The setting exactly as stored (validated — a malformed
+        stored value raises, never vanishes), the current
+        model's proven strength (M-027 truth), every format
+        and every task kind. This is the answer ``/editformat``
+        shows; nothing about it is hidden.
+        """
+        from ..core import edit_formats
+
+        model = self.config.get("model")
+        return {
+            "setting": edit_formats.setting_from_config(self.config),
+            "model": model,
+            "strength": edit_formats.model_strength(model),
+            "formats": [
+                {"id": fmt.id, "title": fmt.title, "plain": fmt.plain,
+                 "appliable": fmt.appliable}
+                for fmt in edit_formats.list_formats()],
+            "task_kinds": [
+                {"id": kind.id, "title": kind.title, "plain": kind.plain}
+                for kind in edit_formats.list_task_kinds()],
+        }
+
+    def set_edit_format(self, value: str) -> dict[str, Any]:
+        """Pin the edit-format setting, or return it to auto (M-071).
+
+        Validated by :mod:`mythic_agent.core.edit_formats`
+        before anything mutates; journaled first as an
+        ``edit_format_setting_changed`` event when a session
+        is attached; a failed save restores the previous
+        value exactly and journals a compensating
+        ``edit_format_setting_reverted``.
+        """
+        import copy
+
+        from ..core import edit_formats
+
+        new_value, change = edit_formats.set_setting(self.config, value)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[edit_formats.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "edit_format_setting_reverted",
+                        "reason": "The edit-format change could not "
+                                  "be saved; the previous setting "
+                                  "was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Edit format change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def choose_edit_format(self, task_kind: str,
+                           model: str | None = None) -> dict[str, Any]:
+        """Pick the edit format for *task_kind* — and journal it (M-071).
+
+        The roadmap's word is that the choice is journaled:
+        when a session is attached the pick is recorded as an
+        ``edit_format_chosen`` session event with its
+        plain-words reason, its task, and the model's proven
+        strength. Without a session the choice is still made
+        and returned, honestly marked not journaled. The
+        model defaults to the session's current model.
+        """
+        from ..core.edit_formats import choose_format
+
+        choice = choose_format(
+            task_kind,
+            model=model if model is not None else self.config.get("model"),
+            config=self.config)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(choice.event())
+            journaled = True
+        record = choice.record(self.session_id, journaled)
+        record["choice"] = choice
+        return record
+
+    def apply_edit_format(self, path: str, format_id: str,
+                          payload: str) -> dict[str, Any]:
+        """Apply an edit payload in *format_id* to *path* (M-071).
+
+        The pure appliers judge the payload against the
+        file's true current text — a refusal (a stale diff,
+        a search block that does not match exactly once)
+        writes nothing at all. A successful apply is written
+        through the existing EditJournal road, so it is
+        journaled and undoable exactly like any agent edit,
+        and recorded on the session as an
+        ``edit_format_applied`` event when one is attached.
+        """
+        from ..core.edit_formats import apply_edit
+        from ..core.edits import EditJournal
+        from ..core.workspace import resolve_file
+
+        target = resolve_file(self.project_root, path, write=True)
+        current = (target.read_text(encoding="utf-8")
+                   if target.exists() else None)
+        new_text, units = apply_edit(format_id, current, payload)
+        EditJournal(self.project_root).write(path, new_text)
+        record: dict[str, Any] = {
+            "path": path, "format": format_id, "units": units,
+            "changed": current != new_text, "journaled": False}
+        if self._session_store and self.session_id:
+            self._checkpoint({"type": "edit_format_applied",
+                              "path": path, "format": format_id,
+                              "units": units})
+            record["journaled"] = True
+        return record
+
     def vision_status(self) -> dict[str, Any]:
         """The current model's sight truth and the offer (M-037).
 
