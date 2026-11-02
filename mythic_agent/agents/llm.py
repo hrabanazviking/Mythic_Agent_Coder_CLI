@@ -1077,7 +1077,8 @@ class Agent:
             "strength": edit_formats.model_strength(model),
             "formats": [
                 {"id": fmt.id, "title": fmt.title, "plain": fmt.plain,
-                 "appliable": fmt.appliable}
+                 "appliable": fmt.appliable,
+                 "strength_floor": fmt.strength_floor}
                 for fmt in edit_formats.list_formats()],
             "task_kinds": [
                 {"id": kind.id, "title": kind.title, "plain": kind.plain}
