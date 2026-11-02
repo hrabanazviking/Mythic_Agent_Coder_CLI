@@ -260,7 +260,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
         return True, False, "Conversation cleared."
@@ -361,6 +361,50 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_decision(applied["decision"])
+    if command == "/editformat":
+        from .core.edit_formats import (
+            format_choice,
+            format_edit_formats,
+            format_setting_change,
+            parse_editformat_args,
+            setting_from_config,
+        )
+        try:
+            request = parse_editformat_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.edit_format_status()
+            assert status["setting"] == setting_from_config(agent.config)
+            return True, False, format_edit_formats(agent.config)
+        try:
+            if request["action"] == "setting":
+                record = agent.set_edit_format(request["value"])
+                return True, False, format_setting_change(record)
+            record = agent.choose_edit_format(request["task_kind"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_choice(record["choice"])
+    if command == "/hashanchor":
+        from .core.hash_anchored import (
+            enabled_from_config,
+            format_hash_anchored,
+            format_setting_change,
+            parse_hashanchor_args,
+        )
+        try:
+            request = parse_hashanchor_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.hash_anchor_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, format_hash_anchored(agent.config)
+        try:
+            record = agent.set_hash_anchored(request["enabled"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_setting_change(record)
     if command == "/kista":
         from .core.key_custody import (
             custody_entries,
@@ -600,6 +644,188 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_test_intel_selection(status)
+    if command == "/coverage":
+        from .tools.coverage_sight import (
+            format_coverage_board, format_coverage_overlay,
+            parse_coverage_args)
+        try:
+            request = parse_coverage_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            return True, False, format_coverage_board(agent.coverage_status())
+        try:
+            status = agent.coverage_check(request["changed"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_coverage_overlay(status)
+    if command == "/search":
+        from .tools.local_search import (
+            format_local_search, parse_local_search_args)
+        try:
+            request = parse_local_search_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.local_search(
+                request["query"], mode=request["mode"],
+                language=request["language"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_local_search(status)
+    if command == "/web":
+        from .tools.web_search import format_web_report, parse_web_args
+        try:
+            request = parse_web_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            if request["action"] == "search":
+                status = agent.web_search(request["query"])
+            else:
+                status = agent.web_fetch(request["url"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_web_report(status)
+    if command == "/docs":
+        from .tools.docs_at_hand import (
+            format_docs_report, parse_docs_args)
+        try:
+            request = parse_docs_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            if request["action"] == "list":
+                status = agent.docs_list()
+            elif request["action"] == "search":
+                status = agent.docs_search(request["query"])
+            else:
+                status = agent.docs_read(request["name"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_docs_report(status)
+    if command == "/deps":
+        from .tools.dependency_sight import (
+            format_deps_report, parse_deps_args)
+        try:
+            request = parse_deps_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            if request["action"] == "show":
+                status = agent.dependency_sight()
+            elif request["action"] == "package":
+                status = agent.dependency_sight(request["package"])
+            else:
+                status = agent.dependency_proposal(
+                    request["package"], request["version"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_deps_report(status)
+    if command == "/sensing":
+        from .tools.code_sensing import (
+            format_sensing_report, parse_sensing_args)
+        try:
+            request = parse_sensing_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.code_sensing(request["action"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_sensing_report(status)
+    if command == "/types":
+        from .tools.type_depth import (
+            format_type_report, parse_types_args)
+        try:
+            request = parse_types_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.type_depth(request["path"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_type_report(status)
+    if command == "/mojo":
+        from .tools.mojo_sight import (
+            format_mojo_report, parse_mojo_args)
+        try:
+            request = parse_mojo_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.mojo_sight(
+                request["action"], target=request.get("target"),
+                term=request.get("term", ""))
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_mojo_report(status)
+    if command == "/sql":
+        from .tools.sql_sight import (
+            format_sql_report, parse_sql_args)
+        try:
+            request = parse_sql_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.sql_sight(
+                request["action"], db=request.get("db"),
+                query=request.get("query", ""))
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_sql_report(status)
+    if command == "/config":
+        from .tools.config_sight import (
+            format_config_report, parse_config_args)
+        try:
+            request = parse_config_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.config_sight(
+                request["action"], target=request.get("target"))
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_config_report(status)
+    if command == "/assets":
+        from .tools.asset_sight import (
+            format_asset_report, parse_assets_args)
+        try:
+            request = parse_assets_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.asset_sight(
+                request["action"], target=request.get("target"))
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_asset_report(status)
+    if command == "/langpacks":
+        from .tools.language_packs import (
+            format_language_pack_report, parse_langpacks_args)
+        try:
+            request = parse_langpacks_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.language_packs(
+                request["action"], language=request.get("language"))
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_language_pack_report(status)
+    if command == "/intelcache":
+        from .tools.intelligence_cache import (
+            format_intelligence_cache_report, parse_intelcache_args)
+        try:
+            request = parse_intelcache_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.intelligence_cache(
+                request["action"], target=request.get("target"))
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_intelligence_cache_report(status)
     if command == "/lsp":
         from .integrations.lsp import (
             format_lsp_code_actions,

@@ -398,88 +398,88 @@ slices:
   title: Coverage sight
   summary: line coverage overlaid on edited files; a change landing with zero covering tests is flagged
     to the Auditor.
-  status: queued
+  status: done
 - id: M-058
   part: 3
   title: Beyond-grep local search
   summary: in-process ripgrep with fuzzy and structural modes, results ranked by the symbol graph.
-  status: queued
+  status: done
 - id: M-059
   part: 3
   title: Web knowledge tools
   summary: web search + fetch as first-class tools (docs, changelogs, error lookup), results cited into
     the journal.
-  status: queued
+  status: done
 - id: M-060
   part: 3
   title: Docs-at-hand
   summary: the project's own docs, plus offline doc packs for its stack, searchable from the TUI (the
     Mojo Docs MCP pattern, generalised).
-  status: queued
+  status: done
 - id: M-061
   part: 3
   title: Dependency sight
   summary: read the dependency graph, changelogs, and known-vulnerability data for the project's stack;
     an upgrade is proposed with its blast radius, never applied silently.
-  status: queued
+  status: done
 - id: M-062
   part: 3
   title: Dead-code and duplication sensing
   summary: structural reports for the Cartographer; sensing only — deletion is always a separate, approved
     slice.
-  status: queued
+  status: done
 - id: M-063
   part: 3
   title: Type-aware Python depth
   summary: mypy/pyright findings triaged into the review; the coder fixes types it broke in the same turn.
-  status: queued
+  status: done
 - id: M-064
   part: 3
   title: Mojo as a first-class language
   summary: parsing via tree-sitter grammar where available, the house Mojo skills wired as knowledge —
     Mythic is the only CLI that truly speaks Mojo (Aesir's home tongue).
-  status: queued
+  status: done
 - id: M-065
   part: 3
   title: SQL and data sight
   summary: schema reading, query explain, migration files understood as code (the Muse DB pattern, productised).
-  status: queued
+  status: done
 - id: M-066
   part: 3
   title: Config and infra files
   summary: YAML/TOML/Dockerfile/systemd units parsed structurally, with the no-Docker law enforced as
     a *warning the coder itself raises* on Volmarr's projects.
-  status: queued
+  status: done
 - id: M-067
   part: 3
   title: Binary and asset awareness
   summary: images, archives, and large files are described, never dumped into context; the map notes their
     roles.
-  status: queued
+  status: done
 - id: M-068
   part: 3
   title: Language packs as data
   summary: per-language toolchains (server commands, formatters, test runners) declared in data; a new
     language is a pack, not a patch.
-  status: queued
+  status: done
 - id: M-069
   part: 3
   title: Intelligence cache
   summary: parse/graph/LSP results cached per file hash; a cold start on a big repo stays fast (measured
     in Part XI).
-  status: queued
+  status: done
 - id: M-070
   part: 3
   title: Part III gate
   summary: on the benchmark pack — a cross-file rename, a structural codemod, and a debugger-caught bug,
     all completed with the new senses, evidence banked against the M-007 baseline. ---
-  status: queued
+  status: done
 - id: M-071
   part: 4
   title: Edit-format plurality
   summary: whole-file, unified-diff, search-and- replace blocks, and Aider-style architect/editor splitting
     — the coder picks per task and per model strength; the choice is journaled.
-  status: queued
+  status: done
 - id: M-072
   part: 4
   title: Hash-anchored edits
