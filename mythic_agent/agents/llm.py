@@ -2033,6 +2033,28 @@ class Agent:
             "plain_explanation": asset_module.PLAIN_EXPLANATION,
         }
 
+    def language_packs(self, mode: str = "show",
+                       language: str | None = None) -> dict[str, Any]:
+        """A language-packs account — toolchains as data (M-068).
+
+        Every pack declares one language's toolchain — its
+        language server, formatters, and test runners — in
+        data; the report describes each declared command
+        and PATH-checks its binary. Nothing is executed on
+        this road; a switched-off road does not even load
+        the pack data.
+        """
+        from ..tools import language_packs as packs_module
+
+        report = packs_module.language_packs_report(
+            self.project_root, mode, language=language,
+            enabled=packs_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": packs_module.PLAIN_EXPLANATION,
+        }
+
     def _journal_web_citation(self, report: Any) -> None:
         """Cite one web report's sources into the journal (M-059)."""
         if report.status != "ok":

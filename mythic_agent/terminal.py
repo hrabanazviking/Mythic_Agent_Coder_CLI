@@ -756,6 +756,19 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_asset_report(status)
+    if command == "/langpacks":
+        from .tools.language_packs import (
+            format_language_pack_report, parse_langpacks_args)
+        try:
+            request = parse_langpacks_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.language_packs(
+                request["action"], language=request.get("language"))
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_language_pack_report(status)
     if command == "/lsp":
         from .integrations.lsp import (
             format_lsp_code_actions,
