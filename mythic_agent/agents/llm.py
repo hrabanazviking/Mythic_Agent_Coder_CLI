@@ -1307,6 +1307,271 @@ class Agent:
         return self._write_hash_anchored(path, new_text, applied,
                                           current)
 
+    def repair_loop_status(self) -> dict[str, Any]:
+        """The apply-repair-loop gate, in plain data (M-073).
+
+        The setting exactly as stored (validated — a malformed
+        stored value raises, never vanishes) and the plain
+        explanation. This is the answer ``/repairloop`` shows.
+        """
+        from ..core import apply_repair
+
+        return {
+            "enabled": apply_repair.enabled_from_config(self.config),
+            "explanation": apply_repair.PLAIN_EXPLANATION,
+        }
+
+    def set_apply_repair(self, enabled: bool) -> dict[str, Any]:
+        """Turn the apply-failure repair loop on or off (M-073).
+
+        Validated by :mod:`mythic_agent.core.apply_repair`
+        before anything mutates; journaled first as an
+        ``apply_repair_setting_changed`` event when a session
+        is attached; a failed save restores the previous
+        value exactly and journals a compensating
+        ``apply_repair_setting_reverted``.
+        """
+        import copy
+
+        from ..core import apply_repair
+
+        new_value, change = apply_repair.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[apply_repair.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "apply_repair_setting_reverted",
+                        "reason": "The repair-loop change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Repair-loop change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def _repair_offered(self, path: str,
+                        packet: Any) -> dict[str, Any]:
+        """Journal a repair packet and shape its record (M-073)."""
+        from ..core.apply_repair import format_packet
+
+        journaled = False
+        if self._session_store and self.session_id:
+            event = packet.event()
+            event["path"] = path
+            self._checkpoint(event)
+            journaled = True
+        return {"path": path, "applied": False, "repaired": False,
+                "exhausted": False, "packet": packet,
+                "packet_text": format_packet(packet),
+                "journaled": journaled}
+
+    def _repair_journal(self, event_type: str, path: str,
+                        road: str) -> None:
+        if self._session_store and self.session_id:
+            self._checkpoint({"type": event_type, "path": path,
+                              "road": road})
+
+    def apply_edit_format_with_repair(
+            self, path: str, format_id: str, payload: str,
+            retry_payload: str | None = None) -> dict[str, Any]:
+        """Apply a format payload, with the repair loop (M-073).
+
+        With the gate off this is exactly
+        :meth:`apply_edit_format` — a refusal stays the plain
+        M-071 refusal and no packet is made. With the gate on,
+        a refusal becomes a repair packet (journaled as
+        ``apply_repair_offered``, carrying the true current
+        text of the refused target): with no *retry_payload*
+        the packet is returned and nothing is written; with
+        one, exactly one honest retry rides on it — a repaired
+        apply rides the EditJournal road and is journaled as
+        ``apply_repair_applied``, and a second refusal is
+        journaled as ``apply_repair_exhausted`` and raises the
+        exhaustion error. There is no second retry.
+        """
+        from ..core import apply_repair
+        from ..core.edits import EditJournal
+        from ..core.workspace import resolve_file
+
+        if not apply_repair.enabled_from_config(self.config):
+            return self.apply_edit_format(path, format_id, payload)
+        target = resolve_file(self.project_root, path, write=True)
+        current = (target.read_text(encoding="utf-8")
+                   if target.exists() else None)
+        try:
+            return {**self.apply_edit_format(path, format_id, payload),
+                    "repaired": False}
+        except ValueError as exc:
+            reason = str(exc)
+        target_range = apply_repair.target_range_for_format(
+            format_id, current or "", payload)
+        packet = apply_repair.build_packet(
+            "edit_format", reason, current or "",
+            *(target_range if target_range else (None, None)))
+        record = self._repair_offered(path, packet)
+        if retry_payload is None:
+            return record
+        self._repair_journal("apply_repair_retried", path, packet.road)
+        try:
+            new_text, units, spent = apply_repair.retry_edit_format(
+                current or "", packet, format_id, retry_payload)
+        except ValueError:
+            self._repair_journal(
+                "apply_repair_exhausted", path, packet.road)
+            raise
+        EditJournal(self.project_root).write(path, new_text)
+        self._repair_journal("apply_repair_applied", path, packet.road)
+        record.update({"applied": True, "repaired": True,
+                       "format": format_id, "units": units,
+                       "changed": current != new_text,
+                       "packet": spent})
+        return record
+
+    def apply_hash_anchored_range_with_repair(
+            self, path: str, start: int, end: int, expected: str,
+            replacement: str, retry_expected: str | None = None,
+            retry_replacement: str | None = None) -> dict[str, Any]:
+        """Apply an anchored range edit, with the repair loop (M-073).
+
+        The M-072 judgement is unchanged. A moved target's
+        refusal becomes a repair packet over the refused
+        range's true current text; *retry_expected* (the new
+        anchor the coder reads from that text) buys exactly
+        one honest retry, with *retry_replacement* or the
+        original replacement. Gate-off refusals (the repair
+        gate or the hash-anchor gate) stay plain refusals and
+        make no packet.
+        """
+        from ..core import apply_repair, hash_anchored
+        from ..core.workspace import resolve_file
+
+        if not apply_repair.enabled_from_config(self.config):
+            return self.apply_hash_anchored_range(
+                path, start, end, expected, replacement)
+        if not hash_anchored.enabled_from_config(self.config):
+            raise ValueError(
+                "hash-anchored edits are off — turn them on with "
+                "/hashanchor on; nothing was changed")
+        target = resolve_file(self.project_root, path, write=True)
+        if not target.exists():
+            raise ValueError(
+                f"an anchored edit needs an existing file; "
+                f"{path} does not exist — nothing was changed")
+        current = target.read_text(encoding="utf-8")
+        try:
+            new_text, applied = hash_anchored.apply_anchored_range(
+                current, start, end, expected, replacement)
+            return {**self._write_hash_anchored(
+                path, new_text, applied, current),
+                "applied": True, "repaired": False}
+        except ValueError as exc:
+            reason = str(exc)
+        packet = apply_repair.build_packet(
+            "anchored_range", reason, current, start, end)
+        record = self._repair_offered(path, packet)
+        if retry_expected is None:
+            return record
+        self._repair_journal("apply_repair_retried", path, packet.road)
+        try:
+            new_text, applied, spent = apply_repair.retry_anchored_range(
+                current, packet, start, end, retry_expected,
+                replacement if retry_replacement is None
+                else retry_replacement)
+        except ValueError:
+            self._repair_journal(
+                "apply_repair_exhausted", path, packet.road)
+            raise
+        record.update(self._write_hash_anchored(
+            path, new_text, applied, current))
+        self._repair_journal("apply_repair_applied", path, packet.road)
+        record.update({"applied": True, "repaired": True,
+                       "packet": spent})
+        return record
+
+    def apply_hash_anchored_search_with_repair(
+            self, path: str, search: str, expected: str,
+            replacement: str, retry_search: str | None = None,
+            retry_expected: str | None = None,
+            retry_replacement: str | None = None) -> dict[str, Any]:
+        """Apply an anchored search edit, with the repair loop (M-073).
+
+        The M-072 judgement is unchanged (exactly one match,
+        under its anchor). A refusal becomes a repair packet —
+        over the matched block's true lines when the search
+        text is found, over the file's head when it is not —
+        and *retry_expected* buys exactly one honest retry,
+        optionally with a corrected *retry_search* and
+        *retry_replacement* read from the packet's true text.
+        """
+        from ..core import apply_repair, hash_anchored
+        from ..core.workspace import resolve_file
+
+        if not apply_repair.enabled_from_config(self.config):
+            return self.apply_hash_anchored_search(
+                path, search, expected, replacement)
+        if not hash_anchored.enabled_from_config(self.config):
+            raise ValueError(
+                "hash-anchored edits are off — turn them on with "
+                "/hashanchor on; nothing was changed")
+        target = resolve_file(self.project_root, path, write=True)
+        if not target.exists():
+            raise ValueError(
+                f"an anchored edit needs an existing file; "
+                f"{path} does not exist — nothing was changed")
+        current = target.read_text(encoding="utf-8")
+        try:
+            new_text, applied = hash_anchored.apply_anchored_search(
+                current, search, expected, replacement)
+            return {**self._write_hash_anchored(
+                path, new_text, applied, current),
+                "applied": True, "repaired": False}
+        except ValueError as exc:
+            reason = str(exc)
+        lines = current.split("\n")
+        needle = search.split("\n") if search else []
+        hits = [i for i in range(0, len(lines) - len(needle) + 1)
+                if needle and lines[i:i + len(needle)] == needle]
+        if hits:
+            packet = apply_repair.build_packet(
+                "anchored_search", reason, current,
+                hits[0] + 1, hits[0] + len(needle))
+        else:
+            packet = apply_repair.build_packet(
+                "anchored_search", reason, current)
+        record = self._repair_offered(path, packet)
+        if retry_expected is None:
+            return record
+        self._repair_journal("apply_repair_retried", path, packet.road)
+        try:
+            new_text, applied, spent = \
+                apply_repair.retry_anchored_search(
+                    current, packet,
+                    search if retry_search is None else retry_search,
+                    retry_expected,
+                    replacement if retry_replacement is None
+                    else retry_replacement)
+        except ValueError:
+            self._repair_journal(
+                "apply_repair_exhausted", path, packet.road)
+            raise
+        record.update(self._write_hash_anchored(
+            path, new_text, applied, current))
+        self._repair_journal("apply_repair_applied", path, packet.road)
+        record.update({"applied": True, "repaired": True,
+                       "packet": spent})
+        return record
+
     def vision_status(self) -> dict[str, Any]:
         """The current model's sight truth and the offer (M-037).
 
