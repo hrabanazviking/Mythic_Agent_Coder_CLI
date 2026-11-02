@@ -90,7 +90,7 @@ def prompt_file_context(
     *,
     cancel_event: threading.Event | None = None,
     redactor: SecretRedactor | None = None,
-    budget_tokens: int = FILE_CONTEXT_BUDGET_TOKENS,
+    budget_tokens: int | None = None,
 ) -> str:
     """Compile file context blocks for one user query.
 
@@ -98,9 +98,26 @@ def prompt_file_context(
     dependency neighbours and git-diff hunks inside *budget_tokens*,
     redacts secrets, and renders prompt text.  Returns ``""`` when there
     is nothing relevant to add.
+
+    The budget and the semantic/symbol selection width come from
+    the model's long-context strategy (M-038,
+    :mod:`mythic_agent.core.long_context`, chosen from the
+    model's recorded context size) unless the caller passes an
+    explicit *budget_tokens* — an explicit budget always wins,
+    exactly as given, with the shipped selection width.
     """
     if not (query or "").strip():
         return ""
+    if budget_tokens is None:
+        from ..core.long_context import plan_from_config
+
+        plan = plan_from_config(config or {})
+        budget_tokens = plan.budget_tokens
+        top_n = plan.top_n
+    else:
+        if budget_tokens <= 0:
+            raise ValueError("budget_tokens must be positive")
+        top_n = 3
     redactor = _redactor_for(config, redactor)
     estimator = TokenEstimator()
     compiler = ContextCompiler(
@@ -117,9 +134,9 @@ def prompt_file_context(
         budget_tokens, {"semantic": 2.0, "symbols": 2.0, "deps": 1.0})
     compiler.add_source(ExplicitFilesSource(priority=2))
     compiler.add_source(GitDiffSource(priority=2))
-    compiler.add_source(SemanticFilesSource(priority=4, top_n=3,
+    compiler.add_source(SemanticFilesSource(priority=4, top_n=top_n,
                                            budget_tokens=shares["semantic"]))
-    compiler.add_source(SymbolFilesSource(priority=4, top_n=3,
+    compiler.add_source(SymbolFilesSource(priority=4, top_n=top_n,
                                          budget_tokens=shares["symbols"]))
     compiler.add_source(DependencyFilesSource(priority=5,
                                              budget_tokens=shares["deps"]))

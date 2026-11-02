@@ -40,11 +40,19 @@ class AudioRecorder:
         self.api_key = self._get_api_key()
         
     def _get_api_key(self) -> str | None:
-        """Fetch API key from config or env."""
+        """Fetch API key from config or env.
+
+        A stored Kista reference (M-032) resolves through
+        Kista via the shared stored-key read; a legacy
+        plaintext value is itself.
+        """
         if "api_key" in self.config:
             return self.config["api_key"]
-        elif "api_keys" in self.config and self.base_url in self.config["api_keys"]:
-            return self.config["api_keys"][self.base_url]
+        from .key_custody import stored_key_for
+
+        stored = stored_key_for(self.config, self.base_url)
+        if stored:
+            return stored
         return os.environ.get("OPENAI_API_KEY")
 
     def _audio_callback(self, indata, frames: int, time, status) -> None:

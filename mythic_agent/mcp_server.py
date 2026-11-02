@@ -102,8 +102,9 @@ def mythic_archival_search(query: str, top_k: int = 5, agent_name: str = "Primar
     agent_name = _agent_name(agent_name)
     config = config_manager.load_config()
     base_url = config.get("base_url", config_manager.DEFAULT_BASE_URL)
-    api_keys = config.get("api_keys", {})
-    api_key = api_keys.get(base_url, os.environ.get("OPENAI_API_KEY"))
+    from .core.key_custody import stored_key_for
+
+    api_key = stored_key_for(config, base_url) or os.environ.get("OPENAI_API_KEY")
     provider = config.get("vector_db_provider", "lightweight")
     
     vector_db = get_vector_provider(provider, agent_name, base_url, api_key)
@@ -126,8 +127,9 @@ def mythic_archival_insert(text: str, agent_name: str = "Primary") -> str:
     agent_name = _agent_name(agent_name)
     config = config_manager.load_config()
     base_url = config.get("base_url", config_manager.DEFAULT_BASE_URL)
-    api_keys = config.get("api_keys", {})
-    api_key = api_keys.get(base_url, os.environ.get("OPENAI_API_KEY"))
+    from .core.key_custody import stored_key_for
+
+    api_key = stored_key_for(config, base_url) or os.environ.get("OPENAI_API_KEY")
     provider = config.get("vector_db_provider", "lightweight")
     
     vector_db = get_vector_provider(provider, agent_name, base_url, api_key)

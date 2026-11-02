@@ -1,0 +1,220 @@
+schema: mythic.part2_gate/1
+gate_slice: M-042
+part: 2
+part_title: The Provider Ocean
+verdict: PASS
+gate_note: 'The Part II gate: the same benchmark task (M-008''s B-01) completed through five different
+  OpenAI-compatible providers + Ollama + Aesir, evidence banked here and re-proven live by the gate''s
+  tests on every run — each named door is exercised over loopback through its shipped adapter, its reply
+  is materialised over the task''s seed repo, and the task''s own hidden grading tests must pass in full.
+  A completion is claimed only for the seven named doors and only as loopback-measured; every live vendor
+  service, and every other registry entry, is recorded NOT PROVEN with its reason — never a claimed completion
+  without evidence.'
+benchmark_task:
+  id: B-01
+  title: Fix the one-based pagination offset
+  category: bugfix
+  grading_tests: 4
+  solution_files:
+  - paging.py
+slices:
+- slice: M-019
+  title: Provider registry as data
+- slice: M-020
+  title: The OpenAI-compatible universal adapter
+- slice: M-021
+  title: Anthropic-native adapter v2
+- slice: M-022
+  title: Google/Gemini-native adapter
+- slice: M-023
+  title: Local runtimes I — Ollama
+- slice: M-024
+  title: Local runtimes II
+- slice: M-025
+  title: Project Aesir as a provider
+- slice: M-026
+  title: The gateways
+- slice: M-027
+  title: Capability truth per model
+- slice: M-028
+  title: Mid-session model switching
+- slice: M-029
+  title: Role routing
+- slice: M-030
+  title: Fallback chains
+- slice: M-031
+  title: Cost-aware routing
+- slice: M-032
+  title: Key custody via Kista
+- slice: M-033
+  title: Subscription doors study
+- slice: M-034
+  title: Streaming discipline
+- slice: M-035
+  title: Retry and backoff honesty
+- slice: M-036
+  title: Rate-limit weather
+- slice: M-037
+  title: Vision input routing
+- slice: M-038
+  title: Long-context strategy per model
+- slice: M-039
+  title: Provider health board
+- slice: M-040
+  title: Offline honesty
+- slice: M-041
+  title: New-provider test kit
+doors:
+- provider: openai
+  dialect: openai_compatible
+  road: universal_adapter
+  status: completed
+  evidence_kind: loopback-measured
+  grading_passed: 4
+  grading_total: 4
+  live_status: not-proven
+  live_reason: No live call to this door's real service was made in this environment (no vendor key /
+    no local server was exercised); completion is proven over loopback through the shipped adapter against
+    a scripted door answering with the reference solution, graded by the task's hidden tests. The live
+    service itself is NOT PROVEN by this gate.
+  evidence: B-01's prompt and seed were sent through the universal_adapter for registry entry 'openai';
+    the reply was materialised over the seed repo and B-01's hidden grading tests passed 4/4 in a subprocess.
+- provider: deepseek
+  dialect: openai_compatible
+  road: universal_adapter
+  status: completed
+  evidence_kind: loopback-measured
+  grading_passed: 4
+  grading_total: 4
+  live_status: not-proven
+  live_reason: No live call to this door's real service was made in this environment (no vendor key /
+    no local server was exercised); completion is proven over loopback through the shipped adapter against
+    a scripted door answering with the reference solution, graded by the task's hidden tests. The live
+    service itself is NOT PROVEN by this gate.
+  evidence: B-01's prompt and seed were sent through the universal_adapter for registry entry 'deepseek';
+    the reply was materialised over the seed repo and B-01's hidden grading tests passed 4/4 in a subprocess.
+- provider: openrouter
+  dialect: openai_compatible
+  road: universal_adapter
+  status: completed
+  evidence_kind: loopback-measured
+  grading_passed: 4
+  grading_total: 4
+  live_status: not-proven
+  live_reason: No live call to this door's real service was made in this environment (no vendor key /
+    no local server was exercised); completion is proven over loopback through the shipped adapter against
+    a scripted door answering with the reference solution, graded by the task's hidden tests. The live
+    service itself is NOT PROVEN by this gate.
+  evidence: B-01's prompt and seed were sent through the universal_adapter for registry entry 'openrouter';
+    the reply was materialised over the seed repo and B-01's hidden grading tests passed 4/4 in a subprocess.
+- provider: groq
+  dialect: openai_compatible
+  road: universal_adapter
+  status: completed
+  evidence_kind: loopback-measured
+  grading_passed: 4
+  grading_total: 4
+  live_status: not-proven
+  live_reason: No live call to this door's real service was made in this environment (no vendor key /
+    no local server was exercised); completion is proven over loopback through the shipped adapter against
+    a scripted door answering with the reference solution, graded by the task's hidden tests. The live
+    service itself is NOT PROVEN by this gate.
+  evidence: B-01's prompt and seed were sent through the universal_adapter for registry entry 'groq';
+    the reply was materialised over the seed repo and B-01's hidden grading tests passed 4/4 in a subprocess.
+- provider: together
+  dialect: openai_compatible
+  road: universal_adapter
+  status: completed
+  evidence_kind: loopback-measured
+  grading_passed: 4
+  grading_total: 4
+  live_status: not-proven
+  live_reason: No live call to this door's real service was made in this environment (no vendor key /
+    no local server was exercised); completion is proven over loopback through the shipped adapter against
+    a scripted door answering with the reference solution, graded by the task's hidden tests. The live
+    service itself is NOT PROVEN by this gate.
+  evidence: B-01's prompt and seed were sent through the universal_adapter for registry entry 'together';
+    the reply was materialised over the seed repo and B-01's hidden grading tests passed 4/4 in a subprocess.
+- provider: ollama
+  dialect: ollama_native
+  road: ollama_adapter
+  status: completed
+  evidence_kind: loopback-measured
+  grading_passed: 4
+  grading_total: 4
+  live_status: not-proven
+  live_reason: No live call to this door's real service was made in this environment (no vendor key /
+    no local server was exercised); completion is proven over loopback through the shipped adapter against
+    a scripted door answering with the reference solution, graded by the task's hidden tests. The live
+    service itself is NOT PROVEN by this gate.
+  evidence: B-01's prompt and seed were sent through the ollama_adapter for registry entry 'ollama'; the
+    reply was materialised over the seed repo and B-01's hidden grading tests passed 4/4 in a subprocess.
+- provider: aesir
+  dialect: aesir_native
+  road: aesir_adapter
+  status: completed
+  evidence_kind: loopback-measured
+  grading_passed: 4
+  grading_total: 4
+  live_status: not-proven
+  live_reason: No live call to this door's real service was made in this environment (no vendor key /
+    no local server was exercised); completion is proven over loopback through the shipped adapter against
+    a scripted door answering with the reference solution, graded by the task's hidden tests. The live
+    service itself is NOT PROVEN by this gate.
+  evidence: B-01's prompt and seed were sent through the aesir_adapter for registry entry 'aesir'; the
+    reply was materialised over the seed repo and B-01's hidden grading tests passed 4/4 in a subprocess.
+unproven_providers:
+- provider: anthropic
+  dialect: native_sdk
+  status: not-proven
+  reason: Not one of the gate's named doors (five compatible providers + Ollama + Aesir in the roadmap's
+    words); its live door was not exercised by this gate, so no benchmark completion is claimed for it.
+    Its own adapter's suite is its proof of shape.
+- provider: fireworks
+  dialect: openai_compatible
+  status: not-proven
+  reason: Not one of the gate's named doors (five compatible providers + Ollama + Aesir in the roadmap's
+    words); its live door was not exercised by this gate, so no benchmark completion is claimed for it.
+    Its own adapter's suite is its proof of shape.
+- provider: google
+  dialect: native_sdk
+  status: not-proven
+  reason: Not one of the gate's named doors (five compatible providers + Ollama + Aesir in the roadmap's
+    words); its live door was not exercised by this gate, so no benchmark completion is claimed for it.
+    Its own adapter's suite is its proof of shape.
+- provider: llama.cpp
+  dialect: openai_compatible
+  status: not-proven
+  reason: Not one of the gate's named doors (five compatible providers + Ollama + Aesir in the roadmap's
+    words); its live door was not exercised by this gate, so no benchmark completion is claimed for it.
+    Its own adapter's suite is its proof of shape.
+- provider: lmstudio
+  dialect: openai_compatible
+  status: not-proven
+  reason: Not one of the gate's named doors (five compatible providers + Ollama + Aesir in the roadmap's
+    words); its live door was not exercised by this gate, so no benchmark completion is claimed for it.
+    Its own adapter's suite is its proof of shape.
+- provider: local-openai
+  dialect: openai_compatible
+  status: not-proven
+  reason: Not one of the gate's named doors (five compatible providers + Ollama + Aesir in the roadmap's
+    words); its live door was not exercised by this gate, so no benchmark completion is claimed for it.
+    Its own adapter's suite is its proof of shape.
+- provider: mistral
+  dialect: openai_compatible
+  status: not-proven
+  reason: Not one of the gate's named doors (five compatible providers + Ollama + Aesir in the roadmap's
+    words); its live door was not exercised by this gate, so no benchmark completion is claimed for it.
+    Its own adapter's suite is its proof of shape.
+- provider: vllm
+  dialect: openai_compatible
+  status: not-proven
+  reason: Not one of the gate's named doors (five compatible providers + Ollama + Aesir in the roadmap's
+    words); its live door was not exercised by this gate, so no benchmark completion is claimed for it.
+    Its own adapter's suite is its proof of shape.
+- provider: xai
+  dialect: openai_compatible
+  status: not-proven
+  reason: Not one of the gate's named doors (five compatible providers + Ollama + Aesir in the roadmap's
+    words); its live door was not exercised by this gate, so no benchmark completion is claimed for it.
+    Its own adapter's suite is its proof of shape.

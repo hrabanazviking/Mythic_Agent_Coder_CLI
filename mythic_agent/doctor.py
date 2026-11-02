@@ -324,7 +324,55 @@ def main(argv: list[str] | None = None) -> int:
         if args.live:
             results.append(check_provider_live())
 
-    code = print_results(results, as_json=args.json)
+    # M-039: --live grows into the per-provider health board —
+    # every registry door probed (or honestly not probed),
+    # side by side, carried in --json as provider_health.
+    board = None
+    if args.live and not args.provider:
+        try:
+            from mythic_agent.core.config_manager import config_manager
+            from mythic_agent.core.provider_health import build_board
+            from mythic_agent.core.rate_limit_weather import shared_board
+
+            board = build_board(
+                config_manager.load_config(), weather_board=shared_board())
+        except Exception as exc:
+            results.append(HealthResult(
+                "provider-health", HealthStatus.FAIL,
+                f"Provider health board failed: {exc}"))
+
+    # M-040: the board read plainly — the offline assessment
+    # rides beside it in --json, and the exact declaration is
+    # printed when the board shows the app is offline.
+    assessment = None
+    if board is not None:
+        from mythic_agent.core.offline_honesty import assess_board
+        assessment = assess_board(board)
+
+    if args.json and board is not None:
+        print(json.dumps({
+            "checks": [
+                {"name": r.name, "status": r.status.value,
+                 "message": r.message, "fix_hint": r.fix_hint}
+                for r in results
+            ],
+            "provider_health": board.record(),
+            "offline": assessment.record(),
+        }, indent=2))
+        code = 1 if any(r.status == HealthStatus.FAIL for r in results) else 0
+    else:
+        code = print_results(results, as_json=args.json)
+        if board is not None:
+            from mythic_agent.core.provider_health import format_board
+
+            print()
+            print(format_board(board))
+            if assessment is not None and assessment.declaration:
+                print()
+                print(assessment.declaration)
+                print("Still available without a model:")
+                for offer in assessment.still_available:
+                    print(f"  {offer.command} — {offer.what}")
     if code == 0:
         print("\nAll checks passed.")
     else:
