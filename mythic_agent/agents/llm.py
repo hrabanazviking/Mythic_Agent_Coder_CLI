@@ -1784,6 +1784,57 @@ class Agent:
             "plain_explanation": web_module.PLAIN_EXPLANATION,
         }
 
+    def docs_list(self) -> dict[str, Any]:
+        """The offline docs shelf's catalogue (M-060).
+
+        The workspace's own docs (root and ``docs/`` doc
+        files) plus any offline doc packs under
+        ``.mythic/docpacks/``, each with its title and
+        source. Nothing is fetched; a switched-off road
+        reads nothing.
+        """
+        from ..tools import docs_at_hand as docs_module
+
+        report = docs_module.docs_list(
+            self.project_root,
+            enabled=docs_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": docs_module.PLAIN_EXPLANATION,
+        }
+
+    def docs_search(self, query: str) -> dict[str, Any]:
+        """Rank the offline docs shelf against a query (M-060)."""
+        from ..tools import docs_at_hand as docs_module
+
+        report = docs_module.docs_search(
+            self.project_root, query,
+            enabled=docs_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": docs_module.PLAIN_EXPLANATION,
+        }
+
+    def docs_read(self, name: str) -> dict[str, Any]:
+        """Read one shelf doc whole, by path, name or title (M-060).
+
+        A name matching nothing is an honest error report;
+        a name matching several docs is refused with the
+        candidates named — a doc is never guessed.
+        """
+        from ..tools import docs_at_hand as docs_module
+
+        report = docs_module.docs_read(
+            self.project_root, name,
+            enabled=docs_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": docs_module.PLAIN_EXPLANATION,
+        }
+
     def _journal_web_citation(self, report: Any) -> None:
         """Cite one web report's sources into the journal (M-059)."""
         if report.status != "ok":

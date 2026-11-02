@@ -354,6 +354,13 @@ settings:
   default: https://html.duckduckgo.com/html/?q={query}
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Web knowledge tools (M-059): the search endpoint template /web search sends its query to; the template must carry a {query} placeholder or the search is refused before anything is sent. The shipped default is DuckDuckGo''s keyless HTML road — no API key is required or stored for search.'
+- id: S-50
+  name: docs_at_hand
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Docs-at-hand (M-060): when true, the docs road is open — /docs list shows the offline shelf (the project''s root and docs/ doc files plus any doc packs under .mythic/docpacks/), /docs search ranks the shelf by title, heading and body matches with snippets and line numbers, and /docs read shows one doc by shelf path, file name or title; the road is fully offline, no file outside the shelf is read and nothing is fetched; when false, no doc file is read on that road.'
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
