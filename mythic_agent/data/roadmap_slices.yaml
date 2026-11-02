@@ -409,7 +409,7 @@ slices:
   title: Web knowledge tools
   summary: web search + fetch as first-class tools (docs, changelogs, error lookup), results cited into
     the journal.
-  status: queued
+  status: done
 - id: M-060
   part: 3
   title: Docs-at-hand
