@@ -461,7 +461,7 @@ slices:
   title: Language packs as data
   summary: per-language toolchains (server commands, formatters, test runners) declared in data; a new
     language is a pack, not a patch.
-  status: queued
+  status: done
 - id: M-069
   part: 3
   title: Intelligence cache
