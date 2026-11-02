@@ -427,7 +427,7 @@ slices:
   title: Dead-code and duplication sensing
   summary: structural reports for the Cartographer; sensing only — deletion is always a separate, approved
     slice.
-  status: queued
+  status: done
 - id: M-063
   part: 3
   title: Type-aware Python depth
