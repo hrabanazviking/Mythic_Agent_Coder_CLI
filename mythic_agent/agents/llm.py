@@ -1633,6 +1633,50 @@ class Agent:
             "plain_explanation": loop_module.PLAIN_EXPLANATION,
         }
 
+    def test_intel_status(self) -> dict[str, Any]:
+        """The test-intelligence board for this project (M-056).
+
+        Discovery is pytest's own collection for this
+        session's workspace, and the history account is the
+        recorded history store's — a switched-off road
+        reports disabled discovery, never an invented list.
+        """
+        from ..tools import test_intelligence as intel_module
+
+        return intel_module.board_report(
+            self.project_root,
+            enabled=intel_module.enabled_from_config(
+                getattr(self, "config", None)))
+
+    def test_intel_select(self, changed_files: Any) -> dict[str, Any]:
+        """Select the tests a change touches (M-056).
+
+        Changed files are resolved inside this session's
+        workspace where they exist there; the selection is
+        the symbol graph's answer or the honest whole-suite
+        fallback with its reason.
+        """
+        from ..tools import test_intelligence as intel_module
+
+        report = intel_module.select_tests(
+            list(changed_files or []), root=self.project_root,
+            enabled=intel_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "selection": report.record(),
+            "plain_explanation": intel_module.PLAIN_EXPLANATION,
+        }
+
+    def test_intel_history(self) -> dict[str, Any]:
+        """The recorded test history and its flaky marks (M-056)."""
+        from ..tools import test_intelligence as intel_module
+
+        report = intel_module.history_report(self.project_root)
+        return {
+            "history": report.record(),
+            "plain_explanation": intel_module.PLAIN_EXPLANATION,
+        }
+
     def lsp_workspace_symbols(self, query: str = "") -> dict[str, Any]:
         """The workspace's symbols, per the language server (M-050)."""
         from ..integrations import lsp as lsp_module

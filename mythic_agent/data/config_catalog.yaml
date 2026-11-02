@@ -319,6 +319,13 @@ settings:
   default: 'True'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Debugger in the loop (M-055): when true, a failing test — named on the /debugloop road or detected from a pytest run_command result''s own FAILED lines — may be re-run under the M-054 debugger as a pytest module launch with exception stops on, its frames and locals appended as evidence; when false, no test is re-run under the debugger. The debugger switch (S-43) gates this road too.'
+- id: S-45
+  name: test_intelligence
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Test intelligence (M-056): when true, the test-intelligence road is open — tests are discovered by pytest collection itself, a change''s tests are selected from the symbol graph with an honest whole-suite fallback, pytest run_command outcomes the runner names are recorded to the project history (.mythic/test_history.jsonl), and flaky marks are computed only from that recorded history; when false, no discovery, selection, or recording happens on that road.'
 env_vars:
 - id: V-01
   name: MYTHIC_HOME

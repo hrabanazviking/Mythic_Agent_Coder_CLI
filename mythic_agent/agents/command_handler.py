@@ -233,6 +233,8 @@ class CommandHandler:
                 self._handle_debug(args)
             elif cmd == "/debugloop":
                 self._handle_debug_loop(args)
+            elif cmd == "/testintel":
+                self._handle_test_intel(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1717,6 +1719,50 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_debug_loop_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_test_intel(self, args: str):
+        """M-056: /testintel [show] | select <file> ... | history — test intelligence, in the TUI.
+
+        Discovery is pytest's own collection, selection is
+        the symbol graph's answer or the honest whole-suite
+        fallback, and flaky marks come only from the
+        recorded history — each shown as its true status.
+        """
+        from ..tools.test_intelligence import (
+            format_test_intel_board, format_test_intel_history,
+            format_test_intel_selection, parse_test_intel_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_test_intel_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_test_intel_board(primary.test_intel_status())}[/bold cyan]\n")
+            return
+        if request["action"] == "history":
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_test_intel_history(primary.test_intel_history())}[/bold cyan]\n")
+            return
+        try:
+            status = primary.test_intel_select(request["changed"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_test_intel_selection(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):
