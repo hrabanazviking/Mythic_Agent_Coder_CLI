@@ -1,0 +1,158 @@
+schema: mythic.part3_gate/1
+gate_slice: M-070
+part: 3
+part_title: Code Intelligence
+verdict: PASS
+gate_note: 'The Part III gate: on benchmark-pack-style throwaway repos (seed files + hidden
+  grading tests, the M-008 pattern), a cross-file rename, a structural codemod, and a debugger-caught
+  bug, all completed with Part III''s new senses and re-proven live by the gate''s tests on
+  every run, evidence banked here against the M-007 baseline freeze named below. The rename
+  rides M-051''s LSP rename road against a fake language server speaking the real protocol
+  (fake-server-measured; no live language server is claimed), the codemod rides M-048''s structural
+  plan/apply road, and the debug catch rides M-055''s debugger-in-the-loop against a fake
+  DAP adapter speaking the real protocol (fake-adapter-measured; no real debugpy session is
+  claimed).'
+baseline:
+  resource: baseline_freeze.yaml
+  collected: 1467
+  passed: 1464
+  failed: 2
+  skipped: 1
+slices:
+- slice: M-043
+  title: Tree-sitter foundation
+- slice: M-044
+  title: The Repo Map (Aider's crown, made kinder)
+- slice: M-045
+  title: Map in the TUI
+- slice: M-046
+  title: Symbol graph
+- slice: M-047
+  title: Structural search
+- slice: M-048
+  title: Structural rewrite
+- slice: M-049
+  title: LSP client I — diagnostics
+- slice: M-050
+  title: LSP client II — navigation
+- slice: M-051
+  title: LSP client III — rename and code actions
+- slice: M-052
+  title: Edit-time truth loop
+- slice: M-053
+  title: Formatter covenant
+- slice: M-054
+  title: The Debugger (DAP)
+- slice: M-055
+  title: Debugger in the loop
+- slice: M-056
+  title: Test intelligence
+- slice: M-057
+  title: Coverage sight
+- slice: M-058
+  title: Beyond-grep local search
+- slice: M-059
+  title: Web knowledge tools
+- slice: M-060
+  title: Docs-at-hand
+- slice: M-061
+  title: Dependency sight
+- slice: M-062
+  title: Dead-code and duplication sensing
+- slice: M-063
+  title: Type-aware Python depth
+- slice: M-064
+  title: Mojo as a first-class language
+- slice: M-065
+  title: SQL and data sight
+- slice: M-066
+  title: Config and infra files
+- slice: M-067
+  title: Binary and asset awareness
+- slice: M-068
+  title: Language packs as data
+- slice: M-069
+  title: Intelligence cache
+exercises:
+- id: rename
+  title: Cross-file rename
+  owning_slices:
+  - M-046
+  - M-050
+  - M-051
+  status: completed
+  evidence_kind: fake-server-measured
+  old_name: compute_total
+  new_name: summarise_total
+  files: 2
+  sites: 4
+  evidence: compute_total renamed to summarise_total in helpers.py (definition + its module-level
+    call) and main.py (the import + its call) — 4 sites in 2 files — through the LSP rename
+    road's WorkspaceEdit, applied through the EditJournal road; the symbol graph proves the
+    cross-file reference before the rename and its absence after, and the exercise's hidden
+    grading tests pass 3/3.
+  seed_files:
+  - path: helpers.py
+    content: "def compute_total(items):\n    return sum(items)\n\n\nVALUE = compute_total([1,\
+      \ 2])\n"
+  - path: main.py
+    content: 'from helpers import compute_total
+
+
+      RESULT = compute_total([3, 4])
+
+      '
+  grading_file:
+    path: test_grading.py
+    content: "from helpers import VALUE, summarise_total\nimport main\n\n\ndef test_renamed_function_works():\n\
+      \    assert summarise_total([1, 2, 3]) == 6\n\n\ndef test_helpers_value_uses_renamed_function():\n\
+      \    assert VALUE == 3\n\n\ndef test_main_result_uses_renamed_function():\n    assert\
+      \ main.RESULT == 7\n"
+  grading_tests: 3
+- id: codemod
+  title: Structural codemod
+  owning_slices:
+  - M-047
+  - M-048
+  status: completed
+  evidence_kind: structural-measured
+  pattern: legacy_add($A, $B)
+  replacement: add($A, $B)
+  sites: 2
+  evidence: Every legacy_add($A, $B) call site (2, in calc.py) rewritten to add($A, $B) through
+    the structural rewrite road — planned with per-site diff previews, applied through the
+    EditJournal road only for the file exactly as planned; the legacy definition itself is
+    untouched, and the exercise's hidden grading tests pass 2/2.
+  seed_files:
+  - path: calc.py
+    content: "def add(a, b):\n    return a + b\n\n\ndef legacy_add(a, b):\n    return add(a,\
+      \ b)\n\n\nSUM = legacy_add(1, 2)\nTOTAL = legacy_add(SUM, 3)\n"
+  grading_file:
+    path: test_grading.py
+    content: "from pathlib import Path\n\nimport calc\n\n\ndef test_codemod_results_still_compute():\n\
+      \    assert calc.SUM == 3\n    assert calc.TOTAL == 6\n\n\ndef test_no_legacy_call_sites_remain():\n\
+      \    source = Path(calc.__file__).read_text(encoding='utf-8')\n    assert source.count('legacy_add(')\
+      \ == 1  # the definition only\n    assert 'add(1, 2)' in source and 'add(SUM, 3)' in\
+      \ source\n"
+  grading_tests: 2
+- id: debug
+  title: Debugger-caught bug
+  owning_slices:
+  - M-054
+  - M-055
+  status: completed
+  evidence_kind: fake-adapter-measured
+  test_node: test_fails.py::test_fails
+  frame_line: 3
+  local_name: x
+  local_value: '41'
+  stopped_reason: exception
+  evidence: 'The failing test test_fails.py::test_fails (x = 41, then assert x == 42) re-run
+    under the debugger-in-the-loop: the exception stop lands on the assert line (line 3),
+    its frame names test_fails, and its Locals scope reports x = 41 — the mismatch that makes
+    the assert fail, caught as evidence, not guessed.'
+  seed_files:
+  - path: test_fails.py
+    content: "def test_fails():\n    x = 41\n    assert x == 42\n"
+  grading_file: null
+  grading_tests: 0
