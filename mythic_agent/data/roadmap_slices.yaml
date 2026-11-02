@@ -232,167 +232,167 @@ slices:
   title: Role routing
   summary: different models for different offices (a deep thinker for the Architect, a fast hand for grunt
     edits, a cheap scout for searches) — set per crew role, visible, changeable.
-  status: queued
+  status: done
 - id: M-030
   part: 2
   title: Fallback chains
   summary: when a provider fails or rate-limits, the chain walks to the next door with the user's standing
     permission; every walk is announced, never silent.
-  status: queued
+  status: done
 - id: M-031
   part: 2
   title: Cost-aware routing
   summary: with `mythic costs` data, the router can prefer the cheaper adequate model for a task class
     — a setting, off by default, explained in plain words.
-  status: queued
+  status: done
 - id: M-032
   part: 2
   title: Key custody via Kista
   summary: providers read their keys from Volmarr's Kista; config files hold references, never secrets;
     a missing key asks once, kindly.
-  status: queued
+  status: done
 - id: M-033
   part: 2
   title: Subscription doors study
   summary: OAuth-style sign-ins some rivals use (ChatGPT/Claude subscriptions) — studied behaviourally;
     built only where the provider's terms allow, else recorded NOT OFFERED with the reason.
-  status: queued
+  status: done
 - id: M-034
   part: 2
   title: Streaming discipline
   summary: token streaming with clean interrupt, partial-answer salvage, and resume-the-thought where
     the provider allows; a killed stream never corrupts the journal.
-  status: queued
+  status: done
 - id: M-035
   part: 2
   title: Retry and backoff honesty
   summary: bounded retries on transient failures only; mutating calls never silently replayed (the house
     rule from Sagnaskemma's hardening, applied here).
-  status: queued
+  status: done
 - id: M-036
   part: 2
   title: Rate-limit weather
   summary: per-provider quota/limit state surfaced in the status line *before* it bites; queueing of crew
     work around it.
-  status: queued
+  status: done
 - id: M-037
   part: 2
   title: Vision input routing
   summary: image tasks route only to models whose capability record says they can see; otherwise the app
     says so plainly and offers the switch.
-  status: queued
+  status: done
 - id: M-038
   part: 2
   title: Long-context strategy per model
   summary: 1M-class contexts get map-first loading; small contexts get aggressive repo-map + retrieval
     (Part III/VII) — the strategy is chosen from capability truth.
-  status: queued
+  status: done
 - id: M-039
   part: 2
   title: Provider health board
   summary: '`mythic doctor --live` grown into a per-provider board (reachable, latency, last error) with
     --json.'
-  status: queued
+  status: done
 - id: M-040
   part: 2
   title: Offline honesty
   summary: with no network and no local model, the app says exactly that and still offers its non-model
     tools (review, metrics, session search) instead of dying.
-  status: queued
+  status: done
 - id: M-041
   part: 2
   title: New-provider test kit
   summary: a conformance script any new registry entry must pass (chat, tools, streaming, errors) before
     it ships.
-  status: queued
+  status: done
 - id: M-042
   part: 2
   title: Part II gate
   summary: the same benchmark task (M-008) completed through five different providers + Ollama + Aesir,
     evidence banked.
-  status: queued
+  status: done
 - id: M-043
   part: 3
   title: Tree-sitter foundation
   summary: grammar-backed parsing for the major languages (Python first, then JS/TS, Rust, Go, Mojo-aware),
     vendored cleanly with licences noticed.
-  status: queued
+  status: done
 - id: M-044
   part: 3
   title: The Repo Map (Aider's crown, made kinder)
   summary: a token-budgeted map of the whole repo — files, classes, functions, signatures — ranked by
     relevance to the current task (PageRank over the reference graph, as the field does), refreshed incrementally.
-  status: queued
+  status: done
 - id: M-045
   part: 3
   title: Map in the TUI
   summary: the map is *visible* — browse it, pin files, see why the coder thinks a file matters; the ranking
     is explainable.
-  status: queued
+  status: done
 - id: M-046
   part: 3
   title: Symbol graph
   summary: definitions, references, imports, call edges extracted per language; the graph feeds the map,
     the search, and Part VI's task splitting.
-  status: queued
+  status: done
 - id: M-047
   part: 3
   title: Structural search
   summary: ast-grep-style pattern search ("find every call like `foo($A, $$$)`) as a tool and a TUI panel.
-  status: queued
+  status: done
 - id: M-048
   part: 3
   title: Structural rewrite
   summary: the same patterns as safe codemods with per-site diff preview — never a blind global replace.
-  status: queued
+  status: done
 - id: M-049
   part: 3
   title: LSP client I — diagnostics
   summary: language servers (pyright, typescript, rust-analyzer, gopls…) run beside the app; their diagnostics
     flow into the coder's awareness and the TUI's margin.
-  status: queued
+  status: done
 - id: M-050
   part: 3
   title: LSP client II — navigation
   summary: go-to-definition, references, hover, workspace symbols as agent tools ("where is this used?"
     gets a true answer).
-  status: queued
+  status: done
 - id: M-051
   part: 3
   title: LSP client III — rename and code actions
   summary: a rename propagates through re-exports and imports by the server's own knowledge, diffed for
     approval like any edit.
-  status: queued
+  status: done
 - id: M-052
   part: 3
   title: Edit-time truth loop
   summary: after every edit, diagnostics + the project's formatter/linter run; new errors return to the
     coder as facts to fix *before* the turn ends (the field's quiet superpower).
-  status: queued
+  status: done
 - id: M-053
   part: 3
   title: Formatter covenant
   summary: the project’s own formatter config is honoured exactly; the coder never reformats untouched
     code; format diffs are separated from logic diffs in review.
-  status: queued
+  status: done
 - id: M-054
   part: 3
   title: The Debugger (DAP)
   summary: breakpoints, step, continue, variable inspection, exception stops for Python first (debugpy),
     then the DAP-general road — the coder can *watch* a bug happen.
-  status: queued
+  status: done
 - id: M-055
   part: 3
   title: Debugger in the loop
   summary: a failing test can be re-run under the debugger by the coder itself, frames and locals reported
     as evidence.
-  status: queued
+  status: done
 - id: M-056
   part: 3
   title: Test intelligence
   summary: test discovery per project, "run only what this change touches" selection from the symbol graph,
     flaky-test marking from history (never from vibes).
-  status: queued
+  status: done
 - id: M-057
   part: 3
   title: Coverage sight

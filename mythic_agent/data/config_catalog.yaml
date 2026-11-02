@@ -35,7 +35,7 @@ settings:
   type: dict
   default: '{}'
   source: mythic_agent/data/config_defaults.yaml
-  effect: Per-endpoint stored API keys, keyed by base URL; secrets — Part VIII keeps these in Kista.
+  effect: 'Per-endpoint stored API keys, keyed by base URL. Since M-032 a value may be a Kista reference (kista:<name>) instead of a secret: providers resolve the reference through Kista (vault file, then environment), the config holding only the reference; legacy plaintext values keep working until adopted into Kista with /kista adopt.'
 - id: S-05
   name: working_directory
   scope: top-level
@@ -256,6 +256,76 @@ settings:
   default: None
   source: mythic_agent/core/config_manager.py (CONFIG_SCHEMA)
   effect: Primary (user/agent) name override; managed key, absent from the defaults file.
+- id: S-36
+  name: role_routes
+  scope: top-level
+  type: dict
+  default: '{}'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Per-office model routes (M-029): office id to {model, base_url}; an office with no route uses the session default model/base_url.'
+- id: S-37
+  name: fallback_chain
+  scope: top-level
+  type: list
+  default: '[]'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Ordered fallback doors (M-030): a list of {model, base_url} entries the session walks, in this order, when a provider fails or rate-limits and standing permission is on.'
+- id: S-38
+  name: fallback_permission
+  scope: top-level
+  type: bool
+  default: 'False'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Standing permission for fallback walks (M-030): when true, a failed provider request walks fallback_chain with every walk announced and journaled; when false, failures are reported and the chain is never walked.'
+- id: S-39
+  name: cost_routing
+  scope: top-level
+  type: bool
+  default: 'False'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Cost-aware routing (M-031): when true, the router may prefer the cheapest adequate door among the configured doors (current door, fallback chain, role routes) for a task class, priced by the mythic costs data with adequacy from per-model capability truth; when false, the router changes nothing.'
+- id: S-40
+  name: repo_map_pins
+  scope: top-level
+  type: list
+  default: '[]'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Pinned repo-map files (M-045): workspace-relative paths the user pinned with /map pin; a pinned file is shown first when the repo map is browsed, with its rank and score unchanged, and a pinned file the map build left out is explained (over the budget, skipped, or absent), never invented as an entry.'
+- id: S-41
+  name: edit_truth_loop
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Edit-time truth loop (M-052): when true, every agent edit (write_file / replace_file_content) is rechecked — house review, language-server diagnostics where a server truly runs, the project linter where one is truly configured — and new error-severity findings the edit introduced are appended to the tool result in the same turn; when false, edits are not rechecked.'
+- id: S-42
+  name: formatter_covenant
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Formatter covenant (M-053): when true, the formatter road is open — the project''s own configured formatter (black/ruff/isort/yapf, named by its own config and installed) may be previewed on files an edit touched and applied only on explicit request through the edit journal, with format diffs shown separately from logic diffs; when false, the formatter road refuses plainly and nothing is formatted.'
+- id: S-43
+  name: debugger
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'The Debugger (M-054): when true, the debugger road is open — a program may be run under a catalogued debug adapter (debugpy for Python first, the DAP-general client) with breakpoints, exception stops, stepping, and variable inspection reported exactly as the adapter reports them; when false, a debug run refuses plainly and no adapter is launched.'
+- id: S-44
+  name: debugger_in_loop
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Debugger in the loop (M-055): when true, a failing test — named on the /debugloop road or detected from a pytest run_command result''s own FAILED lines — may be re-run under the M-054 debugger as a pytest module launch with exception stops on, its frames and locals appended as evidence; when false, no test is re-run under the debugger. The debugger switch (S-43) gates this road too.'
+- id: S-45
+  name: test_intelligence
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Test intelligence (M-056): when true, the test-intelligence road is open — tests are discovered by pytest collection itself, a change''s tests are selected from the symbol graph with an honest whole-suite fallback, pytest run_command outcomes the runner names are recorded to the project history (.mythic/test_history.jsonl), and flaky marks are computed only from that recorded history; when false, no discovery, selection, or recording happens on that road.'
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
@@ -385,6 +455,12 @@ env_vars:
   effect: API key for the xAI gateway provider (provider api_key_env, M-026).
   secret: true
   source: mythic_agent/providers/gateways.py
+- id: V-22
+  name: MYTHIC_KISTA_FILE
+  kind: state-dir
+  effect: 'Path of Kista''s vault file (M-032): a private JSON mapping of key names to keys that Kista references resolve through first; unset means no vault-file road and references resolve from the environment only.'
+  secret: false
+  source: mythic_agent/core/key_custody.py
 files:
 - id: F-01
   name: config_defaults.yaml

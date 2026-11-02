@@ -113,7 +113,7 @@ rows:
   part: III
   state: MISSING
   owning_module: mythic_agent/context/repo_map.py
-  module_kind: proposed
+  module_kind: existing
   basis: mythic_agent/context/compiler.py
   fix_shape: A token-budgeted repo map built with the context compiler and the code index.
 - feature: lsp-integration
@@ -121,7 +121,7 @@ rows:
   part: III
   state: MISSING
   owning_module: mythic_agent/integrations/lsp.py
-  module_kind: proposed
+  module_kind: existing
   basis: mythic_agent/tools/review.py
   fix_shape: A language-server client feeding real diagnostics into the edit-time review loop.
 - feature: structural-search-rewrite
@@ -129,7 +129,7 @@ rows:
   part: III
   state: MISSING
   owning_module: mythic_agent/tools/structural_search.py
-  module_kind: proposed
+  module_kind: existing
   basis: mythic_agent/tools/code_index.py
   fix_shape: Structural pattern search and codemods beside the existing code index.
 - feature: hash-anchored-edits
@@ -145,7 +145,7 @@ rows:
   part: III
   state: MISSING
   owning_module: mythic_agent/tools/debugger.py
-  module_kind: proposed
+  module_kind: existing
   basis: mythic_agent/tools/review.py
   fix_shape: A DAP debugger tool (breakpoints, step, inspect) in the tools package.
 - feature: formatter-linter-loop

@@ -149,6 +149,11 @@ def main(argv: list[str] | None = None) -> int:
     metrics = commands.add_parser("metrics", help="Show recorded metrics and traces")
     metrics.add_argument("--workspace", help="Project directory")
     metrics.add_argument("--json", action="store_true", help="JSON output for machines")
+    testkit = commands.add_parser("testkit", help="Run the new-provider test kit against a registry entry's door (M-041)")
+    testkit.add_argument("provider", help="Registry provider name (aliases resolve)")
+    testkit.add_argument("--base-url", help="Aim the kit at another door for this entry")
+    testkit.add_argument("--model", help="Model override for the kit run")
+    testkit.add_argument("--json", action="store_true", help="JSON output for machines")
     args = parser.parse_args(argv)
     if args.command == "doctor":
         from .doctor import main as doctor_main
@@ -228,6 +233,20 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print("No metrics recorded yet.")
         return 0
+    if args.command == "testkit":
+        from .core.provider_test_kit import format_kit_status, run_kit
+        try:
+            report = run_kit(args.provider, base_url=args.base_url,
+                             model=args.model)
+        except KeyError as exc:
+            sys.stderr.write(f"mythic testkit: {exc}\n")
+            return 2
+        if args.json:
+            import json as _json
+            print(_json.dumps(report.record(), indent=2))
+        else:
+            print(format_kit_status({"report": report.record()}))
+        return 0 if report.verdict == "passed" else 1
     if args.command in {"run", "chat"}:
         from .terminal import chat_loop, run_once
         return run_once(args) if args.command == "run" else chat_loop(args)

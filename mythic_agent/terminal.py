@@ -260,7 +260,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /status /session /add <path> /stop /undo /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
         return True, False, "Conversation cleared."
@@ -272,6 +272,459 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         return True, False, "Earlier complete turns archived; transcript retained."
     if command == "/session":
         return True, False, f"Session: {agent.session_id}\nResume: mythic chat --workspace {shlex.quote(str(agent.project_root))} --resume {agent.session_id}"
+    if command == "/route":
+        from .core.role_routing import (
+            format_route_change,
+            format_routes,
+            parse_route_args,
+            resolve_route,
+        )
+        try:
+            request = parse_route_args(arguments)
+        except (ValueError, KeyError) as exc:
+            return True, False, str(exc)
+        if request["action"] == "list":
+            return True, False, format_routes(agent.config)
+        if request["action"] == "show":
+            try:
+                route = resolve_route(agent.config, request["office"])
+                shown = agent.role_route(request["office"])
+            except ValueError as exc:
+                return True, False, str(exc)
+            assert shown["source"] == route.source
+            return True, False, f"{route.office}: {route.describe()}"
+        try:
+            if request["action"] == "clear":
+                record = agent.clear_role_route(request["office"])
+            else:
+                record = agent.set_role_route(
+                    request["office"], model=request["model"],
+                    provider=request["provider"],
+                    base_url=request["base_url"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_route_change(record)
+    if command == "/fallback":
+        from .core.fallback_chain import (
+            chain_from_config,
+            format_chain,
+            format_fallback_change,
+            parse_fallback_args,
+            permission_from_config,
+        )
+        try:
+            request = parse_fallback_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.fallback_status()
+            assert status["permission"] == permission_from_config(agent.config)
+            assert [(c["model"], c["base_url"]) for c in status["chain"]] == [
+                (e.model, e.base_url) for e in chain_from_config(agent.config)]
+            return True, False, format_chain(agent.config)
+        try:
+            if request["action"] == "permission":
+                record = agent.set_fallback_permission(request["enabled"])
+            elif request["action"] == "clear":
+                record = agent.clear_fallback_chain()
+            else:
+                record = agent.add_fallback_entry(
+                    model=request["model"], provider=request["provider"],
+                    base_url=request["base_url"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_fallback_change(record)
+    if command == "/costroute":
+        from .core.cost_routing import (
+            candidate_doors,
+            enabled_from_config,
+            format_cost_change,
+            format_cost_routing,
+            format_decision,
+            parse_cost_args,
+        )
+        try:
+            request = parse_cost_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.cost_routing_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            assert [d["model"] for d in status["doors"]] == [
+                d.model for d in candidate_doors(agent.config)]
+            return True, False, format_cost_routing(agent.config)
+        try:
+            if request["action"] == "setting":
+                record = agent.set_cost_routing(request["enabled"])
+                return True, False, format_cost_change(record)
+            applied = agent.cost_route(request["task_class"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_decision(applied["decision"])
+    if command == "/kista":
+        from .core.key_custody import (
+            custody_entries,
+            format_custody,
+            format_custody_change,
+            parse_kista_args,
+        )
+        try:
+            request = parse_kista_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.kista_status()
+            assert [e["base_url"] for e in status["entries"]] == [
+                e.base_url for e in custody_entries(agent.config)]
+            return True, False, format_custody(agent.config)
+        try:
+            record = agent.adopt_key_for_kista(request["base_url"])
+        except (ValueError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_custody_change(record)
+    if command == "/retry":
+        from .core.retry_honesty import (
+            bounds_from_settings,
+            format_retry_status,
+            parse_retry_args,
+        )
+        try:
+            request = parse_retry_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.retry_status()
+            assert status["bounds"] == bounds_from_settings(
+                runtime_settings(agent.config))
+            assert status["report"] is agent.last_retry_report
+            return True, False, format_retry_status(
+                status["bounds"], status["report"])
+    if command == "/weather":
+        from .core.rate_limit_weather import (
+            format_weather_status,
+            parse_weather_args,
+        )
+        try:
+            request = parse_weather_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.weather_status()
+            board = agent._weather_board
+            assert [p["provider"] for p in status["providers"]] == [
+                w.provider for w in board.snapshot()]
+            assert status["current_provider"] == agent._weather_key()
+            return True, False, format_weather_status(
+                board, extra_providers=[status["current_provider"]])
+    if command == "/vision":
+        from .core.model_capabilities import load_capabilities
+        from .core.vision_routing import (
+            format_vision_status,
+            parse_vision_args,
+            suggest_switch,
+        )
+        try:
+            request = parse_vision_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.vision_status()
+            caps = load_capabilities()
+            model = agent.config.get("model")
+            assert status["vision"] == (
+                caps.for_model(model).vision if model else None)
+            suggestion = suggest_switch(agent.config, caps)
+            assert status["suggestion"] == (
+                suggestion.selection() if suggestion is not None else None)
+            return True, False, format_vision_status(status)
+        try:
+            record = agent.apply_vision_switch()
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        from .core.model_switch import format_switch_record
+        return True, False, format_switch_record(record)
+    if command == "/longcontext":
+        from .core.long_context import (
+            format_longcontext_status,
+            parse_longcontext_args,
+            strategy_for_model,
+        )
+        try:
+            request = parse_longcontext_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        status = agent.context_strategy(request["model"])
+        plan = strategy_for_model(request["model"]
+                                  if request["model"] is not None
+                                  else agent.config.get("model"))
+        assert status["plan"] == plan.record()
+        assert status["strategy"] == plan.strategy
+        return True, False, format_longcontext_status(status)
+    if command == "/offline":
+        from .core.offline_honesty import (
+            format_offline_status,
+            parse_offline_args,
+        )
+        try:
+            request = parse_offline_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.offline_status()
+            from .core.offline_honesty import assess_board
+            from .core.provider_health import Board, HealthEntry
+            entries = tuple(HealthEntry(**e)
+                            for e in status["board"]["entries"])
+            board = Board(entries=entries,
+                          generated_at=status["board"]["generated_at"])
+            assert status["assessment"] == assess_board(board).record()
+            return True, False, format_offline_status(status)
+    if command == "/testkit":
+        from .core.provider_test_kit import (
+            format_kit_status,
+            parse_kit_args,
+        )
+        try:
+            request = parse_kit_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "run":
+            try:
+                status = agent.test_kit(request["provider"],
+                                        base_url=request["base_url"])
+            except KeyError as exc:
+                return True, False, str(exc)
+            return True, False, format_kit_status(status)
+    if command == "/ssearch":
+        from .tools.structural_search import (
+            format_search_status,
+            parse_search_args,
+        )
+        try:
+            request = parse_search_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.structural_search(
+                request["pattern"], request["language"])
+        except (ValueError, KeyError) as exc:
+            return True, False, str(exc)
+        return True, False, format_search_status(status)
+    if command == "/srewrite":
+        from .tools.structural_rewrite import (
+            format_rewrite_status,
+            parse_rewrite_args,
+        )
+        try:
+            request = parse_rewrite_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.structural_rewrite(
+                request["pattern"], request["replacement"],
+                request["language"],
+                apply=request["action"] == "apply")
+        except (ValueError, KeyError) as exc:
+            return True, False, str(exc)
+        return True, False, format_rewrite_status(status)
+    if command == "/truth":
+        from .tools.edit_truth import format_truth_report, parse_truth_args
+        try:
+            request = parse_truth_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.edit_truth(request["path"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_truth_report(status)
+    if command == "/format":
+        from .tools.format_covenant import format_format_report, parse_format_args
+        try:
+            request = parse_format_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.format_covenant(
+                request["path"], apply=request["action"] == "apply")
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_format_report(status)
+    if command == "/debug":
+        from .tools.debugger import (
+            format_debug_board, format_debug_report, parse_debug_args)
+        try:
+            request = parse_debug_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            return True, False, format_debug_board(agent.debugger_status())
+        try:
+            status = agent.debug_run(
+                request["program"], breakpoints=request["breakpoints"],
+                steps=request["steps"],
+                stop_on_exception=request["stop_on_exception"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_debug_report(status)
+    if command == "/debugloop":
+        from .tools.debug_loop import (
+            format_debug_loop_board, format_debug_loop_report,
+            parse_debug_loop_args)
+        try:
+            request = parse_debug_loop_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            return True, False, format_debug_loop_board(agent.debugger_status())
+        try:
+            status = agent.debug_loop(
+                request["test"], breakpoints=request["breakpoints"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_debug_loop_report(status)
+    if command == "/testintel":
+        from .tools.test_intelligence import (
+            format_test_intel_board, format_test_intel_history,
+            format_test_intel_selection, parse_test_intel_args)
+        try:
+            request = parse_test_intel_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            return True, False, format_test_intel_board(agent.test_intel_status())
+        if request["action"] == "history":
+            return True, False, format_test_intel_history(agent.test_intel_history())
+        try:
+            status = agent.test_intel_select(request["changed"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_test_intel_selection(status)
+    if command == "/lsp":
+        from .integrations.lsp import (
+            format_lsp_code_actions,
+            format_lsp_diagnostics,
+            format_lsp_navigation,
+            format_lsp_rename,
+            format_lsp_status,
+            parse_lsp_args,
+        )
+        try:
+            request = parse_lsp_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            return True, False, format_lsp_status(agent.lsp_status())
+        if request["action"] == "check":
+            try:
+                status = agent.lsp_diagnostics(request["path"])
+            except (ValueError, KeyError, RuntimeError) as exc:
+                return True, False, str(exc)
+            return True, False, format_lsp_diagnostics(status)
+        if request["action"] == "rename":
+            try:
+                status = agent.lsp_rename(
+                    request["path"], request["line"],
+                    request["character"], request["new_name"],
+                    apply=request["apply"])
+            except (ValueError, KeyError, RuntimeError) as exc:
+                return True, False, str(exc)
+            return True, False, format_lsp_rename(status)
+        if request["action"] == "code_actions":
+            try:
+                status = agent.lsp_code_actions(
+                    request["path"], request["line"],
+                    request["character"],
+                    apply_index=request["apply_index"])
+            except (ValueError, KeyError, RuntimeError) as exc:
+                return True, False, str(exc)
+            return True, False, format_lsp_code_actions(status)
+        try:
+            if request["action"] == "definition":
+                status = agent.lsp_definition(
+                    request["path"], request["line"],
+                    request["character"])
+            elif request["action"] == "references":
+                status = agent.lsp_references(
+                    request["path"], request["line"],
+                    request["character"])
+            elif request["action"] == "hover":
+                status = agent.lsp_hover(
+                    request["path"], request["line"],
+                    request["character"])
+            else:
+                status = agent.lsp_workspace_symbols(request["query"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_lsp_navigation(status)
+    if command == "/map":
+        from .context.repo_map import build_repo_map
+        from .context.repo_map_view import (
+            build_map_view,
+            format_map_change,
+            format_map_detail,
+            format_map_pins,
+            format_map_view,
+            parse_map_args,
+            pins_from_config,
+            resolve_detail,
+        )
+        try:
+            request = parse_map_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "list":
+            status = agent.repo_map_status(request["query"])
+            view = build_map_view(
+                build_repo_map(agent.project_root,
+                               query=request["query"]),
+                pins_from_config(agent.config))
+            assert status["view"] == view.record()
+            return True, False, format_map_view(status)
+        if request["action"] == "detail":
+            try:
+                status = agent.repo_map_detail(request["path"])
+            except ValueError as exc:
+                return True, False, str(exc)
+            detail = resolve_detail(
+                build_repo_map(agent.project_root),
+                pins_from_config(agent.config), request["path"])
+            assert status["detail"] == detail.record()
+            return True, False, format_map_detail(status)
+        if request["action"] == "pins":
+            status = agent.repo_map_pins()
+            assert status["pins"] == list(pins_from_config(agent.config))
+            return True, False, format_map_pins(status)
+        try:
+            if request["action"] == "pin":
+                record = agent.pin_repo_map_file(request["path"])
+            else:
+                record = agent.unpin_repo_map_file(request["path"])
+        except (ValueError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_map_change(record)
+    if command == "/resume-thought":
+        from .core.streaming_discipline import (
+            can_resume,
+            find_partial,
+            format_resume_status,
+            parse_resume_args,
+        )
+        try:
+            request = parse_resume_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            partial = agent.salvaged_partial()
+            found = find_partial(agent.history_snapshot())
+            assert (found is None) == (partial is None)
+            decision = can_resume(agent.config.get("model"))
+            return True, False, format_resume_status(partial, decision)
+        try:
+            text = agent.resume_thought()
+        except RuntimeError as exc:
+            return True, False, str(exc)
+        return True, False, text
     if command == "/model":
         from .core.model_switch import format_switch_record, parse_switch_args
         try:
@@ -328,6 +781,18 @@ def chat_loop(args: Any) -> int:
     console.print(f"Mythic chat · {agent.project_root} · {agent.config['model']}")
     console.print(f"Session: {agent.session_id}", markup=False)
     console.print("Use /help for commands, /quit or Ctrl+D to leave, Ctrl+C to interrupt.")
+    # M-040: at session start, say it once and exactly when the
+    # app is offline — a probed board with no door that can
+    # serve — instead of letting each request die on its own
+    # error. Any failure to assess claims nothing and never
+    # blocks the chat.
+    try:
+        _offline = agent.offline_status()
+        if _offline["assessment"]["state"] == "offline":
+            from .core.offline_honesty import format_offline_status
+            console.print(format_offline_status(_offline), markup=False)
+    except Exception:
+        pass
     try:
         while True:
             try:
