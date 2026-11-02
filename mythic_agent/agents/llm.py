@@ -1987,6 +1987,30 @@ class Agent:
             "plain_explanation": sql_module.PLAIN_EXPLANATION,
         }
 
+    def config_sight(self, mode: str = "show",
+                     target: str | None = None) -> dict[str, Any]:
+        """A config account — structure of config/infra files (M-066).
+
+        YAML, TOML, INI, systemd units, Dockerfiles and
+        compose files are parsed structurally (kinds and
+        sizes, never scalar values); nothing a file
+        describes is executed. Docker artifacts in a
+        workspace marked as Volmarr's project raise the
+        coder's own no-Docker-law warning. Read-only —
+        nothing is written on this road; a switched-off
+        road reads nothing.
+        """
+        from ..tools import config_sight as config_module
+
+        report = config_module.config_sight(
+            self.project_root, mode, target=target,
+            enabled=config_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": config_module.PLAIN_EXPLANATION,
+        }
+
     def _journal_web_citation(self, report: Any) -> None:
         """Cite one web report's sources into the journal (M-059)."""
         if report.status != "ok":

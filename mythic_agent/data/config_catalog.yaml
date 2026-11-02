@@ -396,6 +396,13 @@ settings:
   default: 'True'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'SQL sight (M-065): when true, the sql road is open — /sql shows the schemas of the workspace''s SQLite databases (.db / .sqlite / .sqlite3 files only), every one opened through a read-only (mode=ro) connection: tables, views, columns, indexes, foreign keys and exact row counts read from sqlite_master and the PRAGMA introspection roads; /sql explain <db> <query> runs EXPLAIN / EXPLAIN QUERY PLAN for a SELECT-shaped query on that read-only connection — the query is explained, never executed, and write-shaped statements are refused outright, never run; /sql migrations reads migration files as code (SQL under a migrations/ or alembic-style versions/ directory, numbered SQL files, alembic .py revisions): version/order, up/down sections, and the tables each section creates, alters or drops — migrations are read, never applied; when false, no project file is read on that road.'
+- id: S-56
+  name: config_sight
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Config sight (M-066): when true, the config road is open — /config parses the workspace''s config and infra files structurally (YAML via PyYAML, TOML via stdlib tomllib, systemd units and INI files via a tolerant parser that keeps repeated directives, Dockerfiles via a line parser, compose files as YAML): top-level keys with kinds and sizes, total keys and depth, unit sections and directives, Dockerfile stages, base images, instruction counts, ports and env keys, compose services — structure only, scalar values are never echoed, and nothing a file describes is ever executed or applied; Docker artifacts (Dockerfile*, *.dockerfile, docker-compose / compose YAML) found in a workspace detected as one of Volmarr''s projects (root marker files AGENTS.md, SOUL.md, MEMORY.md, RULES.AI.md, or any root file whose name carries Volmarr, or an explicit ruling) raise the coder''s own no-Docker-law warning — no Docker, ever, on his projects; Docker artifacts without a marker are listed with the warning honestly withheld; when false, no project file is read on that road.'
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
