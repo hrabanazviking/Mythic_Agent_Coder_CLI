@@ -421,7 +421,7 @@ slices:
   title: Dependency sight
   summary: read the dependency graph, changelogs, and known-vulnerability data for the project's stack;
     an upgrade is proposed with its blast radius, never applied silently.
-  status: queued
+  status: done
 - id: M-062
   part: 3
   title: Dead-code and duplication sensing
