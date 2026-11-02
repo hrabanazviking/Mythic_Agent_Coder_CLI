@@ -237,6 +237,8 @@ class CommandHandler:
                 self._handle_test_intel(args)
             elif cmd == "/coverage":
                 self._handle_coverage(args)
+            elif cmd == "/search":
+                self._handle_local_search(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1804,6 +1806,41 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_coverage_overlay(status)}[/bold cyan]\n")
+        return
+
+    def _handle_local_search(self, args: str):
+        """M-058: /search [text] <regex> | fuzzy <query> | structural <language> <pattern> — beyond-grep local search, in the TUI.
+
+        One surface, three modes — in-process text, fuzzy
+        subsequence, and the M-047 structural engine —
+        with results ranked by the symbol graph, every
+        result carrying its score and reasons.
+        """
+        from ..tools.local_search import (
+            format_local_search, parse_local_search_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_local_search_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.local_search(
+                request["query"], mode=request["mode"],
+                language=request["language"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_local_search(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):
