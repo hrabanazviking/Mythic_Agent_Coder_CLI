@@ -2838,3 +2838,37 @@ baseline freeze named as the comparison point. The
 building tick settles the exact gate shape from the
 M-042 gate artefact before designing further. M-071 is
 NOT built here.*
+
+*M-070 IN PROGRESS (2026-11-02 10:1x EST tick): build under
+way by the keeper tick itself on the settled scoping above
+— house gate pattern (M-018/M-042): a validated gate
+artefact `mythic_agent/data/part3_gate.yaml` + loader
+`mythic_agent/core/part3_gate.py` + tests that re-prove
+the gate live. Shape settled from the tree: the gate
+closes over M-043..M-069 (27 slices, titles cross-checked
+against the roadmap data), names the M-007 baseline
+freeze as its comparison point (cross-checked against
+the live freeze), and banks three exercises, each
+re-proven live by the gate's tests on every run: (1) a
+cross-file rename — `compute_total` → `summarise_total`
+across helpers.py + main.py through M-051's LSP rename
+road (a fake language server speaking the real protocol,
+the M-051 test pattern), applied through the EditJournal
+road, with M-046's symbol graph proving the cross-file
+reference before the rename and its absence after;
+(2) a structural codemod — `legacy_add($A, $B)` →
+`add($A, $B)` at every call site through M-048's
+plan/apply rewrite road (per-site diff previews, journal
+application), never a text replace; (3) a debugger-caught
+bug — a failing test (`x = 41; assert x == 42`) re-run
+under M-055's debugger-in-the-loop through a fake DAP
+adapter speaking the real protocol (the M-055 test
+pattern), its exception stop's frame + the local `x=41`
+banked as the catching evidence. Each exercise carries
+its own benchmark-pack-style throwaway repo (seed files
++ hidden grading tests) as gate data; a grading run
+passes only when the exercise truly completed. Honesty
+bounds: no live language server and no real debugpy
+session is claimed — the rename is fake-server-measured
+and the debug catch is fake-adapter-measured, recorded
+as such in the gate data. M-071 is NOT built here.*
