@@ -1,5 +1,7 @@
 """Tests for M-060 — Docs-at-hand.
 
+TIER: integration
+
 The offline shelf: the project's own docs plus doc
 packs under ``.mythic/docpacks/``, discovered,
 searched in-process with ranked, reasoned hits, and
