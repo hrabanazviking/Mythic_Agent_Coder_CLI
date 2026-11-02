@@ -629,6 +629,20 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_local_search(status)
+    if command == "/web":
+        from .tools.web_search import format_web_report, parse_web_args
+        try:
+            request = parse_web_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            if request["action"] == "search":
+                status = agent.web_search(request["query"])
+            else:
+                status = agent.web_fetch(request["url"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_web_report(status)
     if command == "/lsp":
         from .integrations.lsp import (
             format_lsp_code_actions,

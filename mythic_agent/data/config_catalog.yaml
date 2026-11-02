@@ -340,6 +340,20 @@ settings:
   default: 'True'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Beyond-grep local search (M-058): when true, the local search road is open — one /search surface with an in-process ripgrep-class text mode (regex over every text file, no external binary), a fuzzy subsequence mode, and a structural mode delegated to the M-047 engine, with results ranked by the M-046 symbol graph and every result carrying its score and reasons; when false, nothing is searched on that road.'
+- id: S-48
+  name: web_tools
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Web knowledge tools (M-059): when true, the web road is open — /web search sends a user-typed query to the configured web_search_endpoint and /web fetch reads one user-named http(s) page, with results numbered as citations and cited into the session journal when a session is attached; calls are user-initiated only, never background; when false, nothing is sent anywhere on that road.'
+- id: S-49
+  name: web_search_endpoint
+  scope: top-level
+  type: str
+  default: https://html.duckduckgo.com/html/?q={query}
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Web knowledge tools (M-059): the search endpoint template /web search sends its query to; the template must carry a {query} placeholder or the search is refused before anything is sent. The shipped default is DuckDuckGo''s keyless HTML road — no API key is required or stored for search.'
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
