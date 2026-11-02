@@ -2199,3 +2199,33 @@ by the shipped scans; what counts as duplication —
 structural, not textual coincidence; and the report
 shape the Cartographer consumes) from the tree before
 designing further. M-063 is NOT built here.*
+
+*M-062 IN PROGRESS (2026-11-02 03:3x EST tick): build under
+way. Shape settled from the tree: a new module
+`mythic_agent/tools/code_sensing.py` on the house pattern
+— module + setting + catalogue entry + Agent methods +
+terminal/TUI roads — building on the shipped dead-code
+scanner (`mythic_agent/core/dead_code_scan.py`, the
+R-006 gate's own engine) and M-046's structural lessons,
+never duplicating them. Dead code: the scanner's items
+over the workspace, paths made workspace-relative,
+quarantine state named where a quarantine file exists.
+Duplication: STRUCTURAL only — per-function AST
+fingerprints normalised over names and literal values
+(node types, operators and attribute names kept), so
+textual coincidence and trivial small functions never
+count; only bodies at or above a named size floor form
+a cluster, and every cluster names its members with
+file, line and size. The report is shaped for the
+Cartographer (one structural report: dead items grouped
+by file/kind + duplication clusters). SENSING ONLY:
+this module has no delete/edit/write path at all, and
+every report says so — deletion is always a separate,
+approved slice, per the roadmap's words. Setting
+`code_sensing` ON by default in config_defaults +
+M-009 catalogue S-52; Agent.code_sensing() +
+`/sensing [show|dead|dup]` on the terminal + TUI roads
+sharing one parser + formatter. Gap audit checked at
+scoping: no census-gap row is owned by M-062, so no
+module_kind flip exists to make. M-063 is NOT built
+here.*
