@@ -1649,3 +1649,28 @@ terminal + TUI roads sharing the one parser and
 formatters. Live proof builds a tiny throwaway project
 and runs real pytest collection against it. M-057
 (coverage sight) is NOT built here.*
+
+*M-057 IN PROGRESS (2026-11-01 19:50 EST tick): build under
+way on the scoped design — new module
+`mythic_agent/tools/coverage_sight.py` (Coverage sight):
+line coverage overlaid on edited files, read only from
+coverage.py's own data (its JSON report when present, else
+its `.coverage` data file through the coverage API) —
+never an estimated overlay; a file with no coverage data
+reports no-data honestly, a file absent from the data
+reports not-in-coverage. A change landing with zero
+covering lines (an edited file whose executable lines
+were executed zero times, or named edited lines that are
+executable and none covered) is flagged to the Auditor
+through the house audit log (`core/audit.py`, action
+`coverage.zero_cover`, append-only) — the flag is a
+record, never a silent note. Setting `coverage_sight`
+ON by default in config_defaults + the M-009 catalogue
+(S-46). Surfaces: `Agent.coverage_status()` /
+`coverage_check()` plus `/coverage [show] | check
+<file> ...` on the terminal + TUI roads sharing the one
+parser and formatters. Live proof runs a real coverage.py
+run over a tiny throwaway project (a covered module, a
+partially covered module, and an untouched module that
+must come back zero-cover and flagged). M-058
+(beyond-grep local search) is NOT built here.*
