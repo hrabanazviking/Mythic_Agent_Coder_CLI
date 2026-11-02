@@ -432,6 +432,20 @@ dependencies:
     licence noticed there). Measured in the baseline venv on 2026-11-01 (version 0.25.0).'
   measured_kb: 299
   weight: light
+- id: D-36
+  name: coverage
+  import_name: coverage
+  declared_in:
+  - dev
+  spec: '>=7.0'
+  licence: Apache-2.0
+  necessity: dev-only
+  purpose: 'coverage.py: the suite coverage ratchet runs it as a subprocess, and M-057''s coverage
+    sight reads its .coverage data files through its API (tools/coverage_sight.py) when no JSON
+    report is present — an absent coverage package is reported honestly there, never an invented
+    overlay. Dev extra only. Measured in the baseline venv on 2026-11-01 (version 7.17.0).'
+  measured_kb: 1538
+  weight: moderate
 replacements:
 - id: R-01
   dependency: scipy
