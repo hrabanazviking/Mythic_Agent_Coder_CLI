@@ -690,6 +690,18 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_sensing_report(status)
+    if command == "/types":
+        from .tools.type_depth import (
+            format_type_report, parse_types_args)
+        try:
+            request = parse_types_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            status = agent.type_depth(request["path"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_type_report(status)
     if command == "/lsp":
         from .integrations.lsp import (
             format_lsp_code_actions,

@@ -247,6 +247,8 @@ class CommandHandler:
                 self._handle_deps(args)
             elif cmd == "/sensing":
                 self._handle_sensing(args)
+            elif cmd == "/types":
+                self._handle_types(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1994,6 +1996,40 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_sensing_report(status)}[/bold cyan]\n")
+        return
+
+    def _handle_types(self, args: str):
+        """M-063: /types [show | <path>] — type depth, in the TUI.
+
+        The standing type account from the project's type
+        checkers (mypy/pyright, whichever truly exist),
+        findings triaged by kind into the review. A
+        checker that is not installed is shown as its
+        absence, never as a clean file.
+        """
+        from ..tools.type_depth import (
+            format_type_report, parse_types_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_types_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            status = primary.type_depth(request["path"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_type_report(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):
