@@ -235,6 +235,8 @@ class CommandHandler:
                 self._handle_debug_loop(args)
             elif cmd == "/testintel":
                 self._handle_test_intel(args)
+            elif cmd == "/coverage":
+                self._handle_coverage(args)
         except TurnCancelled as e:
             publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\nCommand cancelled: {e}\n")
         except Exception as e:
@@ -1763,6 +1765,45 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{format_test_intel_selection(status)}[/bold cyan]\n")
+        return
+
+    def _handle_coverage(self, args: str):
+        """M-057: /coverage [show] | check <file> ... — coverage sight, in the TUI.
+
+        The board shows whether coverage.py data exists and
+        what it totals; a check lays its measured lines over
+        the touched files, and a file whose measured lines
+        never ran is flagged to the Auditor in the audit log.
+        """
+        from ..tools.coverage_sight import (
+            format_coverage_board, format_coverage_overlay,
+            parse_coverage_args)
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_coverage_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_coverage_board(primary.coverage_status())}[/bold cyan]\n")
+            return
+        try:
+            status = primary.coverage_check(request["changed"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{format_coverage_overlay(status)}[/bold cyan]\n")
         return
 
     def _handle_tutorial(self):

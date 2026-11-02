@@ -326,6 +326,13 @@ settings:
   default: 'True'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Test intelligence (M-056): when true, the test-intelligence road is open — tests are discovered by pytest collection itself, a change''s tests are selected from the symbol graph with an honest whole-suite fallback, pytest run_command outcomes the runner names are recorded to the project history (.mythic/test_history.jsonl), and flaky marks are computed only from that recorded history; when false, no discovery, selection, or recording happens on that road.'
+- id: S-46
+  name: coverage_sight
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Coverage sight (M-057): when true, the coverage road is open — line coverage from coverage.py''s own data (its JSON report, else its .coverage data file) is overlaid on edited files, and a touched file whose measured lines never ran is flagged to the Auditor as a coverage.zero_cover entry in the workspace audit log (.mythic/audit.jsonl); when false, no coverage data is read and no flags are written on that road.'
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
