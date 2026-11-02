@@ -2437,3 +2437,12 @@ config_defaults + M-009 catalogue S-54; Agent.mojo_sight()
 checked at scoping: no census-gap row is owned by
 M-064, so no module_kind flip exists to make. M-065 is
 NOT built here.*
+
+*M-065 IN PROGRESS (2026-11-02 05:40 EST tick): build under
+way by a keeper-commissioned worker on the settled scoping
+above — workspace-local SQLite files only, read-only
+connections, EXPLAIN without executing effects, migration
+files read as code; house sight-module pattern (module +
+setting + catalogue entry + Agent method + terminal/TUI
+roads). Closure (suite count, ledger row, push) is the
+coordinator's, after verification from disk.*
