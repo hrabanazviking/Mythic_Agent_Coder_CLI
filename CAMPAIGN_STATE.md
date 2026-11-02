@@ -3109,3 +3109,47 @@ is landed together with this closure — no separate landing is owed;
 static gate, and the ownership freshness test in this tick's suite
 chunks — a failure in a CALMER window (load low, quota writable)
 reopens them as suspected defects. M-074 is NOT built here.*
+
+*M-073 IN PROGRESS (2026-11-02 16:2x EST tick): build under
+way by the keeper tick itself on the M-072 closure scoping.
+First duty discharged at tick start: the M-072 closure
+record is already landed (commit 839de53) — no separate
+landing owed. Retest duty noted honestly: load at tick
+start ~12 and home quota writable — NOT a calmer window,
+so the coverage-ratchet / static-gate / ownership-freshness
+re-check runs in this tick's suite chunks and is classified
+honestly; a failure under this load does not by itself
+reopen them as defects. Shape settled from the tree: a
+pure layer `mythic_agent/core/apply_repair.py` — when an
+apply refuses (M-071 format appliers: a stale unified diff,
+a search block matching zero or several times; M-072
+anchored appliers: a moved range or a wrongly-anchored
+block), the refusal becomes a repair packet carrying the
+road, the refusal's own reason, and the TRUE CURRENT TEXT
+of the refused target (a bounded window: the target's
+lines plus CONTEXT_LINES=5 around them, capped at
+MAX_WINDOW_LINES=40, with the truncation named, never
+silent), and exactly ONE honest retry may ride on that
+packet (MAX_RETRIES=1 — a second refusal exhausts the
+loop, names itself spent, and changes nothing; a spent
+packet refuses any further retry). No fuzz, ever: the
+retry is judged by the same strict appliers. Setting
+`apply_repair_loop` ON by default in config_defaults +
+M-009 catalogue S-62; when off, applies through the agent
+keep the plain M-071/M-072 refusal and no packet is made.
+Agent roads: repair_loop_status / set_apply_repair
+(journal-first, save-failure revert, the house pattern) /
+apply_edit_format_with_repair /
+apply_hash_anchored_range_with_repair /
+apply_hash_anchored_search_with_repair — a refusal is
+journaled as `apply_repair_offered` with its packet, a
+retry as `apply_repair_retried`, a repaired apply as
+`apply_repair_applied` (riding the EditJournal road), and
+an exhausted loop as `apply_repair_exhausted`; with no
+retry supplied the agent returns the packet and writes
+nothing. Tool road: a stale anchored write/replace and a
+replace whose target does not match exactly once return
+the packet's true text in the tool result. Surfaces:
+/repairloop on terminal + TUI roads sharing one parser
+and formatters + chat-screen help/usage/routing. M-074
+is NOT built here.*
