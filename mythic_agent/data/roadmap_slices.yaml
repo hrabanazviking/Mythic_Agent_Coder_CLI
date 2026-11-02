@@ -415,7 +415,7 @@ slices:
   title: Docs-at-hand
   summary: the project's own docs, plus offline doc packs for its stack, searchable from the TUI (the
     Mojo Docs MCP pattern, generalised).
-  status: queued
+  status: done
 - id: M-061
   part: 3
   title: Dependency sight
