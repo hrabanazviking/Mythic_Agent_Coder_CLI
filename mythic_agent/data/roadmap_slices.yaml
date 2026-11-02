@@ -473,7 +473,7 @@ slices:
   title: Part III gate
   summary: on the benchmark pack — a cross-file rename, a structural codemod, and a debugger-caught bug,
     all completed with the new senses, evidence banked against the M-007 baseline. ---
-  status: queued
+  status: done
 - id: M-071
   part: 4
   title: Edit-format plurality
