@@ -2273,3 +2273,41 @@ PROVEN where none is; how findings are classified as
 broke-here vs pre-existing; and the review surface)
 from the tree before designing further. M-064 is NOT
 built here.*
+
+*M-063 IN PROGRESS (2026-11-02 04:1x EST tick): build under
+way. Shape settled from the tree: a new module
+`mythic_agent/tools/type_depth.py` on the house pattern
+— module + setting + catalogue entry + Agent methods +
+terminal/TUI roads — building on
+`mythic_agent/core/type_coverage.py` (its mypy
+availability/count road is reused, never duplicated) and
+M-052's edit-time truth loop (the same-turn charge road
+it must extend, not replace). Measured in this
+environment: NEITHER mypy nor pyright is installed
+(no binary on PATH, no importable module in the baseline
+venv or the system Python) — so a live runner verdict
+here is honestly NOT PROVEN / not-installed, never a
+clean bill, and live proof rides fake runner binaries on
+PATH speaking the real output contracts (the M-053
+pattern). Runners: mypy (text output) and pyright (text
+and --outputjson JSON), each detected honestly
+(available / configured-by-the-project / neither), each
+run bounded. Triage: every finding is classified by
+kind (annotation, incompatible, attribute, name,
+call/return, other — from its checker code/rule or
+message) and charged by a line-blind multiset diff
+against the before-content account (a temporary twin,
+the M-052 road): findings new after an edit are
+`broke-here` (the coder fixes them in the same turn —
+the type note is wired into the write/replace tool road
+beside M-052's truth note, gated by the new setting);
+matched findings are `pre-existing`; a standing check
+with no edit charges nothing and reports the file's
+current account. The review surface is `/types
+[show|<path>]` plus the standing annotation-coverage
+account from type_coverage.measure() where a package
+exists. Setting `type_depth` ON by default in
+config_defaults + M-009 catalogue S-53. Gap audit
+checked at scoping: no census-gap row is owned by
+M-063, so no module_kind flip exists to make. M-064 is
+NOT built here.*
