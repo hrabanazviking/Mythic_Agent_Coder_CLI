@@ -2114,3 +2114,45 @@ with honest absence where no local data exists, and
 the blast-radius measure) from the tree before
 designing further. M-062 (Dead-code and duplication
 sensing) is NOT built here.*
+
+*M-061 IN PROGRESS (2026-11-02 02:0x EST tick): build under
+way. Shape settled from the tree: a new module
+`mythic_agent/tools/dependency_sight.py` on the house
+pattern — module + setting + catalogue entry + Agent
+methods + terminal/TUI roads — building on M-012's
+dependency census and the dependency audit's import-scan
+shape, never duplicating them. The graph comes from the
+project's own declared requirements (pyproject.toml via
+tomllib: core + every extra + build-system, with groups
+and specs), installed versions measured honestly via
+importlib.metadata in the running environment
+(uninstalled = unknown, never guessed), enriched from
+the M-012 census where a package is censused. Changelogs
+are LOCAL only (CHANGELOG*/HISTORY*/NEWS* files in the
+workspace searched for the package; no local file means
+"no local changelog data", said plainly) and vulnerability
+data is LOCAL only (advisory/audit files in the workspace;
+none present means known-vulnerability status NOT PROVEN /
+no local data — never a fake clean bill). NO network road
+exists in the module. An upgrade proposal is data only
+(package + user-supplied target version): declared
+spec/installed version, target, blast radius counted from
+the tree by an AST import scan (which workspace files
+import the package), its declared groups, and whether
+anything else pins it; the module has NO apply/write path
+for upgrades at all, and a proposal for an undeclared
+package is refused plainly. Setting `dependency_sight`
+ON by default in config_defaults + M-009 catalogue S-51;
+Agent.dependency_sight() / dependency_proposal() +
+`/deps [show|<package>|propose <package> <version>]` on
+the terminal + TUI system-command roads sharing one
+parser + formatters. Gap audit checked: no row is owned
+by M-061 (the audit's rows trace census gaps; dependency
+sight has no census-gap row), so no module_kind flip
+exists to make — recorded, never forced. EPISODE NOTE:
+this tick's build ran under a box-wide EDQUOT episode
+(home quota exceeded for ~70 minutes, /tmp 100% full on
+other campaigns' files); the slice was built and
+target-validated in a /var/tmp staging copy and landed
+into this tree when writes healed. M-062 is NOT built
+here.*
