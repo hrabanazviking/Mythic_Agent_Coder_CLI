@@ -2012,3 +2012,22 @@ several, is refused plainly, never guessed; paths
 escaping the doc roots are refused. Setting
 `docs_at_hand` ON by default in config_defaults +
 M-009 catalogue S-50. M-061 is NOT built here.*
+
+*M-060 BANKED, SUITE PENDING (2026-11-02 00:55 EST
+tick): the slice is banked (`97c1ee1` IN PROGRESS
+state, `d60eda0` slice, `962edfb` regen, PUBLIC_API
+2056 → 2075). Targeted verification from foreground
+runs this tick: test_docs_at_hand + test_config_catalog
+34 passed; test_dead_code 6 passed; test_arch_
+conformance + test_roadmap_slices + test_part1_gate 38
+passed; post-regen inventory set (public_api +
+ownership + docs_at_hand) 30 passed + the 1
+long-classified PortAudio environment failure
+(re-confirmed solo as exactly the `core.audio` import
+case). NEXT TICK: run the full suite in six monitored
+chunks from on-disk logs (collect-only expected
+3332 + 20 = 3352), classify any failures, flip roadmap
+data to 60 done, write the M-060 ledger row + closure
+note, scope M-061, closure targeted set, closure
+commit, push. Campaign total: 59/272 closed; M-060
+banked pending suite verdict.*
