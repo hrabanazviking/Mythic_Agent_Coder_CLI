@@ -2561,3 +2561,36 @@ thresholds — without ever reading bulk content into
 context; and how the repo map records an asset's role)
 from the tree before designing further. M-068 is NOT
 built here.*
+
+*M-067 IN PROGRESS (2026-11-02 07:10 EST tick): build under
+way by the keeper tick itself on the settled scoping above
+— house sight-module pattern (module + setting + catalogue
+entry + Agent method + terminal/TUI roads). Shape settled
+from the tree: a new module
+`mythic_agent/tools/asset_sight.py`; images described
+from their headers only (PNG/GIF/JPEG/BMP/WebP/ICO/TIFF
+dimensions + format facts read from a bounded header
+read, stdlib only — no image is ever decoded or dumped),
+archives described from their member listings (zip and
+tar via the stdlib readers, listing capped and named;
+gzip streams from their trailer's stored size; 7z/rar
+have no stdlib reader, so they are described from magic
+with the listing honestly unavailable), and any file at
+or over the named large threshold described by size and
+sniffed kind (a large text file's lines counted by
+streaming, its content never retained). Every asset
+carries the role the map notes for it: a role inferred
+from its kind and path by named rules (documentation
+asset, test fixture, data file, backup/snapshot archive,
+project asset) with the rule that fired recorded as
+evidence; the repo map itself (M-044) keeps its pinned
+"binary file" skip — this slice's report is the
+map-facing account of what those files are and what
+they are for, cross-checked against the live map in the
+slice's tests. Setting `asset_sight` ON by default in
+config_defaults + M-009 catalogue S-57; Agent.asset_sight()
++ `/assets [show|<file>|images|archives|large]` on the
+terminal + TUI roads sharing one parser + formatter.
+Gap audit checked at scoping: no census-gap row is owned
+by M-067, so no module_kind flip exists to make. M-068
+is NOT built here.*
