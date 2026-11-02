@@ -823,10 +823,16 @@ def render_markdown(report: ConfigReport) -> str:
     for entry in report.files:
         tops = ", ".join(entry.top_names()) or "none"
         sections = ", ".join(entry.section_names())
+        directive_bits = "; ".join(
+            f"[{section.name}] "
+            + (", ".join(section.directive_names()) or "none")
+            for section in entry.sections)
         lines.append(
             f"- `{entry.path}` [{entry.format}]: "
             f"top-level {tops}"
             + (f"; sections {sections}" if sections else "")
+            + (f"; directives {directive_bits}"
+               if directive_bits else "")
             + (f"; services {', '.join(entry.services)}"
                if entry.services else ""))
         if entry.docker_info is not None:
