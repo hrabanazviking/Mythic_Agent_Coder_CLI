@@ -443,7 +443,7 @@ slices:
   part: 3
   title: SQL and data sight
   summary: schema reading, query explain, migration files understood as code (the Muse DB pattern, productised).
-  status: queued
+  status: done
 - id: M-066
   part: 3
   title: Config and infra files
