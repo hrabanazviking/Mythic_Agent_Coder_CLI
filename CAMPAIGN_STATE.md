@@ -1859,3 +1859,35 @@ engine vs a ripgrep binary road with honest absence,
 on the house pattern) from the tree before designing
 further. M-059 (web knowledge tools) is NOT built
 here.*
+
+*M-058 IN PROGRESS (2026-11-01 22:30 EST tick): build under
+way. Shape settled from the tree: a fully in-process
+engine in a new module `mythic_agent/tools/local_search.py`
+— no ripgrep binary dependency (a binary road would make
+the slice's core feature hostage to an external tool's
+presence; the in-process road is ripgrep-class in
+behaviour: regex line search over every text file,
+deterministic order, binary/oversized/non-UTF-8 files
+skipped with reasons, caps named in warnings). Fuzzy
+mode is subsequence matching with an auditable score
+(consecutive runs and word boundaries earn, gaps cost).
+Structural mode delegates to M-047's
+`structural_search.search_workspace` — never a second
+structural engine. Ranking is M-046's symbol graph,
+built once per search: a match on a definition site
+earns most, a match naming a defined symbol earns by
+that symbol's reference count, and a match in a
+well-referenced file earns by the file's reference
+count (capped); every match carries its score and its
+reasons, and a graph that cannot be built leaves the
+results unranked with the reason named in warnings —
+never a silent raw-order dressed as ranking. Setting
+`local_search` ON by default in config_defaults +
+M-009 catalogue S-47; Agent.local_search() +
+`/search [text|fuzzy] <query>` /
+`/search structural <language> <pattern>` on the
+terminal and TUI roads sharing the one parser and
+formatter. An invalid regex is refused as a pattern
+error, never silently literal-searched; a structural
+pattern error keeps M-047's refusal. M-059 is NOT
+built here.*
