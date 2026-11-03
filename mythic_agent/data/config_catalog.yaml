@@ -326,6 +326,137 @@ settings:
   default: 'True'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Test intelligence (M-056): when true, the test-intelligence road is open — tests are discovered by pytest collection itself, a change''s tests are selected from the symbol graph with an honest whole-suite fallback, pytest run_command outcomes the runner names are recorded to the project history (.mythic/test_history.jsonl), and flaky marks are computed only from that recorded history; when false, no discovery, selection, or recording happens on that road.'
+- id: S-46
+  name: coverage_sight
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Coverage sight (M-057): when true, the coverage road is open — line coverage from coverage.py''s own data (its JSON report, else its .coverage data file) is overlaid on edited files, and a touched file whose measured lines never ran is flagged to the Auditor as a coverage.zero_cover entry in the workspace audit log (.mythic/audit.jsonl); when false, no coverage data is read and no flags are written on that road.'
+- id: S-47
+  name: local_search
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Beyond-grep local search (M-058): when true, the local search road is open — one /search surface with an in-process ripgrep-class text mode (regex over every text file, no external binary), a fuzzy subsequence mode, and a structural mode delegated to the M-047 engine, with results ranked by the M-046 symbol graph and every result carrying its score and reasons; when false, nothing is searched on that road.'
+- id: S-48
+  name: web_tools
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Web knowledge tools (M-059): when true, the web road is open — /web search sends a user-typed query to the configured web_search_endpoint and /web fetch reads one user-named http(s) page, with results numbered as citations and cited into the session journal when a session is attached; calls are user-initiated only, never background; when false, nothing is sent anywhere on that road.'
+- id: S-49
+  name: web_search_endpoint
+  scope: top-level
+  type: str
+  default: https://html.duckduckgo.com/html/?q={query}
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Web knowledge tools (M-059): the search endpoint template /web search sends its query to; the template must carry a {query} placeholder or the search is refused before anything is sent. The shipped default is DuckDuckGo''s keyless HTML road — no API key is required or stored for search.'
+- id: S-50
+  name: docs_at_hand
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Docs-at-hand (M-060): when true, the docs road is open — /docs list shows the offline shelf (the project''s root and docs/ doc files plus any doc packs under .mythic/docpacks/), /docs search ranks the shelf by title, heading and body matches with snippets and line numbers, and /docs read shows one doc by shelf path, file name or title; the road is fully offline, no file outside the shelf is read and nothing is fetched; when false, no doc file is read on that road.'
+- id: S-51
+  name: dependency_sight
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Dependency sight (M-061): when true, the deps road is open — /deps shows the declared dependency graph from pyproject.toml (groups, specs, and the honestly measured installed version, unknown when a package is not installed), /deps <package> adds that package''s blast radius (workspace files importing it, counted by an AST import scan), its local changelog mentions, and its local vulnerability-data state, and /deps propose <package> <version> drafts an upgrade proposal as data with its blast radius and pin state; changelogs and vulnerability data are read only from files in the workspace — with no local vulnerability data the status is NOT PROVEN, never a clean bill — a proposal is never applied and no file is changed on this road; when false, no project file is read on that road.'
+- id: S-52
+  name: code_sensing
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Code sensing (M-062): when true, the sensing road is open — /sensing shows a structural report for the Cartographer: dead code sensed by the shipped dead-code scanner over the workspace''s top-level Python packages (with the dead-code quarantine state named where its file exists) and duplication clusters of function bodies whose AST structure is identical once names and literal values are normalised away, at or above a named size floor so trivial shapes never count; sensing only — nothing is deleted or edited on this road, and deletion is always a separate, approved slice; when false, no project file is read on that road.'
+- id: S-53
+  name: type_depth
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Type depth (M-063): when true, the types road is open — /types shows the standing type account from the project''s type checkers (mypy and pyright, whichever truly exist), their findings parsed from their own output contracts and triaged by kind into the review, plus the annotation-coverage account from the type-coverage neighbour where its package exists; after an edit on the write/replace tool road, type findings are diffed line-blind against the before-content account and only new error-severity findings (broke-here) return in the same turn for the coder to fix, pre-existing findings counted never charged; a checker that is not installed reports not-installed — a live type verdict without a checker is NOT PROVEN, never a clean bill; when false, no project file is read on that road and no type note rides an edit.'
+- id: S-54
+  name: mojo_sight
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Mojo sight (M-064): when true, the mojo road is open — /mojo scans the workspace''s Mojo files (recognised through the tree-sitter foundation''s catalogue by their .mojo extension; parsed via the foundation''s tree-sitter grammar where one truly loads — no Mojo grammar package exists today, so files are read by the honestly named mojo-scan structural backend and a grammar-backed parse is NOT PROVEN), reading definitions, imports and decorators and flagging syntax the latest Mojo removed with its replacement from the house Mojo skills; /mojo knowledge searches the distilled house-skill knowledge wired into the module, whose full texts and the official Mojo docs are named external references, never copied in; read-only — nothing is edited on this road; when false, no project file is read on that road.'
+- id: S-55
+  name: sql_sight
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'SQL sight (M-065): when true, the sql road is open — /sql shows the schemas of the workspace''s SQLite databases (.db / .sqlite / .sqlite3 files only), every one opened through a read-only (mode=ro) connection: tables, views, columns, indexes, foreign keys and exact row counts read from sqlite_master and the PRAGMA introspection roads; /sql explain <db> <query> runs EXPLAIN / EXPLAIN QUERY PLAN for a SELECT-shaped query on that read-only connection — the query is explained, never executed, and write-shaped statements are refused outright, never run; /sql migrations reads migration files as code (SQL under a migrations/ or alembic-style versions/ directory, numbered SQL files, alembic .py revisions): version/order, up/down sections, and the tables each section creates, alters or drops — migrations are read, never applied; when false, no project file is read on that road.'
+- id: S-56
+  name: config_sight
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Config sight (M-066): when true, the config road is open — /config parses the workspace''s config and infra files structurally (YAML via PyYAML, TOML via stdlib tomllib, systemd units and INI files via a tolerant parser that keeps repeated directives, Dockerfiles via a line parser, compose files as YAML): top-level keys with kinds and sizes, total keys and depth, unit sections and directives, Dockerfile stages, base images, instruction counts, ports and env keys, compose services — structure only, scalar values are never echoed, and nothing a file describes is ever executed or applied; Docker artifacts (Dockerfile*, *.dockerfile, docker-compose / compose YAML) found in a workspace detected as one of Volmarr''s projects (root marker files AGENTS.md, SOUL.md, MEMORY.md, RULES.AI.md, or any root file whose name carries Volmarr, or an explicit ruling) raise the coder''s own no-Docker-law warning — no Docker, ever, on his projects; Docker artifacts without a marker are listed with the warning honestly withheld; when false, no project file is read on that road.'
+- id: S-57
+  name: asset_sight
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Binary and asset sight (M-067): when true, the assets road is open — /assets describes the workspace''s images from their headers only (PNG, GIF, JPEG, BMP, WebP, ICO, TIFF dimensions and format facts from a bounded header read, SVG from its declared size or viewBox; nothing is decoded), its archives from their member listings (zip and tar listed through the stdlib readers with the listing capped and named, a plain gzip stream from its header name and trailer size, 7z and RAR described from magic with the listing honestly unavailable; nothing is extracted), and its large files (at or over 1000000 bytes) by size and sniffed kind, a large text file''s lines counted by streaming with the content never retained; every asset carries the role the map notes for it, inferred from its kind and path by named rules (test fixture, documentation asset, data file, backup or snapshot archive, project asset) with the rule recorded as evidence; when false, no project file is read on that road.'
+- id: S-58
+  name: language_packs
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Language packs (M-068): when true, the langpacks road is open — /langpacks show reports every language pack''s declared toolchain (one pack per language in the M-043 tree-sitter catalogue, declared in mythic_agent/data/language_packs.yaml: its language server with its stdio command, its formatters, and its test runners), each declared binary carrying a live installed check from PATH alone (shutil.which on the command''s first word), and /langpacks <language> reports just that pack, an unknown language refused plainly naming the packed languages; the servers are the live LSP catalogue''s servers for every language but Mojo, whose pack honestly declares no server, the Python pack''s formatters are the format covenant''s live candidates and its runner is test intelligence''s pytest, while the other languages'' formatters and runners are declared pack data with no live consumer yet, as each pack''s notes say; nothing is executed on this road — commands are described and PATH-checked, never run; when false, the pack data is not even loaded on that road.'
+- id: S-59
+  name: intelligence_cache
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Intelligence cache (M-069): when true, the intelcache road is open — parse, graph, and language-server results are cached per file under the workspace''s .mythic/intelligence-cache/, every entry keyed by kind, workspace-relative path, the file''s SHA-256 content hash, and producer name, written atomically with persisted hit, miss, and stale-eviction counters; a lookup recomputes the file''s current hash, so a changed file evicts its stale entry and misses — a stale result is never served — and a missing file, a corrupt entry, and a producer mismatch are likewise misses; the parse producer is the M-043 foundation''s parse and the graph producer is M-046''s per-file extraction, both honouring the symbol graph''s 262144-byte per-file cap, while language-server payloads are stored and looked up only, their producer being the live M-049/M-050 server road, never faked here; /intelcache show reports entries and counters, /intelcache <file> reports one file''s per-kind state against its current hash, /intelcache warm fills parse and graph for the workspace''s catalogued source files with caps and skips named, and /intelcache clear removes every entry and reports the count; warming writes cache entries only, never a source file; when false, nothing is read or written on that road.'
+
+- id: S-60
+  name: edit_format
+  scope: top-level
+  type: str
+  default: auto
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Edit-format plurality (M-071): how the coder changes a file — auto (the default) picks per task and per model strength from M-027 capability truth (whole-file, unified-diff, search-and-replace blocks, or an Aider-style architect/editor split for complex work; a model of unknown strength always gets the safest whole-file format, and creating a file is always whole-file); any of the four format names pins that format exactly, except that a pinned format never creates a file. Unified diffs apply only when every hunk context matches the file exactly and search blocks only when the search text matches exactly once — no fuzz, a stale target refuses and writes nothing. /editformat shows the formats and the picks, pins or unpins the setting, and asks for a pick for a kind of work; every pick is recorded as an edit_format_chosen session journal event with its plain-words reason, and applied edits ride the existing EditJournal road.'
+
+- id: S-61
+  name: hash_anchored_edits
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Hash-anchored edits (M-072): when true, the hashanchor road is open — every line of a file carries a SHA-256 content anchor (shown as its first 12 hex digits) and a range of lines anchors as the hash of its exact lines joined by newlines, the per-line form of the M-069 content-hash road; an anchored edit names the lines it touches by 1-based range (or by a search block that must match exactly once) plus the anchor it saw, the applier recomputes the anchor from the file''s true current text, and the edit applies only on an exact match — a moved or changed target refuses cleanly, names the expected and current anchors, and changes nothing, no fuzz ever (the refusal report is the whole answer; the bounded retry with the true text is M-073''s road); applied edits ride the existing EditJournal road and are recorded as hash_anchored_applied session events. /hashanchor shows the gate and a file in anchored form, and turns the gate on or off (journaled, with a save-failure revert); when false, anchored applies through the agent refuse and say so, while the pure anchor maths stays readable.'
+
+- id: S-62
+  name: apply_repair_loop
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Apply-failure repair loop (M-073): when true, a refused apply through the agent — an M-071 format refusal (a stale unified diff, a search block matching zero or several times) or an M-072 anchored refusal (a moved range, a wrongly-anchored block) — becomes a repair packet carrying the road, the refusal''s own reason, and the true current text of the refused target (a bounded window: the target''s lines plus 5 lines of context on each side, capped at 40 lines, with the truncation and the file''s true line count named whenever the window is not the whole file), and exactly one honest retry may ride on that packet, judged by the same strict appliers — no fuzz, ever; a second refusal exhausts the loop, names the budget spent, and changes nothing, and a spent packet refuses any further retry. The refusal is recorded as an apply_repair_offered session event with its packet, a repaired apply rides the existing EditJournal road and is recorded as apply_repair_applied, and an exhausted loop as apply_repair_exhausted; with no retry supplied the agent returns the packet and writes nothing. /repairloop shows the gate and the loop in plain words, and turns the gate on or off (journaled, with a save-failure revert); when false, applies keep the plain M-071/M-072 refusal and no packet is made, while the pure packet maths stays readable.'
+
+- id: S-63
+  name: hunk_review
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Hunk-level review (M-074): when true, the hunkreview road is open — a unified diff is split into its hunks as data and each hunk is accepted, rejected, or edited on its own; rejecting one hunk never kills the rest, the accepted and edited hunks are judged by the unchanged M-071 strict applier (every hunk context must match the file exactly, no fuzz ever) and written through the existing EditJournal road, and rejected hunks simply never land. An edit may change what a hunk becomes, never what it matches — its context and removed lines stay exactly as proposed, and the edited hunk is re-judged by the same strict rules before it applies. Every hunk must be decided before anything applies: a pending hunk refuses the apply and is named, and a review whose hunks are all rejected is recorded as an honest no-change outcome. The whole review is recorded as a hunk_review_applied session event with each hunk decision and the accepted, edited, and rejected counts. /hunkreview shows the gate and a worked accept/reject/edit example, and turns the gate on or off (journaled, with a save-failure revert); when false, reviewed applies through the agent refuse and say so, while the pure review maths stays readable.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME

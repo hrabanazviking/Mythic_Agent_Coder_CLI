@@ -45,7 +45,8 @@ def get_agent_tools() -> list[dict[str, Any]]:
                     "type": "object",
                     "properties": {
                         "path": {"type": "string", "description": "Path to the file."},
-                        "content": {"type": "string", "description": "Content to write."}
+                        "content": {"type": "string", "description": "Content to write."},
+                        "anchor": {"type": "string", "description": "Optional M-072 hash anchor of the file's current full text (from its anchored form): when given, the write applies only if the file still holds that anchor, and refuses cleanly if it changed."}
                     },
                     "required": ["path", "content"],
                     "additionalProperties": False,
@@ -92,7 +93,8 @@ def get_agent_tools() -> list[dict[str, Any]]:
                     "properties": {
                         "path": {"type": "string", "description": "Path to the file."},
                         "target_content": {"type": "string", "description": "The exact content to replace."},
-                        "replacement_content": {"type": "string", "description": "The new content to insert."}
+                        "replacement_content": {"type": "string", "description": "The new content to insert."},
+                        "anchor": {"type": "string", "description": "Optional M-072 hash anchor of target_content's lines: when given, the replace applies only if the matched block still holds that anchor, and refuses cleanly if it changed."}
                     },
                     "required": ["path", "target_content", "replacement_content"],
                     "additionalProperties": False,

@@ -1059,6 +1059,658 @@ class Agent:
             record["applied"] = True
         return record
 
+    def edit_format_status(self) -> dict[str, Any]:
+        """The edit-format setting, the formats, and the tasks (M-071).
+
+        The setting exactly as stored (validated — a malformed
+        stored value raises, never vanishes), the current
+        model's proven strength (M-027 truth), every format
+        and every task kind. This is the answer ``/editformat``
+        shows; nothing about it is hidden.
+        """
+        from ..core import edit_formats
+
+        model = self.config.get("model")
+        return {
+            "setting": edit_formats.setting_from_config(self.config),
+            "model": model,
+            "strength": edit_formats.model_strength(model),
+            "formats": [
+                {"id": fmt.id, "title": fmt.title, "plain": fmt.plain,
+                 "appliable": fmt.appliable,
+                 "strength_floor": fmt.strength_floor}
+                for fmt in edit_formats.list_formats()],
+            "task_kinds": [
+                {"id": kind.id, "title": kind.title, "plain": kind.plain}
+                for kind in edit_formats.list_task_kinds()],
+        }
+
+    def set_edit_format(self, value: str) -> dict[str, Any]:
+        """Pin the edit-format setting, or return it to auto (M-071).
+
+        Validated by :mod:`mythic_agent.core.edit_formats`
+        before anything mutates; journaled first as an
+        ``edit_format_setting_changed`` event when a session
+        is attached; a failed save restores the previous
+        value exactly and journals a compensating
+        ``edit_format_setting_reverted``.
+        """
+        import copy
+
+        from ..core import edit_formats
+
+        new_value, change = edit_formats.set_setting(self.config, value)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[edit_formats.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "edit_format_setting_reverted",
+                        "reason": "The edit-format change could not "
+                                  "be saved; the previous setting "
+                                  "was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Edit format change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def choose_edit_format(self, task_kind: str,
+                           model: str | None = None) -> dict[str, Any]:
+        """Pick the edit format for *task_kind* — and journal it (M-071).
+
+        The roadmap's word is that the choice is journaled:
+        when a session is attached the pick is recorded as an
+        ``edit_format_chosen`` session event with its
+        plain-words reason, its task, and the model's proven
+        strength. Without a session the choice is still made
+        and returned, honestly marked not journaled. The
+        model defaults to the session's current model.
+        """
+        from ..core.edit_formats import choose_format
+
+        choice = choose_format(
+            task_kind,
+            model=model if model is not None else self.config.get("model"),
+            config=self.config)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(choice.event())
+            journaled = True
+        record = choice.record(self.session_id, journaled)
+        record["choice"] = choice
+        return record
+
+    def apply_edit_format(self, path: str, format_id: str,
+                          payload: str) -> dict[str, Any]:
+        """Apply an edit payload in *format_id* to *path* (M-071).
+
+        The pure appliers judge the payload against the
+        file's true current text — a refusal (a stale diff,
+        a search block that does not match exactly once)
+        writes nothing at all. A successful apply is written
+        through the existing EditJournal road, so it is
+        journaled and undoable exactly like any agent edit,
+        and recorded on the session as an
+        ``edit_format_applied`` event when one is attached.
+        """
+        from ..core.edit_formats import apply_edit
+        from ..core.edits import EditJournal
+        from ..core.workspace import resolve_file
+
+        target = resolve_file(self.project_root, path, write=True)
+        current = (target.read_text(encoding="utf-8")
+                   if target.exists() else None)
+        new_text, units = apply_edit(format_id, current, payload)
+        EditJournal(self.project_root).write(path, new_text)
+        record: dict[str, Any] = {
+            "path": path, "format": format_id, "units": units,
+            "changed": current != new_text, "journaled": False}
+        if self._session_store and self.session_id:
+            self._checkpoint({"type": "edit_format_applied",
+                              "path": path, "format": format_id,
+                              "units": units})
+            record["journaled"] = True
+        return record
+
+    def hash_anchor_status(self) -> dict[str, Any]:
+        """The hash-anchored-edits gate, in plain data (M-072).
+
+        The setting exactly as stored (validated — a malformed
+        stored value raises, never vanishes) and the plain
+        explanation. This is the answer ``/hashanchor`` shows.
+        """
+        from ..core import hash_anchored
+
+        return {
+            "enabled": hash_anchored.enabled_from_config(self.config),
+            "explanation": hash_anchored.PLAIN_EXPLANATION,
+        }
+
+    def set_hash_anchored(self, enabled: bool) -> dict[str, Any]:
+        """Turn hash-anchored edits on or off (M-072).
+
+        Validated by :mod:`mythic_agent.core.hash_anchored`
+        before anything mutates; journaled first as a
+        ``hash_anchored_setting_changed`` event when a session
+        is attached; a failed save restores the previous value
+        exactly and journals a compensating
+        ``hash_anchored_setting_reverted``.
+        """
+        import copy
+
+        from ..core import hash_anchored
+
+        new_value, change = hash_anchored.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[hash_anchored.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "hash_anchored_setting_reverted",
+                        "reason": "The hash-anchored change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Hash-anchored change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def _write_hash_anchored(self, path: str, new_text: str,
+                             applied: Any,
+                             current: str | None) -> dict[str, Any]:
+        """Write one judged anchored edit via EditJournal (M-072)."""
+        from ..core.edits import EditJournal
+
+        EditJournal(self.project_root).write(path, new_text)
+        record: dict[str, Any] = {
+            "path": path, "start": applied.start, "end": applied.end,
+            "before": applied.before.hash, "after": applied.after_hash,
+            "units": applied.units, "changed": current != new_text,
+            "journaled": False}
+        if self._session_store and self.session_id:
+            self._checkpoint(applied.event(path))
+            record["journaled"] = True
+        return record
+
+    def apply_hash_anchored_range(self, path: str, start: int,
+                                  end: int, expected: str,
+                                  replacement: str) -> dict[str, Any]:
+        """Apply a range edit under its lines' anchor (M-072).
+
+        Refuses — writing nothing — when the gate is off, and
+        when the range's current anchor differs from
+        *expected* (a moved target, named in the refusal).
+        A successful apply rides the EditJournal road and is
+        recorded as a ``hash_anchored_applied`` session event.
+        """
+        from ..core import hash_anchored
+        from ..core.workspace import resolve_file
+
+        if not hash_anchored.enabled_from_config(self.config):
+            raise ValueError(
+                "hash-anchored edits are off — turn them on with "
+                "/hashanchor on; nothing was changed")
+        target = resolve_file(self.project_root, path, write=True)
+        if not target.exists():
+            raise ValueError(
+                f"an anchored edit needs an existing file; "
+                f"{path} does not exist — nothing was changed")
+        current = target.read_text(encoding="utf-8")
+        new_text, applied = hash_anchored.apply_anchored_range(
+            current, start, end, expected, replacement)
+        return self._write_hash_anchored(path, new_text, applied,
+                                          current)
+
+    def apply_hash_anchored_search(self, path: str, search: str,
+                                   expected: str,
+                                   replacement: str) -> dict[str, Any]:
+        """Apply a search edit under its block's anchor (M-072).
+
+        The search text must match exactly once and its lines'
+        anchor must match *expected*; any other outcome
+        refuses and writes nothing. Success rides EditJournal.
+        """
+        from ..core import hash_anchored
+        from ..core.workspace import resolve_file
+
+        if not hash_anchored.enabled_from_config(self.config):
+            raise ValueError(
+                "hash-anchored edits are off — turn them on with "
+                "/hashanchor on; nothing was changed")
+        target = resolve_file(self.project_root, path, write=True)
+        if not target.exists():
+            raise ValueError(
+                f"an anchored edit needs an existing file; "
+                f"{path} does not exist — nothing was changed")
+        current = target.read_text(encoding="utf-8")
+        new_text, applied = hash_anchored.apply_anchored_search(
+            current, search, expected, replacement)
+        return self._write_hash_anchored(path, new_text, applied,
+                                          current)
+
+    def repair_loop_status(self) -> dict[str, Any]:
+        """The apply-repair-loop gate, in plain data (M-073).
+
+        The setting exactly as stored (validated — a malformed
+        stored value raises, never vanishes) and the plain
+        explanation. This is the answer ``/repairloop`` shows.
+        """
+        from ..core import apply_repair
+
+        return {
+            "enabled": apply_repair.enabled_from_config(self.config),
+            "explanation": apply_repair.PLAIN_EXPLANATION,
+        }
+
+    def set_apply_repair(self, enabled: bool) -> dict[str, Any]:
+        """Turn the apply-failure repair loop on or off (M-073).
+
+        Validated by :mod:`mythic_agent.core.apply_repair`
+        before anything mutates; journaled first as an
+        ``apply_repair_setting_changed`` event when a session
+        is attached; a failed save restores the previous
+        value exactly and journals a compensating
+        ``apply_repair_setting_reverted``.
+        """
+        import copy
+
+        from ..core import apply_repair
+
+        new_value, change = apply_repair.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[apply_repair.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "apply_repair_setting_reverted",
+                        "reason": "The repair-loop change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Repair-loop change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+
+    def hunk_review_status(self) -> dict[str, Any]:
+        """The hunk-review gate, in plain data (M-074).
+
+        The setting exactly as stored (validated — a malformed
+        stored value raises, never vanishes) and the plain
+        explanation. This is the answer ``/hunkreview`` shows.
+        """
+        from ..core import hunk_review
+
+        return {
+            "enabled": hunk_review.enabled_from_config(self.config),
+            "explanation": hunk_review.PLAIN_EXPLANATION,
+        }
+
+    def set_hunk_review(self, enabled: bool) -> dict[str, Any]:
+        """Turn hunk-level review on or off (M-074).
+
+        Validated by :mod:`mythic_agent.core.hunk_review`
+        before anything mutates; journaled first as a
+        ``hunk_review_setting_changed`` event when a session
+        is attached; a failed save restores the previous
+        value exactly and journals a compensating
+        ``hunk_review_setting_reverted``.
+        """
+        import copy
+
+        from ..core import hunk_review
+
+        new_value, change = hunk_review.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[hunk_review.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "hunk_review_setting_reverted",
+                        "reason": "The hunk-review change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Hunk-review change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def split_for_review(self, payload: str) -> dict[str, Any]:
+        """Split a unified diff into its reviewable hunks (M-074).
+
+        Purely a read: each hunk as data — its header, its
+        old side (what it matches) and its new side (what it
+        becomes) — for the approval surface to show one hunk
+        at a time. A malformed diff refuses here, before any
+        decision is made on it.
+        """
+        from ..core import hunk_review
+
+        hunks = hunk_review.split_diff(payload)
+        return {"count": len(hunks), "hunks": [
+            {"index": hunk.index, "header": hunk.header(),
+             "old_start": hunk.old_start,
+             "old_count": hunk.old_count,
+             "new_start": hunk.new_start,
+             "new_count": hunk.new_count,
+             "old_side": hunk.old_side, "new_side": hunk.new_side,
+             "body": list(hunk.body)} for hunk in hunks]}
+
+    def apply_hunk_review(
+            self, path: str, payload: str,
+            decisions: Any) -> dict[str, Any]:
+        """Apply a hunk-by-hunk reviewed diff to *path* (M-074).
+
+        *decisions* names every hunk: ``(index, "accept")``,
+        ``(index, "reject")``, or ``(index, "edit", body)``
+        for an edited hunk (its new body, judged at edit
+        time — an edit may change what a hunk becomes, never
+        what it matches). Rejecting one hunk never kills the
+        rest: the accepted and edited hunks are judged by
+        M-071's strict applier, unchanged, and written
+        through the EditJournal road; rejected hunks simply
+        never land. An undecided hunk, a stale accepted
+        hunk, and the gate being off all refuse and write
+        nothing. The whole review is recorded on the session
+        as a ``hunk_review_applied`` event with its counts
+        when a session is attached — including an
+        all-rejected review, which is an honest no-change
+        outcome, not an error.
+        """
+        from ..core import hunk_review
+        from ..core.edits import EditJournal
+        from ..core.workspace import resolve_file
+
+        if not hunk_review.enabled_from_config(self.config):
+            raise ValueError(
+                "hunk review is off — turn it on with "
+                "/hunkreview on; nothing was changed")
+        target = resolve_file(self.project_root, path, write=True)
+        if not target.exists():
+            raise ValueError(
+                f"a hunk review needs an existing file; "
+                f"{path} does not exist — nothing was changed")
+        current = target.read_text(encoding="utf-8")
+        review = hunk_review.start_review(payload)
+        for item in decisions:
+            if len(item) == 3 and item[1] == "edit":
+                review = hunk_review.edit_hunk(
+                    review, item[0], item[2])
+            elif len(item) == 2:
+                review = hunk_review.decide(review, item[0], item[1])
+            else:
+                raise ValueError(
+                    "each decision is (index, 'accept'), "
+                    "(index, 'reject'), or (index, 'edit', body); "
+                    f"got {item!r}")
+        new_text, outcome = hunk_review.apply_review(current, review)
+        if outcome.applied:
+            EditJournal(self.project_root).write(path, new_text)
+        record: dict[str, Any] = {
+            "path": path, "applied": outcome.applied,
+            "rejected": outcome.rejected,
+            "edited": outcome.edited, "changed": outcome.changed,
+            "journaled": False}
+        if self._session_store and self.session_id:
+            event = review.event()
+            event["path"] = path
+            event["applied"] = outcome.applied
+            event["changed"] = outcome.changed
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
+    def _repair_offered(self, path: str,
+                        packet: Any) -> dict[str, Any]:
+        """Journal a repair packet and shape its record (M-073)."""
+        from ..core.apply_repair import format_packet
+
+        journaled = False
+        if self._session_store and self.session_id:
+            event = packet.event()
+            event["path"] = path
+            self._checkpoint(event)
+            journaled = True
+        return {"path": path, "applied": False, "repaired": False,
+                "exhausted": False, "packet": packet,
+                "packet_text": format_packet(packet),
+                "journaled": journaled}
+
+    def _repair_journal(self, event_type: str, path: str,
+                        road: str) -> None:
+        if self._session_store and self.session_id:
+            self._checkpoint({"type": event_type, "path": path,
+                              "road": road})
+
+    def apply_edit_format_with_repair(
+            self, path: str, format_id: str, payload: str,
+            retry_payload: str | None = None) -> dict[str, Any]:
+        """Apply a format payload, with the repair loop (M-073).
+
+        With the gate off this is exactly
+        :meth:`apply_edit_format` — a refusal stays the plain
+        M-071 refusal and no packet is made. With the gate on,
+        a refusal becomes a repair packet (journaled as
+        ``apply_repair_offered``, carrying the true current
+        text of the refused target): with no *retry_payload*
+        the packet is returned and nothing is written; with
+        one, exactly one honest retry rides on it — a repaired
+        apply rides the EditJournal road and is journaled as
+        ``apply_repair_applied``, and a second refusal is
+        journaled as ``apply_repair_exhausted`` and raises the
+        exhaustion error. There is no second retry.
+        """
+        from ..core import apply_repair
+        from ..core.edits import EditJournal
+        from ..core.workspace import resolve_file
+
+        if not apply_repair.enabled_from_config(self.config):
+            return self.apply_edit_format(path, format_id, payload)
+        target = resolve_file(self.project_root, path, write=True)
+        current = (target.read_text(encoding="utf-8")
+                   if target.exists() else None)
+        try:
+            return {**self.apply_edit_format(path, format_id, payload),
+                    "repaired": False}
+        except ValueError as exc:
+            reason = str(exc)
+        target_range = apply_repair.target_range_for_format(
+            format_id, current or "", payload)
+        packet = apply_repair.build_packet(
+            "edit_format", reason, current or "",
+            *(target_range if target_range else (None, None)))
+        record = self._repair_offered(path, packet)
+        if retry_payload is None:
+            return record
+        self._repair_journal("apply_repair_retried", path, packet.road)
+        try:
+            new_text, units, spent = apply_repair.retry_edit_format(
+                current or "", packet, format_id, retry_payload)
+        except ValueError:
+            self._repair_journal(
+                "apply_repair_exhausted", path, packet.road)
+            raise
+        EditJournal(self.project_root).write(path, new_text)
+        self._repair_journal("apply_repair_applied", path, packet.road)
+        record.update({"applied": True, "repaired": True,
+                       "format": format_id, "units": units,
+                       "changed": current != new_text,
+                       "packet": spent})
+        return record
+
+    def apply_hash_anchored_range_with_repair(
+            self, path: str, start: int, end: int, expected: str,
+            replacement: str, retry_expected: str | None = None,
+            retry_replacement: str | None = None) -> dict[str, Any]:
+        """Apply an anchored range edit, with the repair loop (M-073).
+
+        The M-072 judgement is unchanged. A moved target's
+        refusal becomes a repair packet over the refused
+        range's true current text; *retry_expected* (the new
+        anchor the coder reads from that text) buys exactly
+        one honest retry, with *retry_replacement* or the
+        original replacement. Gate-off refusals (the repair
+        gate or the hash-anchor gate) stay plain refusals and
+        make no packet.
+        """
+        from ..core import apply_repair, hash_anchored
+        from ..core.workspace import resolve_file
+
+        if not apply_repair.enabled_from_config(self.config):
+            return self.apply_hash_anchored_range(
+                path, start, end, expected, replacement)
+        if not hash_anchored.enabled_from_config(self.config):
+            raise ValueError(
+                "hash-anchored edits are off — turn them on with "
+                "/hashanchor on; nothing was changed")
+        target = resolve_file(self.project_root, path, write=True)
+        if not target.exists():
+            raise ValueError(
+                f"an anchored edit needs an existing file; "
+                f"{path} does not exist — nothing was changed")
+        current = target.read_text(encoding="utf-8")
+        try:
+            new_text, applied = hash_anchored.apply_anchored_range(
+                current, start, end, expected, replacement)
+            return {**self._write_hash_anchored(
+                path, new_text, applied, current),
+                "applied": True, "repaired": False}
+        except ValueError as exc:
+            reason = str(exc)
+        packet = apply_repair.build_packet(
+            "anchored_range", reason, current, start, end)
+        record = self._repair_offered(path, packet)
+        if retry_expected is None:
+            return record
+        self._repair_journal("apply_repair_retried", path, packet.road)
+        try:
+            new_text, applied, spent = apply_repair.retry_anchored_range(
+                current, packet, start, end, retry_expected,
+                replacement if retry_replacement is None
+                else retry_replacement)
+        except ValueError:
+            self._repair_journal(
+                "apply_repair_exhausted", path, packet.road)
+            raise
+        record.update(self._write_hash_anchored(
+            path, new_text, applied, current))
+        self._repair_journal("apply_repair_applied", path, packet.road)
+        record.update({"applied": True, "repaired": True,
+                       "packet": spent})
+        return record
+
+    def apply_hash_anchored_search_with_repair(
+            self, path: str, search: str, expected: str,
+            replacement: str, retry_search: str | None = None,
+            retry_expected: str | None = None,
+            retry_replacement: str | None = None) -> dict[str, Any]:
+        """Apply an anchored search edit, with the repair loop (M-073).
+
+        The M-072 judgement is unchanged (exactly one match,
+        under its anchor). A refusal becomes a repair packet —
+        over the matched block's true lines when the search
+        text is found, over the file's head when it is not —
+        and *retry_expected* buys exactly one honest retry,
+        optionally with a corrected *retry_search* and
+        *retry_replacement* read from the packet's true text.
+        """
+        from ..core import apply_repair, hash_anchored
+        from ..core.workspace import resolve_file
+
+        if not apply_repair.enabled_from_config(self.config):
+            return self.apply_hash_anchored_search(
+                path, search, expected, replacement)
+        if not hash_anchored.enabled_from_config(self.config):
+            raise ValueError(
+                "hash-anchored edits are off — turn them on with "
+                "/hashanchor on; nothing was changed")
+        target = resolve_file(self.project_root, path, write=True)
+        if not target.exists():
+            raise ValueError(
+                f"an anchored edit needs an existing file; "
+                f"{path} does not exist — nothing was changed")
+        current = target.read_text(encoding="utf-8")
+        try:
+            new_text, applied = hash_anchored.apply_anchored_search(
+                current, search, expected, replacement)
+            return {**self._write_hash_anchored(
+                path, new_text, applied, current),
+                "applied": True, "repaired": False}
+        except ValueError as exc:
+            reason = str(exc)
+        lines = current.split("\n")
+        needle = search.split("\n") if search else []
+        hits = [i for i in range(0, len(lines) - len(needle) + 1)
+                if needle and lines[i:i + len(needle)] == needle]
+        if hits:
+            packet = apply_repair.build_packet(
+                "anchored_search", reason, current,
+                hits[0] + 1, hits[0] + len(needle))
+        else:
+            packet = apply_repair.build_packet(
+                "anchored_search", reason, current)
+        record = self._repair_offered(path, packet)
+        if retry_expected is None:
+            return record
+        self._repair_journal("apply_repair_retried", path, packet.road)
+        try:
+            new_text, applied, spent = \
+                apply_repair.retry_anchored_search(
+                    current, packet,
+                    search if retry_search is None else retry_search,
+                    retry_expected,
+                    replacement if retry_replacement is None
+                    else retry_replacement)
+        except ValueError:
+            self._repair_journal(
+                "apply_repair_exhausted", path, packet.road)
+            raise
+        record.update(self._write_hash_anchored(
+            path, new_text, applied, current))
+        self._repair_journal("apply_repair_applied", path, packet.road)
+        record.update({"applied": True, "repaired": True,
+                       "packet": spent})
+        return record
+
     def vision_status(self) -> dict[str, Any]:
         """The current model's sight truth and the offer (M-037).
 
@@ -1527,6 +2179,38 @@ class Agent:
             "plain_explanation": truth_module.PLAIN_EXPLANATION,
         }
 
+    def type_depth(self, path: str | None = None) -> dict[str, Any]:
+        """A standing type account — one file's, or the workspace's (M-063).
+
+        The runners are mypy and pyright, whichever truly
+        exist; a runner that is not installed reports
+        not-installed and a live type verdict without one
+        is NOT PROVEN, never a clean bill. Findings are
+        triaged by kind into the review. A named file is
+        resolved inside this session's workspace; a path
+        escaping it is refused. A switched-off road reads
+        nothing.
+        """
+        from ..tools import type_depth as depth_module
+
+        enabled = depth_module.enabled_from_config(
+            getattr(self, "config", None))
+        if path is not None:
+            from ..core.workspace import assert_within_workspace
+
+            resolved = assert_within_workspace(self.project_root, path)
+            if not resolved.is_file():
+                raise ValueError(f"no such file to check: {path}")
+            report = depth_module.type_depth(
+                self.project_root, resolved, enabled=enabled)
+        else:
+            report = depth_module.type_depth(
+                self.project_root, enabled=enabled)
+        return {
+            "report": report.record(),
+            "plain_explanation": depth_module.PLAIN_EXPLANATION,
+        }
+
     def format_covenant(self, path: str, *, apply: bool = False) -> dict[str, Any]:
         """One touched file's formatter-covenant account (M-053).
 
@@ -1676,6 +2360,383 @@ class Agent:
             "history": report.record(),
             "plain_explanation": intel_module.PLAIN_EXPLANATION,
         }
+
+    def coverage_status(self) -> dict[str, Any]:
+        """The coverage board for this project (M-057).
+
+        Whether coverage.py data exists for this session's
+        workspace and what it totals — a switched-off road
+        reports disabled, never an estimated percentage.
+        """
+        from ..tools import coverage_sight as coverage_module
+
+        return coverage_module.board_report(
+            self.project_root,
+            enabled=coverage_module.enabled_from_config(
+                getattr(self, "config", None)))
+
+    def coverage_check(self, changed_files: Any) -> dict[str, Any]:
+        """Lay coverage over the files a change touched (M-057).
+
+        The overlay is coverage.py's own measured lines;
+        a touched file whose measured lines never ran is
+        flagged to the Auditor in the audit log as part of
+        the check, and the report says how many flags were
+        written.
+        """
+        from ..tools import coverage_sight as coverage_module
+
+        report = coverage_module.coverage_check(
+            list(changed_files or []), root=self.project_root,
+            enabled=coverage_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": coverage_module.PLAIN_EXPLANATION,
+        }
+
+    def local_search(self, query: str, mode: str = "text",
+                     language: Any = None) -> dict[str, Any]:
+        """Beyond-grep local search over this workspace (M-058).
+
+        One search, three modes: text (an in-process
+        ripgrep-class regex search over every text file),
+        fuzzy (subsequence matching with an auditable
+        score), and structural (delegated to M-047's
+        engine, which needs *language*). Results are
+        ranked by the M-046 symbol graph and every match
+        carries its score and reasons; a switched-off
+        road reports disabled, and a refused pattern
+        raises — it is never searched another way.
+        """
+        from ..tools import local_search as search_module
+
+        report = search_module.search(
+            self.project_root, query, mode=mode, language=language,
+            enabled=search_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": search_module.PLAIN_EXPLANATION,
+        }
+
+    def web_search(self, query: str) -> dict[str, Any]:
+        """Search the web once, through the configured endpoint (M-059).
+
+        The query text goes to the ``web_search_endpoint``
+        host (the shipped default is DuckDuckGo's keyless
+        HTML road) and nowhere else; the results come back
+        as numbered citations. When a session is attached,
+        the sources are cited into the session journal as
+        a ``web_citation`` checkpoint event before the
+        status is returned. A failed call is an honest
+        error report; a switched-off road sends nothing.
+        """
+        from ..tools import web_search as web_module
+
+        report = web_module.web_search(
+            query,
+            endpoint=web_module.endpoint_from_config(
+                getattr(self, "config", None)),
+            enabled=web_module.enabled_from_config(
+                getattr(self, "config", None)))
+        self._journal_web_citation(report)
+        return {
+            "report": report.record(),
+            "plain_explanation": web_module.PLAIN_EXPLANATION,
+        }
+
+    def web_fetch(self, url: str) -> dict[str, Any]:
+        """Fetch one http(s) page's readable text (M-059).
+
+        Only the named page is requested; its title and
+        text come back under the module's caps, and the
+        page is cited into the session journal as a
+        ``web_citation`` event when a session is attached.
+        Non-http(s) URLs are refused before anything is
+        sent; a failed call is an honest error report.
+        """
+        from ..tools import web_search as web_module
+
+        report = web_module.web_fetch(
+            url,
+            enabled=web_module.enabled_from_config(
+                getattr(self, "config", None)))
+        self._journal_web_citation(report)
+        return {
+            "report": report.record(),
+            "plain_explanation": web_module.PLAIN_EXPLANATION,
+        }
+
+    def docs_list(self) -> dict[str, Any]:
+        """The offline docs shelf's catalogue (M-060).
+
+        The workspace's own docs (root and ``docs/`` doc
+        files) plus any offline doc packs under
+        ``.mythic/docpacks/``, each with its title and
+        source. Nothing is fetched; a switched-off road
+        reads nothing.
+        """
+        from ..tools import docs_at_hand as docs_module
+
+        report = docs_module.docs_list(
+            self.project_root,
+            enabled=docs_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": docs_module.PLAIN_EXPLANATION,
+        }
+
+    def docs_search(self, query: str) -> dict[str, Any]:
+        """Rank the offline docs shelf against a query (M-060)."""
+        from ..tools import docs_at_hand as docs_module
+
+        report = docs_module.docs_search(
+            self.project_root, query,
+            enabled=docs_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": docs_module.PLAIN_EXPLANATION,
+        }
+
+    def docs_read(self, name: str) -> dict[str, Any]:
+        """Read one shelf doc whole, by path, name or title (M-060).
+
+        A name matching nothing is an honest error report;
+        a name matching several docs is refused with the
+        candidates named — a doc is never guessed.
+        """
+        from ..tools import docs_at_hand as docs_module
+
+        report = docs_module.docs_read(
+            self.project_root, name,
+            enabled=docs_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": docs_module.PLAIN_EXPLANATION,
+        }
+
+    def dependency_sight(self, package: str | None = None) -> dict[str, Any]:
+        """The declared dependency graph, or one package's account (M-061).
+
+        The graph is read from this workspace's own
+        ``pyproject.toml`` — groups, specs, and the
+        honestly measured installed version (unknown when
+        a package is not installed). A named package adds
+        its blast radius (workspace files importing it,
+        counted from the tree), its local changelog
+        mentions, and its local vulnerability-data state.
+        Changelogs and vulnerability data are local files
+        only; a switched-off road reads nothing.
+        """
+        from ..tools import dependency_sight as deps_module
+
+        report = deps_module.dependency_sight(
+            self.project_root, package,
+            enabled=deps_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": deps_module.PLAIN_EXPLANATION,
+        }
+
+    def dependency_proposal(self, package: str,
+                            target_version: str) -> dict[str, Any]:
+        """Draft one upgrade proposal — data only, never applied (M-061).
+
+        The proposal carries the declared spec(s), the
+        installed version, the target, the counted blast
+        radius, and whether anything else pins the
+        package. An undeclared package is refused
+        plainly; nothing is written on this road.
+        """
+        from ..tools import dependency_sight as deps_module
+
+        report = deps_module.dependency_proposal(
+            self.project_root, package, target_version,
+            enabled=deps_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": deps_module.PLAIN_EXPLANATION,
+        }
+
+    def code_sensing(self, mode: str = "show") -> dict[str, Any]:
+        """A structural sensing report — dead code + duplication (M-062).
+
+        Dead code is sensed by the shipped dead-code
+        scanner over this workspace's top-level Python
+        packages; duplication clusters are function bodies
+        whose AST structure matches exactly once names and
+        literal values are normalised away, at or above
+        the slice's size floor. Sensing only — nothing is
+        deleted or edited on this road; a switched-off
+        road reads nothing.
+        """
+        from ..tools import code_sensing as sensing_module
+
+        report = sensing_module.code_sensing(
+            self.project_root, mode,
+            enabled=sensing_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": sensing_module.PLAIN_EXPLANATION,
+        }
+
+    def mojo_sight(self, mode: str = "show",
+                   target: str | None = None,
+                   term: str = "") -> dict[str, Any]:
+        """A Mojo account — scan, one file, or knowledge (M-064).
+
+        Mojo files are recognised through the tree-sitter
+        foundation's catalogue and parsed via its grammar
+        where one truly loads; no Mojo grammar package
+        exists today, so files are read by the honestly
+        named mojo-scan structural backend and a
+        grammar-backed parse is NOT PROVEN. Removed syntax
+        is flagged with its replacement from the house
+        Mojo skills, whose distilled knowledge the
+        knowledge road searches. Read-only — nothing is
+        edited on this road; a switched-off road reads
+        nothing.
+        """
+        from ..tools import mojo_sight as mojo_module
+
+        report = mojo_module.mojo_sight(
+            self.project_root, mode, target=target, term=term,
+            enabled=mojo_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": mojo_module.PLAIN_EXPLANATION,
+        }
+
+    def sql_sight(self, mode: str = "show",
+                  db: str | None = None,
+                  query: str = "") -> dict[str, Any]:
+        """A SQL account — schemas, explain, or migrations (M-065).
+
+        Workspace-local SQLite databases are opened
+        through read-only connections only; a query is
+        explained, never executed, and write-shaped
+        statements are refused; migration files are read
+        as code, never applied. Read-only — nothing is
+        written on this road; a switched-off road reads
+        nothing.
+        """
+        from ..tools import sql_sight as sql_module
+
+        report = sql_module.sql_sight(
+            self.project_root, mode, db=db, query=query,
+            enabled=sql_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": sql_module.PLAIN_EXPLANATION,
+        }
+
+    def config_sight(self, mode: str = "show",
+                     target: str | None = None) -> dict[str, Any]:
+        """A config account — structure of config/infra files (M-066).
+
+        YAML, TOML, INI, systemd units, Dockerfiles and
+        compose files are parsed structurally (kinds and
+        sizes, never scalar values); nothing a file
+        describes is executed. Docker artifacts in a
+        workspace marked as Volmarr's project raise the
+        coder's own no-Docker-law warning. Read-only —
+        nothing is written on this road; a switched-off
+        road reads nothing.
+        """
+        from ..tools import config_sight as config_module
+
+        report = config_module.config_sight(
+            self.project_root, mode, target=target,
+            enabled=config_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": config_module.PLAIN_EXPLANATION,
+        }
+
+    def asset_sight(self, mode: str = "show",
+                    target: str | None = None) -> dict[str, Any]:
+        """An asset account — images, archives, large files (M-067).
+
+        Images are described from their headers, archives
+        from their member listings, and large files by
+        size and kind; every asset carries the role the
+        map notes for it. Nothing is decoded, extracted
+        or dumped. Read-only — nothing is written on this
+        road; a switched-off road reads nothing.
+        """
+        from ..tools import asset_sight as asset_module
+
+        report = asset_module.asset_sight(
+            self.project_root, mode, target=target,
+            enabled=asset_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": asset_module.PLAIN_EXPLANATION,
+        }
+
+    def language_packs(self, mode: str = "show",
+                       language: str | None = None) -> dict[str, Any]:
+        """A language-packs account — toolchains as data (M-068).
+
+        Every pack declares one language's toolchain — its
+        language server, formatters, and test runners — in
+        data; the report describes each declared command
+        and PATH-checks its binary. Nothing is executed on
+        this road; a switched-off road does not even load
+        the pack data.
+        """
+        from ..tools import language_packs as packs_module
+
+        report = packs_module.language_packs_report(
+            self.project_root, mode, language=language,
+            enabled=packs_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": packs_module.PLAIN_EXPLANATION,
+        }
+
+    def intelligence_cache(self, mode: str = "show",
+                           target: str | None = None) -> dict[str, Any]:
+        """An intelligence-cache account — results per file hash (M-069).
+
+        Parse, graph, and language-server results are cached
+        under the workspace's .mythic/intelligence-cache/,
+        keyed by each file's SHA-256 content hash; a changed
+        file's entry is evicted on lookup, never served.
+        Warming writes cache entries only, never a source
+        file; a switched-off road reads and writes nothing.
+        """
+        from ..tools import intelligence_cache as cache_module
+
+        report = cache_module.intelligence_cache_report(
+            self.project_root, mode, target=target,
+            enabled=cache_module.enabled_from_config(
+                getattr(self, "config", None)))
+        return {
+            "report": report.record(),
+            "plain_explanation": cache_module.PLAIN_EXPLANATION,
+        }
+
+    def _journal_web_citation(self, report: Any) -> None:
+        """Cite one web report's sources into the journal (M-059)."""
+        if report.status != "ok":
+            return
+        if getattr(self, "_session_store", None) and \
+                getattr(self, "session_id", None):
+            self._checkpoint(report.citation_event())
+            report.journaled = True
 
     def lsp_workspace_symbols(self, query: str = "") -> dict[str, Any]:
         """The workspace's symbols, per the language server (M-050)."""

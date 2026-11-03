@@ -67,6 +67,7 @@ IMPORT_TO_REQUIREMENT = {
     "anthropic": "anthropic",
     "google": "google-generativeai",
     "tree_sitter": "tree-sitter",
+    "coverage": "coverage",
 }
 
 # Every third-party import that lives inside a ``try/except ImportError``
@@ -90,6 +91,7 @@ OPTIONAL_IMPORT_FEATURES = {
     "httpx": "async HTTP client fallback for provider calls (core dependency)",
     "httpx2": "async HTTP client preferred for provider calls; openai 3.x's httpx fork (core dependency)",
     "tree_sitter": "grammar-backed code parsing (code-intelligence extra, M-043)",
+    "coverage": "reading coverage.py .coverage data files for the coverage-sight overlay (dev extra, M-057)",
 }
 
 # Extras that are intentionally never imported by ``mythic_agent/`` itself

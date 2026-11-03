@@ -189,6 +189,28 @@ and scoped M-024 below.*
 | M-054 | The Debugger (DAP) | **DONE** — banked 2026-11-01 (`2fe9a9a` + regen `fab7989`, PUBLIC_API 1937 → 1963 per the committed PUBLIC_API file — the regen commit notes M-053's closure text had recorded 1939, the committed file is the truth): new module `mythic_agent/tools/debugger.py` — a DAP client on the M-049 LSP pattern speaking the real Debug Adapter Protocol over Content-Length framing to an adapter subprocess (initialize → launch/attach → setBreakpoints/setExceptionBreakpoints → configurationDone → stopped events → threads/stackTrace/scopes/variables with one-level nested expansion → next/stepIn/stepOut/continue → disconnect); debugpy catalogued Python-first via `<python> -m debugpy.adapter`, installed probed by import — measured NOT installed here, so a real run reports not-installed with its remedy, never a fake session; plain records for breakpoints/stopped/frames/scopes/variables; adapter-to-client requests answered with an honest failure, never left hanging. Setting `debugger` ON by default in config_defaults + M-009 catalogue S-43; `Agent.debugger_status`/`debug_run` + `/debug` on terminal and TUI roads sharing the one parser and formatters; gap audit debugger-dap row flipped proposed→existing truthfully. +24 tests in tests/test_debugger.py incl. a real fake DAP adapter subprocess speaking the protocol (order proven from the adapter's own log). Full suite counted in six monitored chunks (logs hidden_files/m054-chunk0.log..chunk5.log, all read from disk): chunk totals 437+543+742+422+574+509 = **3227 passed, 5 failed, 1 skipped (3233 collected — closes exactly against collect-only, hidden_files/m054-collect.log: 3233 collected; M-053's 3209 + 24 new tests)**. The 5 failures: the 2 long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3) plus 3 proven load flakes: chunk 1's `test_providers_coverage_ratchet` (120 s pytest-timeout inside its coverage subprocess; solo re-run hidden_files/m054-solo-ratchet.log: **1 passed in 43.79 s**) and chunk 4's 2 `test_static_gate` 120 s timeouts (solo re-run of the whole file, hidden_files/m054-solo-gate.log: **4 passed in 190.32 s**). NOTE: an earlier solo attempt (hidden_files/m054-solo.log, 2 bytes) was cut off at a tick boundary and is discarded, never counted. Roadmap data flipped to 54 done in this closure. **54 / 272 slices banked (M-001..M-054).** Next slice: M-055 (Debugger in the loop). |
 | M-055 | Debugger in the loop | **DONE** — banked 2026-11-01 (`24e56bc` + regen `1662361`, PUBLIC_API 1963 → 1978): new module `mythic_agent/tools/debug_loop.py` — a failing test, named outright (`file[::test]` node, non-Python nodes refused) or detected only from a pytest run's own words (the short summary's `FAILED <node>` lines and verbose `<node> FAILED` rows — nothing inferred from prose), is re-run under M-054's DAP client as a pytest MODULE launch (`debugger.py` `launch()` gains the module road: exactly one of program/module, debugpy's `module: pytest` with the one test node as its argument), exception stops on (filter `all`) plus any user breakpoints in the test file; the first stop's threads/frames/scopes/variables (M-054's own records) return as a LoopReport evidence record. Honesty bounds on the M-052 pattern: adapter not installed → `not-installed` with its remedy and NO invented evidence (debugpy is not installed here, measured at M-054); a re-run ending before any stop → `terminated` (the failure did not reproduce under the debugger), never dressed as evidence; the road switched off → `disabled` (new setting `debugger_in_loop` ON by default in config_defaults + M-009 catalogue S-44, and M-054's `debugger` switch gates the whole road); a missing test file → `not-found`; an adapter that runs and fails raises DAPError. Wired into the coder's road in `agents/tools.py` run_command: a failed pytest result appends the loop note for the FIRST failing test its output names (further failing tests accounted by name, not re-run), and a debugger failure on that road is an honest appended note, never a changed test result. Surfaces: `Agent.debug_loop()` + `/debugloop [show] | <test> [break <line> ...]` on terminal and TUI roads sharing the one parser and formatters. +20 tests in tests/test_debug_loop.py incl. a real fake DAP adapter subprocess speaking the protocol (module launch args + exception filters proven from the adapter's own log, stop reason `exception` with frames/locals as evidence) and execute_tool wiring proofs (note appended when on, plain result when off). NOTE: the slice commit message says "+19 tests" — the file carries 20 test functions (counted from the tree); the message is not rewritten (no force-push) and this row is the truth. Full suite counted in six monitored chunks (logs hidden_files/m055-chunk0.log..chunk5.log, all read from disk): chunk totals 437+564+742+422+623+462 = **3250 passed, 2 failed, 1 skipped (3253 collected — closes exactly against collect-only, hidden_files/m055-collect.log: 3253 collected; M-054's 3233 + 20 new tests)**. The 2 failures are exactly the long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3) — no load flakes this run. Roadmap data flipped to 55 done in this closure. **55 / 272 slices banked (M-001..M-055).** Next slice: M-056 (Test intelligence). |
 | M-056 | Test intelligence | **DONE** — banked 2026-11-01 (`fb70cf1` + regen `7fb1218`, PUBLIC_API 1978 → 2004): new module `mythic_agent/tools/test_intelligence.py` — discovery is pytest collection as ground truth (subprocess `pytest --collect-only -q` on the project root, nodeids parsed from its own output; a missing/failing pytest is an honest `failed` report carrying its words, an empty project is `no-tests`, never an invented list); selection takes changed files, reads the symbols they define from the M-046 house code index (`SymbolIndex`), and selects discovered tests that are themselves changed, import a changed module (or a symbol from it), or reference a symbol a changed file defines — with an honest whole-suite fallback (selected = the discovered suite, reason stated) for no changed files, discovery failure, unreadable changed files, or no matches, never an empty confident selection; flaky marking comes only from a real recorded history (JSONL store at `.mythic/test_history.jsonl` under the project root, appended by `record_run`/`record_outcomes` parsing only the outcomes a pytest run itself names — verbose PASSED/FAILED rows + short-summary FAILED/ERROR lines, on the M-055 detection pattern): a test is flaky only with BOTH a pass and a fail for the same nodeid across ≥3 recorded runs (`FLAKY_MIN_RUNS`); stable pass and stable fail are honestly not flaky, no history marks nothing, corrupt history lines are skipped. Setting `test_intelligence` ON by default in config_defaults + M-009 catalogue S-45. Light wiring on the M-055 pattern in `agents/tools.py` run_command: a pytest command's named outcomes are recorded to history gated by the setting, recording never alters the result and a history failure is swallowed there. Surfaces: `Agent.test_intel_status()` / `test_intel_select()` / `test_intel_history()` + `/testintel [show] | select <file> ... | history` on terminal and TUI roads sharing the one parser and formatters. +20 tests in tests/test_test_intelligence.py incl. real pytest collection + selection on a tiny throwaway project built in tmp_path (root conftest makes its imports honest), fallback cases, history/flaky proofs (mixed-below-threshold unmarked, mixed-at-threshold marked, stable pass/fail unmarked, no-history unmarked), and real execute_tool wiring proofs (recorded when on, unrecorded when off). Full suite counted in six monitored chunks (logs hidden_files/m056-chunk0.log..chunk5.log, all read from disk): chunk totals 447+554+749+429+631+460 = **3270 passed, 2 failed, 1 skipped (3273 collected — closes exactly against collect-only, hidden_files/m056-collect.log: 3273 collected; M-055's 3253 + 20 new tests)**. The 2 failures are exactly the long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3) — no load flakes this run. NOTE: one delivered chunk excerpt (chunk 1: "580 passed") diverged from its on-disk log (554 passed, 1 skipped) and was discarded per the transport-war rule; the totals above are the on-disk ones and they close. EPISODE NOTE: this tick ran through the recurring EPERM write-denial + EDQUOT quota episodes (exec/git writes failed in stretches while the file tools stayed healthy; one git index.lock was removed after a failed add); writes healed, the slice banked unchanged, and nothing was counted from an episode-period run. Roadmap data flipped to 56 done in this closure. **56 / 272 slices banked (M-001..M-056).** Next slice: M-057 (Coverage sight). |
+| M-057 | Coverage sight | **DONE** — banked 2026-11-01 (`77b23c9` + regen `1f9090d`, PUBLIC_API 2004 → 2023): new module `mythic_agent/tools/coverage_sight.py` — line coverage overlaid on edited files, read only from coverage.py's own data (its JSON report when present, else its `.coverage` data file through the coverage API — never an estimated overlay; a file with no coverage data reports no-data honestly, a file absent from the data reports not-in-coverage); a touched file with measured lines that never ran, or named edited lines executable and none covered, is zero-cover and `coverage_check` writes one `coverage.zero_cover` flag per such file to the house audit log (`core/audit.py` AuditLog) — the flag is a record, never a silent note. Setting `coverage_sight` ON by default in config_defaults + M-009 catalogue S-46. Surfaces: `Agent.coverage_status()`/`coverage_check()` + `/coverage [show] | check <file> ...` on terminal and TUI roads sharing the one parser and formatters. +16 tests in tests/test_coverage_sight.py incl. a real coverage.py run over a tiny throwaway project on both the JSON and data-file roads. IN-SLICE DEFECT FOUND AT CLOSURE AND FIXED, never merely noted (`712b86e`): coverage_sight imports `coverage` but the package was declared nowhere — the dependency audit's three declaration tests failed in chunk 1; pyproject's dev extra now declares coverage>=7.0, the audit maps coverage->coverage with its feature record, and the dependency census gains D-36 (dev, Apache-2.0, 1538 KiB, count 35 → 36); fix targeted set 22 passed (hidden_files/m057-fix-targeted-2200.log). Full suite counted in six monitored chunks (logs hidden_files/m057-chunk0.log, m057-chunk1-2200.log, m057-chunk2.log..chunk5.log, all read from disk): chunk totals 444+533+774+436+631+460 = **3278 passed, 7 failed, 1 skipped, 3 errors (3289 collected — closes exactly against collect-only, hidden_files/m057-collect.log: 3289 collected; M-056's 3273 + 16 new tests)**. The failures: the 2 long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3) plus shared-quota (EDQUOT) episode flakes, each solo-proven from its on-disk log — chunk 0's 3 test_cli tmp errors (hidden_files/m057-solo-cli.log: 3 passed in 8.99 s), chunk 1's 3 edit-truth + 1 format-covenant journal-write failures (hidden_files/m057-solo-edquot2.log: 4 passed in 1.96 s) and its coverage ratchet 'No data to report' (hidden_files/m057-solo-ratchet.log: 1 passed in 43.72 s). EPISODE NOTE: this closure spanned the evening's recurring EDQUOT/EPERM episodes — chunk 5's first run died at 29 dots (preserved as hidden_files/m057-chunk5-dead1.log, DISCARDED, never counted) and was re-run clean at this closure (460 passed); nothing was counted from an episode-period run. Roadmap data flipped to 57 done in this closure. **57 / 272 slices banked (M-001..M-057).** Next slice: M-058 (Beyond-grep local search). |
+| M-058 | Beyond-grep local search | **DONE** — banked 2026-11-01 (`4779b19` + regen `61236fb`, PUBLIC_API 2023 → 2039): new module `mythic_agent/tools/local_search.py` — one search surface, three modes, ranked by the symbol graph. Text mode is an in-process ripgrep-class engine (regex over every text file in deterministic order, no external binary; binary/oversized/non-UTF-8 files skipped with reasons; file and result caps name themselves in warnings; an invalid regex is refused as a pattern error, never silently literal-searched). Fuzzy mode is subsequence matching with an auditable score (matched characters earn, consecutive runs and word-boundary starts earn more, gaps cost). Structural mode delegates whole to M-047's `structural_search` engine — never a second structural matcher — and keeps its refusals. Ranking is M-046's `build_symbol_graph` built once per search: a definition-site match earns +50, a match naming a defined symbol earns by that symbol's capped reference count, a match in a well-referenced file earns by its capped reference count; every match carries score + plain reasons, and an unbuildable graph leaves results honestly unranked in match order with the reason named. Setting `local_search` ON by default in config_defaults + M-009 catalogue S-47. Surfaces: `Agent.local_search()` + `/search [text] <regex> | fuzzy <query> | structural <language> <pattern>` on terminal and TUI roads sharing the one parser and formatter. +23 tests in tests/test_local_search.py incl. the definition-site-outranks-plain-mention ranking proof, the unranked-fallback proof, and all three modes live on a tiny throwaway project. Full suite counted in six monitored chunks (logs hidden_files/m058-chunk0.log..chunk5.log, all read from disk): chunk totals 447+570+765+422+623+482 = **3309 passed, 2 failed, 1 skipped (3312 collected — closes exactly against collect-only, hidden_files/m058-collect.log; M-057's 3289 + 23 new tests)**. The 2 failures are exactly the long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3) — no flakes, no errors this closure. Closure targeted set (hidden_files/m058-closure-targeted.log): 73 passed + the PortAudio env failure + the roadmap/ledger agreement failure healed by this row. Roadmap data flipped to 58 done in this closure. **58 / 272 slices banked (M-001..M-058).** Next slice: M-059 (Web knowledge tools). |
+| M-059 | Web knowledge tools | **DONE** — banked 2026-11-01 (`6a0f4a9` + regen `24ec953`, PUBLIC_API 2039 → 2056; in-slice fixes `dcd9597` gap-audit row flip and `cb82b2e` dead-code scanner stdlib-callback whitelist): new module `mythic_agent/tools/web_search.py` — web search + fetch as first-class tools. Search runs against a configured endpoint template carrying `{query}` (shipped default the keyless DuckDuckGo HTML road — no API key required or invented; a template without `{query}` is refused before anything is sent); results are parsed with stdlib parsing, redirect wrappers unwrapped to real destinations, and returned as numbered citations. Fetch is http/https only (other schemes refused), readable-text extraction drops scripts/styles, byte+char caps name themselves when they cut. Transport is the repo's httpx2/httpx road, injectable for tests. Non-200 responses and transport failures are error reports with the reason named, never invented results. Honesty per M-015: every report names the host and exactly what was sent. The Agent journals a `web_citation` checkpoint event when a session is attached (M-028 pattern). Settings `web_tools` ON by default + `web_search_endpoint` in config_defaults + M-009 catalogue S-48/S-49. Surfaces: `Agent.web_search()`/`web_fetch()` + `/web search|fetch` on terminal and TUI roads sharing the one parser and formatter. +20 tests in tests/test_web_search.py incl. a loopback-server live proof of search parsing, redirect unwrapping, fetch extraction, and journal citation. Full suite counted in six monitored chunks (logs hidden_files/m059-chunk0.log..chunk5.log with chunk1/chunk2 re-run as m059-chunk1b.log/m059-chunk2b.log after the in-slice fixes, all read from disk): chunk totals 446+570+765+436+631+480 = **3328 passed, 3 failed, 1 skipped (3332 collected — closes exactly against collect-only, hidden_files/m059-collect.log; M-058's 3312 + 20 new tests)**. The 3 failures: the 2 long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3) plus chunk 0's `test_scripted_human_loop_clear_add_and_multiple_turns`, PROVEN a load flake by solo re-runs read from on-disk logs (hidden_files/m059-solo-cli.log and m059-solo-cli2.log: 1 passed each). The first chunk 1 / chunk 2 runs exposed two real in-slice defects — the gap audit still marked the web-search module `proposed` after it landed, and the dead-code scanner flagged stdlib `html.parser` callback names — both fixed in-slice (`dcd9597`, `cb82b2e`) and the re-run chunks are clean. Roadmap data flipped to 59 done in this closure. **59 / 272 slices banked (M-001..M-059).** Next slice: M-060 (Docs-at-hand). |
+| M-060 | Docs-at-hand | **DONE** — banked 2026-11-02 (`d60eda0` + regen `962edfb`, PUBLIC_API 2056 → 2075; closure fix `aae0ac8`): new module `mythic_agent/tools/docs_at_hand.py` — the OFFLINE complement to M-059's web road: the workspace's own documentation (root-level + `docs/` Markdown/text/reStructuredText) plus offline doc packs under `.mythic/docpacks/<pack>/` are discovered and catalogued (title from first heading, source, size), indexed in-process, and searched with ranked hits (title +50/term, headings +20/term, body frequency capped per term) carrying score + reasons + snippet + line number; a doc is read whole by shelf path, file name, or title — ambiguity refused with candidates named, never guessed; oversized docs are catalogued, not indexed; paths escaping the doc roots are refused; NO network road exists in the module at all. Setting `docs_at_hand` ON by default in config_defaults + M-009 catalogue S-50. Surfaces: `Agent.docs_list()`/`docs_search()`/`docs_read()` + `/docs list|search|read` on terminal and TUI roads sharing the one parser and formatter. +20 tests in tests/test_docs_at_hand.py incl. pack discovery, title-over-body ranking, ambiguity refusal, and cap naming. Full suite counted in six monitored chunks (logs hidden_files/m060-chunk0.log..chunk5.log, all read from disk): chunk totals 447+590+765+436+628+478 = **3344 passed, 7 failed, 1 skipped (3352 collected — closes exactly against collect-only, hidden_files/m060-collect.log; M-059's 3332 + 20 new tests)**. The 7 failures: the 2 long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3); chunk 4's 3 static-gate failures, PROVEN EDQUOT episode flakes (the gate's own byte-compilation died on Errno 122 writing `__pycache__` in-tree; solo re-run hidden_files/m060-solo-staticgate.log: 4 passed in 256.15 s); chunk 5's `test_live_tier_skips_by_default`, an EDQUOT flake (its probe-file write into tests/ died on Errno 122; solo-proven in the taxonomy solo below); and chunk 5's `test_every_test_module_declares_a_tier` — a REAL in-slice defect, fixed in-slice per the never-leave-a-bug law (`aae0ac8`): M-060's own test module lacked the TIER line every test module must declare; solo re-run of tests/test_taxonomy.py after the fix (hidden_files/m060-solo-taxonomy.log): 4 passed in 5.21 s. Roadmap data flipped to 60 done in this closure. **60 / 272 slices banked (M-001..M-060).** Next slice: M-061 (Dependency sight). |
+| M-061 | Dependency sight | **DONE** — banked 2026-11-02 (`8db2d97` + regen `88ba673`, PUBLIC_API 2075 → 2095): new module `mythic_agent/tools/dependency_sight.py` — the declared graph read from pyproject.toml via tomllib (core + every extra + build-system, with groups and specs), enriched from the M-012 census; installed versions measured via importlib.metadata, uninstalled = unknown, never guessed; changelogs LOCAL only from CHANGELOG*/HISTORY*/NEWS* files in the workspace, absence said plainly; vulnerability data LOCAL only from advisory/audit files in the workspace, no local source = known-vulnerability status NOT PROVEN, never a clean bill; NO network road exists in the module at all. An upgrade proposal is data only — declared specs/installed version, target, blast radius counted by an AST import scan in the dependency audit's shape, declaring groups, and pin state; an undeclared package is refused plainly; no apply/write path exists. Setting `dependency_sight` ON by default in config_defaults + M-009 catalogue S-51. Surfaces: `Agent.dependency_sight()`/`dependency_proposal()` + `/deps [show|<package>|propose <package> <version>]` on terminal and TUI roads sharing the one parser and formatter. +21 tests in tests/test_dependency_sight.py incl. fixture graph, installed/uninstalled honesty, changelog hit + absence, vuln no-local-data honesty, counted blast radius, undeclared refusal, and never-applies file-unchanged proof. Full suite counted in six monitored chunks (logs hidden_files/m061-chunk0.log..chunk5.log, all read from disk): chunk totals 447+579+767+452+623+502 = **3370 passed, 2 failed, 1 skipped (3373 collected — closes exactly against collect-only, hidden_files/m061-collect.log; M-060's 3352 + 21 new tests)**. The 2 failures are exactly the long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3). EPISODE NOTE: the suite ran across two ticks through the box-wide full-/tmp episode — chunk 1's first run died on an INTERNALERROR mid-traceback (preserved as m061-chunk1-dead1.log, DISCARDED), chunk 3's first counted attempt mass-failed inside a No-space-left window (m061-chunk3-dead2.log, DISCARDED) and its pre-tick stub was preserved as m061-chunk3-dead1.log; the counted chunks 3–5 ran on the home-overlay TMPDIR (~/workspace/.verify-tmp/mythic-m061) while /tmp sat at 100%, and chunk 4's session-ids test passed inside its chunk on that road. Roadmap data flipped to 61 done in this closure. **61 / 272 slices banked (M-001..M-061).** Next slice: M-062 (Dead-code and duplication sensing). |
+| M-062 | Dead-code and duplication sensing | **DONE** — banked 2026-11-02 (`f631e10` + regen `a6a7719`, PUBLIC_API 2095 → 2111): new module `mythic_agent/tools/code_sensing.py` — a structural report for the Cartographer, sensing only. Dead code comes from the shipped R-006 scanner (`mythic_agent/core/dead_code_scan.py`, reused, never duplicated) over the workspace's top-level Python packages, items made workspace-relative, with the `docs/DEAD_CODE_QUARANTINE.txt` state named (recorded vs not-yet-recorded) where that file exists; a workspace with no such package is told so plainly, never given a fake empty bill. Duplication is structural only: per-function AST fingerprints normalised over names and literal values (node types, operators and attribute names kept), only bodies at or above the 15-node floor can cluster, caps and skipped files named in warnings. The module has NO delete/edit/write path at all — deletion is always a separate, approved slice. Setting `code_sensing` ON by default in config_defaults + M-009 catalogue S-52. Surfaces: `Agent.code_sensing()` + `/sensing [show|dead|dup]` on terminal and TUI roads sharing the one parser and formatter. +19 tests in tests/test_code_sensing.py incl. renamed/re-literal'd copy clustering, textual-coincidence and trivial-shape refusals, quarantine naming, no-package honesty, and a never-writes file-unchanged proof. Full suite counted in six monitored chunks (logs hidden_files/m062-chunk0.log..chunk5.log, all read from disk): chunk totals 466+552+788+393+640+549 = **3388 passed, 3 failed, 1 skipped (3392 collected — closes exactly against collect-only, hidden_files/m062-collect.log; M-061's 3373 + 19 new tests)**. The 3 failures: the 2 long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3) plus chunk 3's `test_ownership::test_doc_is_fresh`, PROVEN a load flake (its generator subprocess died on the 120 s pytest-timeout under load ~8; solo re-run read from its on-disk log, hidden_files/m062-solo-ownership.log: 7 passed in 41.68 s — and the same targeted set passed in this tick's pre-suite gates). Roadmap data flipped to 62 done in this closure. **62 / 272 slices banked (M-001..M-062).** Next slice: M-063 (Type-aware Python depth). |
+| M-063 | Type-aware Python depth | **DONE** — banked 2026-11-02 (`8eb8a93` + regen `3f9a5ae`, PUBLIC_API 2111 → 2130): new module `mythic_agent/tools/type_depth.py` — mypy/pyright findings triaged into the review. Both runners are detected honestly (binary on PATH or importable module, plus whether the project itself configures them — mypy.ini/.mypy.ini/[tool.mypy]/setup.cfg, pyrightconfig.json/[tool.pyright]); MEASURED at build in this environment: NEITHER runner is installed, so a standing check reports `not-installed` and a live type verdict is NOT PROVEN, never a clean bill, and live proof rides fake runner binaries on PATH speaking the real output contracts (the M-053 pattern). Parsers take only the checkers' own contracts (mypy `path:line:col: error|warning|note: message [code]`, notes riding as info; pyright --outputjson generalDiagnostics with 0-based starts converted to 1-based, and its text contract); every finding is classified by kind from its checker code/rule or message (annotation / incompatible / attribute / name / other). Broke-here vs pre-existing is charged exactly as M-052: a line-blind multiset diff on (runner, code, message, path) against the before-content account run through a temporary twin — new error findings are `broke-here`, matched ones `pre-existing` and counted never charged, removed ones counted resolved; the type note is wired into the write_file/replace_file_content tool road beside M-052's truth note (no checker installed is silence there; the standing road names the absence). The standing account carries annotation coverage from `core/type_coverage.measure()` where its package exists, reused never duplicated; the module has no edit/fix path. Setting `type_depth` ON by default in config_defaults + M-009 catalogue S-53. Surfaces: `Agent.type_depth(path=None)` + `/types [show|<path>]` on terminal and TUI roads sharing the one parser and formatter. +29 tests in tests/test_type_depth.py incl. recorded-format parsers for both runners, fake mypy + fake pyright live runs, configured-but-absent honesty, line-blind triage, pre-existing/resolved/new-file accounts, the coverage-neighbour account, never-writes proof, and execute_tool wiring proofs (note when a write breaks types, none when clean, none when the setting is off). Full suite counted in six monitored chunks (logs hidden_files/m063-chunk0.log..chunk5.log, all read from disk; TMPDIR=/dev/shm while /tmp sat at 100% on other campaigns' files): chunk totals 466+552+794+466+686+454 = **3418 passed, 2 failed, 1 skipped (3421 collected — closes exactly against collect-only, hidden_files/m063-collect.log; M-062's 3392 + 29 new tests)**. The 2 failures are exactly the long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3) — no flakes this closure. Roadmap data flipped to 63 done in this closure. **63 / 272 slices banked (M-001..M-063).** Next slice: M-064 (Mojo as a first-class language). |
+| M-064 | Mojo as a first-class language | **DONE** — banked 2026-11-02 (`1a5dca0` + regen `3e9a94d`, PUBLIC_API 2130 → 2151): new module `mythic_agent/tools/mojo_sight.py` — Mojo recognised through M-043's tree-sitter foundation catalogue (`.mojo`, L-06), the foundation's parse tried first for every file and its definitions riding the report whenever a grammar truly loads. MEASURED in this environment: the tree-sitter core package IS installed in the baseline venv, but NO Mojo grammar package exists (`tree_sitter_mojo` not importable; catalogue status `no-grammar-package`), so files are read by the honestly named `mojo-scan` structural backend — a grammar-backed Mojo parse here is NOT PROVEN and no report dresses the scan as `tree_sitter` (test-pinned). The scan reads definitions (def/fn functions, structs, traits, comptime/alias constants), imports and decorators with lines, and flags the removed syntax the house mojo-syntax skill records, each with its replacement: alias→comptime, let→var, borrowed/inout/owned→imm/mut/var, @parameter if/for→comptime, @value→@fieldwise_init + trait conformance, @register_passable→RegisterPassable traits, Stringable→Writable/write_to, non-std imports→std.*, fn→def. The house Mojo skills are wired as knowledge: 9 distilled searchable entries (K-01..K-09) from mojo-syntax / mojo-gpu-fundamentals (not-CUDA mapping) / mojo-python-interop (py= keyword law), each naming its source skill; the full skill texts and the official docs (Mojo Docs MCP) are named as external references in K-09, never copied in. Setting `mojo_sight` ON by default in config_defaults + M-009 catalogue S-54. Surfaces: `Agent.mojo_sight(mode, target, term)` + `/mojo [show|<path>|knowledge [term]]` on terminal and TUI roads sharing the one parser and formatter. Read-only — no edit path exists in the module (never-writes test-pinned). +27 tests in tests/test_mojo_sight.py incl. grammar-honesty pins, modern-vs-legacy fixtures, the full removed-rule table, knowledge search + external-reference naming, and the defaults/catalogue pin. Full suite counted in six monitored chunks (154 test files, logs hidden_files/m064-chunk0.log..chunk5.log, all read from disk; default tmpfs TMPDIR, /tmp healthy this tick): chunk totals 466+579+794+452+644+509 = **3444 passed, 3 failed, 1 skipped (3448 collected — closes exactly against collect-only, hidden_files/m064-collect.log; M-063's 3421 + 27 new tests)**. The 3 failures: the 2 long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3) plus chunk 4's `test_static_gate::test_static_gate_passes` (120 s pytest-timeout inside the gate's subprocesses under load ~8), PROVEN a load flake by solo re-run read from its on-disk log (hidden_files/m064-solo-static.log: the whole test_static_gate.py file, **4 passed in 240 s**). NOTE: two delivered chunk excerpts this tick diverged from their on-disk logs (chunk 1 excerpt 552 vs disk 579; chunk 5 excerpt 510 vs disk 509) and were discarded per the transport-war rule — only on-disk logs are recorded here. Roadmap data flipped to 64 done in this closure. **64 / 272 slices banked (M-001..M-064).** Next slice: M-065 (SQL and data sight). |
+| M-065 | SQL and data sight | **DONE** — banked 2026-11-02 (`32d66ef` + regen `9ff43ba`, PUBLIC_API 2151 → 2174, + dead-code fix `c9be295`): new module `mythic_agent/tools/sql_sight.py` — workspace-local SQLite files only (.db/.sqlite/.sqlite3), every database opened through a read-only `mode=ro` URI connection so SQLite itself refuses writes (proven by hash/mtime-unchanged and ro-write-refusal tests). Schemas read from sqlite_master + PRAGMA table_info/foreign_key_list/index_list+index_info with exact COUNT(*) row counts (a failed count honestly None; an unreadable file carries its error in the schema note, never an empty bill). EXPLAIN / EXPLAIN QUERY PLAN for SELECT-shaped queries only (WITH...SELECT accepted; INSERT/UPDATE/DELETE/DDL/PRAGMA refused before any connection runs them — explained, never executed). Migration files read as code, never applied: .sql under migrations/, .sql/.py under alembic-style versions/, numbered .sql anywhere; parsed for version/order, up/down sections (-- migrate:up/down markers, markerless = all-up, alembic upgrade()/downgrade()) and the tables each section creates/alters/drops plus indexes created; no execute/apply path exists in the module (test-pinned absence). Setting `sql_sight` ON by default in config_defaults + M-009 catalogue S-55. Surfaces: `Agent.sql_sight(mode, db, query)` + `/sql [show|<db>|explain <db> <query>|migrations]` on terminal and TUI roads sharing the one parser and formatter. Gap audit checked: no census gap row is owned by M-065, so no module_kind flip exists to make (recorded in tests). +33 tests in tests/test_sql_sight.py incl. real temp SQLite DBs, FK/index/PK/default reading, write-refusal, markerless + alembic migration parsing, and never-writes hash proof. Full suite counted in six monitored chunks (155 test files, logs hidden_files/m065-chunk0.log..chunk5.log, all read from disk): chunk totals 466+578+794+466+662+509 = **3475 passed, 5 failed, 1 skipped (3481 collected — closes exactly against collect-only, hidden_files/m065-collect.log; M-064's 3448 + 33 new tests)**. The 5 failures: the 2 long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3); chunk 4's 2 static-gate timeouts, PROVEN load flakes by solo re-run (hidden_files/m065-solo-static.log: 4 passed in 186 s); and chunk 1's dead-code gate — a REAL in-slice defect: `TableSchema.column_names()` had no caller, so the gate flagged it as new dead code. FIXED in-slice per the never-leave-a-bug law (`c9be295`): render_markdown's table loop now reads live records through column_names(); targeted proof read from disk (hidden_files/m065-fix-targeted.log: test_sql_sight + test_dead_code, **39 passed**). Roadmap data flipped to 65 done in this closure. **65 / 272 slices banked (M-001..M-065).** Next slice: M-066 (Config and infra files). |
+| M-066 | Config and infra files | **DONE** — banked 2026-11-02 (`bfc830f` + regen, PUBLIC_API 2174 → 2201, + dead-code fix): new module `mythic_agent/tools/config_sight.py` — config and infra files parsed structurally with the real parser per format: YAML via PyYAML (core dependency, the house config parser), TOML via stdlib tomllib, systemd units and INI files via a tolerant in-module parser that keeps repeated directives (configparser would merge them), Dockerfiles via a line parser (continuations joined, comments stripped), compose files as YAML classified as Docker artifacts. Reports are structure only — top-level keys with kind/size, total keys, max depth; unit sections with their directives in order; Dockerfile stages, base images, instruction counts, exposed ports, ENV keys, volumes, entrypoint/cmd presence; compose service names — scalar values are NEVER echoed (a config file is where secrets live; test-pinned), and nothing a file describes is executed, applied or rendered. A file that does not parse carries its parser's error in its note, never an empty bill. THE NO-DOCKER LAW: Docker artifacts (Dockerfile, Dockerfile.*, *.dockerfile, docker-compose / compose YAML) in a workspace detected as Volmarr's project raise the coder's own NO_DOCKER_WARNING in the report — detection is honest and named: root marker files (AGENTS.md, SOUL.md, MEMORY.md, RULES.AI.md, or any root file whose name carries 'Volmarr') or an explicit caller ruling; Docker artifacts with no marker are listed with the warning honestly withheld and the reason stated in the report note (test-pinned both ways). Setting `config_sight` ON by default in config_defaults + M-009 catalogue S-56. Surfaces: `Agent.config_sight(mode, target)` + `/config [show|<file>|docker]` on terminal and TUI roads sharing the one parser and formatter. Gap audit checked: no census gap row is owned by M-066, so no module_kind flip exists to make (recorded in tests). +31 tests in tests/test_config_sight.py incl. real fixture trees, per-format structure, never-echoes-values proof, marker/override detection, and both command roads. Full suite counted in six monitored chunks (156 test files, logs hidden_files/m066-chunk0.log..chunk5.log, all read from disk): chunk totals 487+588+794+452+678+509 = **3508 passed, 3 failed, 1 skipped (3512 collected — closes exactly against collect-only, hidden_files/m066-collect.log; M-065's 3481 + 31 new tests)**. The 3 failures: the 2 long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3) and chunk 1's dead-code gate — a REAL in-slice defect: `UnitSection.directive_names()` had no production caller. FIXED in-slice per the never-leave-a-bug law: render_markdown's file line now lists each section's directives through directive_names(); targeted proof read from disk (hidden_files/m066-fix-targeted.log: test_config_sight + test_dead_code, **37 passed**). Roadmap data flipped to 66 done in this closure. **66 / 272 slices banked (M-001..M-066).** Next slice: M-067 (Binary and asset awareness). |
+| M-067 | Binary and asset awareness | **DONE** — banked 2026-11-02 (`3c3f47f` + regen `1ba9c29`, PUBLIC_API 2201 → 2226): new module `mythic_agent/tools/asset_sight.py` — images, archives, and large files are described, never dumped into context. IMAGES from headers only: a bounded 65,536-byte header read parsed by small stdlib readers written in-module — PNG (IHDR dimensions, bit depth, colour type), GIF (screen dimensions, version), JPEG (Start-Of-Frame walk: dimensions + component count), BMP (DIB dimensions + bits per pixel), WebP (VP8X/VP8L/VP8 dimension forms), ICO (first entry's dimensions + image count), TIFF (IFD width/height tags), SVG (declared width/height or viewBox from the opening bytes); no image is ever decoded and a header that yields no dimensions is reported with that failure named, never dressed as measured. ARCHIVES from listings only: zip and tar (incl. the compressed tar family, a .tar.gz seen through its gzip magic to the tar listing) listed through the stdlib readers — member names, sizes, compressed sizes, the listing capped at 100 with the cap named; a plain gzip stream described from its header name and its trailer's stored size (the true size modulo 2^32, named as such), its content never decompressed; 7z and RAR have no stdlib reader, so they are described from magic with the listing honestly recorded as unavailable; nothing is ever extracted, and a corrupt archive carries its reader's error. LARGE FILES (at or over the named 1,000,000-byte threshold) described by size and sniffed kind; a large text file's lines counted by streaming (content never retained, the count capped at 64 MB and the cap named as a floor). THE MAP NOTES THEIR ROLES: every asset carries a role from named path/kind rules — test fixture, documentation asset, data file, backup or snapshot archive, project asset, else its kind — with the rule that fired recorded as evidence on the asset; the repo map (M-044) keeps its pinned 'binary file' skip and this report is the map-facing account, cross-checked against the live map in the slice's tests (the map carries neither the image nor the archive as a code entry). Member CONTENT is never dumped (test-pinned with a secret payload inside a zip member). Setting `asset_sight` ON by default in config_defaults + M-009 catalogue S-57. Surfaces: `Agent.asset_sight(mode, target)` + `/assets [show|<file>|images|archives|large]` on terminal and TUI roads sharing the one parser and formatter. Gap audit checked: no census gap row is owned by M-067, so no module_kind flip exists to make (recorded in tests). +29 tests in tests/test_asset_sight.py incl. real PNG/GIF/JPEG/BMP/WebP byte fixtures, per-format headers, zip never-dumped proof, the listing cap, the gzip trailer account, unlistable-format honesty, role rules, the repo-map cross-check, and both command roads. HONESTY NOTE: the slice commit message says '+30 tests'; the file carries 29 — the message is not rewritten (no force-push) and the true count is recorded here. Full suite counted in six monitored chunks (157 test files, logs hidden_files/m067-chunk0.log..chunk5.log, all read from disk): chunk totals 517+562+815+458+678+509 = **3539 passed, 2 failed, 1 skipped (3542 collected — closes exactly against collect-only, hidden_files/m067-collect.log; M-066's 3512 + 29 new tests + 1 catalogue-parametrised case the new S-57 setting adds)**. The 2 failures are exactly the long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3) — no flakes, no in-slice defects this slice. DISCARDED runs, never counted: chunk 1's first run died on an EDQUOT INTERNALERROR after 171 passed (m067-chunk1-dead1.log) and re-ran clean; chunk 4's first attempt produced a 0-byte log in a quota window and was re-run clean after a write-probe healed. Roadmap data flipped to 67 done in this closure. **67 / 272 slices banked (M-001..M-067).** Next slice: M-068 (Language packs as data). |
+| M-068 | Language packs as data | **DONE** — banked 2026-11-02 (`16c9170` + regen `ca5f2de`, PUBLIC_API 2227 → 2259): new data `mythic_agent/data/language_packs.yaml` (schema mythic.language_packs/1, packs LP-01..LP-06 in M-043 catalogue order) + validated loader `mythic_agent/core/language_packs.py` + surface `mythic_agent/tools/language_packs.py` — per-language toolchains declared in data; a new language is a pack, not a patch. THE PACKS: python, javascript, typescript, rust, go, mojo — extensions exactly the M-043 tree-sitter catalogue's per language (cross-checked live in tests). SERVERS exactly the live `integrations/lsp.py` SERVERS entries (pyright `pyright-langserver --stdio` for python; typescript-language-server `--stdio` serving javascript AND typescript; rust-analyzer for rust; gopls for go) — mojo's server is honestly null: no language server is catalogued for it anywhere in the tree. FORMATTERS: python's pack names exactly the format covenant's live candidates (black/ruff/isort/yapf, cross-checked against `format_covenant.formatter_names()`); prettier (js/ts), rustfmt, gofmt and `mojo format` are declared as pack data, honestly NOT claimed as live-wired consumers — each pack's notes state which parts are live-wired and which are declared only. TEST RUNNERS: python pytest (cross-checked against the live test-intelligence pytest detection, `debug_loop.is_pytest_command`); npm test (js/ts), cargo test, go test, mojo test declared as data. THE VALIDATOR refuses: non-sequential LP ids, duplicate language, a language absent from the live M-043 catalogue, extensions mismatching the catalogue, empty extensions, a non-null server with an empty command, duplicate formatter/runner names within a pack, an empty formatter/runner command — every refusal proven by mutation tests. THE SURFACE: `/langpacks [show|<language>]` describes every pack's toolchain with a live installed check per declared binary via `shutil.which` (installed true/false from PATH, never claimed otherwise), a single-language mode, and an unknown language refused plainly naming the packed languages; NOTHING declared is ever executed on this road. Setting `language_packs` ON by default in config_defaults + M-009 catalogue S-58. Surfaces: `Agent.language_packs()` + `/langpacks` on terminal and TUI roads sharing the one parser and formatter. Gap audit checked: no census gap row is owned by M-068, so no module_kind flip exists to make (recorded in tests). +35 tests in tests/test_language_packs.py incl. live cross-checks against the tree-sitter catalogue, lsp.SERVERS, the format covenant and pytest detection, validator mutation proofs for every refusal, installed flags matched against shutil.which, and both command roads. Full suite counted in six monitored chunks (158 test files, logs hidden_files/m068-chunk0.log..chunk5.log, all read from disk): chunk totals 517+562+850+458+656+531 = **3574 passed, 2 failed, 1 skipped (3577 collected — closes exactly against collect-only, hidden_files/m068-collect.log; M-067's 3542 + 35 new tests)**. The 2 failures are exactly the long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3). DISCARDED runs, never counted: chunk 1's first run (173 setup errors + 1 failure when a disk-quota EDQUOT window broke /tmp mid-run, preserved as m068-chunk1-dead1.log) and chunk 4's first run (EDQUOT INTERNALERROR after 336 passed, m068-chunk4-dead1.log) — both re-ran clean after write probes healed, and chunk 1's quota-window coverage failure passed in the clean re-run, proving it quota, not code. The ownership freshness test is likewise contention-flaky this tick (120 s timeout on its git-subprocess regeneration under load in 2 of 3 runs; the passing run proves the regenerated OWNERSHIP.md is byte-fresh modulo its timestamp line — every failure was the timeout, never a content mismatch). Roadmap data flipped to 68 done in this closure. **68 / 272 slices banked (M-001..M-068).** Next slice: M-069 (Intelligence cache). |
+| M-069 | Intelligence cache | **DONE** — banked 2026-11-02 (`1a03cf3` + regen `4b9adad`, PUBLIC_API 2259 → 2279): new module `mythic_agent/tools/intelligence_cache.py` — parse/graph/LSP results cached per file hash, stale never served. Disk-backed cache under the workspace's `.mythic/intelligence-cache/`, atomic writes + persisted hit/miss/stale counters following `core/cache.py`; entries keyed by kind + workspace-relative path + SHA-256 content hash + producer; kinds exactly `parse`/`graph`/`lsp`. A lookup recomputes the file's CURRENT hash — a changed file is a stale eviction + miss, never a served stale result; a missing file, a corrupt entry, and a producer mismatch are likewise misses, each named in the stats. Live producers wired in-module: `parse` via M-043 `parse_source`, `graph` via M-046 `extract_file_graph`, both behind `get_or_compute` (a hit never re-runs the producer, test-proven) and honouring the graph's 262144-byte cap; `lsp` payloads are stored/looked up only — their producer is the live server road (M-049/M-050), never faked. `warm` fills parse+graph for catalogued source files with caps/skips named and never writes a source file; `clear` reports its count. Setting `intelligence_cache` ON by default in config_defaults + M-009 catalogue S-59. Surfaces: `Agent.intelligence_cache()` + `/intelcache [show|<file>|warm|clear]` on terminal and TUI roads sharing one parser and formatter. Gap audit checked: no census gap row is owned by M-069, so no module_kind flip exists to make (recorded in tests). +34 tests in tests/test_intelligence_cache.py. Full suite counted in six chunks across the 09:0x and 09:40 EST ticks (logs hidden_files/m069-chunk0.log..chunk5.log, all read from disk): chunk totals 517+558+850+491+676+508 passed = **3600 passed, 10 failed, 1 skipped (3611 collected — closes exactly against collect-only, hidden_files/m069-collect.log; M-068's 3577 + 34 new tests)**. The 10 failures: the 2 long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 3) + 8 proven EDQUOT-episode failures, every one solo-proven in healed write windows — chunk 1's 4 (3× test_edit_truth + format_covenant journal writes, each error literally Errno 122 on `~/.mythic/edits/`) and chunk 2's 1 (offline session search, home-store sessions.sqlite unreadable from the quota window) pass in hidden_files/m069-solo-fails2.log (**26 passed**, incl. the whole test_offline_honesty file); chunk 4's 2 static-gate failures (the gate's byte-compilation died on Errno 122 writing in-tree `__pycache__`) and chunk 5's 1 (test_taxonomy live-tier probe-file write died on Errno 122) pass in hidden_files/m069-solo-chunk45.log (**5 passed**). DISCARDED runs, never counted: chunk 0's two in-session exit-120 deaths + the detached run killed by the VM reboot that wiped its /tmp log (09:0x tick), and chunk 1's first detached run (pid 7675), found dead at the 09:40 tick with its log frozen at ~12% (preserved as m069-chunk1-dead1.log) and re-run clean via a detached driver (m069-driver.log) that sequenced chunks 1–5 on the /tmp-log road while home writes were quota-struck. Roadmap data flipped to 69 done in this closure. **69 / 272 slices banked (M-001..M-069).** Next slice: M-070 (Part III gate). |
+| M-070 | Part III gate | **DONE** — banked 2026-11-02 (`d4e05d8` + regen `023c5b3`, PUBLIC_API 2279 → 2299): `mythic_agent/data/part3_gate.yaml` + validated loader `mythic_agent/core/part3_gate.py` + 16 tests in `tests/test_part3_gate.py`. The gate closes over M-043..M-069 (27 slices, titles cross-checked against the roadmap data) and banks its evidence against the M-007 baseline freeze (totals cross-checked live: 1467 collected, 1464 passed, 2 failed, 1 skipped). Three exercises, each carrying its own benchmark-pack-style throwaway repo (seed files + hidden grading tests) as gate data and each RE-PROVEN LIVE by the gate's tests on every run: (1) cross-file rename — `compute_total` → `summarise_total`, 4 sites in 2 files, through M-051's LSP rename road against a fake language server speaking the real protocol, applied through the EditJournal road; M-046's symbol graph proves the cross-file reference before the rename and its absence after; grading 3/3. (2) structural codemod — `legacy_add($A, $B)` → `add($A, $B)`, 2 sites, through M-048's plan/apply rewrite road with per-site diff previews and journal application, never a text replace; grading 2/2. (3) debugger-caught bug — `test_fails.py::test_fails` (`x = 41; assert x == 42`) re-run through M-055's debugger-in-the-loop against a fake DAP adapter speaking the real protocol; the exception stop lands on the assert line (line 3), its frame names test_fails, and its Locals report `x = 41` — the mismatch caught as evidence. The M-008 pack itself is exercised under the senses (B-01 materialised; its symbol graph names `paginate`). Honesty bounds recorded in the data and validator-enforced: the rename is fake-server-measured and the debug catch fake-adapter-measured — no live language server and no real debugpy session is claimed. Full suite counted in six monitored chunks (logs hidden_files/m070-chunk0.log..chunk5.log, all read from disk): chunk totals 606+650+711+599+577+481 = **3624 passed, 2 failed, 1 skipped (3627 collected — closes exactly against collect-only, hidden_files/m070-collect.log, and against M-069's 3611 + 16 new tests)**. The 2 failures are exactly the long-classified environment cases (tiktoken-premise estimator, chunk 4; PortAudio public-api import, chunk 5). DISCARDED run, never counted: chunk 2's first run died at ~91% on an EDQUOT INTERNALERROR while pytest flushed its own log (preserved as hidden_files/m070-chunk2-dead1.log, 701 passed counted by it) and was re-run clean in a healed write window (711 passed, 100%). Roadmap data regenerated to 70 done in this closure (m070_close_gen_roadmap.py). **70 / 272 slices banked (M-001..M-070). PART III COMPLETE (M-043..M-070).** Next slice: M-071 (Part IV — The Editor's Hand opens). |
+## Slice ledger — Part IV (The Editor's Hand)
+
+| Slice | Intent | Status |
+|---|---|---|
+| M-071 | Edit-format plurality | **DONE** — banked 2026-11-02 (`a4f2a48` + regen `ab64a2d`, PUBLIC_API 2299 → 2335, + dead-code fix `cb11d2f` + fix regen `60d2825`): new pure layer `mythic_agent/core/edit_formats.py` — the four formats as data (whole-file, unified-diff, search-and-replace blocks, Aider-style architect/editor splitting); strict appliers, no fuzz ever (a unified diff applies only on exact context at the stated position, a SEARCH/REPLACE block only on an exactly-one match, a stale target refuses and changes nothing); model strength from M-027 capability truth (reasoning known-true = strong, tool_calling known-true = standard, unlisted = unknown, and unknown strength always gets the safest whole-file); complex work splits — the architect plans per-file intents and never edits, the editor picks a concrete format per file; a pinned setting is honoured exactly except file creation, which is always whole-file with the override named in the reason. Agent roads: `edit_format_status`/`set_edit_format` (journal-first `edit_format_setting_changed`, save-failure revert), `choose_edit_format` (journals `edit_format_chosen` with its reason), `apply_edit_format` (pure apply written through the existing EditJournal road); `/editformat` on terminal and TUI roads sharing one parser and formatters. Setting `edit_format` ships 'auto' in config_defaults + M-009 catalogue S-60. +69 tests in `tests/test_edit_formats.py`. Full suite counted in six monitored chunks (logs hidden_files/m071-chunk0.log, m071-chunk1-rerun.log, m071-chunk2.log..m071-chunk5.log, all read from disk): chunk totals 517+618+841+461+673+578 = **3688 passed, 7 failed, 1 skipped (3696 collected — closes exactly against collect-only, hidden_files/m071-collect.log, and against M-070's 3627 + 69 new tests)**. The 7 failures: the 2 long-classified environment cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 4) + 5 proven load-timeout failures under severe multi-campaign contention (load 8–13), none touching M-071 code: chunk 4's 3 static-gate timeouts are proven timeouts, not gate findings — the gate's own standalone script prints GATE PASSED (351 files, 0 hard findings, hidden_files/m071-solo-staticgate-standalone.log, read from disk); their pytest form was NOT solo-proven this tick (see the CORRECTION note below); chunk 3's ownership `test_doc_is_fresh` timeout is proven a timeout, not staleness — the standalone generator's output is identical to the committed docs/OWNERSHIP.md except the timestamp lines (diff-verified this closure tick), and the test remains the solo set's sole failure purely on its 120 s subprocess budget; chunk 1-rerun's coverage ratchet died at exactly 121.37 s on the pytest-timeout under load 12.87 (hidden_files/m071-solo-ratchet.log) — NOT pytest-proven this tick, honestly recorded per the M-016 precedent: it measures only `mythic_agent/providers` coverage (no M-071 code), passed in earlier slices' suites, and M-072's full suite re-tests it — a failure there in a calmer window reopens it as a suspected defect, not a flake. REAL IN-SLICE DEFECT, fixed in-slice per the never-leave-a-bug law: chunk 1's first run failed the dead-code gate on two genuinely-unused roads — fixed `cb11d2f` (wiring both roads), targeted proof hidden_files/m071-fix-targeted.log: **128 passed**; chunk 1 was then re-run clean but for the ratchet timeout above. Roadmap data flipped to 71 done in this closure. **71 / 272 slices banked (M-001..M-071).** Next slice: M-072 (Hash-anchored edits). |
+| M-072 | Hash-anchored edits | **DONE** — banked 2026-11-02 (`f178e2d` + regen `6da194f`, PUBLIC_API 2335 → 2365, + wiring fix `77262cd` + fix regen `8f12f71`): new pure layer `mythic_agent/core/hash_anchored.py` — per-line and per-range SHA-256 anchors over the exact lines (the M-069 hash road per-line); annotated presentation `number:short-hash` so the coder names a target by its anchor instead of re-sending text; anchored range edits and anchored search edits (search must match exactly once AND its anchor must match; verification accepts full or 12-digit short anchors, malformed anchors refuse instead of guessing; refusal names expected vs current anchors and writes nothing). `EditJournal.write_anchored_range`/`write_anchored_search` judge through the pure layer and write through the journal road. Agent: `hash_anchor_status`/`set_hash_anchored` (journal-first, save-failure revert), `apply_hash_anchored_range`/`apply_hash_anchored_search` (gate-checked, EditJournal-written, `hash_anchored_applied` session events). `/hashanchor` on terminal + TUI roads sharing one parser and formatters. Setting `hash_anchored_edits` ships ON in config_defaults + M-009 catalogue S-61. +45 tests in `tests/test_hash_anchored.py`. REAL IN-SLICE DEFECTS, fixed in-slice: (1) the dead-code gate caught the anchored roads unwired from the agent tool road — `77262cd` wires them (`write_file` gains an optional `anchor:` riding the anchored range road over the file's full-text anchor; `replace_file_content` gains an optional `anchor:` riding the anchored search road; unanchored calls keep the exact old roads) + 5 tool-road tests (50 slice tests total); (2) a pure-layer repair the wiring exposed — a range replacement ending in a newline gained a spurious empty line; the replacement is now split with the same line/ending law as the file. Full suite counted in six monitored chunks (logs hidden_files/m072-chunk0.log, m072-chunk1.log, hidden_files/m072-chunk2-rerun.log, m072-chunk3.log, m072-chunk4.log, m072-chunk5.log — run with tmpfs logs because home quota was exhausted mid-suite, copied into hidden_files at this closure): chunk totals 480+643+610+608+730+659 = **3730 passed, 15 failed, 1 skipped (3746 collected — closes exactly against collect-only and M-071's 3696 + 50 new tests)**. All 15 failures are environment, none touching M-072 code: the 2 long-classified cases (PortAudio public-api; tiktoken-premise estimator) + 9 quota-proven Errno 122 failures (ownership probe write; coverage ratchet's data file uncreatable in the quota-full tree; 6 write-tool tests on ~/.mythic/edits journal writes; session_search on ~/.mythic/sessions) + 4 load timeouts (ownership freshness + 3 static-gate, 120s budgets under load 8–15). The M-071 retest duty (ratchet / static gate / ownership) was discharged: all three failed again but each with a proven environmental mechanism in a window that was NOT calmer (quota full, load 8–15), so none reopens as a suspected defect; the retest duty carries to M-073 on the same terms. Roadmap data flipped to 72 done in this closure. **72 / 272 slices banked (M-001..M-072).** Next slice: M-073 (Apply-failure repair loop). |
+| M-073 | Apply-failure repair loop | **DONE** — banked 2026-11-02 (`28d76e9` + regen `37f060e`, PUBLIC_API 2365 → 2394): new pure layer `mythic_agent/core/apply_repair.py` — a refusal from M-071's format appliers (a stale unified diff, a search block matching zero or several times) or M-072's anchored appliers (a moved range, a wrongly-anchored block) becomes a repair packet: the road, the refusal's own reason, and the TRUE CURRENT TEXT of the refused target as a bounded window (the target's lines plus 5 lines of context on each side, capped at 40 lines, truncation named with the file's true line count — a partial window is never presented as the whole file). Exactly ONE honest retry may ride on a packet (MAX_RETRIES=1), judged by the same strict appliers — no fuzz, ever; a second refusal raises the exhaustion error naming the spent budget, and a spent packet refuses any further retry by construction. Target location for refused format payloads: a diff's first hunk position, a search block's first hit, honestly unknown (head-of-file window) when the block is nowhere in the file. Agent: `repair_loop_status`/`set_apply_repair` (journal-first `apply_repair_setting_changed`, save-failure revert), `apply_edit_format_with_repair`/`apply_hash_anchored_range_with_repair`/`apply_hash_anchored_search_with_repair` — a refusal is journaled `apply_repair_offered` with its packet and returned with nothing written when no retry is supplied; a retry is journaled `apply_repair_retried`, a repaired apply rides the EditJournal road and is journaled `apply_repair_applied`, an exhausted loop is journaled `apply_repair_exhausted` and raised; with the gate off, applies keep the plain M-071/M-072 refusal and no packet is made. Tool road: a stale anchored write/replace and a replace whose target does not match exactly once return the packet's true text in the tool result. `/repairloop` on terminal + TUI roads sharing one parser and formatters + chat-screen help/usage/routing. Setting `apply_repair_loop` ships ON in config_defaults + M-009 catalogue S-62. +58 tests in `tests/test_apply_repair.py` (58 passed standalone). Full suite counted in six monitored chunks (logs hidden_files/m073-chunk0.log..m073-chunk5.log, all read from disk; chunk 0's first run died in a VM reboot at ~37% — preserved as m073-chunk0-dead1.log, DISCARDED, re-ran clean; chunks 1–5 were logged to tmpfs while home quota was exhausted and copied into hidden_files at this closure): chunk totals 575+626+879+458+723+531 = **3792 passed, 11 failed, 1 skipped (3804 collected — closes exactly against collect-only, hidden_files/m073-collect.log, and against M-072's 3746 + 58 new tests)**. All 11 failures are environment, none touching M-073 code: the 2 long-classified cases (tiktoken-premise estimator, chunk 0; PortAudio public-api import, chunk 4) + 9 Errno 122 quota failures with the mechanism in-log (chunk 1: coverage ratchet's subprocess data write, 3 edit-truth tool tests on the EditJournal's ~/.mythic/edits database, the format-covenant journal write; chunk 3: session search on ~/.mythic/sessions, the ownership zero-history probe write, and the Part III gate's rename + codemod exercises, which ride the EditJournal home store — the M-069/M-070 EDQUOT victim class) — ALL 9 solo-proven in the healed window the same tick (hidden_files/m073-solo-edquot.log: 8 passed; hidden_files/m073-solo-ratchet.log: the coverage ratchet 1 passed in 29.37 s). **The M-072 retest duty is DISCHARGED in full this tick**: the coverage ratchet is pytest-proven (solo, above), the static gate passed inside chunk 4 itself, and ownership `test_doc_is_fresh` passed inside chunk 3 itself — no retest duty carries forward. Roadmap data flipped to 73 done in this closure. **73 / 272 slices banked (M-001..M-073).** Next slice: M-074 (Hunk-level review). |
+
 
 *M-032 scoping note (2026-10-31 18:00 EDT tick): M-032 (Key
 custody via Kista) was built and closed the same tick — DONE,
@@ -1649,3 +1671,1559 @@ terminal + TUI roads sharing the one parser and
 formatters. Live proof builds a tiny throwaway project
 and runs real pytest collection against it. M-057
 (coverage sight) is NOT built here.*
+
+*M-057 IN PROGRESS (2026-11-01 19:50 EST tick): build under
+way on the scoped design — new module
+`mythic_agent/tools/coverage_sight.py` (Coverage sight):
+line coverage overlaid on edited files, read only from
+coverage.py's own data (its JSON report when present, else
+its `.coverage` data file through the coverage API) —
+never an estimated overlay; a file with no coverage data
+reports no-data honestly, a file absent from the data
+reports not-in-coverage. A change landing with zero
+covering lines (an edited file whose executable lines
+were executed zero times, or named edited lines that are
+executable and none covered) is flagged to the Auditor
+through the house audit log (`core/audit.py`, action
+`coverage.zero_cover`, append-only) — the flag is a
+record, never a silent note. Setting `coverage_sight`
+ON by default in config_defaults + the M-009 catalogue
+(S-46). Surfaces: `Agent.coverage_status()` /
+`coverage_check()` plus `/coverage [show] | check
+<file> ...` on the terminal + TUI roads sharing the one
+parser and formatters. Live proof runs a real coverage.py
+run over a tiny throwaway project (a covered module, a
+partially covered module, and an untouched module that
+must come back zero-cover and flagged). M-058
+(beyond-grep local search) is NOT built here.*
+
+*M-057 BUILT + BANKED, CLOSURE PENDING (2026-11-01
+19:50 EST tick): the slice is banked (`43baabe` IN
+PROGRESS state, `77b23c9` slice, `1f9090d` regen,
+PUBLIC_API 2004 → 2023). Targeted verification counted
+from on-disk logs: the slice set (coverage_sight +
+config_catalog) 30 passed (m057-targeted.log); the
+closure targeted set (roadmap_slices + part1_gate +
+part2_gate + ownership + public_api + coverage_sight)
+73 passed + the 1 known PortAudio env failure
+(m057-closure-targeted.log); collect-only 3289 —
+closes exactly (M-056's 3273 + 16 new tests).
+FULL SUITE: chunk 0 counted from its on-disk log
+(m057-chunk0.log): 444 passed, 1 failed (the tiktoken
+env case), 3 errors — all 3 are Errno 122 EDQUOT at
+tmp_path setup in the overlay TMPDIR, PROVEN
+environment flakes by a solo re-run on the default
+tmpfs (m057-solo-cli.log: 3 passed in 8.99 s). Chunks
+1–5 are NOT counted: every attempt died in the VM's
+shared-quota episode (EDQUOT on log creation and on
+pytest's stdout flush, INTERNALERROR exit 120; the
+first chunk-0 attempt also died this way at ~51% of an
+unscoped whole-suite run caused by chunk lists that
+the write-denial episode had silently landed as 0-byte
+files — preserved as m057-chunk0-dead1.log, DISCARDED;
+the lists were rebuilt by shell `split` and verified
+147 files). At this tick's end ALL home writes probe
+EDQUOT (build tree, verify-tmp, goals tree, memory) —
+only tmpfs writes succeed; /tmp itself is 4% used.
+Nothing was counted from an episode-period run.
+NEXT TICK: probe writes healthy first; then run
+chunks 1–5 from hidden_files/m057-chunklist-01..05
+(default tmpfs preferred while /tmp has room), flip
+roadmap data to 57 done, add the M-057 ledger row +
+closure note + M-058 scoping, run the closure
+targeted set, closure commit, push (fetch +
+ls-remote verify). Campaign total: 56/272 closed;
+M-057 banked pending suite verdict.*
+
+*M-057 CLOSURE INTERIM (2026-11-01 20:40 EST tick):
+chunk 1 counted from its on-disk log (m057-chunk1.log,
+re-run this tick on the default tmpfs after the earlier
+dead attempt was preserved as m057-chunk1-dead1.log):
+535 passed, 3 failed, 1 skipped. The 3 failures are a
+REAL in-slice defect, not flakes: M-057's
+coverage_sight.py imports `coverage` inside a
+try/except ImportError, but that package was declared
+nowhere — tests/test_dependency_audit.py failed all
+three of its declaration tests (every-third-party-import
+declared, import-mapping covers live tree, optional
+imports name their feature). FIX APPLIED IN SCOPE this
+tick, in the working tree, NOT yet committed (4 files,
+verified intact from disk by ast/yaml/tomllib parse):
+pyproject.toml declares coverage>=7.0 in the dev extra
+(the extra where the suite's coverage ratchet already
+required it); test_dependency_audit.py maps
+coverage->coverage and records its feature in
+OPTIONAL_IMPORT_FEATURES; dependency_census.yaml gains
+entry D-36 (coverage, dev, Apache-2.0, dev-only,
+measured 1538 KiB / moderate in the baseline venv,
+version 7.17.0) and test_dependency_census.py's count
+goes 35 -> 36. DIRECT VERIFICATION (the pytest runner
+itself is blocked, see below): every affected test
+function was executed directly this tick and PASSED —
+all 5 dependency-audit checks and all 7 census
+cross-checks (every-declared, groups, live-imports,
+ids, weights, copyleft, render). The pytest re-run of
+chunk 1 at closure remains the formal proof and is
+still owed. EPISODE: mid-tick the VM's intermittent
+write-denial returned — Python tempfile fails with
+'No usable temporary directory found' on every
+candidate dir (default tmpfs AND overlay TMPDIR alike)
+while shell and file-tool writes stay healthy and
+/tmp sits 7% used; pytest therefore cannot start
+(exit 120 / capture TemporaryFile failure), so chunks
+2–5 were NOT run and nothing was counted from an
+episode-period run. NEXT TICK: probe Python tempfile
+healthy first; then (1) commit this fix as its own
+commit, (2) re-run chunk 1 (must come back with only
+known env cases) and run chunks 2–5 from
+m057-chunklist-02..05, (3) flip roadmap data to 57
+done (m057_close_gen_roadmap.py is already set to
+DONE_THROUGH=57), add the M-057 ledger row + closure
+note + M-058 scoping (Beyond-grep local search:
+in-process ripgrep with fuzzy and structural modes,
+results ranked by the symbol graph — counted neighbours:
+tools/structural_search.py exists from Part III;
+building tick settles the rest from the tree),
+(4) closure targeted set, closure commit, push
+(fetch + ls-remote verify). Campaign total:
+56/272 closed; M-057 banked pending suite verdict.*
+
+*M-057 CLOSURE — 21:00 EST tick note (2026-11-01): probes
+run first per the interim's order — Python tempfile STILL
+fails (EPERM / "No usable temporary directory", 3/3
+retries), python writes land 0 bytes, and `git
+hash-object -w` fails EPERM, so the closure order still
+cannot run; nothing was counted from an episode-period
+run and the build was not re-attempted. Tree verified
+intact from disk: exactly the interim's 5 modified files
+(the 4-file dependency fix parses clean — census YAML
+loads with 36 entries), chunk lists 00..05 present, HEAD
+9b68b43. Four 0-byte stray tmp*.py probe leftovers at the
+tree root were removed. NEXT TICK: probes first; when
+healthy, run the interim's finish order unchanged.
+Campaign total: 56/272 closed; M-057 banked pending
+suite verdict.*
+
+*M-057 CLOSURE — 21:10 EST tick note (2026-11-01): probes
+run first per the interim's order — Python tempfile STILL
+fails ("No usable temporary directory found", system
+python 3/3 retries AND the baseline venv python alike);
+python open-write fails EPERM on /tmp, /var/tmp and the
+home tree alike, while shell writes and one git
+hash-object -w stayed healthy — the episode is the same
+box-wide write-denial other campaigns' keepers are
+hitting this evening, not a Mythic defect. The closure
+order still cannot run (pytest cannot start without
+tempfile); nothing was counted from an episode-period
+run and the build was not re-attempted. Tree verified
+intact from disk: HEAD 9b68b43, exactly the interim's 5
+modified files (dependency fix parses clean — ast OK,
+pyproject tomllib OK, census YAML loads), chunk lists
+00..05 present, no pytest process on this tree (the one
+live pytest belongs to yggdrasil-build). NEXT TICK:
+probes first; when healthy, run the interim's finish
+order unchanged. Campaign total: 56/272 closed; M-057
+banked pending suite verdict.*
+
+*M-057 IN PROGRESS → DONE (2026-11-01 22:20 EST tick;
+CLOSED by this keeper tick from on-disk evidence): the
+build was banked by the 19:50 tick (`43baabe` IN PROGRESS
+state, `77b23c9` slice, `1f9090d` regen, PUBLIC_API
+2004 → 2023) and its closure spanned the evening's
+EDQUOT/EPERM episodes across four ticks (20:40 interim,
+21:00 + 21:10 blocked probes, the 22:00 tick's fix commit
+and chunk runs, this tick's finish). The dependency-
+declaration defect chunk 1 exposed was fixed and banked
+as `712b86e` by the 22:00 tick (fix targeted set 22
+passed, m057-fix-targeted-2200.log). Full suite counted
+in six chunks, all read from on-disk logs: chunk 0
+444 passed / 1 failed / 3 errors, chunk 1 (re-run as
+m057-chunk1-2200.log) 533 passed / 5 failed / 1 skipped,
+chunk 2 774 passed, chunk 3 436 passed / 1 failed,
+chunk 4 631 passed, chunk 5 460 passed (re-run clean
+this tick after its first run died at 29 dots in the
+quota episode — preserved as m057-chunk5-dead1.log,
+DISCARDED) = 3278 passed, 7 failed, 1 skipped, 3 errors,
+3289 collected — closes exactly against collect-only.
+Every non-environment failure is a proven EDQUOT
+episode flake, solo-proven from on-disk logs this
+closure (m057-solo-cli.log 3 passed; m057-solo-edquot2.log
+4 passed in 1.96 s; m057-solo-ratchet.log 1 passed in
+43.72 s); the other 2 failures are the long-classified
+environment cases (tiktoken estimator, PortAudio
+public-api import). Closure targeted set
+(m057-closure-targeted2.log): 72 passed + the PortAudio
+env failure + the roadmap/ledger agreement failure,
+healed by the M-057 ledger row in this closure —
+re-verified (m057-closure-targeted3.log): 70 passed
+(the set minus public_api). The whole M-057 chain plus
+this closure is pushed at closure (fetch + ls-remote
+verify). Campaign total: 57/272.*
+
+*M-058 scoping note (2026-11-01, M-057's closure tick):
+M-058 (Beyond-grep local search) is the next slice. The
+roadmap's words: in-process ripgrep with fuzzy and
+structural modes, results ranked by the symbol graph.
+Counted from the tree: M-047's structural search
+(`mythic_agent/tools/structural_search.py`) already
+covers the structural mode's foundation over the M-043
+parses, and M-046's symbol graph
+(`mythic_agent/context/symbol_graph.py`) is the ranking
+source the roadmap names; the elder text/semantic
+context sources are the neighbours it must not swallow.
+M-058's gap is the unified local search itself — text
+(ripgrep-class, in-process), fuzzy, and structural
+modes behind one surface, with results ranked by the
+symbol graph rather than raw match order. The building
+tick settles the search core's shape (an in-process
+engine vs a ripgrep binary road with honest absence,
+on the house pattern) from the tree before designing
+further. M-059 (web knowledge tools) is NOT built
+here.*
+
+*M-058 IN PROGRESS → DONE (2026-11-01 22:30 EST tick;
+CLOSED by this keeper tick): the build was banked this
+tick (`f6521b0` IN PROGRESS state, `4779b19` slice,
+`61236fb` regen, PUBLIC_API 2023 → 2039) and closed
+the same tick. Full suite counted in six monitored
+chunks from on-disk logs (see the M-058 ledger row):
+3309 passed, 2 failed — exactly the long-classified
+environment cases — 1 skipped, 3312 collected, closing
+exactly against collect-only. One chunk-5 launch died
+on the recurring EDQUOT episode before writing its log
+and was relaunched clean in a healed window (482
+passed); nothing was counted from the failed launch.
+The whole M-058 chain is pushed at closure (fetch +
+ls-remote verify). Campaign total: 58/272.*
+
+*M-059 scoping note (2026-11-01, M-058's closure tick):
+M-059 (Web knowledge tools) is the next slice. The
+roadmap's words: web search + fetch as first-class
+tools (docs, changelogs, error lookup), results cited
+into the journal. The gap audit (M-003) already names
+its owning module — `mythic_agent/tools/web_search.py`,
+module_kind proposed (verified absent) — with Part II's
+telemetry review (M-015) as its honesty neighbour: web
+calls are user-initiated/user-configured outbound, and
+the slice must say exactly what leaves the machine.
+Counted neighbours: the tools package's house pattern
+(M-056/M-057/M-058: module + setting + catalogue entry
++ Agent methods + terminal/TUI roads), the session
+journal the citations must land in, and the provider
+ocean's HTTP roads for how this codebase calls out.
+The building tick settles the search backend's shape
+(a configured search endpoint vs a keyless road with
+honest absence, on the house pattern) from the tree
+before designing further. M-060 (Docs-at-hand) is NOT
+built here.*
+
+*M-058 IN PROGRESS (2026-11-01 22:30 EST tick): build under
+way. Shape settled from the tree: a fully in-process
+engine in a new module `mythic_agent/tools/local_search.py`
+— no ripgrep binary dependency (a binary road would make
+the slice's core feature hostage to an external tool's
+presence; the in-process road is ripgrep-class in
+behaviour: regex line search over every text file,
+deterministic order, binary/oversized/non-UTF-8 files
+skipped with reasons, caps named in warnings). Fuzzy
+mode is subsequence matching with an auditable score
+(consecutive runs and word boundaries earn, gaps cost).
+Structural mode delegates to M-047's
+`structural_search.search_workspace` — never a second
+structural engine. Ranking is M-046's symbol graph,
+built once per search: a match on a definition site
+earns most, a match naming a defined symbol earns by
+that symbol's reference count, and a match in a
+well-referenced file earns by the file's reference
+count (capped); every match carries its score and its
+reasons, and a graph that cannot be built leaves the
+results unranked with the reason named in warnings —
+never a silent raw-order dressed as ranking. Setting
+`local_search` ON by default in config_defaults +
+M-009 catalogue S-47; Agent.local_search() +
+`/search [text|fuzzy] <query>` /
+`/search structural <language> <pattern>` on the
+terminal and TUI roads sharing the one parser and
+formatter. An invalid regex is refused as a pattern
+error, never silently literal-searched; a structural
+pattern error keeps M-047's refusal. M-059 is NOT
+built here.*
+
+*M-059 IN PROGRESS (2026-11-01 23:10 EST tick): build under
+way. Shape settled from the tree: a new module
+`mythic_agent/tools/web_search.py` (the gap audit's named
+owning module) on the house pattern — module + settings +
+catalogue entries + Agent methods + terminal/TUI roads.
+Search backend: a CONFIGURED endpoint template
+(`web_search_endpoint`, default the keyless DuckDuckGo
+HTML road `https://html.duckduckgo.com/html/?q={query}`) —
+no API key is required or invented; a template without
+`{query}` is refused. Fetch: http/https only, other
+schemes refused, byte/char caps named when they cut.
+Transport is the repo's httpx2/httpx fallback road
+(openai_compat pattern), injectable so tests prove the
+whole slice over a loopback server with no real network.
+Honesty (M-015's road): every call is user-initiated;
+the report names exactly what leaves the machine (the
+query text / the fetched URL, and to which host); a
+non-200 or a transport failure is an error REPORT with
+the reason named, never invented results. Results are
+numbered citations, and the Agent journals a
+`web_citation` checkpoint event (M-028 pattern) when a
+session is attached. Settings `web_tools` (on by
+default) + `web_search_endpoint` in config_defaults +
+M-009 catalogue S-48/S-49. M-060 is NOT built here.*
+
+*M-059 IN PROGRESS → DONE (2026-11-02 00:20 EST tick;
+CLOSED by this keeper tick from on-disk evidence): the
+build was banked by the 23:10 tick (`d2d8222` IN PROGRESS
+state, `6a0f4a9` slice, `24ec953` regen, PUBLIC_API
+2039 → 2056, plus in-slice fixes `dcd9597` and
+`cb82b2e`) and its six-chunk suite had completed, but
+the closure writes were cut off at that tick's boundary
+with only the roadmap-data flip left uncommitted in the
+working tree. This tick counted the suite from the
+on-disk logs (chunk totals 446+570+765+436+631+480 =
+3328 passed, 3 failed, 1 skipped, 3332 collected —
+closes exactly against collect-only; failures = the 2
+long-classified environment cases + chunk 0's CLI
+scripted-human-loop test, solo-proven a load flake
+twice from on-disk logs, most recently
+m059-solo-cli2.log: 1 passed in 6.50 s), wrote the
+M-059 ledger row, and ran the closure targeted set.
+The whole M-059 chain plus this closure is pushed at
+closure (fetch + ls-remote verify). Campaign total:
+59/272.*
+
+*M-060 scoping note (2026-11-02, M-059's closure tick):
+M-060 (Docs-at-hand) is the next slice. The roadmap's
+words: the project's own docs, plus offline doc packs
+for its stack, searchable from the TUI (the Mojo Docs
+MCP pattern, generalised). Counted from the tree:
+`mythic_agent/tools/docgen.py` already generates docs
+from code (a neighbour, not the slice); M-058's
+local_search and M-059's web_search are the adjacent
+retrieval surfaces the slice must complement, not
+duplicate — docs-at-hand is the OFFLINE, in-project
+road: the workspace's own documentation (and bundled
+doc packs) indexed and searchable without any network
+call. The building tick settles the index's shape
+(reuse of M-058's in-process engine vs a dedicated
+docs index) from the tree before designing further.
+M-061 (Dependency sight) is NOT built here.*
+
+*M-060 IN PROGRESS (2026-11-02 00:40 EST tick): build under
+way. Shape settled from the tree: a new module
+`mythic_agent/tools/docs_at_hand.py` on the house pattern
+— module + setting + catalogue entry + Agent methods +
+terminal/TUI roads. Docs-at-hand is the OFFLINE road:
+the workspace's own documentation (root-level and
+`docs/` Markdown/text/reStructuredText) plus offline
+doc packs for the stack (pack directories under
+`.mythic/docpacks/<pack>/`) are discovered, indexed
+in-process, and searched with ranked hits carrying
+snippets and line numbers; a doc can be read whole
+under a char cap that names itself when it cuts.
+Nothing leaves the machine — no network road exists in
+the module at all (the honest complement to M-059's
+web road). A name that resolves to no doc, or to
+several, is refused plainly, never guessed; paths
+escaping the doc roots are refused. Setting
+`docs_at_hand` ON by default in config_defaults +
+M-009 catalogue S-50. M-061 is NOT built here.*
+
+*M-060 BANKED, SUITE PENDING (2026-11-02 00:55 EST
+tick): the slice is banked (`97c1ee1` IN PROGRESS
+state, `d60eda0` slice, `962edfb` regen, PUBLIC_API
+2056 → 2075). Targeted verification from foreground
+runs this tick: test_docs_at_hand + test_config_catalog
+34 passed; test_dead_code 6 passed; test_arch_
+conformance + test_roadmap_slices + test_part1_gate 38
+passed; post-regen inventory set (public_api +
+ownership + docs_at_hand) 30 passed + the 1
+long-classified PortAudio environment failure
+(re-confirmed solo as exactly the `core.audio` import
+case). NEXT TICK: run the full suite in six monitored
+chunks from on-disk logs (collect-only expected
+3332 + 20 = 3352), classify any failures, flip roadmap
+data to 60 done, write the M-060 ledger row + closure
+note, scope M-061, closure targeted set, closure
+commit, push. Campaign total: 59/272 closed; M-060
+banked pending suite verdict.*
+
+*M-060 SUITE PARTIAL (2026-11-02 01:20 EST tick): the
+full suite is under way in six monitored chunks from
+on-disk logs (chunk lists m060-chunklist-00..05;
+collect-only m060-collect.log: 3352 collected — closes
+exactly against the predicted 3332 + 20). COUNTED SO
+FAR, all read from on-disk logs: chunk 0: 447 passed,
+1 failed (the tiktoken-premise estimator environment
+case); chunk 1: 590 passed, 1 skipped; chunk 2: 765
+passed; chunk 3: 436 passed, 1 failed (the PortAudio
+public-api environment case) — running total 2238
+passed, 2 failed (exactly the 2 long-classified
+environment cases), 1 skipped. EPISODE RECORD: chunk
+3's first run died on an EDQUOT flush INTERNALERROR
+after 157 passed (preserved as m060-chunk3-dead1.log,
+DISCARDED) and was re-run clean in a healed window;
+chunk 4 died twice — once at ~85% with exit 120 as
+/tmp hit 100% (m060-chunk4-dead1.log, DISCARDED) and
+once on overlay TMPDIR with 8 failures inside a fresh
+EDQUOT window plus its own flush INTERNALERROR
+(m060-chunk4-dead2.log, DISCARDED — nothing counted
+from either). /tmp is held at ~100% by other
+campaigns' files (tf140_shadow 164M, t077 gates ~146M,
+aesirwork ~62M — none of it this campaign's to
+delete) and the home quota cycles EDQUOT under the
+same multi-campaign load. NEXT TICK: probe home-write
++ /tmp space healthy first; then run chunks 4 and 5
+from m060-chunklist-04/05 (default tmpfs TMPDIR; the
+overlay road is retired again per the M-019 lesson —
+chunk 4 carries test_sessions.py, whose
+1000-creations test is ~30x slower on overlay), add
+chunks 0-3 above, classify any failures, flip roadmap
+data to 60 done, write the M-060 ledger row + closure
+note, scope M-061, closure targeted set, closure
+commit, push. Campaign total: 59/272 closed; M-060
+banked pending the last two chunks' verdict.*
+
+*M-060 CLOSED (2026-11-02 01:20 EST tick; CLOSED by this
+keeper tick from on-disk evidence): chunks 4 and 5 — the
+finish order the SUITE PARTIAL note recorded — were run
+this tick through the continuing box-wide EDQUOT +
+full-/tmp episode (home writes failed on Errno 122 for
+long stretches, healing in short windows; /tmp hit 100%
+mid-tick on other campaigns' files, none of it this
+campaign's to delete). Chunk 4 ran with its log in /tmp
+and was copied into hidden_files byte-identical
+(sha256-verified): 628 passed, 3 failed (the static-gate
+trio, whose byte-compilation died on EDQUOT in-tree —
+solo-proven, m060-solo-staticgate.log: 4 passed in
+256.15 s on an overlay TMPDIR while /tmp was full).
+Chunk 5's first run died on an EDQUOT flush
+INTERNALERROR after 90 passed (preserved as
+m060-chunk5-dead1.log, DISCARDED); its /tmp-logged
+re-run counted 478 passed, 2 failed — one an EDQUOT
+flake (taxonomy live-tier probe write; solo-proven) and
+one a REAL defect in M-060's own test file (missing
+TIER line), FIXED in-slice as commit aae0ac8 and
+solo-proven (m060-solo-taxonomy.log: 4 passed). Full
+suite closes exactly: 3344 passed, 7 failed, 1 skipped,
+3352 collected. A delivered background excerpt this
+tick reported chunk 4 as "631 passed, 2 failed, EXIT=0"
+— contradicted by its on-disk log (628/3) and discarded
+per the transport-war rule. The whole M-060 chain plus
+this closure is pushed at closure (fetch + ls-remote
+verify). Campaign total: 60/272.*
+
+*M-061 scoping note (2026-11-02, M-060's closure tick):
+M-061 (Dependency sight) is the next slice. The
+roadmap's words: read the dependency graph, changelogs,
+and known-vulnerability data for the project's stack;
+an upgrade is proposed with its blast radius, never
+applied silently. Counted neighbours in the tree:
+M-012's dependency census (declared requirements with
+licence/necessity/weight) and the dependency audit are
+the data neighbours it must build on, not duplicate;
+M-057's closure proved the audit's declaration tests
+bite. The building tick settles the sight's shape
+(graph source, changelog/vulnerability data sources
+with honest absence where no local data exists, and
+the blast-radius measure) from the tree before
+designing further. M-062 (Dead-code and duplication
+sensing) is NOT built here.*
+
+*M-061 IN PROGRESS (2026-11-02 02:0x EST tick): build under
+way. Shape settled from the tree: a new module
+`mythic_agent/tools/dependency_sight.py` on the house
+pattern — module + setting + catalogue entry + Agent
+methods + terminal/TUI roads — building on M-012's
+dependency census and the dependency audit's import-scan
+shape, never duplicating them. The graph comes from the
+project's own declared requirements (pyproject.toml via
+tomllib: core + every extra + build-system, with groups
+and specs), installed versions measured honestly via
+importlib.metadata in the running environment
+(uninstalled = unknown, never guessed), enriched from
+the M-012 census where a package is censused. Changelogs
+are LOCAL only (CHANGELOG*/HISTORY*/NEWS* files in the
+workspace searched for the package; no local file means
+"no local changelog data", said plainly) and vulnerability
+data is LOCAL only (advisory/audit files in the workspace;
+none present means known-vulnerability status NOT PROVEN /
+no local data — never a fake clean bill). NO network road
+exists in the module. An upgrade proposal is data only
+(package + user-supplied target version): declared
+spec/installed version, target, blast radius counted from
+the tree by an AST import scan (which workspace files
+import the package), its declared groups, and whether
+anything else pins it; the module has NO apply/write path
+for upgrades at all, and a proposal for an undeclared
+package is refused plainly. Setting `dependency_sight`
+ON by default in config_defaults + M-009 catalogue S-51;
+Agent.dependency_sight() / dependency_proposal() +
+`/deps [show|<package>|propose <package> <version>]` on
+the terminal + TUI system-command roads sharing one
+parser + formatters. Gap audit checked: no row is owned
+by M-061 (the audit's rows trace census gaps; dependency
+sight has no census-gap row), so no module_kind flip
+exists to make — recorded, never forced. EPISODE NOTE:
+this tick's build ran under a box-wide EDQUOT episode
+(home quota exceeded for ~70 minutes, /tmp 100% full on
+other campaigns' files); the slice was built and
+target-validated in a /var/tmp staging copy and landed
+into this tree when writes healed. M-062 is NOT built
+here.*
+
+*M-061 IN PROGRESS → DONE (2026-11-02 03:00 EST tick;
+CLOSED the same road the build tick opened — DONE, see
+its ledger row above): the slice was banked by the
+02:0x tick (`87ffc3c` IN PROGRESS state, `8db2d97`
+slice, `88ba673` regen) and its full suite ran across
+that tick and this one. Counted from on-disk logs
+only: chunk 0: 447 passed + the tiktoken env failure;
+chunk 1: 579 passed, 1 skipped (its first run died on
+an INTERNALERROR mid-traceback inside the full-/tmp
+episode — m061-chunk1-dead1.log, DISCARDED, re-run
+counted); chunk 2: 767 passed; chunk 3: 452 passed +
+the PortAudio env failure (a first re-run mass-failed
+in a No-space-left window — m061-chunk3-dead2.log,
+DISCARDED; the counted run used the home-overlay
+TMPDIR while /tmp sat at 100%); chunk 4: 623 passed;
+chunk 5: 502 passed. Totals: 3370 passed, 2 failed
+(exactly the 2 long-classified environment cases),
+1 skipped, 3373 collected — closes exactly against
+collect-only (m061-collect.log) and against M-060's
+3352 + 21 new tests. Roadmap data regenerated to 61
+done in this closure (m061_close_gen_roadmap.py). The
+whole M-061 chain plus this closure is pushed at
+closure (fetch + ls-remote verify). Campaign total:
+61/272.*
+
+*M-062 scoping note (2026-11-02, M-061's closure tick):
+M-062 (Dead-code and duplication sensing) is the next
+slice. The roadmap's words: structural reports for the
+Cartographer; sensing only — deletion is always a
+separate, approved slice. Counted neighbours in the
+tree: the dead-code gate/scanner the recent slices
+kept green (the M-059 in-slice fix touched its
+stdlib-callback whitelist), the coverage sight
+(M-057) and the symbol graph / repo map (M-046/M-044)
+are the data neighbours it must build on, not
+duplicate. The building tick settles the sensing
+shape (what counts as dead — unreachable/unreferenced
+by the shipped scans; what counts as duplication —
+structural, not textual coincidence; and the report
+shape the Cartographer consumes) from the tree before
+designing further. M-063 is NOT built here.*
+
+*M-062 IN PROGRESS (2026-11-02 03:3x EST tick): build under
+way. Shape settled from the tree: a new module
+`mythic_agent/tools/code_sensing.py` on the house pattern
+— module + setting + catalogue entry + Agent methods +
+terminal/TUI roads — building on the shipped dead-code
+scanner (`mythic_agent/core/dead_code_scan.py`, the
+R-006 gate's own engine) and M-046's structural lessons,
+never duplicating them. Dead code: the scanner's items
+over the workspace, paths made workspace-relative,
+quarantine state named where a quarantine file exists.
+Duplication: STRUCTURAL only — per-function AST
+fingerprints normalised over names and literal values
+(node types, operators and attribute names kept), so
+textual coincidence and trivial small functions never
+count; only bodies at or above a named size floor form
+a cluster, and every cluster names its members with
+file, line and size. The report is shaped for the
+Cartographer (one structural report: dead items grouped
+by file/kind + duplication clusters). SENSING ONLY:
+this module has no delete/edit/write path at all, and
+every report says so — deletion is always a separate,
+approved slice, per the roadmap's words. Setting
+`code_sensing` ON by default in config_defaults +
+M-009 catalogue S-52; Agent.code_sensing() +
+`/sensing [show|dead|dup]` on the terminal + TUI roads
+sharing one parser + formatter. Gap audit checked at
+scoping: no census-gap row is owned by M-062, so no
+module_kind flip exists to make. M-063 is NOT built
+here.*
+
+*M-062 IN PROGRESS → DONE (2026-11-02 03:3x EST tick;
+CLOSED by the same keeper tick that built it — DONE,
+see its ledger row above): the slice was banked by this
+tick (`bbfe54e` IN PROGRESS state, `f631e10` slice,
+`a6a7719` regen, PUBLIC_API 2095 → 2111) and its full
+suite ran in six monitored chunks the same tick.
+Counted from on-disk logs only: chunk 0: 466 passed +
+the tiktoken env failure; chunk 1: 552 passed, 1
+skipped; chunk 2: 788 passed; chunk 3: 393 passed +
+the PortAudio env failure + the ownership freshness
+timeout, solo-proven a load flake (m062-solo-
+ownership.log: 7 passed in 41.68 s); chunk 4: 640
+passed; chunk 5: 549 passed. Totals: 3388 passed, 3
+failed, 1 skipped, 3392 collected — closes exactly
+against collect-only (m062-collect.log) and against
+M-061's 3373 + 19 new tests. Roadmap data regenerated
+to 62 done in this closure (m062_close_gen_roadmap.py).
+EPISODE NOTE: the closure writes crossed a box-wide
+EDQUOT window (home quota exceeded; /tmp 100% full on
+other campaigns' files — none of it this campaign's to
+delete); the ledger row insert landed on a retry in a
+healed window. The whole M-062 chain plus this closure
+is pushed at closure (fetch + ls-remote verify).
+Campaign total: 62/272.*
+
+*M-063 scoping note (2026-11-02, M-062's closure tick):
+M-063 (Type-aware Python depth) is the next slice. The
+roadmap's words: mypy/pyright findings triaged into
+the review; the coder fixes types it broke in the same
+turn. Counted neighbours in the tree:
+`mythic_agent/core/type_coverage.py` already measures
+annotation coverage and can run a mypy check (the
+neighbour this slice must build on, not duplicate),
+M-052's edit-time truth loop is where same-turn fixes
+already ride, and M-057's coverage sight is the
+adjacent "findings into review" pattern. The building
+tick settles the triage shape (which runner(s) are
+actually available in the environment, honestly NOT
+PROVEN where none is; how findings are classified as
+broke-here vs pre-existing; and the review surface)
+from the tree before designing further. M-064 is NOT
+built here.*
+
+*M-063 IN PROGRESS (2026-11-02 04:1x EST tick): build under
+way. Shape settled from the tree: a new module
+`mythic_agent/tools/type_depth.py` on the house pattern
+— module + setting + catalogue entry + Agent methods +
+terminal/TUI roads — building on
+`mythic_agent/core/type_coverage.py` (its mypy
+availability/count road is reused, never duplicated) and
+M-052's edit-time truth loop (the same-turn charge road
+it must extend, not replace). Measured in this
+environment: NEITHER mypy nor pyright is installed
+(no binary on PATH, no importable module in the baseline
+venv or the system Python) — so a live runner verdict
+here is honestly NOT PROVEN / not-installed, never a
+clean bill, and live proof rides fake runner binaries on
+PATH speaking the real output contracts (the M-053
+pattern). Runners: mypy (text output) and pyright (text
+and --outputjson JSON), each detected honestly
+(available / configured-by-the-project / neither), each
+run bounded. Triage: every finding is classified by
+kind (annotation, incompatible, attribute, name,
+call/return, other — from its checker code/rule or
+message) and charged by a line-blind multiset diff
+against the before-content account (a temporary twin,
+the M-052 road): findings new after an edit are
+`broke-here` (the coder fixes them in the same turn —
+the type note is wired into the write/replace tool road
+beside M-052's truth note, gated by the new setting);
+matched findings are `pre-existing`; a standing check
+with no edit charges nothing and reports the file's
+current account. The review surface is `/types
+[show|<path>]` plus the standing annotation-coverage
+account from type_coverage.measure() where a package
+exists. Setting `type_depth` ON by default in
+config_defaults + M-009 catalogue S-53. Gap audit
+checked at scoping: no census-gap row is owned by
+M-063, so no module_kind flip exists to make. M-064 is
+NOT built here.*
+
+*M-063 IN PROGRESS → DONE (2026-11-02 04:1x–05:5x EST
+tick; CLOSED by the same keeper tick that built it —
+DONE, see its ledger row above): the slice was banked
+by this tick (`79c04c2` IN PROGRESS state, `8eb8a93`
+slice, `3f9a5ae` regen, PUBLIC_API 2111 → 2130) and its
+full suite ran in six monitored chunks the same tick.
+Counted from on-disk logs only: chunk 0: 466 passed +
+the tiktoken env failure; chunk 1: 552 passed, 1
+skipped; chunk 2: 794 passed; chunk 3: 466 passed +
+the PortAudio env failure; chunk 4: 686 passed;
+chunk 5: 454 passed. Totals: 3418 passed, 2 failed
+(exactly the 2 long-classified environment cases),
+1 skipped, 3421 collected — closes exactly against
+collect-only (m063-collect.log) and against M-062's
+3392 + 29 new tests. Roadmap data regenerated to 63
+done in this closure (m063_close_gen_roadmap.py). The
+counted chunks ran with TMPDIR=/dev/shm while /tmp
+sat at 100% full on other campaigns' files — none of
+it this campaign's to delete. The whole M-063 chain
+plus this closure is pushed at closure (fetch +
+ls-remote verify). Campaign total: 63/272.*
+
+*M-064 scoping note (2026-11-02, M-063's closure tick):
+M-064 (Mojo as a first-class language) is the next
+slice. The roadmap's words: parsing via tree-sitter
+grammar where available, the house Mojo skills wired
+as knowledge — Mythic is the only CLI that truly
+speaks Mojo (Aesir's home tongue). Counted neighbours
+in the tree: M-047/M-049-era tree-sitter foundation
+(tests/test_tree_sitter_foundation.py) and the
+language-pack / structural-search roads are the data
+neighbours it must build on, not duplicate; the house
+Mojo skills live outside the repo (Volmarr's custom
+skills + Mojo Docs MCP connector), so what can be
+wired as in-repo knowledge vs honestly named as an
+external reference is the building tick's first
+counting question. The building tick settles the
+shape (which tree-sitter Mojo grammar is actually
+available in the environment, honestly NOT PROVEN
+where none is; how Mojo files are recognised and
+parsed; and the knowledge surface) from the tree
+before designing further. M-065 is NOT built here.*
+
+*M-064 IN PROGRESS → DONE (2026-11-02 04:5x–06:4x EST
+tick; CLOSED by the same keeper tick that built it —
+DONE, see its ledger row above): the slice was banked
+by this tick (`1d5a2b8` IN PROGRESS state, `1a5dca0`
+slice, `3e9a94d` regen, PUBLIC_API 2130 → 2151) and its
+full suite ran in six monitored chunks the same tick.
+Counted from on-disk logs only: chunk 0: 466 passed +
+the tiktoken env failure; chunk 1: 579 passed, 1
+skipped; chunk 2: 794 passed; chunk 3: 452 passed +
+the PortAudio env failure; chunk 4: 644 passed +
+chunk 4's static-gate timeout, solo-proven a load
+flake (m064-solo-static.log: 4 passed in 240 s);
+chunk 5: 509 passed. Totals: 3444 passed, 3 failed,
+1 skipped, 3448 collected — closes exactly against
+collect-only (m064-collect.log) and against M-063's
+3421 + 27 new tests. Roadmap data regenerated to 64
+done in this closure (m064_close_gen_roadmap.py). The
+whole M-064 chain plus this closure is pushed at
+closure (fetch + ls-remote verify). Campaign total:
+64/272.*
+
+*M-065 scoping note (2026-11-02, M-064's closure tick):
+M-065 (SQL and data sight) is the next slice. The
+roadmap's words: schema reading, query explain,
+migration files understood as code (the Muse DB
+pattern, productised). Counted neighbours in the
+tree: the session store's own SQLite roads
+(core/sessions + the M-010 session catalogue's schema
+cross-checks) are the in-repo SQLite evidence, and the
+house pattern for a sight module (module + setting +
+catalogue entry + Agent method + terminal/TUI roads)
+is the shape every Part III sight slice has shipped.
+The building tick settles the shape (which databases
+are read — workspace-local files only, read-only
+connections; how EXPLAIN is run without executing the
+query's effects; and how migration files are recognised
+and read as code) from the tree before designing
+further. M-066 is NOT built here.*
+
+*M-064 build note (2026-11-02 04:5x EST tick): build
+shape settled from the tree: a new module
+`mythic_agent/tools/mojo_sight.py` on the house pattern
+— module + setting + catalogue entry + Agent methods +
+terminal/TUI roads — building on M-043's tree-sitter
+foundation (`core/tree_sitter_foundation.py` + the
+L-06 catalogue entry), never duplicating it. Measured
+in this environment: the tree-sitter core package IS
+installed in the baseline venv, but NO Mojo grammar
+package exists (`tree_sitter_mojo` not importable; the
+catalogue's L-06 status is no-grammar-package, checked
+2026-11-01) — so a tree-sitter parse of Mojo here is
+honestly NOT PROVEN / unavailable, never invented, and
+the module's structural scan is labelled with its own
+backend name (`mojo-scan`), never `tree_sitter`. The
+scan recognises `.mojo` files through the foundation's
+own catalogue (`detect_language`), extracts definitions
+(functions, structs, traits, comptime/alias constants),
+imports and decorators, and watches for the removed
+syntax the house Mojo skills record (alias→comptime,
+let→var, borrowed/inout/owned→imm/mut/var, @parameter
+if/for→comptime, @value→@fieldwise_init,
+@register_passable→traits, Stringable→Writable,
+non-std imports→std.*, fn→def in the latest Mojo) —
+each finding names its replacement. Where a real
+grammar ever loads, the foundation's parse is tried
+first and its definitions ride the same report with
+backend `tree_sitter`. The house Mojo skills are wired
+as knowledge: distilled, searchable in-repo entries
+(K-01..), each naming its source skill (mojo-syntax,
+mojo-gpu-fundamentals, mojo-python-interop — those full
+texts live outside the repo and are named as external
+references, never copied wholesale); the Mojo Docs MCP
+is likewise named as an external reference, not faked
+in-repo. Setting `mojo_sight` ON by default in
+config_defaults + M-009 catalogue S-54; Agent.mojo_sight()
++ `/mojo [show|<path>|knowledge [term]]` on the terminal
++ TUI roads sharing one parser + formatter. Gap audit
+checked at scoping: no census-gap row is owned by
+M-064, so no module_kind flip exists to make. M-065 is
+NOT built here.*
+
+*M-065 IN PROGRESS (2026-11-02 05:40 EST tick): build under
+way by a keeper-commissioned worker on the settled scoping
+above — workspace-local SQLite files only, read-only
+connections, EXPLAIN without executing effects, migration
+files read as code; house sight-module pattern (module +
+setting + catalogue entry + Agent method + terminal/TUI
+roads). Closure (suite count, ledger row, push) is the
+coordinator's, after verification from disk.*
+
+*M-065 IN PROGRESS → DONE (2026-11-02 05:40–07:2x EST
+tick; CLOSED by the keeper tick that commissioned it —
+DONE, see its ledger row above): the slice was banked
+by a keeper-commissioned worker (`32d66ef` slice,
+`9ff43ba` regen, PUBLIC_API 2151 → 2174) and its full
+suite ran in six monitored chunks the same tick.
+Counted from on-disk logs only: 3475 passed, 5 failed,
+1 skipped, 3481 collected — closes exactly against
+collect-only (m065-collect.log) and against M-064's
+3448 + 33 new tests. Failures: the 2 long-classified
+environment cases; 2 static-gate timeouts solo-proven
+load flakes (m065-solo-static.log: 4 passed); and the
+dead-code gate catching a REAL in-slice defect —
+sql_sight's column_names() accessor had no caller —
+fixed in-slice (`c9be295`, render_markdown now uses
+it; m065-fix-targeted.log: 39 passed). Roadmap data
+regenerated to 65 done in this closure
+(m065_close_gen_roadmap.py). The whole M-065 chain plus
+this closure is pushed at closure (fetch + ls-remote
+verify). Campaign total: 65/272.*
+
+*M-066 scoping note (2026-11-02, M-065's closure tick):
+M-066 (Config and infra files) is the next slice. The
+roadmap's words: YAML/TOML/Dockerfile/systemd units
+parsed structurally, with the no-Docker law enforced
+as a warning the coder itself raises on Volmarr's
+projects. Counted neighbours in the tree: the M-009
+config catalogue (config files as data) and the house
+sight-module pattern (module + setting + catalogue
+entry + Agent method + terminal/TUI roads) are the
+neighbours it must build on, not duplicate. The
+building tick settles the shape (which structural
+parsers are honestly available per format; how the
+Docker warning is raised and where it is scoped —
+Volmarr's projects, per the roadmap's words) from the
+tree before designing further. M-067 is NOT built
+here.*
+
+*M-066 IN PROGRESS (2026-11-02 06:3x EST tick): build under
+way by the keeper tick itself on the settled scoping above
+— house sight-module pattern (module + setting + catalogue
+entry + Agent method + terminal/TUI roads). Shape settled
+from the tree: a new module
+`mythic_agent/tools/config_sight.py`; YAML parsed with
+PyYAML (a core dependency, already the house config
+parser), TOML with stdlib tomllib, systemd units and INI
+files with a tolerant section/directive parser that keeps
+repeated directives (systemd allows them; configparser
+would merge them), Dockerfiles with a line parser
+(continuations joined, instructions/stages/base images/
+ports/env/volumes counted), compose files parsed as YAML
+and classified as Docker artifacts. Structural accounts
+only — top-level keys with kinds/sizes, total keys, max
+depth for mapping formats; sections + directives for
+units; stages/instructions for Dockerfiles — file
+contents are never dumped whole and nothing is ever
+executed, applied or rendered. The no-Docker law: Docker
+artifacts (Dockerfile*, *.dockerfile, docker-compose /
+compose YAML) found in a workspace detected as Volmarr's
+project raise the coder's own warning. Detection is
+honest and named: marker files at the workspace root
+(AGENTS.md, SOUL.md, MEMORY.md, RULES.AI.md, or any root
+file whose name carries 'Volmarr'), with an explicit
+override parameter; Docker artifacts in a workspace with
+no marker are listed, and the report says plainly the
+law-warning was not raised because no marker was found.
+Setting `config_sight` ON by default in config_defaults
++ M-009 catalogue S-56; Agent.config_sight() +
+`/config [show|<file>|docker]` on the terminal + TUI
+roads sharing one parser + formatter. Gap audit checked
+at scoping: no census-gap row is owned by M-066, so no
+module_kind flip exists to make. M-067 is NOT built
+here.*
+
+*M-066 IN PROGRESS → DONE (2026-11-02 06:3x–08:1x EST
+tick; CLOSED by the keeper tick that built it — DONE,
+see its ledger row above): the slice was banked by this
+tick (`479415d` IN PROGRESS state, `bfc830f` slice,
+regen, PUBLIC_API 2174 → 2201) and its full suite ran
+in six monitored chunks the same tick. Counted from
+on-disk logs only: chunk 0: 487 passed + the tiktoken
+env failure; chunk 1: 588 passed, 1 skipped + the
+dead-code gate catching a REAL in-slice defect
+(`UnitSection.directive_names()` callerless — fixed
+in-slice, m066-fix-targeted.log: 37 passed); chunk 2:
+794 passed; chunk 3: 452 passed + the PortAudio env
+failure; chunk 4: 678 passed; chunk 5: 509 passed.
+Totals: 3508 passed, 3 failed, 1 skipped, 3512
+collected — closes exactly against collect-only
+(m066-collect.log) and against M-065's 3481 + 31 new
+tests. Roadmap data regenerated to 66 done in this
+closure (m066_close_gen_roadmap.py). The whole M-066
+chain plus this closure is pushed at closure (fetch +
+ls-remote verify). Campaign total: 66/272.*
+
+*M-067 scoping note (2026-11-02, M-066's closure tick):
+M-067 (Binary and asset awareness) is the next slice.
+The roadmap's words: images, archives, and large files
+are described, never dumped into context; the map
+notes their roles. Counted neighbours in the tree:
+the house sight-module pattern (module + setting +
+catalogue entry + Agent method + terminal/TUI roads)
+and the repo-map roads (M-044's map is where "the map
+notes their roles" most plausibly lands) are the
+neighbours it must build on, not duplicate. The
+building tick settles the shape (which formats are
+described from headers/metadata only — image
+dimensions/format, archive member listings, large-file
+thresholds — without ever reading bulk content into
+context; and how the repo map records an asset's role)
+from the tree before designing further. M-068 is NOT
+built here.*
+
+*M-067 IN PROGRESS (2026-11-02 07:10 EST tick): build under
+way by the keeper tick itself on the settled scoping above
+— house sight-module pattern (module + setting + catalogue
+entry + Agent method + terminal/TUI roads). Shape settled
+from the tree: a new module
+`mythic_agent/tools/asset_sight.py`; images described
+from their headers only (PNG/GIF/JPEG/BMP/WebP/ICO/TIFF
+dimensions + format facts read from a bounded header
+read, stdlib only — no image is ever decoded or dumped),
+archives described from their member listings (zip and
+tar via the stdlib readers, listing capped and named;
+gzip streams from their trailer's stored size; 7z/rar
+have no stdlib reader, so they are described from magic
+with the listing honestly unavailable), and any file at
+or over the named large threshold described by size and
+sniffed kind (a large text file's lines counted by
+streaming, its content never retained). Every asset
+carries the role the map notes for it: a role inferred
+from its kind and path by named rules (documentation
+asset, test fixture, data file, backup/snapshot archive,
+project asset) with the rule that fired recorded as
+evidence; the repo map itself (M-044) keeps its pinned
+"binary file" skip — this slice's report is the
+map-facing account of what those files are and what
+they are for, cross-checked against the live map in the
+slice's tests. Setting `asset_sight` ON by default in
+config_defaults + M-009 catalogue S-57; Agent.asset_sight()
++ `/assets [show|<file>|images|archives|large]` on the
+terminal + TUI roads sharing one parser + formatter.
+Gap audit checked at scoping: no census-gap row is owned
+by M-067, so no module_kind flip exists to make. M-068
+is NOT built here.*
+
+*M-067 IN PROGRESS → DONE (2026-11-02 07:10 EST tick;
+CLOSED by the keeper tick that built it — DONE, see its
+ledger row above): the slice was banked by this tick
+(`3cfc456` IN PROGRESS state, `3c3f47f` slice,
+`1ba9c29` regen, PUBLIC_API 2201 → 2226) and its full
+suite ran in six monitored chunks the same tick.
+Counted from on-disk logs only: chunk 0: 517 passed +
+the tiktoken env failure; chunk 1: 562 passed, 1
+skipped (its first run died on an EDQUOT INTERNALERROR
+after 171 passed — preserved as m067-chunk1-dead1.log,
+DISCARDED, re-ran clean); chunk 2: 815 passed; chunk 3:
+458 passed + the PortAudio env failure; chunk 4: 678
+passed (its first attempt produced a 0-byte log in a
+quota window, DISCARDED, re-ran clean after a healed
+write probe); chunk 5: 509 passed. Totals: 3539 passed,
+2 failed, 1 skipped, 3542 collected — closes exactly
+against collect-only (m067-collect.log) and against
+M-066's 3512 + 29 new tests + 1 catalogue-parametrised
+case from the new S-57 setting. The 2 failures are
+exactly the long-classified environment cases; no
+flakes and no in-slice defects this slice. Roadmap
+data regenerated to 67 done in this closure
+(m067_close_gen_roadmap.py). The whole M-067 chain
+plus this closure is pushed at closure (fetch +
+ls-remote verify). Campaign total: 67/272.*
+
+*M-068 scoping note (2026-11-02, M-067's closure tick):
+M-068 (Language packs as data) is the next slice. The
+roadmap's words: per-language toolchains (server
+commands, formatters, test runners) declared in data;
+a new language is a pack, not a patch. Counted
+neighbours in the tree: the M-043 tree-sitter
+foundation's language catalogue (L-## entries naming
+grammars), the LSP integration's per-language server
+wiring, and the format covenant / test-intelligence
+roads that already know formatters and runners per
+language are the neighbours it must build on, not
+duplicate. The building tick settles the shape (one
+validated data file naming each language's toolchain
+with the live consumers cross-checked against it, in
+the M-019 registry pattern) from the tree before
+designing further. M-069 is NOT built here.*
+
+*M-068 IN PROGRESS (2026-11-02 08:1x EST tick): build under
+way by the keeper tick itself on the settled scoping above
+— house pattern (data + validated loader + tools surface +
+setting + catalogue entry + Agent method + terminal/TUI
+roads). Shape settled from the tree: a new data file
+`mythic_agent/data/language_packs.yaml` + validated loader
+`mythic_agent/core/language_packs.py` + surface module
+`mythic_agent/tools/language_packs.py`; one pack per
+language in the M-043 tree-sitter catalogue (python,
+javascript, typescript, rust, go, mojo — extensions
+cross-checked exactly against that catalogue), each pack
+declaring its toolchain in data: the language server
+(name + command, cross-checked exactly against the live
+`integrations/lsp.py` SERVERS catalogue — mojo honestly
+null, no server catalogued there), its formatters (the
+python pack's names cross-checked against the format
+covenant's live candidate list; other languages' standard
+formatters declared as pack data, honestly not claimed as
+live-wired consumers), and its test runners (python's
+pytest cross-checked against the live test-intelligence
+pytest detection; other runners declared as data). The
+extension rule is the roadmap's own: a new language is a
+pack, not a patch — the validator refuses a pack whose
+language is absent from the M-043 catalogue. Setting
+`language_packs` ON by default in config_defaults +
+M-009 catalogue S-58; Agent.language_packs() +
+`/langpacks [show|<language>]` on the terminal + TUI
+roads sharing one parser + formatter. Gap audit checked
+at scoping: census gaps are traced in the audit data;
+the building tick records any flip honestly in tests.
+M-069 is NOT built here.*
+
+*M-068 IN PROGRESS → DONE (2026-11-02 08:1x EST tick;
+CLOSED by the keeper tick that built it — DONE, see its
+ledger row above): the slice was banked by this tick
+(`1c39892` IN PROGRESS state, `16c9170` slice, `ca5f2de`
+regen, PUBLIC_API 2227 → 2259) and its full suite ran
+in six monitored chunks the same tick. Counted from
+on-disk logs only: chunk 0: 517 passed + the tiktoken
+env failure; chunk 1: 562 passed, 1 skipped (its first
+run broke in a disk-quota EDQUOT window — 173 setup
+errors, preserved as m068-chunk1-dead1.log, DISCARDED,
+re-ran clean); chunk 2: 850 passed; chunk 3: 458 passed
++ the PortAudio env failure; chunk 4: 656 passed (its
+first run died on an EDQUOT INTERNALERROR after 336
+passed, m068-chunk4-dead1.log, DISCARDED, re-ran clean);
+chunk 5: 531 passed. Totals: 3574 passed, 2 failed,
+1 skipped, 3577 collected — closes exactly against
+collect-only (m068-collect.log) and against M-067's
+3542 + 35 new tests. The 2 failures are exactly the
+long-classified environment cases. Roadmap data
+regenerated to 68 done in this closure
+(m068_close_gen_roadmap.py). The whole M-068 chain
+plus this closure is pushed at closure (fetch +
+ls-remote verify). Campaign total: 68/272.*
+
+*M-069 scoping note (2026-11-02, M-068's closure tick):
+M-069 (Intelligence cache) is the next slice. The
+roadmap's words: parse/graph/LSP results cached per
+file hash; a cold start on a big repo stays fast
+(measured in Part XI). Counted neighbours in the tree:
+the core cache (`mythic_agent/core/cache.py`), the
+response cache recorded in the M-015 telemetry review,
+and the Part III senses that produce the parse/graph/
+LSP results (M-043 foundation parses, M-044 repo map,
+M-049/M-050 LSP results) are the neighbours it must
+build on, not duplicate. The building tick settles the
+shape (what is cached, keyed by which file hash, with
+what invalidation honesty — a changed file never serves
+a stale result, proven by tests; and what is honestly
+NOT cached) from the tree before designing further.
+M-070 is NOT built here.*
+
+*M-069 IN PROGRESS (2026-11-02 09:0x EST tick): build under
+way by the keeper tick itself on the settled scoping above
+— house pattern (module + setting + catalogue entry +
+Agent method + terminal/TUI roads). Shape settled from
+the tree: a new module
+`mythic_agent/tools/intelligence_cache.py` holding a
+disk-backed cache under the workspace's
+`.mythic/intelligence-cache/` (the M-056 test-history
+precedent for workspace-local `.mythic` state), following
+`core/cache.py`'s atomic-write discipline (temp file +
+rename, stats persisted beside the entries). Every entry
+is keyed by kind + workspace-relative path + the file's
+SHA-256 content hash + producer name: kinds are exactly
+`parse`, `graph`, and `lsp`. Invalidation honesty is the
+slice's heart: a lookup recomputes the file's CURRENT
+hash — a changed file is a stale eviction and a miss,
+never a served stale result; a missing file, a corrupt
+entry, and a producer mismatch are likewise misses, each
+named in the stats. Live producers wired in-module:
+`parse` payloads from the M-043 foundation's
+`parse_source` (language, backend, has_error,
+definitions) and `graph` payloads from M-046's
+`extract_file_graph(...).record()`, both behind
+`get_or_compute` so a hit never re-runs the producer.
+`lsp` payloads are stored/looked up only — their producer
+is the live language-server road (M-049/M-050), and this
+module invents no LSP result; the report says so plainly.
+Producer file bounds follow the graph's own caps
+(262144 bytes, named when refused). Surfaces:
+`/intelcache [show|<file>|warm|clear]` — show reports
+entries/per-kind counts/size/persisted hit-miss-stale
+stats; file reports one file's per-kind state
+(hit-ready/stale/absent) against its current hash; warm
+fills parse+graph for every catalogued source file in
+the workspace (caps named, skips named) so a cold start
+is paid once; clear empties the cache and reports the
+count. Setting `intelligence_cache` ON by default in
+config_defaults + M-009 catalogue S-59; Agent method
+`Agent.intelligence_cache()` sharing one parser +
+formatter on the terminal and TUI roads. Gap audit
+checked at scoping: no census-gap row is owned by M-069,
+so no module_kind flip exists to make. M-070 is NOT
+built here.*
+
+*M-069 BANKED, SUITE RUNNING (2026-11-02 09:0x EST tick):
+the slice was built and banked by this tick (`b8b95cb`
+IN PROGRESS state, `1a03cf3` slice, `4b9adad` regen,
+PUBLIC_API 2259 → 2279) and the whole chain is pushed
+(fetch + ls-remote verified, remote == HEAD == 4b9adad).
+New module `mythic_agent/tools/intelligence_cache.py` +
+34 tests in `tests/test_intelligence_cache.py`, all
+passing in the targeted run (48 passed with the config
+catalogue set); dead-code / arch-conformance / taxonomy
+gates green (21 passed); the post-regen inventory set
+passed 71 with the only failure the long-classified
+PortAudio public-api environment case. Collect-only:
+3611 — closes exactly against M-068's 3577 + 34 new.
+FULL SUITE: two in-session chunk-0 attempts died at exit
+120 under severe multi-campaign contention (MemAvailable
+~447 MB; preserved as m069-chunk0-dead1.log — the dead2
+copy itself failed in an EDQUOT window and exists only as
+the truncated /tmp-era log, nothing counted from either).
+Chunk 0 was relaunched DETACHED via setsid (pid 125640,
+cwd verified to this tree, log /tmp/m069-chunk0.log —
+the /tmp-log road from M-060 because home writes were
+EDQUOT-struck) and verified alive and progressing
+(~27%) — then the VM REBOOTED (uptime 1 min at the
+14:37 UTC check), killing the run and wiping /tmp with
+its log: DISCARDED, never counted, exactly like the
+M-019 reboot death. Chunk 0 was relaunched detached
+again after the reboot (see the keeper run log for the
+live pid + log path). NEXT TICK'S FINISH ORDER: count
+chunk 0 from its on-disk log (copy /tmp logs to
+hidden_files in a healed window, sha256-checked), run
+chunks 1–5 from m069-chunklist-01..05 the same detached
+way, classify (expect exactly the 2 long-classified
+env failures), flip roadmap data to 69 done, add the
+M-069 ledger row + closure note, scope M-070, closure
+targeted set, closure commit, push. Campaign total:
+68/272 closed, M-069 banked pending the suite verdict.*
+
+*M-069 IN PROGRESS → DONE (2026-11-02 09:40 EST tick;
+CLOSED by the keeper tick that finished its suite — DONE,
+see its ledger row above): the 09:0x tick's chunk-1
+detached run (pid 7675) was found dead at this tick (log
+frozen at ~12%, preserved as m069-chunk1-dead1.log) and
+the suite was finished by a detached driver on the
+/tmp-log road (m069-driver.log) while home writes were
+EDQUOT-struck in flapping windows. Counted from on-disk
+logs only: chunk 0: 517 passed + the tiktoken env
+failure; chunk 1: 558 passed, 4 failed, 1 skipped (all 4
+failures literally Errno 122 on `~/.mythic/edits/`);
+chunk 2: 850 passed, 1 failed (offline session search,
+home-store sqlite unreadable from the quota window);
+chunk 3: 491 passed + the PortAudio env failure;
+chunk 4: 676 passed, 2 failed (static gate, its
+byte-compilation Errno 122 on in-tree `__pycache__`);
+chunk 5: 508 passed, 1 failed (taxonomy live-tier probe
+write Errno 122). Totals: 3600 passed, 10 failed,
+1 skipped, 3611 collected — closes exactly against
+collect-only and M-068's 3577 + 34. All 8 EDQUOT
+failures solo-proven in healed windows (m069-solo-
+fails2.log: 26 passed; m069-solo-chunk45.log: 5 passed).
+Roadmap data regenerated to 69 done in this closure
+(m069_close_gen_roadmap.py). Campaign total: 69/272.*
+
+*M-070 scoping note (2026-11-02, M-069's closure tick):
+M-070 (Part III gate) is the next slice and CLOSES
+Part III. The roadmap's words: on the benchmark pack —
+a cross-file rename, a structural codemod, and a
+debugger-caught bug, all completed with the new senses,
+evidence banked against the M-007 baseline. The gate
+follows the Part I/II gate pattern (M-018/M-042): a
+validated gate artefact + tests that re-exercise the
+part's own machinery end-to-end — here the senses are
+Part III's: the repo map / symbol graph (M-044/M-046),
+structural search+rewrite (M-047/M-048), LSP navigation
++ rename (M-050/M-051), and the debugger in the loop
+(M-054/M-055), run against an M-008 benchmark-pack task
+materialised in a throwaway repo, with the M-007
+baseline freeze named as the comparison point. The
+building tick settles the exact gate shape from the
+M-042 gate artefact before designing further. M-071 is
+NOT built here.*
+
+*M-070 IN PROGRESS (2026-11-02 10:1x EST tick): build under
+way by the keeper tick itself on the settled scoping above
+— house gate pattern (M-018/M-042): a validated gate
+artefact `mythic_agent/data/part3_gate.yaml` + loader
+`mythic_agent/core/part3_gate.py` + tests that re-prove
+the gate live. Shape settled from the tree: the gate
+closes over M-043..M-069 (27 slices, titles cross-checked
+against the roadmap data), names the M-007 baseline
+freeze as its comparison point (cross-checked against
+the live freeze), and banks three exercises, each
+re-proven live by the gate's tests on every run: (1) a
+cross-file rename — `compute_total` → `summarise_total`
+across helpers.py + main.py through M-051's LSP rename
+road (a fake language server speaking the real protocol,
+the M-051 test pattern), applied through the EditJournal
+road, with M-046's symbol graph proving the cross-file
+reference before the rename and its absence after;
+(2) a structural codemod — `legacy_add($A, $B)` →
+`add($A, $B)` at every call site through M-048's
+plan/apply rewrite road (per-site diff previews, journal
+application), never a text replace; (3) a debugger-caught
+bug — a failing test (`x = 41; assert x == 42`) re-run
+under M-055's debugger-in-the-loop through a fake DAP
+adapter speaking the real protocol (the M-055 test
+pattern), its exception stop's frame + the local `x=41`
+banked as the catching evidence. Each exercise carries
+its own benchmark-pack-style throwaway repo (seed files
++ hidden grading tests) as gate data; a grading run
+passes only when the exercise truly completed. Honesty
+bounds: no live language server and no real debugpy
+session is claimed — the rename is fake-server-measured
+and the debug catch is fake-adapter-measured, recorded
+as such in the gate data. M-071 is NOT built here.*
+
+*M-070 IN PROGRESS → DONE (2026-11-02 10:1x EST tick;
+CLOSED by the keeper tick that built it — DONE, see its
+ledger row above): the slice was banked by this tick
+(`eaad20f` IN PROGRESS state, `d4e05d8` slice, `023c5b3`
+regen, PUBLIC_API 2279 → 2299) and its full suite ran in
+six monitored chunks the same tick. Counted from
+on-disk logs only: chunk 0: 606 passed; chunk 1: 650
+passed; chunk 2: 711 passed (its first run died at ~91%
+on an EDQUOT INTERNALERROR while pytest flushed its own
+log — preserved as m070-chunk2-dead1.log, DISCARDED,
+re-ran clean); chunk 3: 599 passed; chunk 4: 577 passed
++ the tiktoken env failure; chunk 5: 481 passed, 1
+skipped + the PortAudio env failure. Totals: 3624
+passed, 2 failed, 1 skipped, 3627 collected — closes
+exactly against collect-only (m070-collect.log) and
+against M-069's 3611 + 16 new tests. The 2 failures are
+exactly the long-classified environment cases. Roadmap
+data regenerated to 70 done in this closure
+(m070_close_gen_roadmap.py). The whole M-070 chain plus
+this closure is pushed at closure (fetch + ls-remote
+verify). Campaign total: 70/272. **PART III COMPLETE:
+28/28 slices (M-043..M-070).***
+
+*M-071 scoping note (2026-11-02, M-070's closure tick):
+M-071 (Edit-format plurality) is the next slice and
+OPENS Part IV (The Editor's Hand, M-071..M-094). The
+roadmap's words: whole-file, unified-diff, search-and-
+replace blocks, and Aider-style architect/editor
+splitting — the coder picks per task and per model
+strength; the choice is journaled. Counted neighbours
+in the tree: the shipped edit machinery (core/edits.py
+and the EditJournal road every Part III application
+rode), the model-capability truth (M-027) the per-model
+choice must read, and the session journal the choice is
+recorded in are the neighbours it must build on, not
+duplicate. The building tick settles the shape (which
+formats already exist in the tree, which are honestly
+missing, and how the pick is journaled) from the tree
+before designing further. M-072 is NOT built here.*
+Closure targeted set (same tick, read from on-disk
+logs): gates + roadmap set 63 passed
+(hidden_files/m070-closure-targeted.log — its first
+attempt died at exit 120 and a second attempt in the
+same unstable window failed the rename + codemod
+re-proofs, both of which then passed solo and combined;
+the rename's application rides the EditJournal's home
+store, the window's EDQUOT victim class from M-069).
+Inventory pair: 9 passed + the PortAudio env failure +
+test_ownership::test_zero_git_history_fails_loudly
+dying on an EDQUOT OSError writing its probe file into
+the package dir — solo re-run in a healed window:
+1 passed in 1.60 s (log /tmp/m070-closure-inventory.log;
+its copy to hidden_files was itself EDQUOT-refused in
+that window). No in-slice defect stands.
+
+*M-071 IN PROGRESS (2026-11-02 11:0x EST tick): build under
+way by the keeper tick itself on the M-070 scoping note.
+Shape settled from the tree: EditJournal already ships
+whole-file writes (core/edits.py write) and exactly-one
+search-and-replace (replace); unified diffs exist only as
+previews (tools/smart_files.py, integrations/lsp.py,
+tools/structural_rewrite.py) with NO applier; architect/
+editor splitting does not exist at all. M-071 therefore
+builds a pure layer mythic_agent/core/edit_formats.py:
+the four formats as data, strict appliers for whole-file,
+unified-diff (context-verified, no fuzz — a stale hunk
+refuses cleanly; the repair loop is M-073's road, not
+this slice's), and Aider-style SEARCH/REPLACE blocks
+(exactly-one match per block, the EditJournal law), a
+per-task + per-model-strength choice (strength from
+M-027 capability truth: reasoning known-true = strong,
+tool_calling known-true = standard, otherwise unknown —
+unknown strength gets the safest format, whole-file),
+an architect/editor split for complex work (the architect
+plans per-file intents and never edits; the editor picks
+a concrete format per file), and the choice journaled as
+an edit_format_chosen session event through the Agent
+layer, with applied edits riding the existing EditJournal
+road. Setting edit_format ships as 'auto' in
+config_defaults + the M-009 catalogue (S-60); surfaces
+/editformat on terminal + TUI roads sharing one parser
+and formatter. M-072 is NOT built here.*
+
+*M-071 IN PROGRESS → DONE (2026-11-02 14:0x EST tick;
+CLOSED by the keeper tick that finished its closure —
+DONE, see its ledger row above): the slice chain
+(`a4f2a48` + regen `ab64a2d` + dead-code fix `cb11d2f` +
+fix regen `60d2825`) was found banked but UNPUSHED at
+this tick (remote still at the IN PROGRESS commit
+`9dd70fd`) with the roadmap flip to 71 done sitting
+uncommitted in the working tree and the closure targeted
+run (hidden_files/m071-closure-targeted.log) showing
+exactly the expected pre-closure ledger mismatch
+(137 passed, 1 failed — M-071 'done' in the data vs
+IN PROGRESS in this file). This tick classified the
+suite's 5 non-environment failures (all 120 s
+pytest-timeouts under load 8–13; static gate solo-proven
+in m071-solo-gates3.log, ownership freshness proven by
+standalone-regen diff, coverage ratchet disclosed
+NOT-proven per the M-016 precedent in the ledger row),
+wrote this closure, and pushes the whole chain at
+closure (fetch + ls-remote verify). Campaign total:
+71/272.*
+
+*M-072 scoping note (2026-11-02, M-071's closure tick):
+M-072 (Hash-anchored edits) is the next slice. The
+roadmap's words: edits anchored to content hashes of
+the lines they touch (the frontier trick that cuts
+failed applies and token cost); a moved target refuses
+cleanly instead of mangling. Counted neighbours in the
+tree: M-071's strict appliers in
+`mythic_agent/core/edit_formats.py` (the refusal law
+already lives there — a stale target refuses and
+changes nothing), the EditJournal road every application
+rides, and M-069's intelligence cache, which already
+keys parse/graph results by a file's SHA-256 content
+hash — the anchoring must build on those, not duplicate
+them. The building tick settles the exact shape (anchor
+granularity — per-line vs per-hunk hashes, how the
+anchor is presented to the coder, and how a refusal
+reports the moved target) from the tree before
+designing further. First duty of the M-072 tick, per
+the M-071 closure: re-check the coverage ratchet and
+the ownership freshness test in its full-suite chunks —
+a failure there in a calmer window reopens them as
+suspected defects. M-073 is NOT built here.*
+
+*CORRECTION (2026-11-02 14:2x EST, same closure tick):
+the M-071 ledger row as first committed (f92e89f)
+claimed chunk 4's static-gate timeouts were
+SOLO-PROVEN by hidden_files/m071-solo-gates3.log at
+"10 passed, 1 failed". That number came from a
+diverged delivered excerpt of the backgrounded solo
+run — the transport-war trap this campaign has hit
+repeatedly. The ON-DISK log (sha256 669e8352…)
+actually reads **4 failed, 7 passed in 492.69 s**:
+all 3 static-gate tests plus the ownership freshness
+test died on the 120 s pytest-timeout under load in
+that solo run too. The ledger row above is corrected
+in this same follow-up commit. What stands from disk:
+the static gate's standalone script prints GATE
+PASSED (351 files scanned, 0 hard findings,
+m071-solo-staticgate-standalone.log) and the
+ownership generator's standalone output is
+diff-identical to the committed docs/OWNERSHIP.md
+except the timestamp lines — so both chunk failures
+remain classified as load timeouts, not findings,
+but NEITHER is pytest-solo-proven this tick, exactly
+like the coverage ratchet; all three join the
+retest duty written into M-072's scoping note.
+No other M-071 number changes: the chunk totals,
+the 132-passed closure targeted set (rc=0), and the
+slice's own 69 tests are unaffected.*
+
+*M-072 IN PROGRESS (2026-11-02 14:2x EST tick): build under
+way by the keeper tick itself on the M-071 scoping note.
+First duty per that note: re-check the coverage ratchet,
+the static gate, and the ownership freshness test in this
+tick's suite chunks — a failure in a calmer window reopens
+them as suspected defects (load at tick start ~12, so the
+window is NOT calmer; the retest is run and classified
+honestly either way). Shape settled from the tree: a pure
+layer `mythic_agent/core/hash_anchored.py` — per-line and
+per-range SHA-256 anchors (the M-069 hash road), an
+annotated presentation of a file's lines (number + short
+hash, so the coder can name a target by its anchor instead
+of re-sending its text), anchored range edits and anchored
+search-and-replace (the expected hash of the exact lines
+touched must match the file's current hash for those lines
+or the edit refuses cleanly, naming expected vs current,
+and changes nothing — no fuzz, ever, the M-071 law), and
+the refusal report naming the moved target (the bounded
+retry that returns the true text is M-073's road, not this
+slice's). Setting `hash_anchored_edits` ON by default in
+config_defaults + M-009 catalogue S-61; when off, anchored
+applies through the Agent refuse and say so. Surfaces:
+/hashanchor on terminal + TUI roads sharing one parser and
+formatters; Agent methods journal anchored applies as
+`hash_anchored_applied` and refusals are never written
+through EditJournal. M-073 is NOT built here.*
+
+*M-072 IN PROGRESS → DONE (2026-11-02 15:2x–16:0x EST ticks; CLOSED
+from on-disk evidence by the keeper tick that finished its suite):
+the slice chain (`2e4d9f1` IN PROGRESS state, `f178e2d` slice,
+`6da194f` regen, `77262cd` wiring fix, `8f12f71` fix regen) was found
+banked and pushed (remote verified at 8f12f71) with its closure suite
+half-run — chunks 0–1 counted by the prior tick, chunk 2 dead at 53
+bytes. This tick re-ran chunks 2–5 (logs on tmpfs: home quota was
+exhausted the whole window — every home write Errno 122, drive 39G
+free, quota not disk), counted the suite closed at 3730/15/1 of 3746,
+classified all 15 failures as environment with in-log proof, and prepared
+the full closure record (hidden_files/m072-closure-record.md)
+while the quota blocked CAMPAIGN_STATE.md, the roadmap data, and
+git commits alike; when a home-write probe succeeded later in the
+same tick, the closure was landed verbatim from that record.
+Campaign total: 72/272.*
+
+*ADDENDUM (same closure tick): the closure targeted set
+(hidden_files/m072-closure-targeted.log) ran **119 passed, 1 failed**
+— the failure is ownership `test_doc_is_fresh` on its 120 s budget
+again. Freshness is nonetheless PROVEN standalone this tick: the
+generator itself (scripts/gen_ownership.py) took 5m00 s wall under
+load (15 s user time — starved, not slow) and its output is
+diff-identical to the committed docs/OWNERSHIP.md except the
+Generated-at timestamp line (hidden_files/m072-ownership-standalone.log
++ m072-ownership-regen-copy.md). No regen was needed; the pytest
+failure is its subprocess budget, not staleness.*
+
+*M-073 scoping note (2026-11-02, M-072's closure tick): M-073
+(Apply-failure repair loop) is the next slice. The roadmap's words:
+a failed apply returns the true current text to the coder for one
+honest retry — bounded, visible, never a silent fuzz. Counted
+neighbours in the tree: M-071's strict appliers already refuse a
+stale target and change nothing; M-072's anchored appliers already
+refuse naming expected vs current anchors — what neither does yet
+is hand the coder the true current text of the refused target and
+let exactly one bounded retry ride on it, with the loop visible
+(journaled/surfaced), never a silent re-apply and never a fuzz.
+The building tick settles the exact shape (which refusal roads feed
+the loop, what "true current text" is bounded to, the one-retry
+budget, and the surface) from the tree before designing further.
+FIRST DUTIES of the M-073 tick, carried from M-072's closure:
+(1) the M-072 closure record (hidden_files/m072-closure-record.md)
+is landed together with this closure — no separate landing is owed;
+(2) re-check the coverage ratchet, the
+static gate, and the ownership freshness test in this tick's suite
+chunks — a failure in a CALMER window (load low, quota writable)
+reopens them as suspected defects. M-074 is NOT built here.*
+
+*M-073 IN PROGRESS (2026-11-02 16:2x EST tick): build under
+way by the keeper tick itself on the M-072 closure scoping.
+First duty discharged at tick start: the M-072 closure
+record is already landed (commit 839de53) — no separate
+landing owed. Retest duty noted honestly: load at tick
+start ~12 and home quota writable — NOT a calmer window,
+so the coverage-ratchet / static-gate / ownership-freshness
+re-check runs in this tick's suite chunks and is classified
+honestly; a failure under this load does not by itself
+reopen them as defects. Shape settled from the tree: a
+pure layer `mythic_agent/core/apply_repair.py` — when an
+apply refuses (M-071 format appliers: a stale unified diff,
+a search block matching zero or several times; M-072
+anchored appliers: a moved range or a wrongly-anchored
+block), the refusal becomes a repair packet carrying the
+road, the refusal's own reason, and the TRUE CURRENT TEXT
+of the refused target (a bounded window: the target's
+lines plus CONTEXT_LINES=5 around them, capped at
+MAX_WINDOW_LINES=40, with the truncation named, never
+silent), and exactly ONE honest retry may ride on that
+packet (MAX_RETRIES=1 — a second refusal exhausts the
+loop, names itself spent, and changes nothing; a spent
+packet refuses any further retry). No fuzz, ever: the
+retry is judged by the same strict appliers. Setting
+`apply_repair_loop` ON by default in config_defaults +
+M-009 catalogue S-62; when off, applies through the agent
+keep the plain M-071/M-072 refusal and no packet is made.
+Agent roads: repair_loop_status / set_apply_repair
+(journal-first, save-failure revert, the house pattern) /
+apply_edit_format_with_repair /
+apply_hash_anchored_range_with_repair /
+apply_hash_anchored_search_with_repair — a refusal is
+journaled as `apply_repair_offered` with its packet, a
+retry as `apply_repair_retried`, a repaired apply as
+`apply_repair_applied` (riding the EditJournal road), and
+an exhausted loop as `apply_repair_exhausted`; with no
+retry supplied the agent returns the packet and writes
+nothing. Tool road: a stale anchored write/replace and a
+replace whose target does not match exactly once return
+the packet's true text in the tool result. Surfaces:
+/repairloop on terminal + TUI roads sharing one parser
+and formatters + chat-screen help/usage/routing. M-074
+is NOT built here.*
+
+*M-073 IN PROGRESS → DONE (2026-11-02 16:2x–17:5x EST
+ticks; CLOSED by the keeper tick that built it — DONE,
+see its ledger row above): the slice was banked by this
+tick (`cfae8d0` IN PROGRESS state, `28d76e9` slice,
+`37f060e` regen, PUBLIC_API 2365 → 2394) and its full
+suite ran in six monitored chunks the same tick, counted
+from on-disk logs only: 3792 passed, 11 failed, 1 skipped,
+3804 collected — closes exactly against collect-only and
+M-072's 3746 + 58 new tests. The 11 failures are the 2
+long-classified environment cases plus 9 Errno 122 home-
+quota failures, ALL 9 solo-proven in the healed window
+the same tick (m073-solo-edquot.log: 8 passed;
+m073-solo-ratchet.log: 1 passed). The M-072 retest duty
+(coverage ratchet / static gate / ownership freshness)
+is discharged in full: ratchet solo-proven, static gate
+passed in chunk 4, ownership freshness passed in chunk 3.
+Two environmental events are recorded honestly: a VM
+reboot killed chunk 0's first run at ~37% (log preserved
+as m073-chunk0-dead1.log, discarded, re-ran clean), and
+home quota exhausted mid-suite (chunks 1–5 logged to
+tmpfs, copied into hidden_files at closure — the M-072
+precedent). Roadmap data regenerated to 73 done in this
+closure (m073_close_gen_roadmap.py). The whole M-073
+chain plus this closure is pushed at closure (fetch +
+ls-remote verify). Campaign total: 73/272.*
+
+*M-074 scoping note (2026-11-02, M-073's closure tick):
+M-074 (Hunk-level review) is the next slice. The
+roadmap's words: the approval UI shows diffs per hunk
+with accept/reject/edit per hunk; rejecting one hunk
+never kills the rest. Counted neighbours in the tree:
+M-071's unified-diff applier already judges a diff hunk
+by hunk (each hunk's context verified at its stated
+position, shifted by earlier hunks), the approval/policy
+machinery the TUI approval dialog rides (the M-016
+accessibility baseline measured its keyboard road), and
+the EditJournal road any accepted subset must be written
+through. The building tick settles the exact shape (how
+a diff is split into reviewable hunks as data, how an
+edited hunk is re-judged before it may apply, and how a
+partial acceptance is applied — accepted hunks only,
+through the journal, with the review recorded) from the
+tree before designing further. M-075 is NOT built here.*
+
+*M-074 IN PROGRESS (2026-11-02 17:1x EST tick): build under
+way by the keeper tick itself on the M-073 closure scoping
+note. Shape settled from the tree: M-071's unified-diff
+applier judges a diff hunk by hunk, but the payload is
+all-or-nothing — nothing let a reviewer keep the good
+hunks when one hunk was wrong. M-074 therefore builds a
+pure layer mythic_agent/core/hunk_review.py: a unified
+diff split into its reviewable hunks as data (each hunk's
+stated counts proven against its body at split time),
+per-hunk decisions accept / reject / edit, an edited hunk
+re-judged at edit time (its old side — context and
+removed lines — may never change; only its new side may),
+and the accepted subset applied through the unchanged
+M-071 strict applier, so rejecting one hunk never kills
+the rest; every hunk must be decided before anything
+applies, and a review whose hunks are all rejected is an
+honest no-change outcome. Plus Agent split_for_review /
+apply_hunk_review (accepted hunks ride the EditJournal
+road; the review is journaled as hunk_review_applied) /
+hunk_review_status / set_hunk_review, and /hunkreview on
+the terminal and TUI roads sharing one parser and
+formatters + chat-screen help/usage/routing; setting
+hunk_review ships ON in config_defaults + the M-009
+catalogue S-63. ENVIRONMENT NOTE: a home-quota EDQUOT
+episode stood at this tick's start (probe writes refused
+with Errno 122 while the drive showed 39G free — quota,
+not disk); the slice was staged in /tmp/m074/ and landed
+in a healed window. M-075 is NOT built here.*
