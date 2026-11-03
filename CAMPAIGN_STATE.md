@@ -3198,3 +3198,32 @@ edited hunk is re-judged before it may apply, and how a
 partial acceptance is applied — accepted hunks only,
 through the journal, with the review recorded) from the
 tree before designing further. M-075 is NOT built here.*
+
+*M-074 IN PROGRESS (2026-11-02 17:1x EST tick): build under
+way by the keeper tick itself on the M-073 closure scoping
+note. Shape settled from the tree: M-071's unified-diff
+applier judges a diff hunk by hunk, but the payload is
+all-or-nothing — nothing let a reviewer keep the good
+hunks when one hunk was wrong. M-074 therefore builds a
+pure layer mythic_agent/core/hunk_review.py: a unified
+diff split into its reviewable hunks as data (each hunk's
+stated counts proven against its body at split time),
+per-hunk decisions accept / reject / edit, an edited hunk
+re-judged at edit time (its old side — context and
+removed lines — may never change; only its new side may),
+and the accepted subset applied through the unchanged
+M-071 strict applier, so rejecting one hunk never kills
+the rest; every hunk must be decided before anything
+applies, and a review whose hunks are all rejected is an
+honest no-change outcome. Plus Agent split_for_review /
+apply_hunk_review (accepted hunks ride the EditJournal
+road; the review is journaled as hunk_review_applied) /
+hunk_review_status / set_hunk_review, and /hunkreview on
+the terminal and TUI roads sharing one parser and
+formatters + chat-screen help/usage/routing; setting
+hunk_review ships ON in config_defaults + the M-009
+catalogue S-63. ENVIRONMENT NOTE: a home-quota EDQUOT
+episode stood at this tick's start (probe writes refused
+with Errno 122 while the drive showed 39G free — quota,
+not disk); the slice was staged in /tmp/m074/ and landed
+in a healed window. M-075 is NOT built here.*
