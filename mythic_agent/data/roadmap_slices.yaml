@@ -497,7 +497,7 @@ slices:
   title: Hunk-level review
   summary: the approval UI shows diffs per hunk with accept/reject/edit per hunk; rejecting one hunk never
     kills the rest.
-  status: queued
+  status: done
 - id: M-075
   part: 4
   title: Checkpoints v2
