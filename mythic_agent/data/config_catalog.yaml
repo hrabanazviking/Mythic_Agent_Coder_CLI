@@ -441,6 +441,22 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Hash-anchored edits (M-072): when true, the hashanchor road is open — every line of a file carries a SHA-256 content anchor (shown as its first 12 hex digits) and a range of lines anchors as the hash of its exact lines joined by newlines, the per-line form of the M-069 content-hash road; an anchored edit names the lines it touches by 1-based range (or by a search block that must match exactly once) plus the anchor it saw, the applier recomputes the anchor from the file''s true current text, and the edit applies only on an exact match — a moved or changed target refuses cleanly, names the expected and current anchors, and changes nothing, no fuzz ever (the refusal report is the whole answer; the bounded retry with the true text is M-073''s road); applied edits ride the existing EditJournal road and are recorded as hash_anchored_applied session events. /hashanchor shows the gate and a file in anchored form, and turns the gate on or off (journaled, with a save-failure revert); when false, anchored applies through the agent refuse and say so, while the pure anchor maths stays readable.'
 
+- id: S-62
+  name: apply_repair_loop
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Apply-failure repair loop (M-073): when true, a refused apply through the agent — an M-071 format refusal (a stale unified diff, a search block matching zero or several times) or an M-072 anchored refusal (a moved range, a wrongly-anchored block) — becomes a repair packet carrying the road, the refusal''s own reason, and the true current text of the refused target (a bounded window: the target''s lines plus 5 lines of context on each side, capped at 40 lines, with the truncation and the file''s true line count named whenever the window is not the whole file), and exactly one honest retry may ride on that packet, judged by the same strict appliers — no fuzz, ever; a second refusal exhausts the loop, names the budget spent, and changes nothing, and a spent packet refuses any further retry. The refusal is recorded as an apply_repair_offered session event with its packet, a repaired apply rides the existing EditJournal road and is recorded as apply_repair_applied, and an exhausted loop as apply_repair_exhausted; with no retry supplied the agent returns the packet and writes nothing. /repairloop shows the gate and the loop in plain words, and turns the gate on or off (journaled, with a save-failure revert); when false, applies keep the plain M-071/M-072 refusal and no packet is made, while the pure packet maths stays readable.'
+
+- id: S-63
+  name: hunk_review
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Hunk-level review (M-074): when true, the hunkreview road is open — a unified diff is split into its hunks as data and each hunk is accepted, rejected, or edited on its own; rejecting one hunk never kills the rest, the accepted and edited hunks are judged by the unchanged M-071 strict applier (every hunk context must match the file exactly, no fuzz ever) and written through the existing EditJournal road, and rejected hunks simply never land. An edit may change what a hunk becomes, never what it matches — its context and removed lines stay exactly as proposed, and the edited hunk is re-judged by the same strict rules before it applies. Every hunk must be decided before anything applies: a pending hunk refuses the apply and is named, and a review whose hunks are all rejected is recorded as an honest no-change outcome. The whole review is recorded as a hunk_review_applied session event with each hunk decision and the accepted, edited, and rejected counts. /hunkreview shows the gate and a worked accept/reject/edit example, and turns the gate on or off (journaled, with a save-failure revert); when false, reviewed applies through the agent refuse and say so, while the pure review maths stays readable.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
