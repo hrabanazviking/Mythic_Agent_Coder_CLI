@@ -147,13 +147,64 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             diff = list(difflib.ndiff(old_content.splitlines(), new_content.splitlines()))
             added = sum(line.startswith("+ ") for line in diff)
             removed = sum(line.startswith("- ") for line in diff)
-            EditJournal(root_path).write(arguments["path"], new_content)
+            # M-071: a whole-file payload is one of the four
+            # edit formats — when an agent is attached, the
+            # write rides its journaled format road (the pure
+            # applier + the EditJournal, with the apply recorded
+            # on the session); without an agent, the journal
+            # road alone is the same write.
+            anchor = arguments.get("anchor")
+            if anchor:
+                # M-072: an anchored whole-file write — the file
+                # must still hold the anchor of its full text the
+                # coder saw, or the write refuses cleanly and
+                # changes nothing (a moved target, named).
+                if not existed:
+                    return (f"Failed to write file: an anchored "
+                            f"write needs an existing file; "
+                            f"{arguments['path']} does not exist")
+                line_count = len(old_content.splitlines()) or 1
+                if agent is not None and hasattr(
+                        agent, "apply_hash_anchored_range_with_repair"):
+                    # M-073: a stale anchor's refusal returns as a
+                    # repair packet — the true current text rides
+                    # in this result for the coder's one retry.
+                    record = agent.apply_hash_anchored_range_with_repair(
+                        arguments["path"], 1, line_count, anchor,
+                        new_content)
+                    if not record.get("applied", True):
+                        return (f"Failed to write file: "
+                                f"{record['packet_text']}")
+                elif agent is not None and hasattr(
+                        agent, "apply_hash_anchored_range"):
+                    agent.apply_hash_anchored_range(
+                        arguments["path"], 1, line_count, anchor,
+                        new_content)
+                else:
+                    EditJournal(root_path).write_anchored_range(
+                        arguments["path"], 1, line_count, anchor,
+                        new_content)
+            elif agent is not None and hasattr(agent, "apply_edit_format"):
+                agent.apply_edit_format(
+                    arguments["path"], "whole-file", new_content)
+            else:
+                EditJournal(root_path).write(arguments["path"], new_content)
             result = f"Successfully wrote to {path} (+{added} lines, -{removed} lines)"
             # M-052: the edit-time truth loop — new errors the
             # edit introduced return in this same tool result.
             from ..tools.edit_truth import enabled_from_config, truth_note_for_edit
             if enabled_from_config(getattr(agent, "config", None)):
                 result += truth_note_for_edit(
+                    path, old_content if existed else None, root=root_path)
+            # M-063: type depth — type errors this edit broke
+            # return in this same tool result, beside M-052's
+            # truth note; no checker installed is silence here
+            # (the standing /types account names the absence).
+            from ..tools.type_depth import (
+                enabled_from_config as type_enabled,
+                type_note_for_edit)
+            if type_enabled(getattr(agent, "config", None)):
+                result += type_note_for_edit(
                     path, old_content if existed else None, root=root_path)
             return result
         except Exception as exc:
@@ -207,18 +258,65 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             target = arguments["target_content"]
             replacement = arguments["replacement_content"]
             if not target or content.count(target) != 1:
-                return "Error: target_content must match exactly one nonempty block."
+                message = ("Error: target_content must match exactly "
+                           "one nonempty block.")
+                if target and agent is not None and hasattr(
+                        agent, "apply_edit_format_with_repair"):
+                    # M-073: the refusal becomes a repair packet —
+                    # the true current text rides in this result
+                    # for the coder's one honest retry.
+                    try:
+                        payload = (
+                            "<<<<<<< SEARCH\n" + target
+                            + "\n=======\n" + replacement
+                            + "\n>>>>>>> REPLACE")
+                        record = agent.apply_edit_format_with_repair(
+                            arguments["path"], "search-replace", payload)
+                        if not record.get("applied", True):
+                            message += "\n" + record["packet_text"]
+                    except Exception:
+                        pass  # the plain refusal above is the truth owed
+                return message
             import difflib
             new_content = content.replace(target, replacement, 1)
             diff = list(difflib.ndiff(content.splitlines(), new_content.splitlines()))
             added = sum(line.startswith("+ ") for line in diff)
             removed = sum(line.startswith("- ") for line in diff)
-            EditJournal(root_path).replace(arguments["path"], target, replacement)
+            anchor = arguments.get("anchor")
+            if anchor:
+                # M-072: an anchored replace — the matched block
+                # must still hold its anchor, or the replace
+                # refuses cleanly and changes nothing.
+                if agent is not None and hasattr(
+                        agent, "apply_hash_anchored_search_with_repair"):
+                    # M-073: a stale anchor's refusal returns as a
+                    # repair packet in this result.
+                    record = agent.apply_hash_anchored_search_with_repair(
+                        arguments["path"], target, anchor, replacement)
+                    if not record.get("applied", True):
+                        return (f"Failed to replace content: "
+                                f"{record['packet_text']}")
+                elif agent is not None and hasattr(
+                        agent, "apply_hash_anchored_search"):
+                    agent.apply_hash_anchored_search(
+                        arguments["path"], target, anchor, replacement)
+                else:
+                    EditJournal(root_path).write_anchored_search(
+                        arguments["path"], target, anchor, replacement)
+            else:
+                EditJournal(root_path).replace(
+                    arguments["path"], target, replacement)
             result = f"Successfully replaced content in {path} (+{added} lines, -{removed} lines)"
             # M-052: the edit-time truth loop, as on write_file.
             from ..tools.edit_truth import enabled_from_config, truth_note_for_edit
             if enabled_from_config(getattr(agent, "config", None)):
                 result += truth_note_for_edit(path, content, root=root_path)
+            # M-063: type depth, as on write_file.
+            from ..tools.type_depth import (
+                enabled_from_config as type_enabled,
+                type_note_for_edit)
+            if type_enabled(getattr(agent, "config", None)):
+                result += type_note_for_edit(path, content, root=root_path)
             return result
         except Exception as exc:
             return f"Failed to replace content: {exc}"
