@@ -205,6 +205,10 @@ class CommandHandler:
                 self._handle_editformat(args)
             elif cmd == "/hashanchor":
                 self._handle_hashanchor(args)
+            elif cmd == "/repairloop":
+                self._handle_repairloop(args)
+            elif cmd == "/hunkreview":
+                self._handle_hunkreview(args)
             elif cmd == "/kista":
                 self._handle_kista(args)
             elif cmd == "/resume-thought":
@@ -1012,6 +1016,100 @@ class CommandHandler:
             return
         try:
             record = primary.set_hash_anchored(request["enabled"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_setting_change(record)}[/green]\n")
+
+    def _handle_repairloop(self, args: str):
+        """M-073: /repairloop — the apply-failure repair loop.
+
+        ``/repairloop`` shows the gate (on by default), the
+        plain-words explanation, and a worked refusal → packet
+        → one-retry example; ``/repairloop on`` / ``off``
+        changes the gate (journaled by the agent layer).
+        """
+        from ..core.apply_repair import (
+            enabled_from_config,
+            format_apply_repair,
+            format_setting_change,
+            parse_repairloop_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_repairloop_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.repair_loop_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_apply_repair(primary.config)}[/bold cyan]\n"
+                     "[dim]Turn the gate off with /repairloop off, "
+                     "or back on with /repairloop on.[/dim]\n")
+            return
+        try:
+            record = primary.set_apply_repair(request["enabled"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_setting_change(record)}[/green]\n")
+
+
+    def _handle_hunkreview(self, args: str):
+        """M-074: /hunkreview — hunk-level review.
+
+        ``/hunkreview`` shows the gate (on by default), the
+        plain-words explanation, and a worked accept / reject
+        / edit example over a two-hunk diff; ``/hunkreview
+        on`` / ``off`` changes the gate (journaled by the
+        agent layer).
+        """
+        from ..core.hunk_review import (
+            enabled_from_config,
+            format_hunk_review,
+            format_setting_change,
+            parse_hunkreview_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_hunkreview_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.hunk_review_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_hunk_review(primary.config)}[/bold cyan]\n"
+                     "[dim]Turn the gate off with /hunkreview off, "
+                     "or back on with /hunkreview on.[/dim]\n")
+            return
+        try:
+            record = primary.set_hunk_review(request["enabled"])
         except (ValueError, KeyError, RuntimeError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

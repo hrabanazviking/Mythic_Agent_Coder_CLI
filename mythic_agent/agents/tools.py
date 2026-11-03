@@ -165,6 +165,17 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
                             f"{arguments['path']} does not exist")
                 line_count = len(old_content.splitlines()) or 1
                 if agent is not None and hasattr(
+                        agent, "apply_hash_anchored_range_with_repair"):
+                    # M-073: a stale anchor's refusal returns as a
+                    # repair packet — the true current text rides
+                    # in this result for the coder's one retry.
+                    record = agent.apply_hash_anchored_range_with_repair(
+                        arguments["path"], 1, line_count, anchor,
+                        new_content)
+                    if not record.get("applied", True):
+                        return (f"Failed to write file: "
+                                f"{record['packet_text']}")
+                elif agent is not None and hasattr(
                         agent, "apply_hash_anchored_range"):
                     agent.apply_hash_anchored_range(
                         arguments["path"], 1, line_count, anchor,
@@ -247,7 +258,25 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
             target = arguments["target_content"]
             replacement = arguments["replacement_content"]
             if not target or content.count(target) != 1:
-                return "Error: target_content must match exactly one nonempty block."
+                message = ("Error: target_content must match exactly "
+                           "one nonempty block.")
+                if target and agent is not None and hasattr(
+                        agent, "apply_edit_format_with_repair"):
+                    # M-073: the refusal becomes a repair packet —
+                    # the true current text rides in this result
+                    # for the coder's one honest retry.
+                    try:
+                        payload = (
+                            "<<<<<<< SEARCH\n" + target
+                            + "\n=======\n" + replacement
+                            + "\n>>>>>>> REPLACE")
+                        record = agent.apply_edit_format_with_repair(
+                            arguments["path"], "search-replace", payload)
+                        if not record.get("applied", True):
+                            message += "\n" + record["packet_text"]
+                    except Exception:
+                        pass  # the plain refusal above is the truth owed
+                return message
             import difflib
             new_content = content.replace(target, replacement, 1)
             diff = list(difflib.ndiff(content.splitlines(), new_content.splitlines()))
@@ -259,6 +288,15 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
                 # must still hold its anchor, or the replace
                 # refuses cleanly and changes nothing.
                 if agent is not None and hasattr(
+                        agent, "apply_hash_anchored_search_with_repair"):
+                    # M-073: a stale anchor's refusal returns as a
+                    # repair packet in this result.
+                    record = agent.apply_hash_anchored_search_with_repair(
+                        arguments["path"], target, anchor, replacement)
+                    if not record.get("applied", True):
+                        return (f"Failed to replace content: "
+                                f"{record['packet_text']}")
+                elif agent is not None and hasattr(
                         agent, "apply_hash_anchored_search"):
                     agent.apply_hash_anchored_search(
                         arguments["path"], target, anchor, replacement)
