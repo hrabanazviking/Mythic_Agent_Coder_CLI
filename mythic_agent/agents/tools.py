@@ -99,6 +99,22 @@ def truncate_output(output: str, max_length: int = 20000) -> str:
     return output
 
 
+def _journal_for(root_path: Path, agent: Any = None) -> EditJournal:
+    """The EditJournal for a tool write (M-079).
+
+    When an agent is attached, its config's explicit word
+    for guarded files rides into the journal, so the
+    guardians judge the tool roads under the same word as
+    every other road; without an agent, the journal reads
+    the stored config's word itself.
+    """
+    explicit = None
+    if agent is not None:
+        from ..core.file_guardians import explicit_from_config
+        explicit = explicit_from_config(getattr(agent, "config", None))
+    return EditJournal(root_path, explicit_word=explicit)
+
+
 def validate_tool_arguments(name: str, arguments: dict[str, Any]) -> None:
     """Legacy entry point; delegates to :mod:`mythic_agent.core.validation`.
 
@@ -181,14 +197,14 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
                         arguments["path"], 1, line_count, anchor,
                         new_content)
                 else:
-                    EditJournal(root_path).write_anchored_range(
+                    _journal_for(root_path, agent).write_anchored_range(
                         arguments["path"], 1, line_count, anchor,
                         new_content)
             elif agent is not None and hasattr(agent, "apply_edit_format"):
                 agent.apply_edit_format(
                     arguments["path"], "whole-file", new_content)
             else:
-                EditJournal(root_path).write(arguments["path"], new_content)
+                _journal_for(root_path, agent).write(arguments["path"], new_content)
             result = f"Successfully wrote to {path} (+{added} lines, -{removed} lines)"
             # M-052: the edit-time truth loop — new errors the
             # edit introduced return in this same tool result.
@@ -301,10 +317,10 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
                     agent.apply_hash_anchored_search(
                         arguments["path"], target, anchor, replacement)
                 else:
-                    EditJournal(root_path).write_anchored_search(
+                    _journal_for(root_path, agent).write_anchored_search(
                         arguments["path"], target, anchor, replacement)
             else:
-                EditJournal(root_path).replace(
+                _journal_for(root_path, agent).replace(
                     arguments["path"], target, replacement)
             result = f"Successfully replaced content in {path} (+{added} lines, -{removed} lines)"
             # M-052: the edit-time truth loop, as on write_file.

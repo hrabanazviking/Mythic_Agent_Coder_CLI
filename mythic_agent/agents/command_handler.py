@@ -209,6 +209,8 @@ class CommandHandler:
                 self._handle_repairloop(args)
             elif cmd == "/hunkreview":
                 self._handle_hunkreview(args)
+            elif cmd == "/guardians":
+                self._handle_guardians(args)
             elif cmd == "/kista":
                 self._handle_kista(args)
             elif cmd == "/resume-thought":
@@ -1110,6 +1112,61 @@ class CommandHandler:
             return
         try:
             record = primary.set_hunk_review(request["enabled"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_setting_change(record)}[/green]\n")
+
+    def _handle_guardians(self, args: str):
+        """M-079: /guardians — README and licence guardians.
+
+        ``/guardians`` shows the guards, the guarded names
+        judged, worked refusal / allowed examples, and
+        whether the user's explicit word is on record;
+        ``/guardians word on`` / ``word off`` gives or takes
+        back the word (journaled by the agent layer);
+        ``/guardians check <path>`` judges one path under
+        every operation.
+        """
+        from ..core.file_guardians import (
+            explicit_from_config,
+            format_guard_check,
+            format_guardians,
+            format_setting_change,
+            parse_guardians_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_guardians_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.guardian_status()
+            assert status["explicit_word"] == explicit_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_guardians(primary.config)}[/bold cyan]\n"
+                     "[dim]Give the word with /guardians word on, "
+                     "or take it back with /guardians word off.[/dim]\n")
+            return
+        if request["action"] == "check":
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_guard_check(primary.config, request['path'])}[/bold cyan]\n")
+            return
+        try:
+            record = primary.set_guardian_word(request["enabled"])
         except (ValueError, KeyError, RuntimeError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
