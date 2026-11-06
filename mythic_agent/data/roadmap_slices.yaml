@@ -567,7 +567,7 @@ slices:
   title: Generated-code honesty
   summary: generated files are marked, their generator recorded; hand-edits to generated files warn before
     saving.
-  status: queued
+  status: done
 - id: M-087
   part: 4
   title: Large-file and binary care
