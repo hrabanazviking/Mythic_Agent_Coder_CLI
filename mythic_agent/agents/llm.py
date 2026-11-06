@@ -1215,6 +1215,23 @@ class Agent:
         from ..core.workspace import resolve_file
 
         target = resolve_file(self.project_root, path, write=True)
+        # M-087: large-file and binary care judges the
+        # file from its true bytes before any edit road
+        # runs - a binary refuses outright, whatever the
+        # gate says, and a large file whose care gate is
+        # off refuses with the guard's own explanation.
+        # The assessment rides along below: a large file
+        # on the chunk road warns before saving, exactly
+        # as a generated file does (M-086).
+        care_assessment = None
+        if target.exists():
+            from ..core import large_file_care as _lfc
+            care_assessment = _lfc.assess_edit(
+                _lfc.classify_bytes(path, target.read_bytes()),
+                config=self.config)
+            if not care_assessment.allowed:
+                raise ValueError(care_assessment.warning)
+        target = resolve_file(self.project_root, path, write=True)
         current = (target.read_text(encoding="utf-8")
                    if target.exists() else None)
         new_text, units = apply_edit(format_id, current, payload)
@@ -1246,10 +1263,16 @@ class Agent:
             "changed": current != new_text, "journaled": False,
             "generated_warning": (gen_assessment.warning
                                   if gen_assessment is not None
-                                  and gen_assessment.warns else None)}
+                                  and gen_assessment.warns else None),
+            "large_file_warning": (care_assessment.warning
+                                   if care_assessment is not None
+                                   and care_assessment.warns else None)}
         if (gen_assessment is not None and gen_assessment.warns
                 and self._session_store and self.session_id):
             self._checkpoint(gen_assessment.record())
+        if (care_assessment is not None and care_assessment.warns
+                and self._session_store and self.session_id):
+            self._checkpoint(care_assessment.record())
         if self._session_store and self.session_id:
             self._checkpoint({"type": "edit_format_applied",
                               "path": path, "format": format_id,
@@ -2114,6 +2137,142 @@ class Agent:
             event = record.record()
             event["marked"] = marked
             self._checkpoint(event)
+            data["journaled"] = True
+        return data
+
+    def large_file_care_status(self) -> dict[str, Any]:
+        """The large-file care gate, in plain data (M-087).
+
+        The setting exactly as stored (validated - a
+        malformed stored value raises, never vanishes) and
+        the plain explanation. This is the answer
+        ``/largefile`` shows.
+        """
+        from ..core import large_file_care
+
+        return {
+            "enabled": large_file_care.enabled_from_config(self.config),
+            "explanation": large_file_care.PLAIN_EXPLANATION,
+        }
+
+    def set_large_file_care(self, enabled: bool) -> dict[str, Any]:
+        """Turn large-file and binary care on or off (M-087).
+
+        Validated by :mod:`mythic_agent.core.large_file_care`
+        before anything mutates; journaled first as a
+        ``large_file_care_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``large_file_care_setting_reverted``.
+        """
+        import copy
+
+        from ..core import large_file_care
+
+        new_value, change = large_file_care.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[large_file_care.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "large_file_care_setting_reverted",
+                        "reason": "The large-file care change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Large-file care change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def check_large_file(self, path: str) -> dict[str, Any]:
+        """Classify one real file from its true bytes (M-087).
+
+        A pure read: the file's bytes are classified once -
+        binary or text, small or large - with the guard's
+        own explanation, a text edit is assessed under
+        this config, and a large text file also returns
+        its anchored chunk plan. A missing file refuses;
+        nothing is written.
+        """
+        from ..core import large_file_care
+        from ..core.workspace import resolve_file
+
+        target = resolve_file(self.project_root, path)
+        if not target.exists():
+            raise ValueError(f"{path} does not exist; nothing was checked")
+        record = large_file_care.classify_bytes(path, target.read_bytes())
+        assessment = large_file_care.assess_edit(record, config=self.config)
+        data = record.record()
+        data["assessment"] = assessment.record()
+        data["chunks"] = []
+        data["chunk_plan"] = None
+        if record.edit_mode == "anchored_chunks":
+            chunks = large_file_care.split_chunks(
+                target.read_text(encoding="utf-8"))
+            data["chunks"] = [c.record() for c in chunks]
+            data["chunk_plan"] = large_file_care.format_chunk_plan(chunks)
+        data["journaled"] = False
+        return data
+
+    def apply_large_file_chunk_edit(
+            self, path: str, chunk_index: int, anchor: str,
+            replacement: str) -> dict[str, Any]:
+        """Edit one anchored chunk of a large file (M-087).
+
+        The gate being off refuses and edits nothing. The
+        file is judged from its true bytes first: a binary
+        refuses in the guard's own words, and a file on
+        the whole-file road refuses here - the ordinary
+        edit roads are its road. The pure layer applies
+        the replacement only when the anchor still
+        matches the chunk the file holds now; a mismatch
+        names both anchors and writes nothing. A clean
+        edit is written through the EditJournal road and
+        recorded on the session as a
+        ``large_file_chunk_edited`` event when one is
+        attached.
+        """
+        from ..core import large_file_care
+        from ..core.edits import EditJournal
+        from ..core.workspace import resolve_file
+
+        if not large_file_care.enabled_from_config(self.config):
+            raise ValueError(
+                "large-file care is off - turn it on with "
+                "/largefile on; nothing was changed")
+        target = resolve_file(self.project_root, path, write=True)
+        if not target.exists():
+            raise ValueError(f"{path} does not exist; nothing was edited")
+        record = large_file_care.classify_bytes(path, target.read_bytes())
+        if record.is_binary:
+            raise ValueError(record.explanation)
+        if record.edit_mode != "anchored_chunks":
+            raise ValueError(
+                f"{path} is on the whole-file road; chunk edits "
+                "are for large files - use the ordinary edit roads")
+        text = target.read_text(encoding="utf-8")
+        new_text = large_file_care.apply_chunk_edit(
+            text, chunk_index, anchor, replacement)
+        EditJournal(self.project_root).write(path, new_text)
+        data = record.record()
+        data["chunk_index"] = chunk_index
+        data["anchor"] = anchor
+        data["journaled"] = False
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "large_file_chunk_edited",
+                "path": path, "chunk_index": chunk_index,
+                "anchor": anchor})
             data["journaled"] = True
         return data
 
