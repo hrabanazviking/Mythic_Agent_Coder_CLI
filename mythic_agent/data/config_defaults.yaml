@@ -63,6 +63,7 @@ permission_mode: ask
 machine_permission_mode: read-only
 permission_profile: trusted-forge
 remembered_approvals: []
+os_sandbox: true
 streaming: false
 runtime: {}
 github:
