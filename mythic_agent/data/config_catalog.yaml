@@ -528,6 +528,14 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Commit craft (M-080): when true, the commitcraft road is open — a working-tree change is split into commits by concern (code, tests, docs, config), each message drafted from its own actual diff (verb, file names, and per-file counts read off the diff; every hunk judged by the M-074 hunk layer), one group committed at a time with the index proven to hold exactly that group, and pushes follow the house rules wired in as refusals: fetch first, the remote-diff read before pushing, never force-push (a diverged remote refuses), and ls-remote verification afterwards that the remote moved to the pushed head; an up-to-date remote is an honest no-send. Commit craft never commits on its own — the auto-commit trigger is M-078''s seam (DEPENDS-ON-M-078), reported honestly through it since M-078 banked (before that banking it reported unavailable). /commitcraft shows the gate, a worked split-and-draft example, plans the split, commits one concern group, and pushes under the house rules (journaled, with a save-failure revert); when false, commits and pushes through the agent refuse and say so, while the pure planning maths stays readable.'
 
+- id: S-73
+  name: conflict_workbench
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Conflict workbench (M-081): when true, the /conflicts road is open - merge and rebase conflicts are presented as per-region decisions (ours, theirs, both, or an edited resolution), each side carrying an intent summary derived mechanically from the actual commits and stage diffs (side commit subject, author, short sha, and added/removed line counts against the base stage; a deleted side, a missing base, or a missing commit is stated plainly, never invented). Every conflicted place must be decided before anything applies, and resolved text still carrying a conflict marker is refused. A resolution is written through EditJournal, staged, verified against the real index, and journaled as a conflict_resolution_applied session event (journal-first gate changes, save-failure revert). Delete/modify conflicts are detected with their intent summary but carry no marker regions, so they cannot be decided place-by-place in this slice. When false, resolutions through the agent refuse and say so.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
