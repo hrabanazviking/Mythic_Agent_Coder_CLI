@@ -215,6 +215,8 @@ class CommandHandler:
                 self._handle_rename(args)
             elif cmd == "/generated":
                 self._handle_generated(args)
+            elif cmd == "/largefile":
+                self._handle_largefile(args)
             elif cmd == "/issueslice":
                 self._handle_issueslice(args)
             elif cmd == "/conflicts":
@@ -1393,6 +1395,66 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[green]{format_generated_record(data)}[/green]\n")
+
+    def _handle_largefile(self, args: str):
+        """M-087: /largefile - large-file and binary care.
+
+        ``/largefile`` shows the gate (on by default), the
+        plain-words explanation, and a worked example of
+        each road; ``/largefile on`` / ``off`` changes the
+        gate (journaled by the agent layer); ``/largefile
+        <path>`` classifies one file from its true bytes -
+        a large text file also shows its anchored chunk
+        plan, and a binary is refused in plain words.
+        """
+        from ..core.large_file_care import (
+            enabled_from_config,
+            format_file_care,
+            format_large_file_care,
+            format_setting_change,
+            parse_largefile_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_largefile_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.large_file_care_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_large_file_care(primary.config)}[/bold cyan]\n"
+                     "[dim]Turn the gate off with /largefile off, "
+                     "or back on with /largefile on.[/dim]\n")
+            return
+        try:
+            if request["action"] in ("on", "off"):
+                record = primary.set_large_file_care(
+                    request["action"] == "on")
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_setting_change(record)}[/green]\n")
+                return
+            data = primary.check_large_file(request["path"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        text = format_file_care(data)
+        if data.get("chunk_plan"):
+            text = text + "\n" + data["chunk_plan"]
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{text}[/green]\n")
 
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.

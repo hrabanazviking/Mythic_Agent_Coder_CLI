@@ -13,6 +13,7 @@ hunk_review: true
 change_sets: true
 rename_move: true
 generated_code: true
+large_file_care: true
 issue_to_slice: true
 pr_craft: true
 conflict_workbench: true
