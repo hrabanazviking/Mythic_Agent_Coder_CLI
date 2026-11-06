@@ -216,3 +216,155 @@ def test_format_diff_theatre_exercises_both_views():
 def test_format_setting_change_plain_words():
     assert dt.format_setting_change({"to": False}) == (
         "Diff theatre is now off.")
+
+
+# --- agent layer: gate, staging road, surfaces ----------------
+
+from mythic_agent.core.sessions import SessionStore
+
+
+def _store_for(tmp_path):
+    return SessionStore(tmp_path, tmp_path / "state")
+
+
+class TestAgentGate:
+    def test_status(self, agent):
+        status = agent.diff_theatre_status()
+        assert status["enabled"] is True
+        assert status["explanation"] == dt.PLAIN_EXPLANATION
+
+    def test_set_without_session(self, agent):
+        record = agent.set_diff_theatre(False)
+        assert record["journaled"] is False
+        assert agent.config["diff_theatre"] is False
+        with pytest.raises(ValueError, match="already"):
+            agent.set_diff_theatre(False)
+
+    def test_set_journals_on_the_session(self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        agent.set_diff_theatre(False)
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert "diff_theatre_setting_changed" in types
+        agent.close()
+
+    def test_save_failure_restores_and_journals_the_revert(
+            self, agent, tmp_path, monkeypatch):
+        from mythic_agent.agents import llm
+
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        monkeypatch.setattr(llm.config_manager, "save_config",
+                            lambda config: False)
+        with pytest.raises(RuntimeError, match="could not be saved"):
+            agent.set_diff_theatre(False)
+        assert agent.config.get("diff_theatre") is not False
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert types[-2:] == ["diff_theatre_setting_changed",
+                              "diff_theatre_setting_reverted"]
+        agent.close()
+
+
+class TestShowRoad:
+    def test_show_stages_and_renders(self, agent):
+        record = agent.show_diff_theatre("a\nold\n", "a\nnew\n")
+        assert record["type"] == "diff_theatre"
+        assert record["added"] == 1 and record["removed"] == 1
+        assert "1 added, 1 removed" in record["rendered"]
+        assert record["journaled"] is False
+
+    def test_show_side_by_side(self, agent):
+        record = agent.show_diff_theatre(
+            "a\nold\n", "a\nnew\n", view="side_by_side")
+        assert "side_by_side" in record["rendered"]
+        assert " | " in record["rendered"]
+
+    def test_show_whitespace_toggle_judges(self, agent):
+        record = agent.show_diff_theatre(
+            "a  b\n", "a b\n", ignore_whitespace=True)
+        assert record["added"] == 0 and record["removed"] == 0
+        assert "[whitespace only]" in record["rendered"]
+
+    def test_show_journals_the_staging(self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        record = agent.show_diff_theatre("x\n", "y\n")
+        assert record["journaled"] is True
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert "diff_theatre" in types
+        agent.close()
+
+    def test_gate_off_refuses_and_stages_nothing(self, agent):
+        agent.set_diff_theatre(False)
+        with pytest.raises(ValueError, match="diff theatre is off"):
+            agent.show_diff_theatre("x\n", "y\n")
+
+
+class TestTerminalSurface:
+    def test_show_and_set(self, agent):
+        from mythic_agent.terminal import _slash
+
+        _, _, text = _slash(agent, "/diff")
+        assert "Diff theatre in the TUI (M-091)" in text
+        assert "Setting: on (diff_theatre)" in text
+        _, _, text = _slash(agent, "/diff off")
+        assert "Diff theatre is now off." in text
+        assert agent.config["diff_theatre"] is False
+        _, _, text = _slash(agent, "/diff on")
+        assert "Diff theatre is now on." in text
+
+    def test_view_via_the_terminal(self, agent):
+        from mythic_agent.terminal import _slash
+
+        _, _, text = _slash(agent, "/diff side-by-side")
+        assert "side_by_side" in text
+        _, _, text = _slash(agent, "/diff whitespace")
+        assert "Diff theatre (unified)" in text
+
+    def test_usage_error_is_the_message(self, agent):
+        from mythic_agent.terminal import _slash
+
+        _, _, text = _slash(agent, "/diff frobnicate")
+        assert "Usage: /diff" in text
+
+
+@pytest.fixture()
+def diff_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _diff_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestDiffCommand:
+    def test_show_is_default(self, diff_handler, agent):
+        diff_handler._handle_diff("")
+        assert "Diff theatre in the TUI (M-091)" in _diff_published_text(diff_handler)
+
+    def test_set_via_the_handler(self, diff_handler, agent):
+        diff_handler._handle_diff("off")
+        assert "Diff theatre is now off." in _diff_published_text(diff_handler)
+        assert agent.config["diff_theatre"] is False
+
+    def test_view_via_the_handler(self, diff_handler, agent):
+        diff_handler._handle_diff("side-by-side")
+        assert "side_by_side" in _diff_published_text(diff_handler)
+
+    def test_usage_error_is_published(self, diff_handler, agent):
+        diff_handler._handle_diff("frobnicate")
+        assert "Usage: /diff" in _diff_published_text(diff_handler)

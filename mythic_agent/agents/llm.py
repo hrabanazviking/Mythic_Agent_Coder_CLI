@@ -6603,6 +6603,96 @@ class Agent:
             "prompt", label, draft, environ=environ)
 
 
+    # -- M-091: diff theatre in the TUI --
+
+    def diff_theatre_status(self) -> dict[str, Any]:
+        """The diff-theatre gate, in plain data (M-091).
+
+        The setting exactly as stored (validated - a
+        malformed stored value raises, never vanishes)
+        and the plain explanation.
+        """
+        from ..core import diff_theatre
+
+        return {
+            "enabled": diff_theatre.enabled_from_config(self.config),
+            "explanation": diff_theatre.PLAIN_EXPLANATION,
+        }
+
+    def set_diff_theatre(self, enabled: bool) -> dict[str, Any]:
+        """Turn diff theatre on or off (M-091).
+
+        Validated by :mod:`mythic_agent.core.diff_theatre`
+        before anything mutates; journaled first as a
+        ``diff_theatre_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``diff_theatre_setting_reverted``.
+        """
+        import copy
+
+        from ..core import diff_theatre
+
+        new_value, change = diff_theatre.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[diff_theatre.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "diff_theatre_setting_reverted",
+                        "reason": "The diff theatre change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Diff theatre change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def show_diff_theatre(self, before: str, after: str,
+                          view: str = "unified",
+                          ignore_whitespace: bool = False,
+                          before_label: str = "before",
+                          after_label: str = "after",
+                          ) -> dict[str, Any]:
+        """Stage one change in the diff theatre (M-091).
+
+        Gate first: with diff theatre off this refuses and
+        stages nothing. The change is staged once by the
+        pure layer from the true before/after texts and
+        rendered in the staged view; the staged record is
+        journaled as a ``diff_theatre`` session event when
+        a session is attached, and the rendered text rides
+        the returned record.
+        """
+        from ..core import diff_theatre
+
+        if not diff_theatre.enabled_from_config(self.config):
+            raise ValueError(
+                "diff theatre is off - turn it on with "
+                "/diff on; nothing was staged")
+        theatre = diff_theatre.build_theatre(
+            before, after, view=view,
+            ignore_whitespace=ignore_whitespace,
+            before_label=before_label, after_label=after_label)
+        record: dict[str, Any] = theatre.record()
+        record["rendered"] = diff_theatre.render(theatre)
+        record["journaled"] = False
+        if self._session_store and self.session_id:
+            self._checkpoint(theatre.record())
+            record["journaled"] = True
+        return record
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
