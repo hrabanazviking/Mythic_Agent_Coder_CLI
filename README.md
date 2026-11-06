@@ -64,6 +64,70 @@ See the [User Guide](docs/USER_GUIDE.md) and [API reference](docs/API.md) for th
 
 ---
 
+## 🧭 Current Development Status | 6 November 2026
+
+> **Active alpha, rapidly advancing, not yet a verified stable release.** This is a source-and-repository-evidence snapshot of the feature campaign through **M-080**, reviewed against the committed Python implementation, test inventory, recent commits/merges, roadmap data and hosted CI history. It is **not** a claim that a fresh end-to-end test suite, live provider test or cross-platform release gate was run on this exact revision.
+
+### 📊 Progress at a glance
+
+| Measure | Verified repository state |
+| --- | --- |
+| All-Features campaign | **80 / 272 slices marked done (29.4%)**; **192 queued** in [the machine-readable roadmap](mythic_agent/data/roadmap_slices.yaml) |
+| Finished campaign parts | **I: Census & Charter (M-001–018), II: Provider Ocean (M-019–042), III: Code Intelligence (M-043–070)** |
+| Active campaign part | **IV: The Editor's Hand (M-071–094)**, with M-071–080 marked done (**10 / 24**) |
+| Next planned slice | **M-081: Conflict workbench**, followed by PR craft (M-082), issue-to-slice (M-083) and named multi-file change sets (M-084) |
+| Separate elder roadmap | **MIM-001–050 of 500** receipted in the Mímisbrunnr programme; **MIM-051–500** remain unreceipted. These are *not* additive to the 80 M-slices; see the [concordance](docs/CONCORDANCE_MIMISBRUNNR_FEATURE_ROADMAP.md). |
+| Package version | **0.1.0**, from [the version source](mythic_agent/__version__.py); alpha source project, **no GitHub release published** at this snapshot |
+| Repository scale | **568 tracked files**, including **401 Python files** and **171 maintained Python test files**; [public API inventory](docs/PUBLIC_API.md) lists **2,620 public names** (inventory, *not* a stability guarantee) |
+| Branch and integration status | Development occurs on the default \`development\` branch; the latest code was merged to \`main\` via [PR #7](../../pull/7) on **2026-11-06**. Code reviewed through \`1e8237c\` (\`development\`) and its subsequent \`main\` merge. |
+
+### ⚒️ What the codebase has actually gained
+
+**The working foundation.** The package has a real \`mythic\` entry point, optional Textual TUI, interactive terminal chat, machine-readable \`mythic run\`, workspace-scoped sessions, journaled file edits, user approval policies, cancellable execution, task/sub-agent tracking, an MCP server entry point, diagnostics, cost/metrics tools and optional memory/context capabilities. The [architecture](ARCHITECTURE.md), [CLI guide](docs/CLI.md), [user guide](docs/USER_GUIDE.md) and [development progress record](docs/development/PROGRESS.md) describe the contracts and their earlier evidence. The configurable six-agent Mythic Engineering cast is part of the existing product; making the complete Forge Protocol the universal autonomous operating loop remains later roadmap work.
+
+**Provider expansion, M-019–042.** [The adapter registry](mythic_agent/providers/registry.py) now names **16 provider/endpoint adapters**, including OpenAI, Anthropic, Google, DeepSeek, OpenRouter, Ollama, LM Studio, llama.cpp, vLLM and Project Aesir. The work includes capability negotiation, structured output, tools, vision, reasoning, streaming, usage/cost accounting, retries, health and fallback mechanics. **Registered ≠ live-verified**: credentials, actual provider behavior, optional dependencies and hardware-specific compatibility still require individual proof.
+
+**Code intelligence, M-043–070.** Tree-sitter foundations, repository maps, symbol graphs, structural search/rewrite, LSP diagnostics/navigation/rename, debugging through DAP, test feedback, code-sensing and specialised source views are represented by implementation modules and regression tests. [The Part III gate](mythic_agent/data/part3_gate.yaml) records a **PASS using controlled throwaway repositories and fake protocol-speaking LSP/DAP servers**. That proves the tested integration shapes; it does **not** establish that every real language server, debugger adapter or platform was exercised.
+
+**The Editor's Hand, M-071–080.** The newest integrated feature wave is especially substantial:
+
+| Slice | Implementation now present |
+| --- | --- |
+| **M-071** | Several strict edit formats: whole-file, unified-diff, search/replace and architect/editor planning |
+| **M-072** | Hash-anchored file edits that reject stale or changed targets |
+| **M-073** | Bounded repair packets with true current-text context after failed edits |
+| **M-074** | Per-hunk accept/reject/edit review, followed by journaled application |
+| **M-075** | Named working-tree and session checkpoints, branching checkpoint history and guarded restore |
+| **M-076** | Fork, inspect and compare persistent session branches |
+| **M-077** | Expanded undo timeline for edits, recorded command footprints and checkpoints, with certainty explicitly qualified |
+| **M-078** | Opt-in auto-commit planning on a working branch, with protected-branch rules |
+| **M-079** | README and licence file guardians in the edit journal, with an explicit-authorisation override |
+| **M-080** | Diff-grounded commit splitting/message drafting plus safer push discipline, including remote checks and post-push verification |
+
+The new implementation is visible in [\`core/\`](mythic_agent/core), with command paths in [the handler](mythic_agent/agents/command_handler.py), [terminal](mythic_agent/terminal.py) and [TUI](mythic_agent/ui/screens/chat_screen.py). Dedicated tests include \`test_checkpoints.py\`, \`test_session_branching.py\`, \`test_undo_timeline.py\`, \`test_auto_commit.py\`, \`test_file_guardians.py\` and \`test_commit_craft.py\`. The [current defaults](mythic_agent/data/config_defaults.yaml) enable checkpoints, branching, expanded undo, hunk review and commit craft, while **auto-commit remains off by default** and explicit guardian permission remains off by default.
+
+### 🧪 Quality and release-readiness: evidence, not wishful thinking
+
+- **Local campaign receipts:** [\`CAMPAIGN_STATE.md\`](CAMPAIGN_STATE.md) records M-075's whole-suite confirmation as **3,884 passed, 3 failed, 1 skipped** (3,888 collected). Its authors classified two failures as environment-specific and the third as a ledger-consistency failure addressed by the closing record. **That is a historical receipt, not a clean run on M-080.** Newer M-076–080 closure commits, tests and regenerated roadmap/API/ownership inventories are present, but the root campaign's detailed closure narrative has not yet been extended to M-080.
+- **Hosted CI is not currently green or current.** The latest visible [Actions run, 22 October 2026](../../actions/runs/39840813835), failed across **all six** Linux/macOS/Windows × Python 3.10/3.13 jobs. Sample logged causes include coverage-report parsing, ownership-map assertions and Windows test collection failing because \`tests/test_session_identity.py\` imports POSIX-only \`fcntl\` unconditionally. That import is still in the reviewed source. The current [workflow](.github/workflows/ci.yml) uses **manual \`workflow_dispatch\` only**; recent November commits therefore do not prove a fresh hosted matrix.
+- **Tests and generated inventories are extensive but distinct from release approval.** \`tests/\` contains 171 Python test modules, and [\`PUBLIC_API.md\`](docs/PUBLIC_API.md) plus [\`OWNERSHIP.md\`](docs/OWNERSHIP.md) were regenerated on 6 November. No complete suite, wheel-install matrix, real-provider matrix or physical cross-platform acceptance test was independently executed as part of *this README audit*.
+- **Release documentation needs a reconciliation pass.** [\`ROADMAP.md\`](ROADMAP.md), [\`docs/development/PROGRESS.md\`](docs/development/PROGRESS.md) and [\`docs/RELEASE_CHECKLIST.md\`](docs/RELEASE_CHECKLIST.md) still carry older checkpoints/results. [The 272-slice roadmap's introduction](docs/MYTHIC_CODER_FEATURE_ROADMAP_2026-10-30.md) calls the repository “AGPL”, whereas the actual [\`LICENSE\`](LICENSE), [\`pyproject.toml\`](pyproject.toml) and this README currently identify **Apache-2.0**. This is a *documentation inconsistency*, not a licence change; resolve it deliberately without silently editing legal files.
+
+### 🧱 What is next, and what is **not** finished
+
+**Immediate engineering queue:** begin **M-081 conflict workbench**; then M-082–094 progressively finish the Git/PR, review, large-file, patch and editor experience, ending in the **Part IV acceptance gate**. For a release-quality baseline, also fix the Windows \`fcntl\` test portability issue, re-run the full suite, regenerate/verify the source inventories, run the six-platform/Python-version CI matrix on the **exact candidate commit**, and update the campaign ledger and release checklist with reproducible evidence.
+
+**Later major parts remain queued:** Part V autonomy/permissions and **native OS sandboxing** (M-095–120); Part VI collaborative agent crews (M-121–146); Part VII memory/context (M-147–170); Part VIII UX (M-171–200); Part IX Mythic Engineering as the governing workflow (M-201–226); Part X extensions/integrations (M-227–252); and Part XI final reliability, security, privacy and release gates (M-253–272). The current shell denylist/timeouts and permission checks should **not** be mistaken for the future M-097 kernel/OS confinement boundary.
+
+**How to read progress:** \`done\` in [the slice ledger](mythic_agent/data/roadmap_slices.yaml) means the campaign has banked that slice, **not** that the complete product is stable, every model has been tested live, every GitHub Actions job is green or all future roadmap gates are met. For detailed priorities and historical receipts, consult [the governing 272-slice roadmap](docs/MYTHIC_CODER_FEATURE_ROADMAP_2026-10-30.md), [the campaign state](CAMPAIGN_STATE.md), [the elder 500-slice roadmap](MYTHIC_AGENT_CODER_CLI_500_SLICE_ULTIMATE_MIMISBRUNNR_ROADMAP.md) and [the concordance](docs/CONCORDANCE_MIMISBRUNNR_FEATURE_ROADMAP.md).
+
+*Audit scope: default-branch repository tree, package/test/module inventory, core implementations and entry-point wiring, YAML status, project documents, recent commit history, merged PRs, GitHub Actions runs and representative job logs. No source files, licence files, generated inventories or tests were changed for this status report.*
+
+---
+
+
+---
+
 ![https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-e04bc550-a7a5-4423-ab48-33d912f0a27a.png](https://raw.githubusercontent.com/hrabanazviking/Mythic_Agent_Coder_CLI/refs/heads/development/media/venice-studio-e04bc550-a7a5-4423-ab48-33d912f0a27a.png)
 
 ---
