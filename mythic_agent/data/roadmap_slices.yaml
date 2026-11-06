@@ -608,7 +608,7 @@ slices:
   title: Guarded mass edits
   summary: repo-wide edits require a dry-run report (files, hunks, risks) approved before a single byte
     moves.
-  status: queued
+  status: done
 - id: M-094
   part: 4
   title: Part IV gate
