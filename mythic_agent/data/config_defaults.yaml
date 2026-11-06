@@ -16,6 +16,7 @@ generated_code: true
 large_file_care: true
 stash_shelf: true
 patch_exchange: true
+editor_bridge: true
 issue_to_slice: true
 pr_craft: true
 conflict_workbench: true
