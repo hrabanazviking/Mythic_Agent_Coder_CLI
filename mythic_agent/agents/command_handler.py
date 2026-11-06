@@ -229,6 +229,8 @@ class CommandHandler:
                 self._handle_diff(args)
             elif cmd == "/blame":
                 self._handle_blame(args)
+            elif cmd == "/massedit":
+                self._handle_massedit(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -1812,6 +1814,55 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[green]{record['rendered']}[/green]\n")
+
+    def _handle_massedit(self, args: str):
+        """M-093: /massedit - guarded mass edits.
+
+        ``/massedit`` shows the gate (on by default),
+        the plain-words explanation, and a demo plan
+        dry-run whole - files, hunks, risks, and the
+        approval its fingerprint would need;
+        ``/massedit on`` / ``off`` changes the gate
+        (journaled by the agent layer). Applying a
+        mass edit runs through the agent road with
+        the plan itself, never through this surface.
+        """
+        from ..core.mass_edit_guard import (
+            enabled_from_config,
+            format_mass_edit_guard,
+            format_setting_change,
+            parse_mass_edit_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_mass_edit_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.mass_edit_guard_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_mass_edit_guard(primary.config)}[/bold cyan]\n")
+            return
+        try:
+            record = primary.set_mass_edit_guard(
+                request["action"] == "on")
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_setting_change(record)}[/green]\n")
 
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.
