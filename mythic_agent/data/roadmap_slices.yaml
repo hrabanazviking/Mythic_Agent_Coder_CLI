@@ -638,7 +638,7 @@ slices:
   title: Network gates
   summary: outbound network per-tool and per-domain allowlists; a sandboxed command that reaches for the
     net is refused and the refusal is news, not a log line.
-  status: queued
+  status: done
 - id: M-099
   part: 5
   title: Path jail
