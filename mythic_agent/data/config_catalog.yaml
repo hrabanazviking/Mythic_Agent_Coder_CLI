@@ -480,6 +480,38 @@ settings:
   default: 'True'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Undo grown up (M-077): when true, /undo walks edits, commands, and checkpoints as one timeline, newest first — an edit undoes through the EditJournal, a command undoes through its recorded footprint (the files it created, changed, or deleted, judged from snapshots taken around its run through the agent run_command tool, before-contents backed up within the snapshot bounds), labelled certain when the snapshots were complete and every changed file is backed up or best-effort with its reasons otherwise; one file changed since the command refuses the whole undo; checkpoints join through the CheckpointTimelineSource seam (M-075), wired at banking to M-075''s own checkpoints through the agent seam adapter. /undo list shows the timeline and the gate, /undo on/off changes it (journaled, with a save-failure revert); when false, /undo keeps its original last-edit behaviour and timeline undos refuse.'
+- id: S-67
+  name: auto_commit
+  scope: top-level
+  type: bool
+  default: 'False'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Auto-commit discipline (M-078): when true, every accepted edit set lands as its own commit with a written message naming the files it carries — one edit set, one commit, staged with exactly the accepted files through Agent.commit_accepted_edits and recorded as an auto_commit_committed session event. On a protected branch the commit moves onto the working branch unless the standing protected word is given; a blank message, an empty or escaping file set, or a detached head refuses and commits nothing. /autocommit shows the discipline and turns it on or off (journaled, with a save-failure revert); when false, accepted edits are not committed by this road.'
+
+- id: S-68
+  name: auto_commit_allow_protected
+  scope: top-level
+  type: bool
+  default: 'False'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Auto-commit discipline (M-078): the standing word for protected branches. When true, an accepted edit set may be committed directly onto a protected branch (main, master, development, develop, plus the names in auto_commit_protected) and the commit is recorded as on-protected; when false (the default), the commit moves onto the working branch instead and a protected branch is never committed to. /autocommit allow-protected and block-protected give or withdraw the word (journaled auto_commit_protected_setting_changed, with a save-failure revert).'
+
+- id: S-69
+  name: auto_commit_branch
+  scope: top-level
+  type: str
+  default: mythic/working
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Auto-commit discipline (M-078): the working branch an accepted edit set is committed to when the current branch is protected and the standing protected word has not been given. The branch is created on demand from the current head; the default is mythic/working. Read by the pure plan in mythic_agent/core/auto_commit.py (plan_commit) on every commit; a blank or malformed stored value raises rather than being silently replaced.'
+
+- id: S-70
+  name: auto_commit_protected
+  scope: top-level
+  type: list
+  default: '[main, master, development, develop]'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Auto-commit discipline (M-078): the branch names treated as protected by the auto-commit road — the shipped set is main, master, development, develop, and the user may name more. A commit planned on one of these branches moves onto the working branch unless the standing protected word (auto_commit_allow_protected) is given. Judged by exact branch name in the pure plan; a detached head is never a protected branch and refuses instead.'
+
 
 env_vars:
 - id: V-01

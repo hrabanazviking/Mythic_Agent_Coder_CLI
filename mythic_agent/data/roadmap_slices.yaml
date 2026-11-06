@@ -521,7 +521,7 @@ slices:
   title: Auto-commit discipline (Aider's crown)
   summary: every accepted edit set lands as its own commit with a written message — on a working branch
     by default, never on the user's protected branches unasked.
-  status: queued
+  status: done
 - id: M-079
   part: 4
   title: README and licence guardians
