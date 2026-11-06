@@ -213,6 +213,8 @@ class CommandHandler:
                 self._handle_changeset(args)
             elif cmd == "/rename":
                 self._handle_rename(args)
+            elif cmd == "/generated":
+                self._handle_generated(args)
             elif cmd == "/issueslice":
                 self._handle_issueslice(args)
             elif cmd == "/conflicts":
@@ -1330,6 +1332,67 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[green]{format_move_record(record)}[/green]\n")
+
+    def _handle_generated(self, args: str):
+        """M-086: /generated - generated-code honesty.
+
+        ``/generated`` shows the gate (on by default), the
+        plain-words explanation, and a worked example;
+        ``/generated on`` / ``off`` changes the gate
+        (journaled by the agent layer); ``/generated
+        <path>`` classifies one file from its own face;
+        ``/generated mark <path> <generator>`` marks one
+        file with its generator's name.
+        """
+        from ..core.generated_code import (
+            enabled_from_config,
+            format_generated_code,
+            format_generated_record,
+            format_setting_change,
+            parse_generated_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_generated_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.generated_code_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_generated_code(primary.config)}[/bold cyan]\n"
+                     "[dim]Turn the gate off with /generated off, "
+                     "or back on with /generated on.[/dim]\n")
+            return
+        try:
+            if request["action"] in ("on", "off"):
+                record = primary.set_generated_code(
+                    request["action"] == "on")
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_setting_change(record)}[/green]\n")
+                return
+            if request["action"] == "check":
+                data = primary.check_generated_code(request["path"])
+            else:
+                data = primary.mark_generated_file(
+                    request["path"], request["generator"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_generated_record(data)}[/green]\n")
 
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.
