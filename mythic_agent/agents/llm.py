@@ -297,6 +297,53 @@ def _role_route_for(config: dict, name: str):
     return route if route.source == "route" else None
 
 
+
+
+class _CheckpointTimelineAdapter:
+    """M-075 checkpoints speaking the M-077 seam (banking wiring).
+
+    Coordinator wiring at M-077 banking: M-077's undo
+    timeline reads its checkpoint strand through the
+    ``checkpoint_timeline_source`` seam and M-075
+    (Checkpoints v2) is banked, so the Agent carries
+    this adapter by default (see the Agent property).
+    Entries are M-075's own checkpoints (id as text,
+    name as label; certainty is not claimed, so the
+    seam's honest ``unknown`` default stands). Restore
+    maps the seam id back to the checkpoint's name and
+    drives the Agent's own M-075 restore road, whose
+    dirty-tree judgement and gate refusals propagate
+    unchanged; the outcome is returned in plain words,
+    as the seam requires.
+    """
+
+    def __init__(self, agent: Any) -> None:
+        self._agent = agent
+
+    def list_checkpoint_entries(self) -> list[dict[str, Any]]:
+        from ..core import checkpoints
+
+        store = checkpoints.CheckpointStore(
+            self._agent.project_root)
+        return [{"id": str(cp.id), "name": cp.name}
+                for cp in store.list_checkpoints()]
+
+    def restore_checkpoint(self, checkpoint_id: str) -> str:
+        from ..core import checkpoints
+
+        store = checkpoints.CheckpointStore(
+            self._agent.project_root)
+        for cp in store.list_checkpoints():
+            if str(cp.id) == str(checkpoint_id):
+                record = self._agent.restore_checkpoint(cp.name)
+                return (f"Restored checkpoint {cp.name!r}: "
+                        f"{record['restored']} file(s) restored, "
+                        f"{record['removed']} removed, "
+                        f"{record['unchanged']} unchanged.")
+        raise ValueError(
+            f"no checkpoint with id {checkpoint_id!r} in "
+            "this workspace; nothing was restored")
+
 class Agent:
     def __init__(self, project_root: Path | None = None, name: str = "Primary", config: dict[str, Any] | None = None):
         import copy
@@ -1164,13 +1211,24 @@ class Agent:
         """
         from ..core.edit_formats import apply_edit
         from ..core.edits import EditJournal
+        from ..core.file_guardians import explicit_from_config
         from ..core.workspace import resolve_file
 
         target = resolve_file(self.project_root, path, write=True)
         current = (target.read_text(encoding="utf-8")
                    if target.exists() else None)
         new_text, units = apply_edit(format_id, current, payload)
-        EditJournal(self.project_root).write(path, new_text)
+        # M-079: the guardians judge the apply by the
+        # operation it truly is — a whole-file format is an
+        # overwrite, a diff or a search block is in-place,
+        # a missing file is a creation — and the journal
+        # enforces the verdict under this config's word.
+        operation = ("create" if current is None else
+                     "overwrite" if format_id == "whole-file"
+                     else "inplace")
+        EditJournal(self.project_root,
+                    explicit_word=explicit_from_config(self.config)
+                    ).write(path, new_text, operation=operation)
         record: dict[str, Any] = {
             "path": path, "format": format_id, "units": units,
             "changed": current != new_text, "journaled": False}
@@ -1239,8 +1297,17 @@ class Agent:
                              current: str | None) -> dict[str, Any]:
         """Write one judged anchored edit via EditJournal (M-072)."""
         from ..core.edits import EditJournal
+        from ..core.file_guardians import explicit_from_config
 
-        EditJournal(self.project_root).write(path, new_text)
+        # M-079: a span covering the whole file is an
+        # overwrite; a partial span is an in-place edit.
+        line_count = len(current.splitlines()) if current else 0
+        operation = ("overwrite" if applied.start <= 1
+                     and applied.end >= max(line_count, 1)
+                     else "inplace")
+        EditJournal(self.project_root,
+                    explicit_word=explicit_from_config(self.config)
+                    ).write(path, new_text, operation=operation)
         record: dict[str, Any] = {
             "path": path, "start": applied.start, "end": applied.end,
             "before": applied.before.hash, "after": applied.after_hash,
@@ -1414,6 +1481,62 @@ class Agent:
                 "setting was preserved")
         return change.record(self.session_id, journaled)
 
+    def guardian_status(self) -> dict[str, Any]:
+        """The guardians and the explicit word (M-079).
+
+        Whether the user's explicit word is on record
+        (validated — a malformed stored value raises, never
+        vanishes), the guarded kinds, and the plain
+        explanation. This is the answer ``/guardians`` shows.
+        """
+        from ..core import file_guardians
+
+        return {
+            "explicit_word": file_guardians.explicit_from_config(
+                self.config),
+            "guarded_kinds": list(file_guardians.GUARDED_KINDS),
+            "explanation": file_guardians.PLAIN_EXPLANATION,
+        }
+
+    def set_guardian_word(self, given: bool) -> dict[str, Any]:
+        """Give or take back the explicit word (M-079).
+
+        Validated by :mod:`mythic_agent.core.file_guardians`
+        before anything mutates; journaled first as a
+        ``guardian_word_changed`` event when a session is
+        attached; a failed save restores the previous value
+        exactly and journals a compensating
+        ``guardian_word_reverted``.
+        """
+        import copy
+
+        from ..core import file_guardians
+
+        new_value, change = file_guardians.set_explicit_word(
+            self.config, given)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[file_guardians.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "guardian_word_reverted",
+                        "reason": "The explicit-word change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Explicit-word change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
     def split_for_review(self, payload: str) -> dict[str, Any]:
         """Split a unified diff into its reviewable hunks (M-074).
 
@@ -1484,7 +1607,14 @@ class Agent:
                     f"got {item!r}")
         new_text, outcome = hunk_review.apply_review(current, review)
         if outcome.applied:
-            EditJournal(self.project_root).write(path, new_text)
+            # M-079: a reviewed hunk apply modifies the file
+            # in place — judged as such by the guardians.
+            from ..core.file_guardians import explicit_from_config
+
+            EditJournal(
+                self.project_root,
+                explicit_word=explicit_from_config(self.config)
+            ).write(path, new_text, operation="inplace")
         record: dict[str, Any] = {
             "path": path, "applied": outcome.applied,
             "rejected": outcome.rejected,
@@ -1498,6 +1628,1001 @@ class Agent:
             self._checkpoint(event)
             record["journaled"] = True
         return record
+
+    def commit_craft_status(self) -> dict[str, Any]:
+        """The commit-craft gate and seam, in data (M-080).
+
+        The setting exactly as stored (validated — a
+        malformed stored value raises, never vanishes),
+        the plain explanation, and the M-078 auto-commit
+        trigger seam, reported honestly through
+        :mod:`mythic_agent.core.commit_craft`. This is
+        the answer ``/commitcraft`` shows.
+        """
+        from ..core import commit_craft
+
+        return {
+            "enabled": commit_craft.enabled_from_config(self.config),
+            "explanation": commit_craft.PLAIN_EXPLANATION,
+            "auto_commit_trigger": commit_craft.auto_commit_trigger(),
+        }
+
+    def set_commit_craft(self, enabled: bool) -> dict[str, Any]:
+        """Turn commit craft on or off (M-080).
+
+        Validated by :mod:`mythic_agent.core.commit_craft`
+        before anything mutates; journaled first as a
+        ``commit_craft_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``commit_craft_setting_reverted``.
+        """
+        import copy
+
+        from ..core import commit_craft
+
+        new_value, change = commit_craft.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[commit_craft.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "commit_craft_setting_reverted",
+                        "reason": "The commit-craft change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Commit-craft change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def plan_commit_split(self) -> dict[str, Any]:
+        """Draft the commit split for the working tree (M-080).
+
+        Purely a read: the tree's diff is collected, its
+        hunks are judged by the M-074 hunk layer, and the
+        files are grouped by concern, each group carrying
+        a message drafted from its own actual diff. The
+        plan is recorded on the session as a
+        ``commit_craft_planned`` event when one is
+        attached. Nothing is staged or committed.
+        """
+        from ..core import commit_craft
+
+        diff_text, untracked, warnings = (
+            commit_craft.collect_working_diff(self.project_root))
+        plan = commit_craft.plan_commits(diff_text, untracked)
+        record = plan.record()
+        record["warnings"] = warnings
+        record["journaled"] = False
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "commit_craft_planned",
+                "concerns": record["concerns"],
+                "files": record["files"],
+                "added": record["added"],
+                "removed": record["removed"],
+            })
+            record["journaled"] = True
+        return record
+
+    def commit_craft_group(
+            self, concern: str,
+            message: str | None = None) -> dict[str, Any]:
+        """Commit one concern group of the split (M-080).
+
+        The plan is re-drafted from the tree as it stands
+        — a stale plan is never committed from. Only the
+        group's own files are staged (``git add`` on
+        exactly those paths), the index is proven to hold
+        exactly that group before the commit is made —
+        an index carrying other staged work refuses,
+        untouched — and the commit is made under the
+        given message or the group's drafted one. The
+        rest of the split stays in the working tree. The
+        commit is recorded as a ``commit_craft_committed``
+        session event with its true new head.
+        """
+        from ..core import commit_craft
+
+        if not commit_craft.enabled_from_config(self.config):
+            raise ValueError(
+                "commit craft is off — turn it on with "
+                "/commitcraft on; nothing was changed")
+        diff_text, untracked, _warnings = (
+            commit_craft.collect_working_diff(self.project_root))
+        plan = commit_craft.plan_commits(diff_text, untracked)
+        group = plan.group(concern)
+        paths = [change.path for change in group.files]
+        code, _out, err = commit_craft.run_git(
+            self.project_root, "add", "--", *paths)
+        if code != 0:
+            raise RuntimeError(
+                f"staging the {concern} group failed: "
+                f"{err.strip()}; nothing was committed")
+        code, out, err = commit_craft.run_git(
+            self.project_root, "diff", "--cached", "--name-only")
+        staged = {line for line in out.splitlines() if line}
+        if code != 0 or staged != set(paths):
+            raise ValueError(
+                "the index holds staged changes beyond the "
+                f"{concern} group ({sorted(staged)}); commit "
+                "craft commits one concern at a time and "
+                "leaves the index as it found it; nothing "
+                "was committed")
+        text = message or commit_craft.draft_message(group)
+        code, _out, err = commit_craft.run_git(
+            self.project_root, "commit", "-m", text)
+        if code != 0:
+            raise RuntimeError(
+                f"the {concern} commit failed: {err.strip()}")
+        code, out, _err = commit_craft.run_git(
+            self.project_root, "rev-parse", "HEAD")
+        sha = out.strip()
+        record: dict[str, Any] = {
+            "concern": concern, "files": paths, "sha": sha,
+            "subject": text.splitlines()[0] if text else "",
+            "message": text, "added": group.added,
+            "removed": group.removed, "journaled": False}
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "commit_craft_committed",
+                "concern": concern, "files": paths, "sha": sha,
+                "subject": record["subject"]})
+            record["journaled"] = True
+        return record
+
+    def push_with_house_rules(
+            self, remote: str = "origin") -> dict[str, Any]:
+        """Push the current branch under the house rules (M-080).
+
+        The rules, wired in, in order: the remote is read
+        with ``ls-remote`` before and after; the remote
+        is fetched; the remote-diff (ahead/behind and the
+        diffstat against the remote branch) is read
+        before anything is sent; the push is judged by
+        :func:`mythic_agent.core.commit_craft.judge_push`
+        — a diverged remote refuses, because pushing past
+        it would need force and this road never
+        force-pushes; the push itself is built with an
+        explicit refspec and judged by
+        ``validate_push_args``; and afterwards
+        ``ls-remote`` must show the remote holding
+        exactly the pushed head, moved from where it
+        stood, or the push is reported as unverified and
+        raised. An up-to-date remote is an honest
+        no-send outcome, returned, not an error. A landed
+        push is recorded as a ``commit_craft_pushed``
+        session event with the before/after heads.
+        """
+        from ..core import commit_craft
+
+        if not commit_craft.enabled_from_config(self.config):
+            raise ValueError(
+                "commit craft is off — turn it on with "
+                "/commitcraft on; nothing was pushed")
+        branch = commit_craft.current_branch(self.project_root)
+        if not branch:
+            raise ValueError(
+                "the tree is on a detached head — there is "
+                "no branch to push; nothing was pushed")
+        code, out, _err = commit_craft.run_git(
+            self.project_root, "rev-parse", "HEAD")
+        local_head = out.strip() if code == 0 else ""
+        before = commit_craft.ls_remote_head(
+            self.project_root, remote, branch)
+        code, _out, err = commit_craft.run_git(
+            self.project_root, "fetch", remote)
+        if code != 0:
+            raise RuntimeError(
+                f"fetch from {remote} failed: {err.strip()}; "
+                "the house rules read the remote-diff before "
+                "any push; nothing was pushed")
+        remote_head = commit_craft.remote_tracking_head(
+            self.project_root, remote, branch)
+        ahead, behind = commit_craft.ahead_behind(
+            self.project_root, remote, branch)
+        stat = commit_craft.remote_diff_stat(
+            self.project_root, remote, branch)
+        verdict = commit_craft.judge_push(
+            local_head, remote_head or None, behind == 0)
+        record: dict[str, Any] = {
+            "remote": remote, "branch": branch,
+            "pushed": False, "before": before or None,
+            "after": before or None, "ahead": ahead,
+            "behind": behind, "remote_diff_stat": stat,
+            "verdict": verdict.record(), "journaled": False}
+        if verdict.kind == "up-to-date":
+            return record
+        if not verdict.allowed:
+            raise ValueError(verdict.reason)
+        args = ["push", remote, f"HEAD:refs/heads/{branch}"]
+        commit_craft.validate_push_args(args)
+        code, _out, err = commit_craft.run_git(
+            self.project_root, *args)
+        if code != 0:
+            raise RuntimeError(
+                f"git push failed: {err.strip()}; the push "
+                "is not claimed")
+        after = commit_craft.ls_remote_head(
+            self.project_root, remote, branch)
+        verify = commit_craft.verify_remote_moved(
+            before or None, after or None, local_head)
+        record["after"] = after or None
+        record["verify"] = verify.record()
+        if not verify.verified:
+            raise RuntimeError(
+                verify.reason + "; the push is not claimed")
+        record["pushed"] = True
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "commit_craft_pushed",
+                "remote": remote, "branch": branch,
+                "before": before or None, "after": after,
+                "ahead": ahead})
+            record["journaled"] = True
+        return record
+
+    def checkpoint_status(self) -> dict[str, Any]:
+        """The checkpoints gate and tree, in plain data (M-075).
+
+        The setting exactly as stored (validated — a
+        malformed stored value raises, never vanishes), the
+        plain explanation, and the whole checkpoint tree:
+        every checkpoint as a record with its parent, the
+        head among them. This is the answer ``/checkpoint``
+        shows.
+        """
+        from ..core import checkpoints
+
+        store = checkpoints.CheckpointStore(self.project_root)
+        records = store.list_checkpoints()
+        head = store.head()
+        return {
+            "enabled": checkpoints.enabled_from_config(self.config),
+            "explanation": checkpoints.PLAIN_EXPLANATION,
+            "count": len(records),
+            "head": head.name if head else None,
+            "head_id": head.id if head else None,
+            "checkpoints": records,
+        }
+
+    def set_checkpoints(self, enabled: bool) -> dict[str, Any]:
+        """Turn named checkpoints on or off (M-075).
+
+        Validated by :mod:`mythic_agent.core.checkpoints`
+        before anything mutates; journaled first as a
+        ``checkpoints_setting_changed`` event when a session
+        is attached; a failed save restores the previous
+        value exactly and journals a compensating
+        ``checkpoints_setting_reverted``.
+        """
+        import copy
+
+        from ..core import checkpoints
+
+        new_value, change = checkpoints.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[checkpoints.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "checkpoints_setting_reverted",
+                        "reason": "The checkpoints change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Checkpoints change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def take_checkpoint(self, name: str) -> dict[str, Any]:
+        """Freeze the working tree under *name* (M-075).
+
+        Captures the whole tree and — when a session is
+        attached — the session state (its messages, status,
+        token count and outcome, read back through the
+        session store's own export). The take is journaled
+        on the session as a ``checkpoint_created`` event.
+        With the gate off, or a name already taken, this
+        refuses and captures nothing.
+        """
+        from ..core import checkpoints
+
+        if not checkpoints.enabled_from_config(self.config):
+            raise ValueError(
+                "checkpoints are off — turn them on with "
+                "/checkpoint on; nothing was captured")
+        snapshot = None
+        if self._session_store and self.session_id:
+            exported = self._session_store.export(self.session_id)
+            snapshot = {
+                "session_id": exported["id"],
+                "status": exported["status"],
+                "total_tokens": exported["total_tokens"],
+                "messages": exported["context"],
+                "outcome": exported.get("outcome"),
+            }
+        store = checkpoints.CheckpointStore(self.project_root)
+        checkpoint = store.create(name, snapshot)
+        record: dict[str, Any] = {
+            "type": "checkpoint_created", "name": checkpoint.name,
+            "checkpoint_id": checkpoint.id,
+            "parent_name": checkpoint.parent_name,
+            "files": checkpoint.file_count,
+            "bytes": checkpoint.total_bytes,
+            "session_captured": snapshot is not None,
+            "journaled": False}
+        if self._session_store and self.session_id:
+            event = {key: value for key, value in record.items()
+                     if key != "journaled"}
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
+    def restore_checkpoint(self, name: str,
+                           discard: bool = False) -> dict[str, Any]:
+        """Bring one checkpoint's tree and session back (M-075).
+
+        One command, judged honestly by the store: a tree
+        changed since the last checkpoint was taken or
+        restored refuses (naming the changed files) unless
+        *discard* throws those changes away on purpose,
+        counted in the record. The session state comes
+        back only into the session it was captured from;
+        a checkpoint from another session restores the
+        tree and says so. The restore is journaled on the
+        session as a ``checkpoint_restored`` event with
+        its counts.
+        """
+        import copy
+
+        from ..core import checkpoints
+        from ..core.sessions import SessionStore
+
+        if not checkpoints.enabled_from_config(self.config):
+            raise ValueError(
+                "checkpoints are off — turn them on with "
+                "/checkpoint on; nothing was restored")
+        store = checkpoints.CheckpointStore(self.project_root)
+        checkpoint, outcome = store.restore(name, discard=discard)
+        record: dict[str, Any] = {
+            "type": "checkpoint_restored", "name": checkpoint.name,
+            "checkpoint_id": checkpoint.id,
+            "restored": outcome.restored,
+            "removed": outcome.removed,
+            "unchanged": outcome.unchanged,
+            "discarded_changes": outcome.discarded_changes,
+            "session_restored": False, "journaled": False}
+        if checkpoint.session is not None:
+            snapshot = checkpoint.session
+            if self._session_store and self.session_id:
+                if snapshot["session_id"] == self.session_id:
+                    with self._lock:
+                        self.messages = copy.deepcopy(
+                            snapshot["messages"])
+                    self.total_tokens = snapshot["total_tokens"]
+                    if snapshot["status"] in SessionStore.STATUSES:
+                        self._session_status = snapshot["status"]
+                    record["session_restored"] = True
+                else:
+                    record["session_note"] = (
+                        "Session state was captured from session "
+                        f"{snapshot['session_id']}, not the "
+                        "attached session; the tree was restored "
+                        "and the session left as it stands.")
+            else:
+                record["session_note"] = (
+                    "The checkpoint carries session state, but "
+                    "no session is attached; the tree alone "
+                    "was restored.")
+        if self._session_store and self.session_id:
+            event = {key: value for key, value in record.items()
+                     if key != "journaled"}
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
+    def session_branching_status(self) -> dict[str, Any]:
+        """The session-branching gate, in plain data (M-076).
+
+        The setting exactly as stored (validated — a
+        malformed stored value raises, never vanishes) and
+        the plain explanation. This is the answer
+        ``/branch`` shows.
+        """
+        from ..core import session_branching
+
+        return {
+            "enabled": session_branching.enabled_from_config(self.config),
+            "explanation": session_branching.PLAIN_EXPLANATION,
+        }
+
+    def set_session_branching(self, enabled: bool) -> dict[str, Any]:
+        """Turn session branching on or off (M-076).
+
+        Validated by
+        :mod:`mythic_agent.core.session_branching` before
+        anything mutates; journaled first as a
+        ``session_branching_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``session_branching_setting_reverted``.
+        """
+        import copy
+
+        from ..core import session_branching
+
+        new_value, change = session_branching.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[session_branching.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "session_branching_setting_reverted",
+                        "reason": "The session-branching change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Session-branching change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def fork_session(self, at_index: int,
+                     name: str | None = None) -> dict[str, Any]:
+        """Fork the attached session at a message (M-076).
+
+        The branch is a new stored session sharing this
+        session's history up to and including the fork
+        message; this session continues untouched, and the
+        two diverge independently from here. The fork is
+        recorded on this session as a
+        ``session_branch_forked`` event naming the child,
+        and on the child (by the store) as
+        ``session_branched``. With the gate off, or with
+        no session attached, the fork refuses and creates
+        nothing.
+        """
+        from ..core import session_branching
+
+        if not session_branching.enabled_from_config(self.config):
+            raise ValueError(
+                "session branching is off — turn it on with "
+                "/branch on; nothing was changed")
+        if not self._session_store or not self.session_id:
+            raise ValueError(
+                "no session is attached to fork; nothing "
+                "was changed")
+        branch_id = self._session_store.branch(
+            self.session_id, at_index, name=name)
+        record: dict[str, Any] = {
+            "type": "session_branch_forked",
+            "parent_session_id": self.session_id,
+            "branch_session_id": branch_id,
+            "fork_index": at_index,
+            "fork_role": self._session_store.load(
+                branch_id)["context"][-1]["role"],
+            "branch_name": name.strip() if isinstance(name, str) else None,
+            "shared_messages": at_index + 1,
+            "session_id": self.session_id,
+            "journaled": False,
+        }
+        self._checkpoint({
+            "type": "session_branch_forked",
+            "branch_session_id": branch_id,
+            "fork_index": at_index,
+            "branch_name": record["branch_name"],
+        })
+        record["journaled"] = True
+        return record
+
+    def compare_sessions(self, first_id: str,
+                         second_id: str) -> dict[str, Any]:
+        """Compare two stored sessions' histories (M-076).
+
+        A pure read: the true shared prefix, the first
+        divergence, and each side's own messages after the
+        shared history — judged by
+        :mod:`mythic_agent.core.session_branching`.
+        Available whether the branching gate is on or off:
+        comparing what already exists creates nothing.
+        """
+        from ..core import session_branching
+
+        if not self._session_store:
+            raise ValueError(
+                "no session store is attached; nothing "
+                "to compare against")
+        first = self._session_store.load(first_id)
+        second = self._session_store.load(second_id)
+        comparison = session_branching.compare_contexts(
+            first["context"], second["context"])
+        return comparison.record(first_id, second_id)
+
+    def list_session_branches(
+            self, session_id: str | None = None) -> dict[str, Any]:
+        """The branches forked from a session (M-076).
+
+        Defaults to the attached session. A pure read over
+        the store's session list, judged by
+        :mod:`mythic_agent.core.session_branching`.
+        """
+        if not self._session_store:
+            raise ValueError(
+                "no session store is attached; nothing "
+                "to list branches from")
+        parent_id = session_id or self.session_id
+        if not parent_id:
+            raise ValueError(
+                "no session is attached and none was named; "
+                "nothing to list branches for")
+        branches = self._session_store.branches_of(parent_id)
+        return {"parent_session_id": parent_id,
+                "branches": branches, "count": len(branches)}
+
+
+    # ------------------------------------------------ M-077: undo grown up
+
+    def _checkpoint_timeline_source(self) -> Any:
+        """The checkpoint seam source, if one is wired (M-077).
+
+        M-075 (Checkpoints v2) wires its source under the
+        ``checkpoint_timeline_source`` attribute named by
+        the seam in :mod:`mythic_agent.core.undo_timeline`
+        — the source object itself, or a zero-argument
+        callable returning it. With no source wired the
+        checkpoint strand is honestly empty and the edit
+        and command strands walk alone; nothing about
+        M-075's internals is guessed at here.
+        """
+        from ..core.undo_timeline import CHECKPOINT_SOURCE_ATTR
+
+        source = getattr(self, CHECKPOINT_SOURCE_ATTR, None)
+        if callable(source) and not hasattr(
+                source, "list_checkpoint_entries"):
+            source = source()
+        return source
+
+    @property
+    def checkpoint_timeline_source(self) -> Any:
+        """The checkpoint seam source this agent carries.
+
+        Wired at M-077 banking to M-075's checkpoints
+        through :class:`_CheckpointTimelineAdapter`.
+        Assigning a source replaces the wiring (the
+        seam's own tests do exactly this); assigning
+        ``None`` unwires the strand explicitly, and
+        checkpoint restores then refuse with the
+        DEPENDS-ON-M-075 word, as the seam promises.
+        """
+        if "_checkpoint_source_override" in self.__dict__:
+            return self.__dict__["_checkpoint_source_override"]
+        return _CheckpointTimelineAdapter(self)
+
+    @checkpoint_timeline_source.setter
+    def checkpoint_timeline_source(self, source: Any) -> None:
+        self.__dict__["_checkpoint_source_override"] = source
+
+    def _undo_store_and_entries(self) -> tuple[Any, Any]:
+        from ..core.edits import EditJournal
+        from ..core.undo_timeline import (
+            UndoStore,
+            checkpoint_entries_from_source,
+        )
+
+        checkpoints = checkpoint_entries_from_source(
+            self._checkpoint_timeline_source())
+        store = UndoStore(self.project_root)
+        entries = store.timeline(
+            EditJournal(self.project_root).entries(), checkpoints)
+        return store, entries
+
+    def undo_timeline_status(self) -> dict[str, Any]:
+        """The undo-timeline gate and timeline (M-077).
+
+        The setting exactly as stored (validated — a
+        malformed stored value raises), the plain
+        explanation, the timeline entries newest first,
+        and whether a checkpoint source is wired through
+        the seam.
+        """
+        from ..core import undo_timeline
+
+        _, entries = self._undo_store_and_entries()
+        return {
+            "enabled": undo_timeline.enabled_from_config(self.config),
+            "explanation": undo_timeline.PLAIN_EXPLANATION,
+            "entries": [entry.to_dict() for entry in entries],
+            "checkpoint_wired":
+                self._checkpoint_timeline_source() is not None,
+        }
+
+    def set_undo_timeline(self, enabled: bool) -> dict[str, Any]:
+        """Turn the undo timeline on or off (M-077).
+
+        Validated by :mod:`mythic_agent.core.undo_timeline`
+        before anything mutates; journaled first as an
+        ``undo_timeline_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``undo_timeline_setting_reverted``.
+        """
+        import copy
+
+        from ..core import undo_timeline
+
+        new_value, change = undo_timeline.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[undo_timeline.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "undo_timeline_setting_reverted",
+                        "reason": "The undo-timeline change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Undo-timeline change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def _require_undo_timeline(self) -> None:
+        from ..core import undo_timeline
+
+        if not undo_timeline.enabled_from_config(self.config):
+            raise ValueError(
+                "undo timeline is off — /undo keeps its "
+                "original last-edit behaviour; turn the "
+                "timeline on with /undo on; nothing was changed")
+
+    def _journal_undo(self, event: dict[str, Any]) -> bool:
+        if self._session_store and self.session_id:
+            self._checkpoint(event)
+            return True
+        return False
+
+    def undo_newest(self) -> dict[str, Any]:
+        """Undo the newest entry on the shared timeline (M-077)."""
+        self._require_undo_timeline()
+        store, entries = self._undo_store_and_entries()
+        if not entries:
+            return {"kind": None, "changed": False, "journaled": False,
+                    "message": "Nothing to undo: the timeline "
+                               "holds no edits, commands, or "
+                               "checkpoints yet."}
+        return self._undo_timeline_entry(store, entries, entries[0])
+
+    def undo_kind(self, kind: str) -> dict[str, Any]:
+        """Undo the newest entry of one strand (M-077).
+
+        The walk order still governs: a newer entry of
+        another strand blocks it and is named.
+        """
+        self._require_undo_timeline()
+        store, entries = self._undo_store_and_entries()
+        for entry in entries:
+            if entry.kind == kind:
+                return self._undo_timeline_entry(store, entries, entry)
+        return {"kind": kind, "changed": False, "journaled": False,
+                "message": f"Nothing to undo: the timeline "
+                           f"holds no {kind} entry."}
+
+    def restore_checkpoint_via_seam(
+            self, checkpoint_id: str) -> dict[str, Any]:
+        """Restore a checkpoint through the seam (M-077).
+
+        The restore itself is M-075's road, driven through
+        :class:`CheckpointTimelineSource`; with no source
+        wired this refuses and says so (DEPENDS-ON-M-075).
+        """
+        self._require_undo_timeline()
+        source = self._checkpoint_timeline_source()
+        if source is None:
+            raise ValueError(
+                "no checkpoint source is wired yet — the "
+                "checkpoint strand is DEPENDS-ON-M-075 "
+                "(Checkpoints v2); nothing was changed")
+        _, entries = self._undo_store_and_entries()
+        target = None
+        for entry in entries:
+            if entry.kind == "checkpoint" \
+                    and entry.ref_id == checkpoint_id:
+                target = entry
+                break
+        if target is None:
+            raise ValueError(
+                f"there is no checkpoint {checkpoint_id!r} on "
+                f"the timeline; nothing was changed")
+        message = source.restore_checkpoint(checkpoint_id)
+        journaled = self._journal_undo(target.event())
+        return {"kind": "checkpoint", "ref_id": checkpoint_id,
+                "label": target.label,
+                "certainty": target.certainty, "changed": True,
+                "message": message, "journaled": journaled}
+
+    def _undo_timeline_entry(self, store: Any, entries: Any,
+                             target: Any) -> dict[str, Any]:
+        from ..core.edits import EditJournal
+        from ..core.undo_timeline import judge_walk
+
+        judge_walk(list(entries), target)
+        if target.kind == "checkpoint":
+            return self.restore_checkpoint_via_seam(target.ref_id)
+        if target.kind == "edit":
+            journal = EditJournal(self.project_root)
+            live = journal.entries()
+            if not live or str(live[-1]["id"]) != target.ref_id:
+                raise ValueError(
+                    "undo refused: the edit strand has moved "
+                    "since the timeline was read; nothing was "
+                    "changed")
+            message = journal.undo()
+            changed = message.startswith("Restored")
+            journaled = False
+            if changed:
+                journaled = self._journal_undo(target.event())
+            return {"kind": "edit", "ref_id": target.ref_id,
+                    "label": target.label, "certainty": "certain",
+                    "changed": changed, "message": message,
+                    "journaled": journaled}
+        outcome = store.undo_footprint(int(target.ref_id))
+        journaled = self._journal_undo({
+            "type": "undo_performed", "kind": "command",
+            "ref_id": target.ref_id, "label": target.label,
+            "certainty": outcome.certainty,
+            "restored": outcome.restored,
+            "deleted": outcome.deleted,
+            "recreated": outcome.recreated})
+        record = outcome.record(self.session_id, journaled)
+        record["label"] = target.label
+        return record
+
+    def auto_commit_status(self) -> dict[str, Any]:
+        """The auto-commit discipline, in plain data (M-078).
+
+        The gate and the protected-branch standing word
+        exactly as stored (validated — a malformed stored
+        value raises, never vanishes), the protected set,
+        the working branch, the branch checked out in the
+        project now (None outside a repository or on a
+        detached head), and the plain explanation. This is
+        the answer ``/autocommit`` shows.
+        """
+        from ..core import auto_commit
+
+        return {
+            "enabled": auto_commit.enabled_from_config(self.config),
+            "allow_protected": auto_commit.allow_protected_from_config(
+                self.config),
+            "protected": list(auto_commit.protected_from_config(
+                self.config)),
+            "working_branch": auto_commit.working_branch_from_config(
+                self.config),
+            "current_branch": self._auto_commit_branch(),
+            "explanation": auto_commit.PLAIN_EXPLANATION,
+        }
+
+    def _auto_commit_git(self, *args: str):
+        """Run one git command in the project; (rc, out, err)."""
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(self.project_root), *args],
+                capture_output=True, text=True, timeout=30)
+        except FileNotFoundError:
+            raise ValueError(
+                "auto-commit needs git on this machine; git "
+                "was not found — nothing was committed")
+        return result.returncode, result.stdout.strip(), \
+            result.stderr.strip()
+
+    def _auto_commit_branch(self) -> str | None:
+        """The branch checked out in the project, or None."""
+        try:
+            code, out, _ = self._auto_commit_git(
+                "rev-parse", "--abbrev-ref", "HEAD")
+        except ValueError:
+            return None
+        if code != 0 or not out or out == "HEAD":
+            return None
+        return out
+
+    def _set_auto_commit_setting(self, change, key: str,
+                                 new_value: bool,
+                                 label: str) -> dict[str, Any]:
+        """Journal-first setting change with save revert (M-078)."""
+        import copy
+
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[key] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "auto_commit_setting_reverted",
+                        "reason": f"The {label} change could not "
+                                  "be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                f"{label} change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def set_auto_commit(self, enabled: bool) -> dict[str, Any]:
+        """Turn the auto-commit discipline on or off (M-078).
+
+        Validated by :mod:`mythic_agent.core.auto_commit`
+        before anything mutates; journaled first as an
+        ``auto_commit_setting_changed`` event when a session
+        is attached; a failed save restores the previous
+        value exactly and journals a compensating
+        ``auto_commit_setting_reverted``.
+        """
+        from ..core import auto_commit
+
+        new_value, change = auto_commit.set_enabled(
+            self.config, enabled)
+        return self._set_auto_commit_setting(
+            change, auto_commit.SETTING_KEY, new_value, "Auto-commit")
+
+    def set_auto_commit_allow_protected(
+            self, allowed: bool) -> dict[str, Any]:
+        """Give or withdraw the protected-branch word (M-078).
+
+        The explicit standing setting under which an
+        accepted edit set may land on a protected branch
+        itself. Journaled first as an
+        ``auto_commit_protected_setting_changed`` event; a
+        failed save restores the previous value exactly.
+        """
+        from ..core import auto_commit
+
+        new_value, change = auto_commit.set_allow_protected(
+            self.config, allowed)
+        return self._set_auto_commit_setting(
+            change, auto_commit.ALLOW_PROTECTED_KEY, new_value,
+            "Protected-branch auto-commit")
+
+    def commit_accepted_edits(
+            self, files: Any, summary: str) -> dict[str, Any]:
+        """Land one accepted edit set as its own commit (M-078).
+
+        The set's written message is composed from
+        *summary* plus the files it carries, judged by
+        :mod:`mythic_agent.core.auto_commit` into a plan —
+        on the current branch when it is ordinary, on the
+        working branch when the current branch is
+        protected, on the protected branch itself only
+        under the user's standing word — and exactly that
+        plan is executed: only the accepted files are
+        staged, and the commit is recorded on the session
+        as an ``auto_commit_committed`` event. With the
+        gate off, a blank message, a bad file set, a
+        detached head, or no repository at all, this
+        refuses and commits nothing. An accepted set that
+        leaves nothing staged is an honest no-commit
+        record, not an error.
+        """
+        from ..core import auto_commit
+
+        if not auto_commit.enabled_from_config(self.config):
+            raise ValueError(
+                "auto-commit is off — turn it on with "
+                "/autocommit on; nothing was committed")
+        code, _, _ = self._auto_commit_git(
+            "rev-parse", "--git-dir")
+        if code != 0:
+            raise ValueError(
+                "auto-commit needs a git repository; the "
+                "project is not inside one — nothing was "
+                "committed")
+        _, branch, _ = self._auto_commit_git(
+            "rev-parse", "--abbrev-ref", "HEAD")
+        message = auto_commit.build_message(summary, files)
+        plan = auto_commit.plan_commit(
+            self.config, branch, files, message)
+        switched = False
+        if plan.switch_needed:
+            code, _, _ = self._auto_commit_git(
+                "show-ref", "--verify",
+                f"refs/heads/{plan.target_branch}")
+            if code == 0:
+                code, _, err = self._auto_commit_git(
+                    "switch", plan.target_branch)
+            else:
+                code, _, err = self._auto_commit_git(
+                    "switch", "-c", plan.target_branch)
+            if code != 0:
+                raise RuntimeError(
+                    "auto-commit could not move onto the "
+                    f"working branch {plan.target_branch!r}: "
+                    f"{err} — nothing was committed")
+            switched = True
+        code, _, err = self._auto_commit_git("add", "--", *plan.files)
+        if code != 0:
+            raise RuntimeError(
+                f"auto-commit could not stage the accepted "
+                f"files: {err} — nothing was committed")
+        _, staged, _ = self._auto_commit_git(
+            "diff", "--cached", "--name-only")
+        if not staged:
+            outcome = auto_commit.CommitOutcome(
+                committed=False, branch=plan.branch,
+                target_branch=plan.target_branch,
+                on_protected=plan.on_protected, switched=switched,
+                files=plan.files, message=plan.message,
+                reason="the accepted edits left nothing "
+                       "to commit on "
+                       f"{plan.target_branch}")
+        else:
+            code, _, err = self._auto_commit_git(
+                "commit", "-m", plan.message)
+            if code != 0:
+                raise RuntimeError(
+                    f"auto-commit's commit failed: {err} — "
+                    "nothing was committed")
+            _, short, _ = self._auto_commit_git(
+                "rev-parse", "--short", "HEAD")
+            outcome = auto_commit.CommitOutcome(
+                committed=True, branch=plan.branch,
+                target_branch=plan.target_branch,
+                on_protected=plan.on_protected, switched=switched,
+                files=plan.files, message=plan.message,
+                commit=short)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(outcome.event())
+            journaled = True
+        return outcome.record(self.session_id, journaled)
 
     def _repair_offered(self, path: str,
                         packet: Any) -> dict[str, Any]:
@@ -1541,6 +2666,7 @@ class Agent:
         """
         from ..core import apply_repair
         from ..core.edits import EditJournal
+        from ..core.file_guardians import GuardianRefusal
         from ..core.workspace import resolve_file
 
         if not apply_repair.enabled_from_config(self.config):
@@ -1551,6 +2677,8 @@ class Agent:
         try:
             return {**self.apply_edit_format(path, format_id, payload),
                     "repaired": False}
+        except GuardianRefusal:
+            raise  # M-079: no packet repairs a guardian refusal
         except ValueError as exc:
             reason = str(exc)
         target_range = apply_repair.target_range_for_format(
@@ -1569,7 +2697,14 @@ class Agent:
             self._repair_journal(
                 "apply_repair_exhausted", path, packet.road)
             raise
-        EditJournal(self.project_root).write(path, new_text)
+        from ..core.file_guardians import explicit_from_config
+
+        operation = ("create" if current is None else
+                     "overwrite" if format_id == "whole-file"
+                     else "inplace")
+        EditJournal(self.project_root,
+                    explicit_word=explicit_from_config(self.config)
+                    ).write(path, new_text, operation=operation)
         self._repair_journal("apply_repair_applied", path, packet.road)
         record.update({"applied": True, "repaired": True,
                        "format": format_id, "units": units,
@@ -1593,6 +2728,7 @@ class Agent:
         make no packet.
         """
         from ..core import apply_repair, hash_anchored
+        from ..core.file_guardians import GuardianRefusal
         from ..core.workspace import resolve_file
 
         if not apply_repair.enabled_from_config(self.config):
@@ -1614,6 +2750,8 @@ class Agent:
             return {**self._write_hash_anchored(
                 path, new_text, applied, current),
                 "applied": True, "repaired": False}
+        except GuardianRefusal:
+            raise  # M-079: no packet repairs a guardian refusal
         except ValueError as exc:
             reason = str(exc)
         packet = apply_repair.build_packet(
@@ -1654,6 +2792,7 @@ class Agent:
         *retry_replacement* read from the packet's true text.
         """
         from ..core import apply_repair, hash_anchored
+        from ..core.file_guardians import GuardianRefusal
         from ..core.workspace import resolve_file
 
         if not apply_repair.enabled_from_config(self.config):
@@ -1675,6 +2814,8 @@ class Agent:
             return {**self._write_hash_anchored(
                 path, new_text, applied, current),
                 "applied": True, "repaired": False}
+        except GuardianRefusal:
+            raise  # M-079: no packet repairs a guardian refusal
         except ValueError as exc:
             reason = str(exc)
         lines = current.split("\n")

@@ -6,6 +6,7 @@ mythic_agent/agents/context.py:105:add_tool_pair:method
 mythic_agent/agents/llm.py:606:set_model:method
 mythic_agent/agents/llm.py:1417:split_for_review:method
 mythic_agent/agents/llm.py:1438:apply_hunk_review:method
+mythic_agent/agents/llm.py:2208:commit_accepted_edits:method
 mythic_agent/agents/parallel.py:81:ParallelExecutor:class
 mythic_agent/agents/parallel.py:124:execute_all:method
 mythic_agent/agents/planning.py:140:Planner:class

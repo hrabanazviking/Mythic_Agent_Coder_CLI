@@ -374,6 +374,54 @@ class SessionStore:
         return self.redactor.sanitize({**copy.deepcopy(data), "workspace": str(self.workspace), "events": events})
 
 
+    def branch(self, parent_id: str, at_index: int,
+               name: str | None = None) -> str:
+        """Fork a session at a message (M-076).
+
+        The branch is an ordinary new v1 session: its
+        context is the parent's context up to and
+        including the fork message (see
+        :mod:`mythic_agent.core.session_branching`), its
+        lineage rides in its metadata's ``branch`` entry,
+        and it is checkpointed once with a
+        ``session_branched`` event naming its parent and
+        fork point. The parent is only read — a fork never
+        writes to it. The branch's lease is released
+        before returning: it is nobody's live session
+        until someone resumes it.
+        """
+        from .session_branching import branch_info, branch_metadata, fork_context
+
+        parent = self.load(parent_id)
+        context = fork_context(parent["context"], at_index)
+        metadata = copy.deepcopy(parent["metadata"])
+        metadata["branch"] = branch_metadata(
+            parent_id, at_index, context[-1], name=name,
+            parent_branch=branch_info(parent["metadata"]))
+        branch_id = self.create(context, metadata)
+        try:
+            self.checkpoint(branch_id, context, "idle", 0, None, {
+                "type": "session_branched",
+                "parent_session_id": parent_id,
+                "fork_index": at_index,
+                "fork_role": context[-1]["role"],
+                "branch_name": metadata["branch"]["branch_name"],
+                "root_session_id": metadata["branch"]["root_session_id"],
+                "depth": metadata["branch"]["depth"],
+                "shared_messages": len(context),
+            })
+        finally:
+            self.release(branch_id)
+        return branch_id
+
+    def branches_of(self, parent_id: str) -> list[dict[str, Any]]:
+        """The branches forked directly from a session (M-076)."""
+        from .session_branching import children_of
+
+        validate_session_id(parent_id)
+        return children_of(parent_id, self.list_sessions())
+
+
 # ---------------------------------------------------------------------------
 # Serialization invariants (R-016)
 # ---------------------------------------------------------------------------
