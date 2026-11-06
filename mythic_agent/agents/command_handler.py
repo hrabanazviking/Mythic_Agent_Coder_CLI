@@ -217,6 +217,8 @@ class CommandHandler:
                 self._handle_generated(args)
             elif cmd == "/largefile":
                 self._handle_largefile(args)
+            elif cmd == "/stash":
+                self._handle_stash(args)
             elif cmd == "/issueslice":
                 self._handle_issueslice(args)
             elif cmd == "/conflicts":
@@ -1452,6 +1454,81 @@ class CommandHandler:
         text = format_file_care(data)
         if data.get("chunk_plan"):
             text = text + "\n" + data["chunk_plan"]
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{text}[/green]\n")
+
+
+    def _handle_stash(self, args: str):
+        """M-088: /stash - the stash shelf.
+
+        ``/stash`` shows the gate (on by default), the
+        plain-words explanation, and the live shelf;
+        ``/stash on`` / ``off`` changes the gate
+        (journaled by the agent layer); ``/stash shelve
+        <name>`` shelves the tree's work-in-progress by
+        name and the tree goes back to its base;
+        ``/stash restore <name>`` brings it back (a
+        moved tree refuses, naming the conflicts);
+        ``/stash drop <name>`` drops an entry.
+        """
+        from ..core.stash_shelf import (
+            enabled_from_config,
+            format_setting_change,
+            format_shelf_entry,
+            format_shelf_list,
+            format_stash_shelf,
+            parse_stash_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_stash_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.stash_shelf_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_stash_shelf(primary.config)}[/bold cyan]\n"
+                     f"{format_shelf_list(status['entries'])}\n"
+                     "[dim]Shelve work with /stash shelve <name>, "
+                     "bring it back with /stash restore <name>.[/dim]\n")
+            return
+        try:
+            if request["action"] in ("on", "off"):
+                record = primary.set_stash_shelf(
+                    request["action"] == "on")
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_setting_change(record)}[/green]\n")
+                return
+            if request["action"] == "shelve":
+                record = primary.shelve_stash(request["name"])
+                text = (f"Shelved {record['name']!r} - the tree is "
+                        "back to its base.\n"
+                        + format_shelf_entry(record["entry"]))
+            elif request["action"] == "restore":
+                record = primary.restore_stash(request["name"])
+                text = (f"Restored {record['name']!r}: "
+                        f"{record['files']} file(s) back in the "
+                        "tree, off the shelf.")
+            else:
+                record = primary.drop_stash(request["name"])
+                text = (f"Dropped {record['name']!r} from the "
+                        "stash shelf; the tree was not changed.")
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[green]{text}[/green]\n")
