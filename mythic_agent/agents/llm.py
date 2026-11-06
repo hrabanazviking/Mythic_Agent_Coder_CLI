@@ -1629,6 +1629,250 @@ class Agent:
             record["journaled"] = True
         return record
 
+    def commit_craft_status(self) -> dict[str, Any]:
+        """The commit-craft gate and seam, in data (M-080).
+
+        The setting exactly as stored (validated — a
+        malformed stored value raises, never vanishes),
+        the plain explanation, and the M-078 auto-commit
+        trigger seam, reported honestly through
+        :mod:`mythic_agent.core.commit_craft`. This is
+        the answer ``/commitcraft`` shows.
+        """
+        from ..core import commit_craft
+
+        return {
+            "enabled": commit_craft.enabled_from_config(self.config),
+            "explanation": commit_craft.PLAIN_EXPLANATION,
+            "auto_commit_trigger": commit_craft.auto_commit_trigger(),
+        }
+
+    def set_commit_craft(self, enabled: bool) -> dict[str, Any]:
+        """Turn commit craft on or off (M-080).
+
+        Validated by :mod:`mythic_agent.core.commit_craft`
+        before anything mutates; journaled first as a
+        ``commit_craft_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``commit_craft_setting_reverted``.
+        """
+        import copy
+
+        from ..core import commit_craft
+
+        new_value, change = commit_craft.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[commit_craft.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "commit_craft_setting_reverted",
+                        "reason": "The commit-craft change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Commit-craft change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def plan_commit_split(self) -> dict[str, Any]:
+        """Draft the commit split for the working tree (M-080).
+
+        Purely a read: the tree's diff is collected, its
+        hunks are judged by the M-074 hunk layer, and the
+        files are grouped by concern, each group carrying
+        a message drafted from its own actual diff. The
+        plan is recorded on the session as a
+        ``commit_craft_planned`` event when one is
+        attached. Nothing is staged or committed.
+        """
+        from ..core import commit_craft
+
+        diff_text, untracked, warnings = (
+            commit_craft.collect_working_diff(self.project_root))
+        plan = commit_craft.plan_commits(diff_text, untracked)
+        record = plan.record()
+        record["warnings"] = warnings
+        record["journaled"] = False
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "commit_craft_planned",
+                "concerns": record["concerns"],
+                "files": record["files"],
+                "added": record["added"],
+                "removed": record["removed"],
+            })
+            record["journaled"] = True
+        return record
+
+    def commit_craft_group(
+            self, concern: str,
+            message: str | None = None) -> dict[str, Any]:
+        """Commit one concern group of the split (M-080).
+
+        The plan is re-drafted from the tree as it stands
+        — a stale plan is never committed from. Only the
+        group's own files are staged (``git add`` on
+        exactly those paths), the index is proven to hold
+        exactly that group before the commit is made —
+        an index carrying other staged work refuses,
+        untouched — and the commit is made under the
+        given message or the group's drafted one. The
+        rest of the split stays in the working tree. The
+        commit is recorded as a ``commit_craft_committed``
+        session event with its true new head.
+        """
+        from ..core import commit_craft
+
+        if not commit_craft.enabled_from_config(self.config):
+            raise ValueError(
+                "commit craft is off — turn it on with "
+                "/commitcraft on; nothing was changed")
+        diff_text, untracked, _warnings = (
+            commit_craft.collect_working_diff(self.project_root))
+        plan = commit_craft.plan_commits(diff_text, untracked)
+        group = plan.group(concern)
+        paths = [change.path for change in group.files]
+        code, _out, err = commit_craft.run_git(
+            self.project_root, "add", "--", *paths)
+        if code != 0:
+            raise RuntimeError(
+                f"staging the {concern} group failed: "
+                f"{err.strip()}; nothing was committed")
+        code, out, err = commit_craft.run_git(
+            self.project_root, "diff", "--cached", "--name-only")
+        staged = {line for line in out.splitlines() if line}
+        if code != 0 or staged != set(paths):
+            raise ValueError(
+                "the index holds staged changes beyond the "
+                f"{concern} group ({sorted(staged)}); commit "
+                "craft commits one concern at a time and "
+                "leaves the index as it found it; nothing "
+                "was committed")
+        text = message or commit_craft.draft_message(group)
+        code, _out, err = commit_craft.run_git(
+            self.project_root, "commit", "-m", text)
+        if code != 0:
+            raise RuntimeError(
+                f"the {concern} commit failed: {err.strip()}")
+        code, out, _err = commit_craft.run_git(
+            self.project_root, "rev-parse", "HEAD")
+        sha = out.strip()
+        record: dict[str, Any] = {
+            "concern": concern, "files": paths, "sha": sha,
+            "subject": text.splitlines()[0] if text else "",
+            "message": text, "added": group.added,
+            "removed": group.removed, "journaled": False}
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "commit_craft_committed",
+                "concern": concern, "files": paths, "sha": sha,
+                "subject": record["subject"]})
+            record["journaled"] = True
+        return record
+
+    def push_with_house_rules(
+            self, remote: str = "origin") -> dict[str, Any]:
+        """Push the current branch under the house rules (M-080).
+
+        The rules, wired in, in order: the remote is read
+        with ``ls-remote`` before and after; the remote
+        is fetched; the remote-diff (ahead/behind and the
+        diffstat against the remote branch) is read
+        before anything is sent; the push is judged by
+        :func:`mythic_agent.core.commit_craft.judge_push`
+        — a diverged remote refuses, because pushing past
+        it would need force and this road never
+        force-pushes; the push itself is built with an
+        explicit refspec and judged by
+        ``validate_push_args``; and afterwards
+        ``ls-remote`` must show the remote holding
+        exactly the pushed head, moved from where it
+        stood, or the push is reported as unverified and
+        raised. An up-to-date remote is an honest
+        no-send outcome, returned, not an error. A landed
+        push is recorded as a ``commit_craft_pushed``
+        session event with the before/after heads.
+        """
+        from ..core import commit_craft
+
+        if not commit_craft.enabled_from_config(self.config):
+            raise ValueError(
+                "commit craft is off — turn it on with "
+                "/commitcraft on; nothing was pushed")
+        branch = commit_craft.current_branch(self.project_root)
+        if not branch:
+            raise ValueError(
+                "the tree is on a detached head — there is "
+                "no branch to push; nothing was pushed")
+        code, out, _err = commit_craft.run_git(
+            self.project_root, "rev-parse", "HEAD")
+        local_head = out.strip() if code == 0 else ""
+        before = commit_craft.ls_remote_head(
+            self.project_root, remote, branch)
+        code, _out, err = commit_craft.run_git(
+            self.project_root, "fetch", remote)
+        if code != 0:
+            raise RuntimeError(
+                f"fetch from {remote} failed: {err.strip()}; "
+                "the house rules read the remote-diff before "
+                "any push; nothing was pushed")
+        remote_head = commit_craft.remote_tracking_head(
+            self.project_root, remote, branch)
+        ahead, behind = commit_craft.ahead_behind(
+            self.project_root, remote, branch)
+        stat = commit_craft.remote_diff_stat(
+            self.project_root, remote, branch)
+        verdict = commit_craft.judge_push(
+            local_head, remote_head or None, behind == 0)
+        record: dict[str, Any] = {
+            "remote": remote, "branch": branch,
+            "pushed": False, "before": before or None,
+            "after": before or None, "ahead": ahead,
+            "behind": behind, "remote_diff_stat": stat,
+            "verdict": verdict.record(), "journaled": False}
+        if verdict.kind == "up-to-date":
+            return record
+        if not verdict.allowed:
+            raise ValueError(verdict.reason)
+        args = ["push", remote, f"HEAD:refs/heads/{branch}"]
+        commit_craft.validate_push_args(args)
+        code, _out, err = commit_craft.run_git(
+            self.project_root, *args)
+        if code != 0:
+            raise RuntimeError(
+                f"git push failed: {err.strip()}; the push "
+                "is not claimed")
+        after = commit_craft.ls_remote_head(
+            self.project_root, remote, branch)
+        verify = commit_craft.verify_remote_moved(
+            before or None, after or None, local_head)
+        record["after"] = after or None
+        record["verify"] = verify.record()
+        if not verify.verified:
+            raise RuntimeError(
+                verify.reason + "; the push is not claimed")
+        record["pushed"] = True
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "commit_craft_pushed",
+                "remote": remote, "branch": branch,
+                "before": before or None, "after": after,
+                "ahead": ahead})
+            record["journaled"] = True
+        return record
+
     def checkpoint_status(self) -> dict[str, Any]:
         """The checkpoints gate and tree, in plain data (M-075).
 
