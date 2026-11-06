@@ -512,6 +512,13 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Auto-commit discipline (M-078): the branch names treated as protected by the auto-commit road — the shipped set is main, master, development, develop, and the user may name more. A commit planned on one of these branches moves onto the working branch unless the standing protected word (auto_commit_allow_protected) is given. Judged by exact branch name in the pure plan; a detached head is never a protected branch and refuses instead.'
 
+- id: S-71
+  name: guardian_explicit_word
+  scope: top-level
+  type: bool
+  default: 'False'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'README and licence guardians (M-079): the user''s explicit word for guarded files. The guardians are always on and live in the edit layer (EditJournal): a whole-file overwrite of an existing README refuses on every edit road, as does deleting one, while modifying a README in place, creating a README, and overwriting a barely-anything stub README (<=5 non-empty lines, <=200 characters) are allowed; licence files (LICENSE, LICENCE, COPYING, NOTICE, any extension or suffix) refuse every touch. False (default - never presumed) refuses and changes nothing; true records the user''s explicit word and allows the guarded operations, still journaled. A guardian refusal is never a repair-loop packet. /guardians shows the guards, /guardians check <path> judges one path, /guardians word on|off gives or takes back the word (journaled guardian_word_changed, save-failure revert). Undo is restoration, not re-judged.'
 
 env_vars:
 - id: V-01
