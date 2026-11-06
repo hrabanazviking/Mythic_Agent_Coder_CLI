@@ -527,7 +527,7 @@ slices:
   title: README and licence guardians
   summary: the coder *refuses* to overwrite a README (Volmarr's standing law) or touch licence files without
     explicit word; the refusal is built into the edit layer.
-  status: queued
+  status: done
 - id: M-080
   part: 4
   title: Commit craft
