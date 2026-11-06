@@ -336,3 +336,197 @@ def test_format_blame_sight_show_surface_exercises_the_road():
     assert "demo-session" in text
     assert bs.format_setting_change({"to": False}) == (
         "Blame sight is now off.")
+
+
+# --- agent layer: gate, sight road, surfaces ----------------
+
+import subprocess
+
+from mythic_agent.core.sessions import SessionStore
+
+
+def _git(root, *args):
+    result = subprocess.run(
+        ["git", "-C", str(root), *args],
+        capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+    return result.stdout.strip()
+
+
+def _repo(tmp_path):
+    _git(tmp_path, "init", "-b", "main")
+    _git(tmp_path, "config", "user.email", "test@example.com")
+    _git(tmp_path, "config", "user.name", "Slice Test")
+    (tmp_path / "demo.py").write_text(
+        "first = 1\nsecond = 2\nthird = 3\n", encoding="utf-8")
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-m", "open the demo file")
+    return tmp_path
+
+
+def _store_for(tmp_path):
+    return SessionStore(tmp_path, tmp_path / "state")
+
+
+class TestBlameAgentGate:
+    def test_status(self, agent):
+        status = agent.blame_sight_status()
+        assert status["enabled"] is True
+        assert status["explanation"] == bs.PLAIN_EXPLANATION
+
+    def test_set_without_session(self, agent):
+        record = agent.set_blame_sight(False)
+        assert record["journaled"] is False
+        assert agent.config["blame_sight"] is False
+        with pytest.raises(ValueError, match="already"):
+            agent.set_blame_sight(False)
+
+    def test_set_journals_on_the_session(self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        agent.set_blame_sight(False)
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert "blame_sight_setting_changed" in types
+        agent.close()
+
+    def test_save_failure_restores_and_journals_the_revert(
+            self, agent, tmp_path, monkeypatch):
+        from mythic_agent.agents import llm
+
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        monkeypatch.setattr(llm.config_manager, "save_config",
+                            lambda config: False)
+        with pytest.raises(RuntimeError, match="could not be saved"):
+            agent.set_blame_sight(False)
+        assert agent.config.get("blame_sight") is not False
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert types[-2:] == ["blame_sight_setting_changed",
+                              "blame_sight_setting_reverted"]
+        agent.close()
+
+
+class TestBlameSightRoad:
+    def test_line_sight_names_the_commit(self, agent, tmp_path):
+        _repo(tmp_path)
+        record = agent.show_blame_sight("demo.py", 2)
+        assert record["type"] == "blame_sight"
+        assert record["author"] == "Slice Test"
+        assert record["summary"] == "open the demo file"
+        assert record["uncommitted"] is False
+        assert record["journal_session"] is None
+        assert "blame alone speaks" in record["journal_note"]
+        assert "Line 2 of demo.py" in record["rendered"]
+        assert record["journaled"] is False
+
+    def test_whole_file_blame(self, agent, tmp_path):
+        _repo(tmp_path)
+        record = agent.show_blame_sight("demo.py")
+        assert record["lines"] == 3
+        assert "Blame for demo.py: 3 lines" in record["rendered"]
+
+    def test_uncommitted_line_is_flagged(self, agent, tmp_path):
+        _repo(tmp_path)
+        with open(tmp_path / "demo.py", "a", encoding="utf-8") as fh:
+            fh.write("fourth = 4\n")
+        record = agent.show_blame_sight("demo.py", 4)
+        assert record["uncommitted"] is True
+        assert "not committed yet" in record["rendered"]
+
+    def test_journal_session_is_named(self, agent, tmp_path):
+        _repo(tmp_path)
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        agent._checkpoint({"type": "edit_applied",
+                           "path": "demo.py", "line": 2})
+        record = agent.show_blame_sight("demo.py", 2)
+        assert record["journal_session"] == session_id
+        assert record["journaled"] is True
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert "blame_sight" in types
+        agent.close()
+
+    def test_gate_off_refuses_and_blames_nothing(self, agent, tmp_path):
+        _repo(tmp_path)
+        agent.set_blame_sight(False)
+        with pytest.raises(ValueError, match="blame sight is off"):
+            agent.show_blame_sight("demo.py", 1)
+
+    def test_missing_file_refuses_with_gits_words(self, agent, tmp_path):
+        _repo(tmp_path)
+        with pytest.raises(ValueError, match="git blame could not read"):
+            agent.show_blame_sight("nope.py", 1)
+
+
+class TestBlameTerminalSurface:
+    def test_show_and_set(self, agent):
+        from mythic_agent.terminal import _slash
+
+        _, _, text = _slash(agent, "/blame")
+        assert "Blame and history sight (M-092)" in text
+        assert "Setting: on (blame_sight)" in text
+        _, _, text = _slash(agent, "/blame off")
+        assert "Blame sight is now off." in text
+        assert agent.config["blame_sight"] is False
+        _, _, text = _slash(agent, "/blame on")
+        assert "Blame sight is now on." in text
+
+    def test_blame_via_the_terminal(self, agent, tmp_path):
+        from mythic_agent.terminal import _slash
+
+        _repo(tmp_path)
+        _, _, text = _slash(agent, "/blame demo.py 2")
+        assert "Line 2 of demo.py" in text
+        _, _, text = _slash(agent, "/blame demo.py")
+        assert "Blame for demo.py: 3 lines" in text
+
+    def test_usage_error_is_the_message(self, agent):
+        from mythic_agent.terminal import _slash
+
+        _, _, text = _slash(agent, "/blame a b c")
+        assert "Usage: /blame" in text
+
+
+@pytest.fixture()
+def blame_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _blame_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestBlameCommand:
+    def test_show_is_default(self, blame_handler, agent):
+        blame_handler._handle_blame("")
+        assert "Blame and history sight (M-092)" in _blame_published_text(
+            blame_handler)
+
+    def test_set_via_the_handler(self, blame_handler, agent):
+        blame_handler._handle_blame("off")
+        assert "Blame sight is now off." in _blame_published_text(
+            blame_handler)
+        assert agent.config["blame_sight"] is False
+
+    def test_blame_via_the_handler(self, blame_handler, agent, tmp_path):
+        _repo(tmp_path)
+        blame_handler._handle_blame("demo.py 2")
+        assert "Line 2 of demo.py" in _blame_published_text(blame_handler)
+
+    def test_usage_error_is_published(self, blame_handler, agent):
+        blame_handler._handle_blame("a b c")
+        assert "Usage: /blame" in _blame_published_text(blame_handler)

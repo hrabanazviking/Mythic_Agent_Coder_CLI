@@ -6692,6 +6692,159 @@ class Agent:
             record["journaled"] = True
         return record
 
+    # -- M-092: blame and history sight --
+
+    def blame_sight_status(self) -> dict[str, Any]:
+        """The blame-sight gate, in plain data (M-092).
+
+        The setting exactly as stored (validated - a
+        malformed stored value raises, never vanishes)
+        and the plain explanation.
+        """
+        from ..core import blame_sight
+
+        return {
+            "enabled": blame_sight.enabled_from_config(self.config),
+            "explanation": blame_sight.PLAIN_EXPLANATION,
+        }
+
+    def set_blame_sight(self, enabled: bool) -> dict[str, Any]:
+        """Turn blame sight on or off (M-092).
+
+        Validated by :mod:`mythic_agent.core.blame_sight`
+        before anything mutates; journaled first as a
+        ``blame_sight_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``blame_sight_setting_reverted``.
+        """
+        import copy
+
+        from ..core import blame_sight
+
+        new_value, change = blame_sight.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[blame_sight.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "blame_sight_setting_reverted",
+                        "reason": "The blame sight change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Blame sight change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def _blame_journal_entries(self, path: str) -> list[dict[str, Any]]:
+        """The journal's own records for *path* (M-092).
+
+        Two real sources, neither dressed up: the edit
+        journal's entries for this file (file-level
+        records - the edit journal keeps no line numbers,
+        so they can name the file but never a line or a
+        session), and the session store's events across
+        its sessions, each enriched with the session it
+        belongs to so a line-covering record can name its
+        writing session. A source that cannot be read
+        contributes nothing - never a guessed record.
+        """
+        entries: list[dict[str, Any]] = []
+        try:
+            from ..core.edits import EditJournal
+
+            for row in EditJournal(self.project_root).entries():
+                if str(row.get("path")) == path:
+                    entries.append({"type": "edit_journal",
+                                    "path": path})
+        except Exception:
+            pass
+        if self._session_store:
+            try:
+                sessions = self._session_store.list_sessions()
+            except Exception:
+                sessions = []
+            for info in sessions:
+                sid = info.get("id")
+                if not sid:
+                    continue
+                try:
+                    events = self._session_store.export(sid)["events"]
+                except Exception:
+                    continue
+                for event in events:
+                    if isinstance(event, dict):
+                        record = dict(event)
+                        record.setdefault("session_id", sid)
+                        entries.append(record)
+        return entries
+
+    def show_blame_sight(self, path: str,
+                         line: int | None = None,
+                         ) -> dict[str, Any]:
+        """Ask why a line is the way it is (M-092).
+
+        Gate first: with blame sight off this refuses and
+        blames nothing. The blame is real - ``git blame
+        --porcelain`` run in the project through
+        commit_craft's git road, parsed by the pure layer,
+        never invented; a file git cannot blame refuses
+        with git's own words. The journal's records for
+        the file are matched by the pure layer: a record
+        naming the file and covering the line names the
+        writing session, and the note says exactly how
+        far the journal reaches when it does not. The
+        sight is journaled as a ``blame_sight`` session
+        event when a session is attached, and the rendered
+        text rides the returned record.
+        """
+        from ..core import blame_sight
+        from ..core.commit_craft import run_git
+
+        if not blame_sight.enabled_from_config(self.config):
+            raise ValueError(
+                "blame sight is off - turn it on with "
+                "/blame on; nothing was blamed")
+        code, out, err = run_git(
+            self.project_root, "blame", "--porcelain", "--", path)
+        if code != 0:
+            raise ValueError(
+                "git blame could not read " + str(path) + ": "
+                + (err.strip() or "git blame failed"))
+        lines = blame_sight.parse_blame_porcelain(out)
+        if not lines:
+            raise ValueError(
+                f"git blame returned no lines for {path}; "
+                "nothing was blamed")
+        entries = self._blame_journal_entries(path)
+        if line is not None:
+            sight = blame_sight.explain_line(lines, line, entries)
+            record: dict[str, Any] = sight.record()
+            record["rendered"] = blame_sight.format_history_sight(sight)
+            event = sight.record()
+        else:
+            record = {"type": "blame_sight", "path": path,
+                      "line_no": None, "lines": len(lines)}
+            record["rendered"] = blame_sight.format_blame(lines, path)
+            event = {"type": "blame_sight", "path": path,
+                     "lines": len(lines)}
+        record["journaled"] = False
+        if self._session_store and self.session_id:
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
