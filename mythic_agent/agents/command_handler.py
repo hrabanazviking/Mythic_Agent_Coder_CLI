@@ -211,6 +211,8 @@ class CommandHandler:
                 self._handle_hunkreview(args)
             elif cmd == "/checkpoint":
                 self._handle_checkpoint(args)
+            elif cmd == "/branch":
+                self._handle_branch(args)
             elif cmd == "/kista":
                 self._handle_kista(args)
             elif cmd == "/resume-thought":
@@ -1187,6 +1189,72 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[green]{format_checkpoint_restored(restored)}[/green]\n")
+
+    def _handle_branch(self, args: str):
+        """M-076: /branch — session branching.
+
+        ``/branch`` shows the gate (on by default), the
+        plain-words explanation, and a worked fork +
+        comparison; ``/branch on`` / ``off`` changes the
+        gate (journaled by the agent layer); ``/branch
+        fork <index> [name]`` forks the attached session;
+        ``/branch list`` lists its branches; ``/branch
+        compare <id> <id>`` compares two sessions.
+        """
+        from ..core.session_branching import (
+            enabled_from_config,
+            format_branch_list,
+            format_branching,
+            format_comparison,
+            format_fork,
+            format_setting_change,
+            parse_branch_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_branch_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if request["action"] == "show":
+                status = primary.session_branching_status()
+                assert status["enabled"] == enabled_from_config(
+                    primary.config)
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[bold cyan]{format_branching(primary.config)}[/bold cyan]\n"
+                         "[dim]Fork with /branch fork <message-index> [name], "
+                         "list branches with /branch list, or compare with "
+                         "/branch compare <session-id> <session-id>.[/dim]\n")
+                return
+            if request["action"] == "setting":
+                record = primary.set_session_branching(request["enabled"])
+                text, style = format_setting_change(record), "green"
+            elif request["action"] == "fork":
+                record = primary.fork_session(
+                    request["at_index"], request["name"])
+                text, style = format_fork(record), "green"
+            elif request["action"] == "list":
+                text = format_branch_list(primary.list_session_branches())
+                style = "bold cyan"
+            else:
+                record = primary.compare_sessions(
+                    request["first_id"], request["second_id"])
+                text, style = format_comparison(record), "bold cyan"
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[{style}]{text}[/{style}]\n")
 
     def _handle_costroute(self, args: str):
         """M-031: /costroute — cost-aware routing, in plain words.

@@ -11,6 +11,7 @@ hash_anchored_edits: true
 apply_repair_loop: true
 hunk_review: true
 checkpoints: true
+session_branching: true
 edit_truth_loop: true
 formatter_covenant: true
 debugger: true
