@@ -225,6 +225,8 @@ class CommandHandler:
                 self._handle_editor(args)
             elif cmd == "/issueslice":
                 self._handle_issueslice(args)
+            elif cmd == "/diff":
+                self._handle_diff(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -1689,6 +1691,69 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[green]{text}[/green]\n")
+
+    def _handle_diff(self, args: str):
+        """M-091: /diff - diff theatre in the TUI.
+
+        ``/diff`` shows the gate (on by default), the
+        plain-words explanation, and one demo change
+        staged both ways; ``/diff on`` / ``off`` changes
+        the gate (journaled by the agent layer);
+        ``/diff unified`` / ``side-by-side`` stages the
+        demo change in that view through the agent road,
+        and ``/diff whitespace`` / ``whitespace off``
+        stages it with the whitespace toggle judged.
+        """
+        from ..core.diff_theatre import (
+            enabled_from_config,
+            format_diff_theatre,
+            format_setting_change,
+            parse_diff_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_diff_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.diff_theatre_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_diff_theatre(primary.config)}[/bold cyan]\n")
+            return
+        demo_before = "alpha\nbeta old gamma\ndelta\n"
+        demo_after = "alpha\nbeta new gamma\ndelta\n"
+        try:
+            if request["action"] in ("on", "off"):
+                record = primary.set_diff_theatre(
+                    request["action"] == "on")
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_setting_change(record)}[/green]\n")
+                return
+            if request["action"] == "view":
+                record = primary.show_diff_theatre(
+                    demo_before, demo_after, view=request["view"])
+            else:
+                record = primary.show_diff_theatre(
+                    demo_before, demo_after,
+                    ignore_whitespace=request["ignore_whitespace"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{record['rendered']}[/green]\n")
 
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.
