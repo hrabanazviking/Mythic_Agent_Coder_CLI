@@ -582,6 +582,14 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Large-file and binary care (M-087): when true, the /largefile road is open - a file is judged once, from its true bytes: a NUL byte in the first 8192 bytes, or bytes that are not valid UTF-8, classify it as binary with the reason named (the offset, or the decode failure), and binaries are never text-edited - the refusal holds whatever the gate says. Text at or under the whole-file limit of 262144 bytes (the limit the context producers already enforce) takes the whole-file road; over it, the whole-file road closes and the file is edited by anchored chunks instead: chunks split on line boundaries at a 32768-byte target, each anchored by the SHA-256 of its exact text, and a chunk edit whose anchor no longer matches refuses, naming both anchors, and writes nothing; at or over 1000000 bytes the large-file mark is named. Every classification names the size, the limit, and the road that applies. Through the agent save road (apply_edit_format) the care is assessed from the true bytes before any edit road runs: a binary refuses outright, a large file with the gate off refuses with the guard explanation, and a large file on the chunk road warns, the warning riding the edit record and the session. The gate toggles through /largefile on and /largefile off, journaled with save-failure revert; apply_large_file_chunk_edit is recorded in the dead-code quarantine as an Agent API surface (M-074 pattern); when false, chunk edits through the agent refuse and say so, while the pure classification maths stays readable.'
 
+- id: S-80
+  name: stash_shelf
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'The stash shelf (M-088): when true, the /stash road is open - work-in-progress is shelved by name: the difference between the working tree and its base (the last clean state, recorded on disk at first contact) is captured under the name the user chooses and the tree goes back to its base exactly. A shelved entry restores in any later session, judged against the tree as it stands then: a path that moved since the shelve is a conflict - the restore refuses, names every conflicted path, and changes nothing - unless those changes are discarded on purpose through the agent road, counted in the record. The shelf itself is an append-only journal of checksummed records on disk (one JSON line per entry, each carrying the SHA-256 of its canonical form), so it survives crashes; a torn or corrupted line is counted in the status and skipped, never silently applied. Shelving nothing refuses in plain words, and a name already on the shelf refuses. The gate toggles through /stash on and /stash off, journaled with save-failure revert; when false, shelving and restoring through the agent refuse and say so, while the shelf stays readable.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME

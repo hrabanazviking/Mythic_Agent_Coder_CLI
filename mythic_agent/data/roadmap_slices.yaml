@@ -578,7 +578,7 @@ slices:
   title: The stash shelf
   summary: quick-shelve work-in-progress by name, restore across sessions; the shelf survives crashes
     (journal-backed).
-  status: queued
+  status: done
 - id: M-089
   part: 4
   title: Patch export/import
