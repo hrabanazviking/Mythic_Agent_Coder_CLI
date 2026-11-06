@@ -632,7 +632,7 @@ slices:
   title: The OS sandbox (Codex's crown, native)
   summary: commands run under OS confinement (Linux namespaces/seccomp, macOS sandbox-exec, Windows job
     objects as far as each honestly goes) — no Docker, ever; per-platform truth in the platform table.
-  status: queued
+  status: done
 - id: M-098
   part: 5
   title: Network gates

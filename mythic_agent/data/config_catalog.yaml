@@ -646,6 +646,14 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Remembered approvals with scope (M-096): the stored list of standing approvals - each entry is one exact scope (command + args pattern + path) the user explicitly said to always allow in this project. Nothing is remembered silently: an entry is created only through the explicit approval road (Agent.remember_command_approval with explicit=True), the stored list is validated whole (malformed data raises, never quietly trusted), an exact match on the live ask road allows without asking again, and the whole list is listed and revocable in one screen through /remember (list / forget <id> / clear).'
 
+- id: S-88
+  name: os_sandbox
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'The OS sandbox, native (M-097): the stored gate - Commands run under the operating system''s own confinement - Linux namespaces and seccomp, macOS sandbox-exec, Windows job objects, each as far as it honestly goes - never Docker. This layer plans the confinement and tells the per-platform truth about it; it runs nothing itself. The gate ships on; with it on, Agent.run_os_sandboxed executes commands through the pure layer confinement plan joined to the elder Sandbox runner (Linux via the unshare namespace prefix; the seccomp baseline is rendered as filter data and honestly not claimed installed; a plan that confines nothing reports confined=False). With it off, commands take the elder Sandbox guardrail road unchanged. It is set through /sandbox on|off, journaled with save-failure revert.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
@@ -781,6 +789,18 @@ env_vars:
   effect: 'Path of Kista''s vault file (M-032): a private JSON mapping of key names to keys that Kista references resolve through first; unset means no vault-file road and references resolve from the environment only.'
   secret: false
   source: mythic_agent/core/key_custody.py
+- id: V-23
+  name: MYTHIC_OS_SANDBOX
+  kind: marker
+  effect: Set to 1 in a confined child environment by the OS sandbox plan (M-097), naming that the run rides the confinement plan; not read as an input by the package.
+  secret: false
+  source: mythic_agent/core/os_sandbox.py
+- id: V-24
+  name: MYTHIC_OS_SANDBOX_PLATFORM
+  kind: marker
+  effect: Set by the OS sandbox plan (M-097) to the canonical platform the confinement plan was built for (linux, macos, or windows); not read as an input by the package.
+  secret: false
+  source: mythic_agent/core/os_sandbox.py
 files:
 - id: F-01
   name: config_defaults.yaml
