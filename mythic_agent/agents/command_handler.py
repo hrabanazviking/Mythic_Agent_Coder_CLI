@@ -209,6 +209,8 @@ class CommandHandler:
                 self._handle_repairloop(args)
             elif cmd == "/hunkreview":
                 self._handle_hunkreview(args)
+            elif cmd == "/issueslice":
+                self._handle_issueslice(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -1448,6 +1450,67 @@ class CommandHandler:
             else:
                 record = primary.set_auto_commit_allow_protected(
                     request["allowed"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_setting_change(record)}[/green]\n")
+
+    def _handle_issueslice(self, args: str):
+        """M-083: /issueslice — issue-to-slice.
+
+        ``/issueslice`` shows the gate (on by default), the
+        plain-words explanation, the seam's sources, and a
+        sample issue planned; ``/issueslice on`` / ``off``
+        changes the gate (journaled by the agent layer);
+        ``/issueslice github <number>`` fetches that issue
+        through the seam and plans it as a slice.
+        """
+        from ..core.issue_slice import (
+            enabled_from_config,
+            format_issue_slice,
+            format_plan_record,
+            format_setting_change,
+            parse_issueslice_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_issueslice_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.issue_slice_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_issue_slice(primary.config)}[/bold cyan]\n"
+                     "[dim]Turn the gate off with /issueslice off, "
+                     "or back on with /issueslice on.[/dim]\n")
+            return
+        if request["action"] == "plan":
+            try:
+                record = primary.plan_issue_slice(
+                    request["source"], request["number"])
+            except (ValueError, KeyError, RuntimeError) as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[green]{format_plan_record(record)}[/green]\n")
+            return
+        try:
+            record = primary.set_issue_slice(request["enabled"])
         except (ValueError, KeyError, RuntimeError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
