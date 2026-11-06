@@ -211,6 +211,8 @@ class CommandHandler:
                 self._handle_hunkreview(args)
             elif cmd == "/changeset":
                 self._handle_changeset(args)
+            elif cmd == "/rename":
+                self._handle_rename(args)
             elif cmd == "/issueslice":
                 self._handle_issueslice(args)
             elif cmd == "/conflicts":
@@ -1271,6 +1273,63 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[green]{format_setting_change(record)}[/green]\n")
+
+    def _handle_rename(self, args: str):
+        """M-085: /rename — rename/move files as first-class edits.
+
+        ``/rename`` shows the gate (on by default), the
+        plain-words explanation, and a worked example plan;
+        ``/rename on`` / ``off`` changes the gate (journaled
+        by the agent layer); ``/rename <old> <new>``
+        executes one move through the agent (git mv plus
+        the graph's reference updates).
+        """
+        from ..core.rename_move import (
+            enabled_from_config,
+            format_move_record,
+            format_rename_move,
+            format_setting_change,
+            parse_rename_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_rename_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.rename_move_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_rename_move(primary.config)}[/bold cyan]\n"
+                     "[dim]Turn the gate off with /rename off, "
+                     "or back on with /rename on.[/dim]\n")
+            return
+        try:
+            if request["action"] in ("on", "off"):
+                record = primary.set_rename_move(
+                    request["action"] == "on")
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_setting_change(record)}[/green]\n")
+                return
+            record = primary.rename_move_file(
+                request["source"], request["destination"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_move_record(record)}[/green]\n")
 
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.

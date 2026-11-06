@@ -82,6 +82,8 @@ __all__ = [
     "Tuple",
     "enabled_from_config",
     "format_move_plan",
+    "format_move_record",
+    "format_rename_move",
     "format_setting_change",
     "module_name_for",
     "parse_rename_args",
@@ -361,4 +363,56 @@ def format_move_plan(plan: MovePlan) -> str:
         lines.append("Reference updates: none")
     for warning in plan.warnings:
         lines.append(f"Warning: {warning}")
+    return "\n".join(lines)
+
+
+def format_move_record(record: Dict[str, Any]) -> str:
+    """An executed move's record, in plain words."""
+    lines = [
+        f"Moved: {record.get('source')} -> {record.get('destination')}",
+        "History: preserved by git mv",
+    ]
+    updates = record.get("reference_updates") or []
+    if updates:
+        total = sum(u.get("replacements", 0) for u in updates)
+        lines.append(
+            f"Reference updates: {len(updates)} file(s), "
+            f"{total} replacement(s)")
+        for update in updates:
+            lines.append(
+                f"  {update.get('path')}: "
+                f"{update.get('replacements')} replacement(s)")
+    else:
+        lines.append("Reference updates: none")
+    for warning in record.get("warnings") or []:
+        lines.append(f"Warning: {warning}")
+    if record.get("graph_warning"):
+        lines.append(f"Warning: {record['graph_warning']}")
+    return "\n".join(lines)
+
+
+def format_rename_move(config: Dict[str, Any]) -> str:
+    """The whole slice, in plain words, for /rename.
+
+    Built from plan_move() / format_move_plan(), so the
+    show surface exercises the planning road it names:
+    a worked example in which app.py's import of the
+    moved module is rewritten by exact token.
+    """
+    enabled = enabled_from_config(config)
+    lines = ["Rename/move files (M-085) — "
+             + PLAIN_EXPLANATION, ""]
+    lines.append(f"Setting: {'on' if enabled else 'off'} "
+                 f"({SETTING_KEY}).")
+    lines.append("")
+    plan = plan_move(
+        "pkg/mod.py", "pkg/renamed.py",
+        existing=["pkg/mod.py", "pkg/__init__.py", "app.py"],
+        referencing=["app.py"],
+        texts={"app.py": "import pkg.mod\n"})
+    lines.append("A sample move, as it is planned:")
+    lines.append(format_move_plan(plan))
+    lines.append("")
+    lines.append("Usage: /rename | /rename on | /rename off | "
+                 "/rename <old-path> <new-path>")
     return "\n".join(lines)
