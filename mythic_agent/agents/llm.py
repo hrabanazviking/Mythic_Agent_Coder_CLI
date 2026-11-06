@@ -7326,6 +7326,208 @@ class Agent:
         return self.remembered_approval_for(
             parts[0], parts[1:], str(self.project_root)) is not None
 
+    # -- M-097: the OS sandbox --
+
+    def os_sandbox_status(self) -> dict[str, Any]:
+        """The OS sandbox gate and truth, in plain data (M-097).
+
+        The gate exactly as stored (validated - a malformed
+        stored value raises, never vanishes), the whole
+        per-platform truth table as records, the one screen
+        rendered from that same table, and the plain
+        explanation.
+        """
+        from ..core import os_sandbox
+
+        return {
+            "enabled": os_sandbox.enabled_from_config(self.config),
+            "truth": [entry.to_record()
+                      for entry in os_sandbox.PLATFORM_TRUTH],
+            "screen": os_sandbox.format_os_sandbox(self.config),
+            "explanation": os_sandbox.PLAIN_EXPLANATION,
+        }
+
+    def set_os_sandbox(self, enabled: bool) -> dict[str, Any]:
+        """Turn the OS sandbox gate on or off (M-097).
+
+        Validated by :mod:`mythic_agent.core.os_sandbox`
+        before anything mutates (a no-op change refuses);
+        journaled first as the pure layer's
+        ``os_sandbox_setting_changed`` event when a session
+        is attached; the stored value is the plain bool
+        under the setting key; a failed save restores the
+        previous config exactly and journals a compensating
+        ``os_sandbox_setting_reverted``.
+        """
+        import copy
+
+        from ..core import os_sandbox
+
+        new_value, change = os_sandbox.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[os_sandbox.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "os_sandbox_setting_reverted",
+                        "reason": "The OS sandbox change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "OS sandbox change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def os_sandbox_plan(self, command: Any, *,
+                        platform: Any = None,
+                        network: Any = "deny",
+                        require_confined: Any = False):
+        """One command's confinement plan, purely (M-097).
+
+        The pure layer's plan itself - mechanism, argv
+        prefix, network stance, and whether it honestly
+        confines - with nothing executed or changed.
+        """
+        from ..core import os_sandbox
+
+        return os_sandbox.build_confinement_plan(
+            command, platform=platform, network=network,
+            require_confined=require_confined)
+
+    def run_os_sandboxed(self, command: Any, *,
+                         cwd: Any = None, network: Any = "deny",
+                         require_confined: Any = False,
+                         timeout: Any = None) -> dict[str, Any]:
+        """Run *command* under its confinement plan (M-097).
+
+        The run-under-plan road: the plan comes from the
+        pure layer and the execution rides the elder
+        :class:`mythic_agent.core.sandbox.Sandbox` runner,
+        so its denylist, timeout and memory cap apply on
+        every road. With the gate off, the command takes
+        the elder road unchanged and the record says
+        ``confined`` is False and why. With the gate on,
+        a Linux plan executes through its argv prefix
+        (``unshare`` namespaces; a fresh net namespace
+        when the stance is deny) with the plan's env
+        additions; the seccomp baseline is rendered to a
+        filter-data file and named in the record, but no
+        seccomp installation is claimed - ``setpriv``
+        rejected a plain-name filter on this box
+        (``invalid filter``, measured), so namespaces are
+        the executed confinement and ``seccomp_installed``
+        is honestly False. A plan that confines nothing
+        (Windows today) runs the elder road with
+        ``confined`` False, unless ``require_confined``
+        was asked for, in which case the pure layer
+        refuses before anything runs. Confinement is
+        never claimed proven: the record carries the
+        plan's own support level. The plan is journaled
+        on the session when one is attached.
+        """
+        import shlex
+        import tempfile
+
+        from ..core import os_sandbox
+        from ..core.sandbox import Sandbox
+
+        if not isinstance(command, str) or not command.strip():
+            raise ValueError(
+                "a sandboxed command must be non-empty text")
+        workdir = str(cwd) if cwd is not None else str(self.project_root)
+        enabled = os_sandbox.enabled_from_config(self.config)
+        if not enabled:
+            result = Sandbox(
+                no_network=(network == "deny")).run(
+                    command, cwd=workdir, timeout=timeout)
+            record: dict[str, Any] = {
+                "type": "os_sandbox_run", "slice": "M-097",
+                "command": command, "executed": command,
+                "gate_enabled": False, "confined": False,
+                "platform": os_sandbox.current_platform(),
+                "support": None, "network": network,
+                "plan": None, "seccomp_installed": False,
+                "note": "the OS sandbox gate is off - the "
+                        "command took the elder Sandbox "
+                        "guardrail road unchanged",
+                "returncode": result.returncode,
+                "stdout": result.stdout, "stderr": result.stderr,
+                "timed_out": result.timed_out, "ok": result.ok,
+            }
+            if self._session_store and self.session_id:
+                self._checkpoint(record)
+            return record
+        plan = os_sandbox.build_confinement_plan(
+            command, network=network,
+            require_confined=require_confined)
+        if not plan.confined:
+            result = Sandbox(
+                env=plan.env(),
+                no_network=(network == "deny")).run(
+                    command, cwd=workdir, timeout=timeout)
+            record = {
+                "type": "os_sandbox_run", "slice": "M-097",
+                "command": command, "executed": command,
+                "gate_enabled": True, "confined": False,
+                "platform": plan.platform,
+                "support": plan.support, "network": plan.network,
+                "plan": plan.to_record(),
+                "seccomp_installed": False,
+                "note": "this platform's plan confines "
+                        "nothing yet - the command took the "
+                        "elder Sandbox guardrail road and "
+                        "the record says so",
+                "returncode": result.returncode,
+                "stdout": result.stdout, "stderr": result.stderr,
+                "timed_out": result.timed_out, "ok": result.ok,
+            }
+            if self._session_store and self.session_id:
+                self._checkpoint(os_sandbox.confinement_plan_record(plan))
+            return record
+        seccomp_path = None
+        if plan.platform == "linux":
+            fd, seccomp_path = tempfile.mkstemp(
+                prefix="mythic-seccomp-", suffix=".txt")
+            with open(fd, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "\n".join(os_sandbox.SECCOMP_BASELINE_SYSCALLS)
+                    + "\n")
+        executed = shlex.join(plan.argv())
+        result = Sandbox(
+            env=plan.env(),
+            no_network=(network == "deny")).run(
+                executed, cwd=workdir, timeout=timeout)
+        record = {
+            "type": "os_sandbox_run", "slice": "M-097",
+            "command": command, "executed": executed,
+            "gate_enabled": True, "confined": True,
+            "platform": plan.platform, "support": plan.support,
+            "network": plan.network, "plan": plan.to_record(),
+            "seccomp_filter_file": seccomp_path,
+            "seccomp_installed": False,
+            "note": "executed under the plan's namespace "
+                    "prefix; the seccomp baseline was "
+                    "rendered as filter data only - no "
+                    "seccomp installation and no proven "
+                    "confinement is claimed",
+            "returncode": result.returncode,
+            "stdout": result.stdout, "stderr": result.stderr,
+            "timed_out": result.timed_out, "ok": result.ok,
+        }
+        if self._session_store and self.session_id:
+            self._checkpoint(os_sandbox.confinement_plan_record(plan))
+        return record
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
