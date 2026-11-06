@@ -606,6 +606,14 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Editor bridges lite (M-090): when true, the /editor road is open - text about to be used (a file being edited, a prompt draft, the text at an approval point) can take a round-trip through the editor the user already lives in instead: the editor is resolved honestly from the environment variables the terminal already honours, VISUAL first then EDITOR, split the way a shell splits it so code --wait works as written, and with neither set the bridge refuses and names the remedy - no built-in editor is ever substituted silently. The text travels to a scratch file under the agent state dir (a real file keeps its own suffix so the editors syntax knowledge applies; a prompt travels as markdown prose), the real editor process runs, and what comes back is judged by its SHA-256 content anchor: byte-identical is unchanged and writes nothing, changed text for a file is written through the EditJournal road, changed text for a prompt is returned as the new draft and writes no file, an emptied file refuses rather than silently truncating it, and an emptied prompt is a cancellation, never sent. An editor exiting non-zero refuses and writes nothing. The round-trip is recorded on the session as an editor_round_trip event. The prompt road runs through the agent (edit_prompt_in_editor, recorded in the dead-code quarantine as an Agent API surface, M-074 pattern) because the chat surfaces hold no draft of their own - /editor prompt on both surfaces names that plainly and sends nothing. The gate toggles through /editor on and /editor off, journaled with save-failure revert; when false, round-trips through the agent refuse and say so, while the pure resolution and judgement maths stays available.'
 
+- id: S-83
+  name: diff_theatre
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Diff theatre in the TUI (M-091): when true, the /diff road is open - Diff theatre: a change can be read two ways - unified, one column in order, or side-by-side, with the before and after facing each other on one row so a replacement meets itself. Inside a changed line the words that actually changed are picked out, so a one-word fix in a long line reads as a one-word fix. A whitespace toggle judges lines that differ only in whitespace as unchanged - and flags them as whitespace-only on the line, never hiding them and never counting them as change. Colour is never the only signal: every line carries its written sign (+ added, - removed, blank for unchanged) and every view opens with the counted header, so the change reads in plain text, in grayscale, and through a screen reader. The gate toggles through /diff on and /diff off, journaled with save-failure revert; when false, staging through the agent refuses and says so, while the pure staging maths stays available.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
