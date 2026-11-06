@@ -503,37 +503,37 @@ slices:
   title: Checkpoints v2
   summary: named checkpoints ("before the auth rework") capturing working tree + session state; restore
     is one command, and the journal shows the whole checkpoint tree.
-  status: queued
+  status: done
 - id: M-076
   part: 4
   title: Session branching
   summary: fork a session at any message ("try the other road from here") — branches share history, diverge
     honestly, and can be compared.
-  status: queued
+  status: done
 - id: M-077
   part: 4
   title: Undo grown up
   summary: '`/undo` walks edits, commands, and checkpoints as one timeline; undo of a *command''s* effects
     is attempted via its recorded footprint, labelled certain or best-effort.'
-  status: queued
+  status: done
 - id: M-078
   part: 4
   title: Auto-commit discipline (Aider's crown)
   summary: every accepted edit set lands as its own commit with a written message — on a working branch
     by default, never on the user's protected branches unasked.
-  status: queued
+  status: done
 - id: M-079
   part: 4
   title: README and licence guardians
   summary: the coder *refuses* to overwrite a README (Volmarr's standing law) or touch licence files without
     explicit word; the refusal is built into the edit layer.
-  status: queued
+  status: done
 - id: M-080
   part: 4
   title: Commit craft
   summary: commit-splitting by concern, message drafting from the actual diff, and the house rules wired
     in (fetch + remote-diff before push, never force-push, verify the remote moved).
-  status: queued
+  status: done
 - id: M-081
   part: 4
   title: Conflict workbench

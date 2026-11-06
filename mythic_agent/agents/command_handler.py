@@ -209,6 +209,16 @@ class CommandHandler:
                 self._handle_repairloop(args)
             elif cmd == "/hunkreview":
                 self._handle_hunkreview(args)
+            elif cmd == "/commitcraft":
+                self._handle_commitcraft(args)
+            elif cmd == "/checkpoint":
+                self._handle_checkpoint(args)
+            elif cmd == "/branch":
+                self._handle_branch(args)
+            elif cmd == "/autocommit":
+                self._handle_autocommit(args)
+            elif cmd == "/guardians":
+                self._handle_guardians(args)
             elif cmd == "/kista":
                 self._handle_kista(args)
             elif cmd == "/resume-thought":
@@ -425,15 +435,104 @@ class CommandHandler:
 
     @requires_permission("undo_edit")
     def _handle_undo(self, args: str):
+        """M-077: /undo — one timeline of edits, commands, checkpoints.
+
+        Bare ``/undo`` undoes the newest timeline entry
+        (with no primary agent attached, or the timeline
+        gate off, it keeps its original last-edit road
+        exactly); ``/undo list`` shows the timeline;
+        ``/undo edit`` / ``/undo command`` undo the newest
+        entry of a strand, walked from the top;
+        ``/undo checkpoint <id>`` restores through the
+        M-075 seam; ``/undo <count>`` walks back that many
+        entries; ``/undo on`` / ``off`` is the gate.
+        """
         from ..core.edits import EditJournal
+        from ..core.undo_timeline import (
+            TimelineEntry,
+            enabled_from_config,
+            format_setting_change,
+            format_undo_outcome,
+            format_undo_timeline,
+            parse_undo_args,
+        )
         from .llm import AGENT_REGISTRY
+
         primary = AGENT_REGISTRY.get("Primary")
         root = primary.project_root if primary else self.project_root
         try:
-            result = EditJournal(root).undo()
-        except Exception as exc:
-            result = f"Undo failed; no Git reset was performed: {exc}"
-        publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n{result}\n")
+            request = parse_undo_args(args)
+        except ValueError as exc:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n{exc}\n")
+            return
+
+        def legacy() -> str:
+            try:
+                return EditJournal(root).undo()
+            except Exception as exc:
+                return f"Undo failed; no Git reset was performed: {exc}"
+
+        if primary is None:
+            if request["action"] == "next" and request["count"] == 1:
+                result = legacy()
+            elif request["action"] == "kind" \
+                    and request.get("kind") == "edit":
+                result = legacy()
+            else:
+                result = ("The undo timeline needs the primary "
+                          "agent; only the original last-edit "
+                          "/undo is available right now.")
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n{result}\n")
+            return
+        if request["action"] == "show":
+            status = primary.undo_timeline_status()
+            entries = [TimelineEntry(**entry)
+                       for entry in status["entries"]]
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n{format_undo_timeline(primary.config, entries, checkpoint_wired=status['checkpoint_wired'])}\n")
+            return
+        if request["action"] == "setting":
+            try:
+                record = primary.set_undo_timeline(request["enabled"])
+                result = format_setting_change(record)
+            except (ValueError, KeyError, RuntimeError) as exc:
+                result = str(exc)
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n{result}\n")
+            return
+        if not enabled_from_config(primary.config):
+            if request["action"] == "next" and request["count"] == 1:
+                result = legacy()
+            else:
+                result = ("Undo timeline is off — /undo keeps its "
+                          "original last-edit behaviour; turn it "
+                          "on with /undo on.")
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n{result}\n")
+            return
+        try:
+            if request["action"] == "kind":
+                result = format_undo_outcome(
+                    primary.undo_kind(request["kind"]))
+            elif request["action"] == "checkpoint":
+                result = format_undo_outcome(
+                    primary.restore_checkpoint_via_seam(
+                        request["checkpoint_id"]))
+            else:
+                messages = []
+                for _ in range(request["count"]):
+                    record = primary.undo_newest()
+                    messages.append(format_undo_outcome(record))
+                    if not record.get("changed"):
+                        break
+                result = "\n".join(messages)
+        except ValueError as exc:
+            result = str(exc)
+        publish_sync("agent_chat_chunk", agent_name="Primary",
+                     text=f"\n{result}\n")
 
     @requires_permission("github_execute")
     def _handle_issue(self, args: str):
@@ -1117,6 +1216,376 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[green]{format_setting_change(record)}[/green]\n")
+
+    def _handle_checkpoint(self, args: str):
+        """M-075: /checkpoint — named checkpoints.
+
+        ``/checkpoint`` shows the gate (on by default),
+        the plain-words explanation, and the whole
+        checkpoint tree; ``/checkpoint take <name>``
+        freezes the tree and session under a name;
+        ``/checkpoint restore <name>`` brings one back
+        in one command (a dirty tree refuses unless the
+        trailing word ``discard`` throws the un-
+        checkpointed changes away on purpose);
+        ``/checkpoint on`` / ``off`` changes the gate
+        (journaled by the agent layer).
+        """
+        from ..core.checkpoints import (
+            enabled_from_config,
+            format_checkpoint_created,
+            format_checkpoint_restored,
+            format_checkpoints,
+            format_setting_change,
+            parse_checkpoint_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_checkpoint_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.checkpoint_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_checkpoints(primary.config, status['checkpoints'], status['head_id'])}[/bold cyan]\n"
+                     "[dim]Freeze the tree with /checkpoint take <name>, "
+                     "or bring one back with /checkpoint restore "
+                     "<name>.[/dim]\n")
+            return
+        try:
+            if request["action"] == "setting":
+                record = primary.set_checkpoints(request["enabled"])
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_setting_change(record)}[/green]\n")
+                return
+            if request["action"] == "take":
+                taken = primary.take_checkpoint(request["name"])
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_checkpoint_created(taken)}[/green]\n")
+                return
+            restored = primary.restore_checkpoint(
+                request["name"], request["discard"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_checkpoint_restored(restored)}[/green]\n")
+
+    def _handle_branch(self, args: str):
+        """M-076: /branch — session branching.
+
+        ``/branch`` shows the gate (on by default), the
+        plain-words explanation, and a worked fork +
+        comparison; ``/branch on`` / ``off`` changes the
+        gate (journaled by the agent layer); ``/branch
+        fork <index> [name]`` forks the attached session;
+        ``/branch list`` lists its branches; ``/branch
+        compare <id> <id>`` compares two sessions.
+        """
+        from ..core.session_branching import (
+            enabled_from_config,
+            format_branch_list,
+            format_branching,
+            format_comparison,
+            format_fork,
+            format_setting_change,
+            parse_branch_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_branch_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if request["action"] == "show":
+                status = primary.session_branching_status()
+                assert status["enabled"] == enabled_from_config(
+                    primary.config)
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[bold cyan]{format_branching(primary.config)}[/bold cyan]\n"
+                         "[dim]Fork with /branch fork <message-index> [name], "
+                         "list branches with /branch list, or compare with "
+                         "/branch compare <session-id> <session-id>.[/dim]\n")
+                return
+            if request["action"] == "setting":
+                record = primary.set_session_branching(request["enabled"])
+                text, style = format_setting_change(record), "green"
+            elif request["action"] == "fork":
+                record = primary.fork_session(
+                    request["at_index"], request["name"])
+                text, style = format_fork(record), "green"
+            elif request["action"] == "list":
+                text = format_branch_list(primary.list_session_branches())
+                style = "bold cyan"
+            else:
+                record = primary.compare_sessions(
+                    request["first_id"], request["second_id"])
+                text, style = format_comparison(record), "bold cyan"
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[{style}]{text}[/{style}]\n")
+
+    def _handle_autocommit(self, args: str):
+        """M-078: /autocommit — auto-commit discipline.
+
+        ``/autocommit`` shows the gate (off by default),
+        the plain-words explanation, the protected set,
+        the working branch, and worked landing examples;
+        ``/autocommit on`` / ``off`` changes the gate and
+        ``/autocommit allow-protected`` /
+        ``block-protected`` gives or withdraws the standing
+        word for protected branches (journaled by the
+        agent layer).
+        """
+        from ..core.auto_commit import (
+            enabled_from_config,
+            format_auto_commit,
+            format_setting_change,
+            parse_autocommit_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_autocommit_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.auto_commit_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_auto_commit(primary.config)}[/bold cyan]\n"
+                     "[dim]Turn the discipline on with /autocommit on, "
+                     "or off with /autocommit off.[/dim]\n")
+            return
+        try:
+            if request["action"] == "setting":
+                record = primary.set_auto_commit(request["enabled"])
+            else:
+                record = primary.set_auto_commit_allow_protected(
+                    request["allowed"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_setting_change(record)}[/green]\n")
+
+    def _handle_costroute(self, args: str):
+        """M-031: /costroute — cost-aware routing, in plain words.
+
+        ``/costroute`` shows the setting (off by default), the
+        plain-words explanation, the configured doors with their
+        costs-table prices, and the task classes;
+        ``/costroute on`` / ``off`` changes the setting (journaled
+        by the agent layer); ``/costroute <task-class>`` asks the
+        router for a decision for that class and applies it when
+        it prefers a cheaper adequate door — applied through the
+        agent's journaled model switch, with the decision's own
+        reason, and announced here, never silent.
+        """
+        from ..core.cost_routing import (
+            candidate_doors,
+            enabled_from_config,
+            format_cost_change,
+            format_cost_routing,
+            format_decision,
+            parse_cost_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_cost_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.cost_routing_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            assert [d["model"] for d in status["doors"]] == [
+                d.model for d in candidate_doors(primary.config)]
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_cost_routing(primary.config)}[/bold cyan]\n"
+                     "[dim]Decide for a kind of work with "
+                     "/costroute <task-class>; turn the setting on "
+                     "with /costroute on.[/dim]\n")
+            return
+        try:
+            if request["action"] == "setting":
+                record = primary.set_cost_routing(request["enabled"])
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_cost_change(record)}[/green]\n")
+                return
+            applied = primary.cost_route(request["task_class"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_decision(applied['decision'])}[/green]\n")
+
+    def _handle_guardians(self, args: str):
+        """M-079: /guardians — README and licence guardians.
+
+        ``/guardians`` shows the guards, the guarded names
+        judged, worked refusal / allowed examples, and
+        whether the user's explicit word is on record;
+        ``/guardians word on`` / ``word off`` gives or takes
+        back the word (journaled by the agent layer);
+        ``/guardians check <path>`` judges one path under
+        every operation.
+        """
+        from ..core.file_guardians import (
+            explicit_from_config,
+            format_guard_check,
+            format_guardians,
+            format_setting_change,
+            parse_guardians_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_guardians_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.guardian_status()
+            assert status["explicit_word"] == explicit_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_guardians(primary.config)}[/bold cyan]\n"
+                     "[dim]Give the word with /guardians word on, "
+                     "or take it back with /guardians word off.[/dim]\n")
+            return
+        if request["action"] == "check":
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_guard_check(primary.config, request['path'])}[/bold cyan]\n")
+            return
+        try:
+            record = primary.set_guardian_word(request["enabled"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_setting_change(record)}[/green]\n")
+
+    def _handle_commitcraft(self, args: str):
+        """M-080: /commitcraft — commit craft.
+
+        ``/commitcraft`` shows the gate (on by default),
+        the plain-words explanation, and a worked
+        split-and-draft example; ``on`` / ``off`` changes
+        the gate (journaled by the agent layer);
+        ``plan`` drafts the working tree's split by
+        concern; ``commit <concern>`` commits one group
+        under its drafted message; ``push`` pushes the
+        current branch under the house rules (fetch +
+        remote-diff first, never force-push, ls-remote
+        verification after).
+        """
+        from ..core.commit_craft import (
+            enabled_from_config,
+            format_commit_craft,
+            format_commit_record,
+            format_plan,
+            format_push_record,
+            format_setting_change,
+            parse_commitcraft_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_commitcraft_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.commit_craft_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_commit_craft(primary.config)}[/bold cyan]\n"
+                     "[dim]Turn the gate off with /commitcraft off, "
+                     "or back on with /commitcraft on.[/dim]\n")
+            return
+        try:
+            if request["action"] == "setting":
+                record = primary.set_commit_craft(request["enabled"])
+                text = format_setting_change(record)
+            elif request["action"] == "plan":
+                text = format_plan(primary.plan_commit_split())
+            elif request["action"] == "commit":
+                text = format_commit_record(
+                    primary.commit_craft_group(request["concern"]))
+            else:
+                text = format_push_record(
+                    primary.push_with_house_rules())
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{text}[/green]\n")
 
     def _handle_costroute(self, args: str):
         """M-031: /costroute — cost-aware routing, in plain words.

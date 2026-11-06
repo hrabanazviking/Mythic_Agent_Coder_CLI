@@ -260,7 +260,8 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /commitcraft [on|off|plan|commit <concern>|push] /guardians [word on|word off|check <path>] /autocommit [on|off|allow-protected|block-protected] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
         return True, False, "Conversation cleared."
@@ -445,6 +446,156 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_setting_change(record)
+    if command == "/checkpoint":
+        from .core.checkpoints import (
+            enabled_from_config,
+            format_checkpoint_created,
+            format_checkpoint_restored,
+            format_checkpoints,
+            format_setting_change,
+            parse_checkpoint_args,
+        )
+        try:
+            request = parse_checkpoint_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.checkpoint_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, format_checkpoints(
+                agent.config, status["checkpoints"], status["head_id"])
+        try:
+            if request["action"] == "setting":
+                record = agent.set_checkpoints(request["enabled"])
+                return True, False, format_setting_change(record)
+            if request["action"] == "take":
+                taken = agent.take_checkpoint(request["name"])
+                return True, False, format_checkpoint_created(taken)
+            restored = agent.restore_checkpoint(
+                request["name"], request["discard"])
+            return True, False, format_checkpoint_restored(restored)
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+    if command == "/branch":
+        from .core.session_branching import (
+            enabled_from_config,
+            format_branch_list,
+            format_branching,
+            format_comparison,
+            format_fork,
+            format_setting_change,
+            parse_branch_args,
+        )
+        try:
+            request = parse_branch_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.session_branching_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, format_branching(agent.config)
+        try:
+            if request["action"] == "setting":
+                record = agent.set_session_branching(request["enabled"])
+                return True, False, format_setting_change(record)
+            if request["action"] == "fork":
+                record = agent.fork_session(request["at_index"], request["name"])
+                return True, False, format_fork(record)
+            if request["action"] == "list":
+                return True, False, format_branch_list(agent.list_session_branches())
+            record = agent.compare_sessions(request["first_id"], request["second_id"])
+            return True, False, format_comparison(record)
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+
+    if command == "/autocommit":
+        from .core.auto_commit import (
+            enabled_from_config,
+            format_auto_commit,
+            format_setting_change,
+            parse_autocommit_args,
+        )
+        try:
+            request = parse_autocommit_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.auto_commit_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, format_auto_commit(agent.config)
+        try:
+            if request["action"] == "setting":
+                record = agent.set_auto_commit(request["enabled"])
+            else:
+                record = agent.set_auto_commit_allow_protected(
+                    request["allowed"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_setting_change(record)
+    if command == "/guardians":
+        from .core.file_guardians import (
+            explicit_from_config,
+            format_guard_check,
+            format_guardians,
+            format_setting_change,
+            parse_guardians_args,
+        )
+        try:
+            request = parse_guardians_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.guardian_status()
+            assert status["explicit_word"] == explicit_from_config(agent.config)
+            return True, False, format_guardians(agent.config)
+        if request["action"] == "check":
+            return True, False, format_guard_check(agent.config, request["path"])
+        try:
+            record = agent.set_guardian_word(request["enabled"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_setting_change(record)
+    if command == "/commitcraft":
+        from .core.commit_craft import (
+            enabled_from_config,
+            format_commit_craft,
+            format_commit_record,
+            format_plan,
+            format_push_record,
+            format_setting_change,
+            parse_commitcraft_args,
+        )
+        try:
+            request = parse_commitcraft_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.commit_craft_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, format_commit_craft(agent.config)
+        if request["action"] == "setting":
+            try:
+                record = agent.set_commit_craft(request["enabled"])
+            except (ValueError, KeyError, RuntimeError) as exc:
+                return True, False, str(exc)
+            return True, False, format_setting_change(record)
+        if request["action"] == "plan":
+            try:
+                record = agent.plan_commit_split()
+            except (ValueError, RuntimeError) as exc:
+                return True, False, str(exc)
+            return True, False, format_plan(record)
+        if request["action"] == "commit":
+            try:
+                record = agent.commit_craft_group(request["concern"])
+            except (ValueError, RuntimeError) as exc:
+                return True, False, str(exc)
+            return True, False, format_commit_record(record)
+        try:
+            record = agent.push_with_house_rules()
+        except (ValueError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_push_record(record)
     if command == "/kista":
         from .core.key_custody import (
             custody_entries,
@@ -1024,9 +1175,56 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         agent.add_context(f"File context ({path.relative_to(agent.project_root)}):\n{content}")
         return True, False, f"Added {values[0]} to context."
     if command == "/undo":
+        from .core.undo_timeline import (
+            TimelineEntry,
+            enabled_from_config,
+            format_setting_change,
+            format_undo_outcome,
+            format_undo_timeline,
+            parse_undo_args,
+        )
         if not agent.tool_policy.authorize("undo_edit", {}):
             return True, False, "Permission denied for undo_edit; no operation was performed."
-        return True, False, EditJournal(agent.project_root).undo()
+        try:
+            request = parse_undo_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.undo_timeline_status()
+            entries = [TimelineEntry(**entry)
+                       for entry in status["entries"]]
+            return True, False, format_undo_timeline(
+                agent.config, entries,
+                checkpoint_wired=status["checkpoint_wired"])
+        if request["action"] == "setting":
+            try:
+                record = agent.set_undo_timeline(request["enabled"])
+            except (ValueError, KeyError, RuntimeError) as exc:
+                return True, False, str(exc)
+            return True, False, format_setting_change(record)
+        if not enabled_from_config(agent.config):
+            if request["action"] == "next" and request["count"] == 1:
+                return True, False, EditJournal(agent.project_root).undo()
+            return True, False, (
+                "Undo timeline is off — /undo keeps its original "
+                "last-edit behaviour; turn it on with /undo on.")
+        try:
+            if request["action"] == "kind":
+                return True, False, format_undo_outcome(
+                    agent.undo_kind(request["kind"]))
+            if request["action"] == "checkpoint":
+                return True, False, format_undo_outcome(
+                    agent.restore_checkpoint_via_seam(
+                        request["checkpoint_id"]))
+            messages = []
+            for _ in range(request["count"]):
+                record = agent.undo_newest()
+                messages.append(format_undo_outcome(record))
+                if not record.get("changed"):
+                    break
+            return True, False, "\n".join(messages)
+        except ValueError as exc:
+            return True, False, str(exc)
     return True, False, f"Unknown command: {command}. Use /help."
 
 
