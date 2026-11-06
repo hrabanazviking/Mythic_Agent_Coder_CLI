@@ -10,6 +10,7 @@ edit_format: auto
 hash_anchored_edits: true
 apply_repair_loop: true
 hunk_review: true
+change_sets: true
 issue_to_slice: true
 pr_craft: true
 conflict_workbench: true
