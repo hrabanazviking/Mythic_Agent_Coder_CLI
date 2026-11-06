@@ -260,7 +260,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /checkpoint [take <name>|restore <name> [discard]|on|off] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
         return True, False, "Conversation cleared."
@@ -445,6 +445,36 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_setting_change(record)
+    if command == "/checkpoint":
+        from .core.checkpoints import (
+            enabled_from_config,
+            format_checkpoint_created,
+            format_checkpoint_restored,
+            format_checkpoints,
+            format_setting_change,
+            parse_checkpoint_args,
+        )
+        try:
+            request = parse_checkpoint_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.checkpoint_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, format_checkpoints(
+                agent.config, status["checkpoints"], status["head_id"])
+        try:
+            if request["action"] == "setting":
+                record = agent.set_checkpoints(request["enabled"])
+                return True, False, format_setting_change(record)
+            if request["action"] == "take":
+                taken = agent.take_checkpoint(request["name"])
+                return True, False, format_checkpoint_created(taken)
+            restored = agent.restore_checkpoint(
+                request["name"], request["discard"])
+            return True, False, format_checkpoint_restored(restored)
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
     if command == "/kista":
         from .core.key_custody import (
             custody_entries,
