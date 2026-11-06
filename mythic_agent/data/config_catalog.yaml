@@ -536,6 +536,14 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Conflict workbench (M-081): when true, the /conflicts road is open - merge and rebase conflicts are presented as per-region decisions (ours, theirs, both, or an edited resolution), each side carrying an intent summary derived mechanically from the actual commits and stage diffs (side commit subject, author, short sha, and added/removed line counts against the base stage; a deleted side, a missing base, or a missing commit is stated plainly, never invented). Every conflicted place must be decided before anything applies, and resolved text still carrying a conflict marker is refused. A resolution is written through EditJournal, staged, verified against the real index, and journaled as a conflict_resolution_applied session event (journal-first gate changes, save-failure revert). Delete/modify conflicts are detected with their intent summary but carry no marker regions, so they cannot be decided place-by-place in this slice. When false, resolutions through the agent refuse and say so.'
 
+- id: S-74
+  name: pr_craft
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'PR craft (M-082): when true, the /prcraft road is open - pull requests are created, reviewed, and responded to from inside Mythic: a pull request is fetched as data through the user''s own gh road and its review comments are fetched and turned into tasks (one task per comment, carrying its author, words, and place; a review with no words makes no task). Drafts (a PR draft, a review draft with approve/comment/request_changes verdicts and line notes riding in the review body, and a reply draft posting as a PR comment) are prepared locally and send nothing. Anything that would send as the user posts only at the user''s recorded word: the draft must be armed with that word before the post road runs at all, an unarmed post refuses and the runner is never touched, and the word itself is never journaled (records carry armed: true only). /prcraft shows the gate and a worked example over a fake runner, /prcraft tasks <n> fetches review comments as tasks; when false, fetches and posts through the agent refuse and say so, while the pure draft maths stays readable.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
