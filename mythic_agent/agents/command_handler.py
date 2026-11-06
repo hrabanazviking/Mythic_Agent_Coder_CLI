@@ -239,6 +239,8 @@ class CommandHandler:
                 self._handle_sandbox(args)
             elif cmd == "/network":
                 self._handle_network(args)
+            elif cmd == "/pathjail":
+                self._handle_pathjail(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -2131,6 +2133,82 @@ class CommandHandler:
                 return
             record = primary.set_network_gates(
                 request["action"] == "on")
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_gate_change(record)}[/green]\n")
+
+    def _handle_pathjail(self, args: str):
+        """M-099: /pathjail - the path jail.
+
+        ``/pathjail`` shows the whole slice (the gate,
+        the resolved workspace and its grants); ``on`` /
+        ``off`` steer the gate (journaled by the agent
+        layer); ``grants`` shows the grant list alone;
+        ``check <path>`` decides one path (a denied path
+        under the gate is published by the agent layer
+        as session news); ``grant <abs-path>`` names one
+        grant root. Nothing here opens a file - judging
+        is the pure layer's work and holding the grants
+        is the agent layer's.
+        """
+        from ..core.path_jail import (
+            enabled_from_config,
+            format_gate_change,
+            format_grants,
+            format_jail_decision,
+            grants_from_config,
+            parse_pathjail_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_pathjail_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] in ("show", "grants"):
+            try:
+                if request["action"] == "show":
+                    status = primary.path_jail_status()
+                    assert status["enabled"] == enabled_from_config(
+                        primary.config)
+                    text = status["screen"]
+                else:
+                    text = format_grants(
+                        grants_from_config(primary.config))
+            except ValueError as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{text}[/bold cyan]\n")
+            return
+        try:
+            if request["action"] == "check":
+                decision = primary.check_path_jail(request["path"])
+                text = format_jail_decision(decision)
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[bold cyan]{text}[/bold cyan]\n")
+                return
+            if request["action"] == "grant":
+                record = primary.add_path_grant(request["grant"])
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=(f"\n[green]Path grant: "
+                          f"{record['grant']} added.[/green]\n"))
+                return
+            record = primary.set_path_jail(request["action"] == "on")
         except (ValueError, KeyError, RuntimeError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
