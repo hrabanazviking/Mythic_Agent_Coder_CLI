@@ -520,6 +520,14 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'README and licence guardians (M-079): the user''s explicit word for guarded files. The guardians are always on and live in the edit layer (EditJournal): a whole-file overwrite of an existing README refuses on every edit road, as does deleting one, while modifying a README in place, creating a README, and overwriting a barely-anything stub README (<=5 non-empty lines, <=200 characters) are allowed; licence files (LICENSE, LICENCE, COPYING, NOTICE, any extension or suffix) refuse every touch. False (default - never presumed) refuses and changes nothing; true records the user''s explicit word and allows the guarded operations, still journaled. A guardian refusal is never a repair-loop packet. /guardians shows the guards, /guardians check <path> judges one path, /guardians word on|off gives or takes back the word (journaled guardian_word_changed, save-failure revert). Undo is restoration, not re-judged.'
 
+- id: S-72
+  name: commit_craft
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Commit craft (M-080): when true, the commitcraft road is open — a working-tree change is split into commits by concern (code, tests, docs, config), each message drafted from its own actual diff (verb, file names, and per-file counts read off the diff; every hunk judged by the M-074 hunk layer), one group committed at a time with the index proven to hold exactly that group, and pushes follow the house rules wired in as refusals: fetch first, the remote-diff read before pushing, never force-push (a diverged remote refuses), and ls-remote verification afterwards that the remote moved to the pushed head; an up-to-date remote is an honest no-send. Commit craft never commits on its own — the auto-commit trigger is M-078''s seam (DEPENDS-ON-M-078), reported honestly through it since M-078 banked (before that banking it reported unavailable). /commitcraft shows the gate, a worked split-and-draft example, plans the split, commits one concern group, and pushes under the house rules (journaled, with a save-failure revert); when false, commits and pushes through the agent refuse and say so, while the pure planning maths stays readable.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME

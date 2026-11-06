@@ -533,7 +533,7 @@ slices:
   title: Commit craft
   summary: commit-splitting by concern, message drafting from the actual diff, and the house rules wired
     in (fetch + remote-diff before push, never force-push, verify the remote moved).
-  status: queued
+  status: done
 - id: M-081
   part: 4
   title: Conflict workbench
