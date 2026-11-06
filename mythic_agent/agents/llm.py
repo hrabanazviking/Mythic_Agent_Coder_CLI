@@ -1499,6 +1499,176 @@ class Agent:
             record["journaled"] = True
         return record
 
+    def checkpoint_status(self) -> dict[str, Any]:
+        """The checkpoints gate and tree, in plain data (M-075).
+
+        The setting exactly as stored (validated — a
+        malformed stored value raises, never vanishes), the
+        plain explanation, and the whole checkpoint tree:
+        every checkpoint as a record with its parent, the
+        head among them. This is the answer ``/checkpoint``
+        shows.
+        """
+        from ..core import checkpoints
+
+        store = checkpoints.CheckpointStore(self.project_root)
+        records = store.list_checkpoints()
+        head = store.head()
+        return {
+            "enabled": checkpoints.enabled_from_config(self.config),
+            "explanation": checkpoints.PLAIN_EXPLANATION,
+            "count": len(records),
+            "head": head.name if head else None,
+            "head_id": head.id if head else None,
+            "checkpoints": records,
+        }
+
+    def set_checkpoints(self, enabled: bool) -> dict[str, Any]:
+        """Turn named checkpoints on or off (M-075).
+
+        Validated by :mod:`mythic_agent.core.checkpoints`
+        before anything mutates; journaled first as a
+        ``checkpoints_setting_changed`` event when a session
+        is attached; a failed save restores the previous
+        value exactly and journals a compensating
+        ``checkpoints_setting_reverted``.
+        """
+        import copy
+
+        from ..core import checkpoints
+
+        new_value, change = checkpoints.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[checkpoints.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "checkpoints_setting_reverted",
+                        "reason": "The checkpoints change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Checkpoints change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def take_checkpoint(self, name: str) -> dict[str, Any]:
+        """Freeze the working tree under *name* (M-075).
+
+        Captures the whole tree and — when a session is
+        attached — the session state (its messages, status,
+        token count and outcome, read back through the
+        session store's own export). The take is journaled
+        on the session as a ``checkpoint_created`` event.
+        With the gate off, or a name already taken, this
+        refuses and captures nothing.
+        """
+        from ..core import checkpoints
+
+        if not checkpoints.enabled_from_config(self.config):
+            raise ValueError(
+                "checkpoints are off — turn them on with "
+                "/checkpoint on; nothing was captured")
+        snapshot = None
+        if self._session_store and self.session_id:
+            exported = self._session_store.export(self.session_id)
+            snapshot = {
+                "session_id": exported["id"],
+                "status": exported["status"],
+                "total_tokens": exported["total_tokens"],
+                "messages": exported["context"],
+                "outcome": exported.get("outcome"),
+            }
+        store = checkpoints.CheckpointStore(self.project_root)
+        checkpoint = store.create(name, snapshot)
+        record: dict[str, Any] = {
+            "type": "checkpoint_created", "name": checkpoint.name,
+            "checkpoint_id": checkpoint.id,
+            "parent_name": checkpoint.parent_name,
+            "files": checkpoint.file_count,
+            "bytes": checkpoint.total_bytes,
+            "session_captured": snapshot is not None,
+            "journaled": False}
+        if self._session_store and self.session_id:
+            event = {key: value for key, value in record.items()
+                     if key != "journaled"}
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
+    def restore_checkpoint(self, name: str,
+                           discard: bool = False) -> dict[str, Any]:
+        """Bring one checkpoint's tree and session back (M-075).
+
+        One command, judged honestly by the store: a tree
+        changed since the last checkpoint was taken or
+        restored refuses (naming the changed files) unless
+        *discard* throws those changes away on purpose,
+        counted in the record. The session state comes
+        back only into the session it was captured from;
+        a checkpoint from another session restores the
+        tree and says so. The restore is journaled on the
+        session as a ``checkpoint_restored`` event with
+        its counts.
+        """
+        import copy
+
+        from ..core import checkpoints
+        from ..core.sessions import SessionStore
+
+        if not checkpoints.enabled_from_config(self.config):
+            raise ValueError(
+                "checkpoints are off — turn them on with "
+                "/checkpoint on; nothing was restored")
+        store = checkpoints.CheckpointStore(self.project_root)
+        checkpoint, outcome = store.restore(name, discard=discard)
+        record: dict[str, Any] = {
+            "type": "checkpoint_restored", "name": checkpoint.name,
+            "checkpoint_id": checkpoint.id,
+            "restored": outcome.restored,
+            "removed": outcome.removed,
+            "unchanged": outcome.unchanged,
+            "discarded_changes": outcome.discarded_changes,
+            "session_restored": False, "journaled": False}
+        if checkpoint.session is not None:
+            snapshot = checkpoint.session
+            if self._session_store and self.session_id:
+                if snapshot["session_id"] == self.session_id:
+                    with self._lock:
+                        self.messages = copy.deepcopy(
+                            snapshot["messages"])
+                    self.total_tokens = snapshot["total_tokens"]
+                    if snapshot["status"] in SessionStore.STATUSES:
+                        self._session_status = snapshot["status"]
+                    record["session_restored"] = True
+                else:
+                    record["session_note"] = (
+                        "Session state was captured from session "
+                        f"{snapshot['session_id']}, not the "
+                        "attached session; the tree was restored "
+                        "and the session left as it stands.")
+            else:
+                record["session_note"] = (
+                    "The checkpoint carries session state, but "
+                    "no session is attached; the tree alone "
+                    "was restored.")
+        if self._session_store and self.session_id:
+            event = {key: value for key, value in record.items()
+                     if key != "journaled"}
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
     def _repair_offered(self, path: str,
                         packet: Any) -> dict[str, Any]:
         """Journal a repair packet and shape its record (M-073)."""
