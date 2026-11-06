@@ -551,6 +551,14 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Issue-to-slice (M-083): when true, the /issueslice road is open - a GitHub issue becomes a planned slice in the house format (title, summary, and status planned) with acceptance checks drafted only from the issue''s own words: task-list items in its body, bullets under an acceptance heading, or, when the body carries neither, the issue''s title itself; every check carries the verbatim excerpt it was drafted from, and a check that cannot be traced to the issue refuses. GitHub fetches go through the user''s own gh road (github.view_issue) over an injectable fetcher seam, so tests fake GitHub completely; the Samverk source is named for Part X (M-242) and refuses honestly until that road provides the surfaces, its internals never invented. Planning files nothing and changes no roadmap: the planned slice is product output, recorded on the session journal as issue_slice_planned. /issueslice shows the gate, the seam''s sources, and a worked sample; /issueslice github <number> plans that issue; when false, planning through the agent refuses and says so, while the pure drafting maths stays readable.'
 
+- id: S-76
+  name: change_sets
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Multi-file change sets (M-084): when true, the /changeset road is open - Multi-file change sets: work that lands together is named and reviewed together. A change set is a name plus one edit per file — each edit in one of the usual formats (whole-file, unified diff, or search-and-replace) — and each file''s edit is accepted or rejected on its own before anything applies. Rejecting one file never kills the rest. The whole set is judged in memory first, through the same strict appliers as any single edit (exact matches only, no fuzz, ever): one stale file refuses the whole set and nothing is written. Accepted edits are then written through the edit journal, one journaled write per file under the set''s name. The set carries its test evidence as data — the command that ran, the passed, failed, and skipped counts, and where the log lives — with the verdict computed from those counts; a set with no evidence attached says so plainly, and missing evidence is never presented as a pass. The gate toggles through /changeset on and /changeset off, journaled with save-failure revert; preview_change_set is recorded in the dead-code quarantine as an Agent API surface (M-074 pattern).'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
