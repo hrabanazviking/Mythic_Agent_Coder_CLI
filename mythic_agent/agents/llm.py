@@ -1629,6 +1629,150 @@ class Agent:
             record["journaled"] = True
         return record
 
+    def conflict_workbench_status(self) -> dict[str, Any]:
+        """The conflict-workbench gate, in plain data (M-081)."""
+        from ..core import conflict_workbench
+
+        return {
+            "enabled": conflict_workbench.enabled_from_config(self.config),
+            "explanation": conflict_workbench.PLAIN_EXPLANATION,
+        }
+
+    def set_conflict_workbench(self, enabled: bool) -> dict[str, Any]:
+        """Turn the conflict workbench on or off (M-081).
+
+        Validated before anything mutates; journaled first
+        as a ``conflict_workbench_setting_changed`` event
+        when a session is attached; a failed save restores
+        the previous value and journals the revert.
+        """
+        import copy
+
+        from ..core import conflict_workbench
+
+        new_value, change = conflict_workbench.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[conflict_workbench.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "conflict_workbench_setting_reverted",
+                        "reason": "The conflict-workbench change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass
+            raise RuntimeError(
+                "Conflict-workbench change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def conflict_workbench_view(self) -> dict[str, Any]:
+        """The live conflict workbench for this workspace (M-081).
+
+        Purely a read of the real repository state: the
+        operation in progress, each conflicted file with
+        its regions and both sides' derived intent
+        summaries.
+        """
+        from ..core import conflict_workbench
+
+        workbench = conflict_workbench.detect_workbench(self.project_root)
+        return {"operation": workbench.operation,
+                "conflicted": workbench.conflicted,
+                "files": [
+                    {"path": f.path, "regions": f.region_count,
+                     "ours_intent": f.ours_intent,
+                     "theirs_intent": f.theirs_intent,
+                     "places": [
+                         {"index": r.index, "ours_label": r.ours_label,
+                          "theirs_label": r.theirs_label,
+                          "ours": list(r.ours),
+                          "theirs": list(r.theirs)}
+                         for r in f.regions]}
+                    for f in workbench.files]}
+
+    def resolve_conflict(self, path: str,
+                         decisions: Any) -> dict[str, Any]:
+        """Resolve one conflicted file, as a decision list (M-081).
+
+        *decisions* names every conflicted place:
+        ``(index, "ours")``, ``(index, "theirs")``,
+        ``(index, "both")``, or ``(index, "edit", text)``.
+        The resolved text is proven marker-free by the pure
+        layer, written through the EditJournal road, staged
+        so git records the file resolved, and then tested
+        by re-reading the real index — the file must no
+        longer be unmerged. The resolution is journaled as
+        a ``conflict_resolution_applied`` event when a
+        session is attached. A pending place, surviving
+        markers, the gate being off, or a file that is not
+        conflicted all refuse and write nothing.
+        """
+        import subprocess
+
+        from ..core import conflict_workbench
+        from ..core.edits import EditJournal
+        from ..core.workspace import resolve_file
+
+        if not conflict_workbench.enabled_from_config(self.config):
+            raise ValueError(
+                "conflict workbench is off — turn it on with "
+                "/conflicts on; nothing was changed")
+        workbench = conflict_workbench.detect_workbench(self.project_root)
+        match = [f for f in workbench.files if f.path == path]
+        if not match:
+            raise ValueError(
+                f"{path} is not a conflicted file in this "
+                "repository — nothing was changed")
+        conflict_file = match[0]
+        target = resolve_file(self.project_root, path, write=True)
+        current = target.read_text(encoding="utf-8")
+        resolution = conflict_workbench.start_resolution(conflict_file)
+        for item in decisions:
+            if len(item) == 3 and item[1] == "edit":
+                resolution = conflict_workbench.edit_resolution(
+                    resolution, item[0], item[2])
+            elif len(item) == 2:
+                resolution = conflict_workbench.decide_resolution(
+                    resolution, item[0], item[1])
+            else:
+                raise ValueError(
+                    "each decision is (index, 'ours'), "
+                    "(index, 'theirs'), (index, 'both'), or "
+                    f"(index, 'edit', text); got {item!r}")
+        new_text, outcome = conflict_workbench.apply_resolution(
+            current, resolution)
+        EditJournal(self.project_root).write(path, new_text)
+        subprocess.run(["git", "-C", str(self.project_root),
+                        "add", "--", path],
+                       capture_output=True, timeout=15, check=True)
+        after = conflict_workbench.detect_workbench(self.project_root)
+        verified = all(f.path != path for f in after.files)
+        if not verified:
+            raise RuntimeError(
+                f"resolution of {path} was written and staged but "
+                "the file is still unmerged in the index; the "
+                "resolution was not proven")
+        record: dict[str, Any] = {
+            "path": path, "applied": outcome.applied,
+            "changed": outcome.changed, "verified": verified,
+            "journaled": False}
+        if self._session_store and self.session_id:
+            event = resolution.event()
+            event["verified"] = verified
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
     def commit_craft_status(self) -> dict[str, Any]:
         """The commit-craft gate and seam, in data (M-080).
 
