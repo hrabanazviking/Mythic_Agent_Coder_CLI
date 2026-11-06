@@ -209,6 +209,8 @@ class CommandHandler:
                 self._handle_repairloop(args)
             elif cmd == "/hunkreview":
                 self._handle_hunkreview(args)
+            elif cmd == "/conflicts":
+                self._handle_conflicts(args)
             elif cmd == "/commitcraft":
                 self._handle_commitcraft(args)
             elif cmd == "/checkpoint":
@@ -1209,6 +1211,53 @@ class CommandHandler:
             return
         try:
             record = primary.set_hunk_review(request["enabled"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_setting_change(record)}[/green]\n")
+
+    def _handle_conflicts(self, args: str):
+        """M-081: /conflicts — the conflict workbench.
+
+        ``/conflicts`` shows the gate (on by default), the
+        plain-words explanation, a worked example, and this
+        repository's live conflicts with both sides' intent;
+        ``/conflicts on`` / ``off`` changes the gate
+        (journaled by the agent layer).
+        """
+        from ..core.conflict_workbench import (
+            enabled_from_config,
+            format_conflict_workbench,
+            format_setting_change,
+            parse_conflicts_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_conflicts_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.conflict_workbench_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_conflict_workbench(primary.config, primary.project_root)}[/bold cyan]\n"
+                     "[dim]Turn the gate off with /conflicts off, "
+                     "or back on with /conflicts on.[/dim]\n")
+            return
+        try:
+            record = primary.set_conflict_workbench(request["enabled"])
         except (ValueError, KeyError, RuntimeError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
