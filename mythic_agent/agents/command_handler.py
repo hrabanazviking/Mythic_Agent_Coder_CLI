@@ -233,6 +233,8 @@ class CommandHandler:
                 self._handle_massedit(args)
             elif cmd == "/posture":
                 self._handle_posture(args)
+            elif cmd == "/remember":
+                self._handle_remember(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -1917,6 +1919,76 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[green]{format_profile_change(record)}[/green]\n")
+
+    def _handle_remember(self, args: str):
+        """M-096: /remember - remembered approvals.
+
+        ``/remember`` (or ``list`` / ``show``) shows the
+        one screen: every remembered approval with its
+        exact scope and id, or the plain none;
+        ``/remember forget <id>`` revokes the named one
+        and ``/remember clear`` revokes all (both
+        journaled by the agent layer). Creating one is
+        not a /remember verb: an approval is remembered
+        only by the user's explicit yes at the approval
+        prompt, never silently and never from this
+        command's grammar.
+        """
+        from ..core.remembered_approvals import (
+            PLAIN_EXPLANATION,
+            USAGE,
+            parse_remember_args,
+            stored_approvals,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_remember_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "list":
+            status = primary.remembered_approvals_status()
+            assert status["count"] == len(
+                stored_approvals(primary.config))
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=(f"\n[bold cyan]Remembered approvals "
+                      f"(M-096) - {PLAIN_EXPLANATION}\n\n"
+                      f"{status['screen']}\n\n{USAGE}\n"
+                      "An approval is remembered only by "
+                      "your explicit yes at the approval "
+                      "prompt; /remember itself never "
+                      "creates one.[/bold cyan]\n"))
+            return
+        try:
+            if request["action"] == "forget":
+                record = primary.revoke_remembered_approval(
+                    request["id"])
+                args_text = " ".join(
+                    record["args_pattern"]) or "(no args)"
+                message = (
+                    f"Revoked remembered approval: "
+                    f"{record['command']} {args_text} in "
+                    f"{record['path']} [{record['id'][:12]}] - "
+                    f"{record['total']} remembered now.")
+            else:
+                record = primary.clear_remembered_approvals()
+                message = (
+                    f"Cleared {record['cleared']} remembered "
+                    f"approval(s); none remain.")
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{message}[/green]\n")
 
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.

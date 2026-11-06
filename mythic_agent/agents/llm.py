@@ -492,6 +492,12 @@ class Agent:
         self.tui_app = app
         mode = mode or policy_mode(self.config, override=self._permission_override)
         def approve(name, arguments):
+            # M-096: a remembered approval with the exact
+            # scope answers first - the standing answer the
+            # user already gave for this command in this
+            # project - and the prompt is never raised.
+            if self.remembered_approval_allows_tool(name, arguments):
+                return True
             settings = runtime_settings(self.config)
             description = self.redactor.text(name + ": " + json.dumps(arguments, ensure_ascii=False))
             return prompt_approval_sync(description, app, self._cancel, settings["approval_timeout"])
@@ -7084,6 +7090,241 @@ class Agent:
                 "previous posture was preserved")
         return {**change, "session_id": self.session_id,
                 "journaled": journaled}
+
+    # -- M-096: remembered approvals --
+
+    def remembered_approvals_status(self) -> dict[str, Any]:
+        """The remembered approvals, in plain data (M-096).
+
+        The validated stored list exactly as the pure
+        layer resolves it (malformed stored data raises,
+        never vanishes), its count, the one listing
+        screen rendered from that same list, and the
+        plain explanation.
+        """
+        from ..core import remembered_approvals
+
+        approvals = remembered_approvals.stored_approvals(
+            self.config)
+        return {
+            "approvals": [a.to_record() for a in approvals],
+            "count": len(approvals),
+            "screen":
+                remembered_approvals.format_remembered_approvals(
+                    approvals),
+            "explanation": remembered_approvals.PLAIN_EXPLANATION,
+        }
+
+    def remember_command_approval(self, spec: Any,
+                                  explicit: Any = False
+                                  ) -> dict[str, Any]:
+        """Remember one approval with an exact scope (M-096).
+
+        *spec* is a scope mapping (command + args pattern
+        + path) or a validated Scope, resolved by the pure
+        layer before anything mutates. Nothing is
+        remembered silently: the pure layer refuses
+        unless *explicit* is exactly True - the recorded
+        answer to a question the user was actually asked
+        - and a duplicate scope refuses too. The change
+        is journaled first as the pure layer's
+        ``remembered`` change record when a session is
+        attached; the stored list is the scopes' plain
+        records under the setting key; a failed save
+        restores the previous config exactly and journals
+        a compensating ``remembered_approval_reverted``.
+        """
+        import copy
+
+        from ..core import remembered_approvals
+
+        current = remembered_approvals.stored_approvals(
+            self.config)
+        updated = remembered_approvals.remember_approval(
+            current, spec, explicit=explicit)
+        approval = updated[-1]
+        change = remembered_approvals.approval_change_record(
+            "remembered", approval, total=len(updated))
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change)
+            journaled = True
+        previous_config = copy.deepcopy(self.config)
+        self.config[remembered_approvals.SETTING_KEY] = [
+            a.scope.to_record() for a in updated]
+        if not self.save_config():
+            self.config = previous_config
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "remembered_approval_reverted",
+                        "action": "remembered",
+                        "id": approval.id,
+                        "reason": "The remembered approval "
+                                  "could not be saved; nothing "
+                                  "was remembered.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Remembered approval could not be saved; "
+                "nothing was remembered")
+        return {**change, "session_id": self.session_id,
+                "journaled": journaled}
+
+    def revoke_remembered_approval(self, approval_id: Any
+                                   ) -> dict[str, Any]:
+        """Revoke one remembered approval by its id (M-096).
+
+        The id is the one the listing shows (or a unique
+        prefix of it), resolved by the pure layer before
+        anything mutates - an unknown or ambiguous id
+        refuses and removes nothing. Journal-first,
+        stored as the remaining scopes' plain records,
+        and a failed save restores the previous config
+        exactly and journals a compensating
+        ``remembered_approval_reverted``, exactly as
+        remembering does.
+        """
+        import copy
+
+        from ..core import remembered_approvals
+
+        current = remembered_approvals.stored_approvals(
+            self.config)
+        updated = remembered_approvals.revoke_approval(
+            current, approval_id)
+        remaining = {a.id for a in updated}
+        removed = next(a for a in current if a.id not in remaining)
+        change = remembered_approvals.approval_change_record(
+            "revoked", removed, total=len(updated))
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change)
+            journaled = True
+        previous_config = copy.deepcopy(self.config)
+        self.config[remembered_approvals.SETTING_KEY] = [
+            a.scope.to_record() for a in updated]
+        if not self.save_config():
+            self.config = previous_config
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "remembered_approval_reverted",
+                        "action": "revoked",
+                        "id": removed.id,
+                        "reason": "The revocation could not be "
+                                  "saved; the remembered "
+                                  "approval was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Remembered approval revocation could not be "
+                "saved; the approval was preserved")
+        return {**change, "session_id": self.session_id,
+                "journaled": journaled}
+
+    def clear_remembered_approvals(self) -> dict[str, Any]:
+        """Revoke every remembered approval at once (M-096).
+
+        Journal-first as one ``remembered_approvals_cleared``
+        record naming how many were cleared; a failed save
+        restores the previous config exactly and journals
+        a compensating ``remembered_approvals_clear_reverted``.
+        Clearing an empty list changes nothing, journals
+        nothing and saves nothing - it simply reports zero.
+        """
+        import copy
+
+        from ..core import remembered_approvals
+
+        current = remembered_approvals.stored_approvals(
+            self.config)
+        record: dict[str, Any] = {
+            "type": "remembered_approvals_cleared",
+            "cleared": len(current),
+            "total": 0,
+        }
+        if not current:
+            return {**record, "session_id": self.session_id,
+                    "journaled": False}
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+            journaled = True
+        previous_config = copy.deepcopy(self.config)
+        self.config[remembered_approvals.SETTING_KEY] = []
+        if not self.save_config():
+            self.config = previous_config
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type":
+                            "remembered_approvals_clear_reverted",
+                        "cleared": len(current),
+                        "reason": "The clear could not be saved; "
+                                  "the remembered approvals "
+                                  "were preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Remembered approvals clear could not be "
+                "saved; the approvals were preserved")
+        return {**record, "session_id": self.session_id,
+                "journaled": journaled}
+
+    def remembered_approval_for(self, command: Any, args: Any,
+                                path: Any):
+        """The remembered approval covering a call, or None.
+
+        The consultation the live approval road makes
+        (M-096): the stored list is validated fresh (a
+        malformed stored list raises, never silently
+        allows or silently forgets), and the pure layer's
+        exact match decides - command, args pattern and
+        project path all exact, or no match.
+        """
+        from ..core import remembered_approvals
+
+        approvals = remembered_approvals.stored_approvals(
+            self.config)
+        return remembered_approvals.find_match(
+            approvals, command, list(args), path)
+
+    def remembered_approval_allows_tool(self, name: str,
+                                        arguments: Any) -> bool:
+        """True when a tool call sits in a remembered scope.
+
+        Only ``run_command`` carries a shell command a
+        remembered scope can name: its command string is
+        split the way a shell splits it, the first word
+        is the command, the rest are the args, and the
+        project is this agent's own project root. Every
+        other tool, an unparseable command string, and an
+        empty one answer False - the ordinary approval
+        prompt decides those, exactly as before. A
+        malformed stored list raises out of the stored
+        validation; ToolPolicy.authorize catches that as
+        a refusal, so a corrupt memory fails closed,
+        never open.
+        """
+        import shlex
+
+        if name != "run_command" or not isinstance(arguments, dict):
+            return False
+        command_text = arguments.get("command")
+        if not isinstance(command_text, str):
+            return False
+        try:
+            parts = shlex.split(command_text)
+        except ValueError:
+            return False
+        if not parts:
+            return False
+        return self.remembered_approval_for(
+            parts[0], parts[1:], str(self.project_root)) is not None
 
 
 class AgentManager:
