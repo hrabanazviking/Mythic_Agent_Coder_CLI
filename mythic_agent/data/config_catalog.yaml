@@ -630,6 +630,14 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Guarded mass edits (M-093): when true, the /massedit road is open - Guarded mass edits: a repo-wide edit is first shown whole, as a dry-run report - every file it would touch, the hunks and added and removed lines a real diff counts, and the risks the texts themselves carry (binary content, a file emptied, a very large file, many hunks, a sensitive path). Nothing moves on the strength of the report alone: a plan that changes two or more files, or any file at high risk, needs an approval first, and the approval is bound to the report''s exact fingerprint - change one byte afterwards and the approval no longer covers the plan. A file proposed unchanged is listed as no change and never counted. The gate toggles through /massedit on and /massedit off, journaled with save-failure revert; when false, applying through the agent refuses and says so, while the pure report maths stays available.'
 
+- id: S-86
+  name: permission_profile
+  scope: top-level
+  type: str
+  default: trusted-forge
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Permission profiles (M-095): the stored posture - A permission profile is the session''s posture: one named answer to what it may do - which tools, whether it may write, whether it may reach the network, and whether it may run commands. The posture rides the status line so it is never a surprise. The value is a shipped posture''s name (read-only-scout, trusted-forge, full-autonomy) or a whole custom posture mapping validated to the same four bindings. It is set through /posture <name> or /posture custom, journaled with save-failure revert, and applying it rebuilds the live ToolPolicy in the posture''s mapped mode.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME

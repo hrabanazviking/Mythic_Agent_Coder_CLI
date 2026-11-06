@@ -1,5 +1,7 @@
 """M-095 Permission profiles — pure-layer tests.
 
+TIER: integration
+
 The shipped postures bind exactly what the roadmap names
 (tools, paths, network, commands), custom postures are held
 to the same vocabulary, decisions are mechanical, ask stays

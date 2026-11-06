@@ -620,7 +620,7 @@ slices:
   title: Permission profiles
   summary: named postures (Read-Only Scout, Trusted Forge, Full Autonomy, and custom) binding tools, paths,
     network, and commands; the posture is always visible in the status line.
-  status: queued
+  status: done
 - id: M-096
   part: 5
   title: Remembered approvals with scope
