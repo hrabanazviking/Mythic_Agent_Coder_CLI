@@ -1789,6 +1789,190 @@ class Agent:
             record["journaled"] = True
         return record
 
+    def rename_move_status(self) -> dict[str, Any]:
+        """The rename/move gate, in plain data (M-085).
+
+        The setting exactly as stored (validated — a
+        malformed stored value raises, never vanishes) and
+        the plain explanation. This is the answer
+        ``/rename`` shows.
+        """
+        from ..core import rename_move
+
+        return {
+            "enabled": rename_move.enabled_from_config(self.config),
+            "explanation": rename_move.PLAIN_EXPLANATION,
+        }
+
+    def set_rename_move(self, enabled: bool) -> dict[str, Any]:
+        """Turn rename/move on or off (M-085).
+
+        Validated by :mod:`mythic_agent.core.rename_move`
+        before anything mutates; journaled first as a
+        ``rename_move_setting_changed`` event when a session
+        is attached; a failed save restores the previous
+        value exactly and journals a compensating
+        ``rename_move_setting_reverted``.
+        """
+        import copy
+
+        from ..core import rename_move
+
+        new_value, change = rename_move.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[rename_move.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "rename_move_setting_reverted",
+                        "reason": "The rename/move change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Rename/move change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def _rename_move_plan(self, source: Any, destination: Any):
+        """Plan a move against the real workspace (M-085).
+
+        Existing paths and directory-ness come from disk;
+        referencing files come from Part III's symbol graph
+        (its file edges inverted: whose edges name the
+        source), their true current text read from disk.
+        A graph that cannot be built is reported, never
+        hidden: the plan then carries no computed reference
+        updates and the warning rides the returned record.
+        """
+        import os
+
+        from ..core import rename_move
+        from ..core.workspace import resolve_file
+
+        root = self.project_root
+        existing: list[str] = []
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = sorted(
+                d for d in dirnames if not d.startswith("."))
+            rel_dir = os.path.relpath(dirpath, root)
+            for name in dirnames:
+                existing.append(
+                    name if rel_dir == "."
+                    else f"{rel_dir}/{name}")
+            for name in sorted(filenames):
+                existing.append(
+                    name if rel_dir == "."
+                    else f"{rel_dir}/{name}")
+        referencing: list[str] = []
+        graph_warning = None
+        try:
+            from ..context.symbol_graph import build_symbol_graph
+
+            graph = build_symbol_graph(root)
+            edges = graph.file_edges()
+            referencing = sorted(
+                path for path, targets in edges.items()
+                if source in targets and path != source)
+        except Exception as exc:
+            graph_warning = (
+                f"symbol graph unavailable ({exc}); reference "
+                "updates were not computed")
+        texts: dict[str, str] = {}
+        for path in referencing:
+            target = resolve_file(root, path)
+            if target.exists():
+                texts[path] = target.read_text(encoding="utf-8")
+        plan = rename_move.plan_move(
+            source, destination, existing=existing,
+            referencing=referencing, texts=texts,
+            is_directory=(root / source).is_dir()
+            if isinstance(source, str) else False)
+        return plan, graph_warning
+
+    def preview_rename_move(
+            self, source: str, destination: str) -> dict[str, Any]:
+        """Show a rename/move as a planned edit (M-085).
+
+        Purely a read: the plan is computed whole against
+        the real workspace - the git mv command, the graph
+        reference updates with their counts, and every
+        warning - and returned as data. Nothing moves and
+        nothing is written.
+        """
+        plan, graph_warning = self._rename_move_plan(
+            source, destination)
+        record = plan.record()
+        record["graph_warning"] = graph_warning
+        record["journaled"] = False
+        return record
+
+    def rename_move_file(
+            self, source: str, destination: str) -> dict[str, Any]:
+        """Execute one rename/move as a first-class edit (M-085).
+
+        The plan is computed whole first (one refusal —
+        a missing source, an existing destination, a move
+        onto itself - and nothing moves). The file itself
+        moves only by ``git mv``, so its history is
+        preserved; a source git does not track refuses in
+        git's own words and nothing else is written. The
+        reference updates the plan computed from Part
+        III's graph are then written through the
+        EditJournal road, and the move is recorded on the
+        session as a ``file_moved`` event when a session
+        is attached. The gate being off refuses and moves
+        nothing.
+        """
+        import subprocess
+
+        from ..core import rename_move
+        from ..core.edits import EditJournal
+
+        if not rename_move.enabled_from_config(self.config):
+            raise ValueError(
+                "rename/move is off — turn it on with "
+                "/rename on; nothing was changed")
+        plan, graph_warning = self._rename_move_plan(
+            source, destination)
+        destination_path = self.project_root / plan.destination
+        if destination_path.parent != self.project_root:
+            destination_path.parent.mkdir(
+                parents=True, exist_ok=True)
+        result = subprocess.run(
+            ["git", "-C", str(self.project_root), "mv",
+             plan.source, plan.destination],
+            capture_output=True, text=True, timeout=30)
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "").strip()
+            raise RuntimeError(
+                f"git mv refused the move ({plan.source} -> "
+                f"{plan.destination}): "
+                f"{detail or 'no reason given'}; "
+                "the file was not moved")
+        journal = EditJournal(self.project_root)
+        for update in plan.updates:
+            journal.write(update.path, update.new_text)
+        record = plan.record()
+        record["graph_warning"] = graph_warning
+        record["journaled"] = False
+        if self._session_store and self.session_id:
+            event = plan.record()
+            if graph_warning:
+                event["graph_warning"] = graph_warning
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
     def conflict_workbench_status(self) -> dict[str, Any]:
         """The conflict-workbench gate, in plain data (M-081)."""
         from ..core import conflict_workbench
