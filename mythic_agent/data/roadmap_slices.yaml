@@ -572,7 +572,7 @@ slices:
   part: 4
   title: Large-file and binary care
   summary: big files edited by anchored chunks; binaries never text-edited; size guards explain themselves.
-  status: queued
+  status: done
 - id: M-088
   part: 4
   title: The stash shelf
