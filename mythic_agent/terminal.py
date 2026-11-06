@@ -73,9 +73,16 @@ def configured_agent(args: Any, default_permission: str) -> Agent:
             config[name] = value
     agent = Agent(project_root=args.workspace, config=config)
     mode = args.permission or policy_mode(config, machine=default_permission == "read-only")
-    agent.tool_policy = ToolPolicy(mode, lambda name, arguments: _approve(
-        name, agent.redactor.sanitize(arguments), agent._cancel,
-        runtime_settings(agent.config)["approval_timeout"]))
+    def approve(name, arguments):
+        # M-096: an exact remembered approval for this
+        # command in this project answers first; every
+        # other call takes the ordinary prompt road.
+        if agent.remembered_approval_allows_tool(name, arguments):
+            return True
+        return _approve(
+            name, agent.redactor.sanitize(arguments), agent._cancel,
+            runtime_settings(agent.config)["approval_timeout"])
+    agent.tool_policy = ToolPolicy(mode, approve)
     try:
         agent.attach_session(resume=getattr(args, "resume", None))
     except Exception:
@@ -260,7 +267,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /changeset [on|off] /rename [on|off|<old-path> <new-path>] /generated [on|off|<path>|mark <path> <generator>] /largefile [on|off|<path>]/largefile [on|off|<path>] /stash [show|on|off|shelve <name>|restore <name>|drop <name>] /patch [show|on|off|export <set name>|import <patch file>] /editor [show|on|off|file <path>|prompt] /diff [show|on|off|unified|side-by-side|whitespace|whitespace off] /blame [show|on|off|<path> [<line>]] /massedit [show|on|off] /posture [show|<profile name>] /issueslice [on|off|github <number>] /prcraft [on|off|tasks <pr>] /commitcraft [on|off|plan|commit <concern>|push] /guardians [word on|word off|check <path>] /autocommit [on|off|allow-protected|block-protected] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /changeset [on|off] /rename [on|off|<old-path> <new-path>] /generated [on|off|<path>|mark <path> <generator>] /largefile [on|off|<path>]/largefile [on|off|<path>] /stash [show|on|off|shelve <name>|restore <name>|drop <name>] /patch [show|on|off|export <set name>|import <patch file>] /editor [show|on|off|file <path>|prompt] /diff [show|on|off|unified|side-by-side|whitespace|whitespace off] /blame [show|on|off|<path> [<line>]] /massedit [show|on|off] /posture [show|<profile name>] /remember [list|forget <id>|clear] /issueslice [on|off|github <number>] /prcraft [on|off|tasks <pr>] /commitcraft [on|off|plan|commit <concern>|push] /guardians [word on|word off|check <path>] /autocommit [on|off|allow-protected|block-protected] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
         return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /issueslice [on|off|github <number>] /prcraft [on|off|tasks <pr>] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
@@ -748,6 +755,45 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
             record = agent.set_permission_profile(
                 request["profile"])
             return True, False, format_profile_change(record)
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+    if command == "/remember":
+        from .core.remembered_approvals import (
+            PLAIN_EXPLANATION,
+            USAGE,
+            parse_remember_args,
+            stored_approvals,
+        )
+        try:
+            request = parse_remember_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "list":
+            status = agent.remembered_approvals_status()
+            assert status["count"] == len(
+                stored_approvals(agent.config))
+            return True, False, (
+                "Remembered approvals (M-096) - "
+                + PLAIN_EXPLANATION + "\n\n"
+                + status["screen"] + "\n\n" + USAGE + "\n"
+                "An approval is remembered only by your "
+                "explicit yes at the approval prompt; "
+                "/remember itself never creates one.")
+        try:
+            if request["action"] == "forget":
+                record = agent.revoke_remembered_approval(
+                    request["id"])
+                args_text = " ".join(
+                    record["args_pattern"]) or "(no args)"
+                return True, False, (
+                    f"Revoked remembered approval: "
+                    f"{record['command']} {args_text} in "
+                    f"{record['path']} [{record['id'][:12]}] - "
+                    f"{record['total']} remembered now.")
+            record = agent.clear_remembered_approvals()
+            return True, False, (
+                f"Cleared {record['cleared']} remembered "
+                f"approval(s); none remain.")
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
     if command == "/conflicts":
