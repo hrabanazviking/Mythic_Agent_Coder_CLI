@@ -644,7 +644,7 @@ slices:
   title: Path jail
   summary: file tools confined to the workspace + named grants; escapes by symlink are checked, not assumed
     away.
-  status: queued
+  status: done
 - id: M-100
   part: 5
   title: Plan mode perfected
