@@ -465,6 +465,14 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Named checkpoints (M-075): when true, the checkpoint road is open — a checkpoint captures the whole working tree plus the current session state under a name the user chooses, held in a manifest over a content-addressed blob store beside the EditJournal home; checkpoints form a tree, each new one hanging from the head it was taken under, and restoring an older checkpoint and taking a new one from there grows a branch. Restore brings the tree and the session back in one command and judges a dirty tree honestly: if the tree changed since the last checkpoint was taken or restored, restore refuses and names the changed files — take a checkpoint of the current tree first, or restore with discard to throw those changes away on purpose and count them. Session state returns only to the session it was captured from. Takes and restores are recorded as checkpoint_created and checkpoint_restored session events, and the journal shows the whole checkpoint tree. /checkpoint shows the tree and turns the gate on or off; when false, takes and restores through the agent refuse and say so, while the pure checkpoint maths stays readable.'
 
+- id: S-65
+  name: session_branching
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Session branching (M-076): when true, the /branch road is open — a session forks at any message into a new v1 session sharing the parent''s history up to and including the fork message, lineage (parent, fork index and role, root, depth) recorded in the branch''s metadata, the fork journaled session_branched on the child and session_branch_forked on the parent; branches diverge independently and any two sessions can be compared by shared prefix and first divergence. When false, forks through the agent refuse and say so, while comparing and listing stay available.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
