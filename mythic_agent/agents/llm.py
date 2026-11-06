@@ -6987,6 +6987,104 @@ class Agent:
             record["journaled"] = True
         return record
 
+    # -- M-095: permission profiles --
+
+    def permission_profile_status(self) -> dict[str, Any]:
+        """The session's posture, in plain data (M-095).
+
+        The stored profile exactly as the pure layer
+        resolves it (a malformed stored value raises,
+        never vanishes), the ToolPolicy mode it rides
+        as, the one status-line sentence, and the plain
+        explanation.
+        """
+        from ..core import permission_profiles
+
+        profile = permission_profiles.stored_profile(self.config)
+        return {
+            "profile": profile.to_record(),
+            "policy_mode": permission_profiles.policy_mode_for(
+                profile),
+            "status_line":
+                permission_profiles.format_permission_profile(
+                    self.config),
+            "explanation": permission_profiles.PLAIN_EXPLANATION,
+        }
+
+    def set_permission_profile(self, profile: Any) -> dict[str, Any]:
+        """Change the session's posture (M-095).
+
+        *profile* is a shipped posture's name, a
+        validated Profile, or a custom posture mapping -
+        resolved and validated by the pure layer before
+        anything mutates, so an unknown name refuses
+        with the config untouched. The change is
+        journaled first as the pure layer's
+        ``permission_profile_changed`` record when a
+        session is attached; the live ToolPolicy is
+        rebuilt in the new posture's mode, keeping the
+        approval road it already had; a failed save
+        restores the previous setting and the previous
+        policy exactly and journals a compensating
+        ``permission_profile_reverted``.
+        """
+        import copy
+
+        from ..core import permission_profiles
+        from ..core.policy import ToolPolicy
+
+        if isinstance(profile, permission_profiles.Profile):
+            target = profile
+        elif isinstance(profile, dict):
+            target = permission_profiles.validate_profile(profile)
+        else:
+            target = permission_profiles.profile_named(profile)
+        previous_profile = permission_profiles.stored_profile(
+            self.config)
+        change = permission_profiles.profile_change_record(
+            previous_profile, target)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change)
+            journaled = True
+        previous_config = copy.deepcopy(self.config)
+        previous_policy = self.tool_policy
+        if target.custom:
+            self.config[permission_profiles.SETTING_KEY] = {
+                "name": target.id,
+                "title": target.title,
+                "tools": target.tools,
+                "paths": target.paths,
+                "network": target.network,
+                "commands": target.commands,
+            }
+        else:
+            self.config[permission_profiles.SETTING_KEY] = target.id
+        self.tool_policy = ToolPolicy(
+            permission_profiles.policy_mode_for(target),
+            previous_policy.approval)
+        if not self.save_config():
+            self.config = previous_config
+            self.tool_policy = previous_policy
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "permission_profile_reverted",
+                        "from": target.id,
+                        "to": previous_profile.id,
+                        "reason": "The permission profile change "
+                                  "could not be saved; the "
+                                  "previous posture was "
+                                  "preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Permission profile change could not be saved; "
+                "previous posture was preserved")
+        return {**change, "session_id": self.session_id,
+                "journaled": journaled}
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""

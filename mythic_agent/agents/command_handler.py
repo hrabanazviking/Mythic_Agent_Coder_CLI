@@ -231,6 +231,8 @@ class CommandHandler:
                 self._handle_blame(args)
             elif cmd == "/massedit":
                 self._handle_massedit(args)
+            elif cmd == "/posture":
+                self._handle_posture(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -1863,6 +1865,58 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[green]{format_setting_change(record)}[/green]\n")
+
+    def _handle_posture(self, args: str):
+        """M-095: /posture - permission profiles.
+
+        ``/posture`` shows the current posture (the
+        status-line sentence itself), every shipped
+        posture, and the ToolPolicy mode the current
+        one rides as; ``/posture <name>`` changes the
+        posture (journaled by the agent layer, the live
+        policy rebuilt in the new mode); ``/posture
+        custom <name> | <title> | <tools> | <paths> |
+        <network> | <commands>`` sets a validated custom
+        posture. An unknown name refuses plainly with
+        the shipped names listed.
+        """
+        from ..core.permission_profiles import (
+            format_permission_profiles,
+            format_profile_change,
+            parse_posture_args,
+            policy_mode_for,
+            stored_profile,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_posture_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.permission_profile_status()
+            assert status["policy_mode"] == policy_mode_for(
+                stored_profile(primary.config))
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_permission_profiles(primary.config)}[/bold cyan]\n")
+            return
+        try:
+            record = primary.set_permission_profile(
+                request["profile"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_profile_change(record)}[/green]\n")
 
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.

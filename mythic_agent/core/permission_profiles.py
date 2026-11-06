@@ -78,9 +78,13 @@ __all__ = [
     "Profile",
     "SETTING_KEY",
     "TOOL_ANSWERS",
+    "USAGE",
     "builtin_profile",
     "decide",
     "format_permission_profile",
+    "format_permission_profiles",
+    "format_profile_change",
+    "parse_posture_args",
     "policy_mode_for",
     "profile_change_record",
     "profile_named",
@@ -349,3 +353,71 @@ def format_permission_profile(config: Dict[str, Any]) -> str:
             profile.commands,
         )
     )
+
+USAGE = ("Usage: /posture, /posture show, "
+         "/posture <profile name>, or /posture custom "
+         "<name> | <title> | <tools> | <paths> | "
+         "<network> | <commands>")
+
+_CUSTOM_FIELDS = ("name", "title", "tools", "paths",
+                  "network", "commands")
+
+
+def parse_posture_args(args: str) -> Dict[str, Any]:
+    """Parse the /posture grammar both surfaces share.
+
+    No words (or ``show``) shows the current posture;
+    ``custom`` followed by six pipe-separated fields
+    builds a custom posture through validate_profile;
+    anything else names a shipped posture, resolved by
+    profile_named - an unknown name refuses with the
+    shipped names listed, never a guess.
+    """
+    text = (args or "").strip()
+    if not text or text.lower() == "show":
+        return {"action": "show"}
+    lowered = text.lower()
+    if lowered == "custom" or lowered.startswith("custom "):
+        rest = text[len("custom"):].strip()
+        fields = [part.strip() for part in rest.split("|")]
+        if len(fields) != len(_CUSTOM_FIELDS) or not all(fields):
+            raise ValueError(f"usage: {USAGE}")
+        spec = dict(zip(_CUSTOM_FIELDS, fields))
+        return {"action": "set", "profile": validate_profile(spec)}
+    return {"action": "set", "profile": profile_named(text)}
+
+
+def format_profile_change(record: Dict[str, Any]) -> str:
+    """The one sentence a posture change answers with."""
+    profile = record.get("record") or {}
+    title = profile.get("title") or record.get("to")
+    return f"Posture is now {title} ({record.get('to')})."
+
+
+def format_permission_profiles(config: Dict[str, Any]) -> str:
+    """The whole slice, in plain words, for /posture.
+
+    The current posture's line and every shipped
+    posture's line are rendered by
+    format_permission_profile itself, so the show
+    surface can never drift from the status line.
+    """
+    current = stored_profile(config)
+    lines = ["Permission profiles (M-095) - "
+             + PLAIN_EXPLANATION, ""]
+    lines.append(format_permission_profile(config))
+    lines.append(
+        f"Tool policy mode: {policy_mode_for(current)} "
+        f"({SETTING_KEY}).")
+    lines.append("")
+    lines.append("Shipped postures:")
+    for profile_id in BUILTIN_PROFILE_IDS:
+        lines.append("  " + format_permission_profile(
+            {SETTING_KEY: profile_id}))
+    if current.custom:
+        lines.append(
+            "The current posture is custom; it is stored "
+            "whole under permission_profile.")
+    lines.append("")
+    lines.append(USAGE)
+    return "\n".join(lines)
