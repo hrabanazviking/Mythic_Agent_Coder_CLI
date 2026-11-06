@@ -219,6 +219,8 @@ class CommandHandler:
                 self._handle_largefile(args)
             elif cmd == "/stash":
                 self._handle_stash(args)
+            elif cmd == "/patch":
+                self._handle_patch(args)
             elif cmd == "/issueslice":
                 self._handle_issueslice(args)
             elif cmd == "/conflicts":
@@ -1525,6 +1527,81 @@ class CommandHandler:
                 record = primary.drop_stash(request["name"])
                 text = (f"Dropped {record['name']!r} from the "
                         "stash shelf; the tree was not changed.")
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{text}[/green]\n")
+
+    def _handle_patch(self, args: str):
+        """M-089: /patch - patch export/import.
+
+        ``/patch`` shows the gate (on by default) and the
+        plain-words explanation with a worked example;
+        ``/patch on`` / ``off`` changes the gate (journaled
+        by the agent layer); ``/patch import <patch file>``
+        lands a proven patch file on the real tree, whole
+        or not at all; ``/patch export <set name>`` refuses
+        plainly - the agent layer holds no stored change
+        sets, so export runs through the agent road with
+        the set itself.
+        """
+        from ..core.patch_exchange import (
+            enabled_from_config,
+            format_patch_exchange,
+            format_setting_change,
+            parse_patch_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_patch_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.patch_exchange_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_patch_exchange(primary.config)}[/bold cyan]\n"
+                     "[dim]Import a patch file with /patch import "
+                     "<patch file>.[/dim]\n")
+            return
+        try:
+            if request["action"] in ("on", "off"):
+                record = primary.set_patch_exchange(
+                    request["action"] == "on")
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_setting_change(record)}[/green]\n")
+                return
+            if request["action"] == "import":
+                record = primary.import_patch_from_file(request["ref"])
+                text = (f"Imported patch {record['name']!r} from "
+                        f"{record['source']}: {record['applied']} "
+                        f"file(s) applied, {record['changed_files']} "
+                        "changed.")
+            else:
+                text = (f"There is no change set named "
+                        f"{request['name']!r} held by this session - "
+                        "change sets are values the agent layer "
+                        "builds and applies (M-084), not a stored "
+                        "shelf; export one through the agent road "
+                        "(export_patch_to_file) with the set itself. "
+                        "Nothing was exported.")
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[red]{text}[/red]\n")
+                return
         except (ValueError, KeyError, RuntimeError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

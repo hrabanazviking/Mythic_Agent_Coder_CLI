@@ -2569,6 +2569,172 @@ class Agent:
             record["journaled"] = True
         return record
 
+    # -- M-089: patch export/import against real files --
+
+    def patch_exchange_status(self) -> dict[str, Any]:
+        """The patch-exchange gate, in plain data (M-089).
+
+        The setting exactly as stored (validated - a
+        malformed stored value raises, never vanishes) and
+        the plain explanation. This is the answer ``/patch``
+        shows. The agent holds no persistent named change
+        sets (M-084 sets are transient values the layer
+        builds), so the status names the gate only.
+        """
+        from ..core import patch_exchange
+
+        return {
+            "enabled": patch_exchange.enabled_from_config(self.config),
+            "explanation": patch_exchange.PLAIN_EXPLANATION,
+        }
+
+    def set_patch_exchange(self, enabled: bool) -> dict[str, Any]:
+        """Turn patch export/import on or off (M-089).
+
+        Validated by :mod:`mythic_agent.core.patch_exchange`
+        before anything mutates; journaled first as a
+        ``patch_exchange_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``patch_exchange_setting_reverted``.
+        """
+        import copy
+
+        from ..core import patch_exchange
+
+        new_value, change = patch_exchange.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[patch_exchange.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "patch_exchange_setting_reverted",
+                        "reason": "The patch exchange change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Patch exchange change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def export_patch_to_file(self, change_set: Any,
+                             destination: Any) -> dict[str, Any]:
+        """Export a decided change set to a patch file (M-089).
+
+        The agent layer holds no persistent named change
+        sets - an M-084 change set is a value the layer
+        builds (``preview_change_set`` / ``apply_change_set``),
+        never a stored shelf - so export takes the set
+        itself plus the destination path. The set is
+        judged by the pure layer unchanged: an undecided
+        file refuses and is named, an all-rejected set
+        refuses, and with the gate off this refuses and
+        writes nothing. The patch text is written to the
+        real file at *destination* (workspace-relative
+        paths resolve against the project root), and the
+        export is recorded on the session as a
+        ``patch_exported`` event when one is attached.
+        """
+        from pathlib import Path
+
+        from ..core import patch_exchange
+        from ..core.edits import atomic_write
+
+        if not patch_exchange.enabled_from_config(self.config):
+            raise ValueError(
+                "patch exchange is off - turn it on with "
+                "/patch on; nothing was exported")
+        text = patch_exchange.export_patch(change_set)
+        dest = Path(destination)
+        if not dest.is_absolute():
+            dest = Path(self.project_root) / dest
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write(dest, text.encode("utf-8"), 0o644)
+        patch = patch_exchange.parse_patch(text)
+        record: dict[str, Any] = {
+            "type": "patch_exported", "name": patch.name,
+            "path": str(dest),
+            "files": [edit.path for edit in patch.edits],
+            "rejected_files": list(patch.rejected),
+            "evidence": patch.evidence, "journaled": False}
+        if self._session_store and self.session_id:
+            event = {key: value for key, value in record.items()
+                     if key != "journaled"}
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
+    def import_patch_from_file(self, source: Any) -> dict[str, Any]:
+        """Import a patch file into the real tree (M-089).
+
+        The file at *source* (workspace-relative paths
+        resolve against the project root) is read, proven
+        by the pure layer (magic, header checksum, every
+        payload anchor), rebuilt through M-084, and planned
+        against the real working tree's current file texts:
+        one stale file refuses the whole import and writes
+        nothing. A clean plan is written through the
+        EditJournal road, one journaled write per file,
+        and the import is recorded on the session as a
+        ``patch_imported`` event when one is attached.
+        With the gate off this refuses and imports nothing;
+        a missing file refuses plainly.
+        """
+        from pathlib import Path
+
+        from ..core import patch_exchange
+        from ..core.edits import EditJournal
+        from ..core.workspace import resolve_file
+
+        if not patch_exchange.enabled_from_config(self.config):
+            raise ValueError(
+                "patch exchange is off - turn it on with "
+                "/patch on; nothing was imported")
+        src = Path(source)
+        if not src.is_absolute():
+            src = Path(self.project_root) / src
+        if not src.exists():
+            raise ValueError(
+                f"no patch file at {source} - nothing was imported")
+        text = src.read_text(encoding="utf-8")
+        patch = patch_exchange.parse_patch(text)
+        currents: dict[str, Any] = {}
+        for edit in patch.edits:
+            target = resolve_file(
+                self.project_root, edit.path, write=True)
+            currents[edit.path] = (
+                target.read_text(encoding="utf-8")
+                if target.exists() else None)
+        new_texts, outcome = patch_exchange.import_patch(text, currents)
+        journal = EditJournal(self.project_root)
+        for path, new_text in new_texts.items():
+            journal.write(path, new_text)
+        record: dict[str, Any] = {
+            "type": "patch_imported", "name": patch.name,
+            "source": str(src), "applied": outcome.applied,
+            "units": outcome.units,
+            "changed_files": outcome.changed_files,
+            "changed": outcome.changed,
+            "files": [edit.path for edit in patch.edits],
+            "rejected_files": list(patch.rejected),
+            "evidence": patch.evidence, "journaled": False}
+        if self._session_store and self.session_id:
+            event = {key: value for key, value in record.items()
+                     if key != "journaled"}
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
     def conflict_workbench_status(self) -> dict[str, Any]:
         """The conflict-workbench gate, in plain data (M-081)."""
         from ..core import conflict_workbench

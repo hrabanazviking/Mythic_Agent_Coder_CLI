@@ -221,3 +221,298 @@ def test_format_setting_change():
         "Patch exchange is now on."
     assert pe.format_setting_change({"to": False}) == \
         "Patch exchange is now off."
+
+
+# ---------------------------------------------------------------------
+# Agent layer + surfaces (keeper restart tick, 2026-11-06).
+#
+# Design note: the Agent holds no persistent named change sets -
+# M-084 sets are transient values built by preview/apply_change_set -
+# so export takes the ChangeSet object itself plus a destination
+# path, and /patch export <set name> refuses plainly on both roads.
+# ---------------------------------------------------------------------
+
+from mythic_agent.core.sessions import SessionStore
+
+
+def store_for(tmp_path, workspace=None):
+    return SessionStore(workspace or tmp_path, tmp_path / "state")
+
+
+def _seed_tree(tmp_path):
+    (tmp_path / "src").mkdir(exist_ok=True)
+    (tmp_path / "src" / "app.py").write_text("x = 1\n", encoding="utf-8")
+
+
+class TestAgentGate:
+    def test_status(self, agent):
+        status = agent.patch_exchange_status()
+        assert status["enabled"] is True
+        assert status["explanation"] == pe.PLAIN_EXPLANATION
+
+    def test_set_without_session(self, agent):
+        record = agent.set_patch_exchange(False)
+        assert record["journaled"] is False
+        assert agent.config["patch_exchange"] is False
+        with pytest.raises(ValueError, match="already"):
+            agent.set_patch_exchange(False)
+
+    def test_set_journals_on_the_session(self, agent, tmp_path):
+        store = store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        agent.set_patch_exchange(False)
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert "patch_exchange_setting_changed" in types
+        agent.close()
+
+    def test_save_failure_restores_and_journals_the_revert(
+            self, agent, tmp_path, monkeypatch):
+        from mythic_agent.agents import llm
+
+        store = store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        monkeypatch.setattr(llm.config_manager, "save_config",
+                            lambda config: False)
+        with pytest.raises(RuntimeError, match="could not be saved"):
+            agent.set_patch_exchange(False)
+        assert agent.config.get("patch_exchange") is not False
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert types[-2:] == ["patch_exchange_setting_changed",
+                              "patch_exchange_setting_reverted"]
+        agent.close()
+
+
+class TestExportImportFiles:
+    def test_export_writes_a_real_patch_file(self, agent, tmp_path):
+        dest = tmp_path / "hand-off.patch"
+        record = agent.export_patch_to_file(_set(), dest)
+        assert record["name"] == "hand-off fix"
+        assert record["files"] == ["src/app.py", "src/new.py"]
+        assert record["journaled"] is False
+        text = dest.read_text(encoding="utf-8")
+        assert text.startswith(pe.MAGIC + "\n")
+        patch = pe.parse_patch(text)
+        assert patch.name == "hand-off fix"
+
+    def test_export_journals_on_the_session(self, agent, tmp_path):
+        store = store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        record = agent.export_patch_to_file(_set(), tmp_path / "a.patch")
+        assert record["journaled"] is True
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert "patch_exported" in types
+        agent.close()
+
+    def test_export_gate_off_refuses_and_writes_nothing(
+            self, agent, tmp_path):
+        agent.set_patch_exchange(False)
+        dest = tmp_path / "a.patch"
+        with pytest.raises(ValueError, match="patch exchange is off"):
+            agent.export_patch_to_file(_set(), dest)
+        assert not dest.exists()
+
+    def test_export_undecided_set_refuses_and_writes_nothing(
+            self, agent, tmp_path):
+        pending = start_change_set("half", [make_edit(
+            "src/app.py", "whole-file", "x = 2\n")])
+        dest = tmp_path / "a.patch"
+        with pytest.raises(ValueError, match="not decided"):
+            agent.export_patch_to_file(pending, dest)
+        assert not dest.exists()
+
+    def test_import_round_trip_lands_on_the_tree(self, agent, tmp_path):
+        _seed_tree(tmp_path)
+        dest = tmp_path / "hand-off.patch"
+        agent.export_patch_to_file(_set(), dest)
+        record = agent.import_patch_from_file(dest)
+        assert record["applied"] == 2
+        assert record["changed_files"] == 2
+        assert (tmp_path / "src" / "app.py").read_text(
+            encoding="utf-8") == "x = 2\n"
+        assert (tmp_path / "src" / "new.py").read_text(
+            encoding="utf-8") == "y = 3\n"
+
+    def test_import_journals_on_the_session(self, agent, tmp_path):
+        _seed_tree(tmp_path)
+        dest = tmp_path / "a.patch"
+        agent.export_patch_to_file(_set(), dest)
+        store = store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        record = agent.import_patch_from_file(dest)
+        assert record["journaled"] is True
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert "patch_imported" in types
+        agent.close()
+
+    def test_import_across_instances(self, agent, tmp_path):
+        from mythic_agent.agents import llm
+
+        _seed_tree(tmp_path)
+        dest = tmp_path / "a.patch"
+        agent.export_patch_to_file(_set(), dest)
+        other = llm.Agent(project_root=tmp_path)
+        record = other.import_patch_from_file(dest)
+        assert record["name"] == "hand-off fix"
+        assert (tmp_path / "src" / "app.py").read_text(
+            encoding="utf-8") == "x = 2\n"
+
+    def test_import_gate_off_refuses_and_writes_nothing(
+            self, agent, tmp_path):
+        _seed_tree(tmp_path)
+        dest = tmp_path / "a.patch"
+        agent.export_patch_to_file(_set(), dest)
+        agent.set_patch_exchange(False)
+        with pytest.raises(ValueError, match="patch exchange is off"):
+            agent.import_patch_from_file(dest)
+        assert (tmp_path / "src" / "app.py").read_text(
+            encoding="utf-8") == "x = 1\n"
+        assert not (tmp_path / "src" / "new.py").exists()
+
+    def test_import_missing_file_refuses_plainly(self, agent, tmp_path):
+        with pytest.raises(ValueError, match="no patch file"):
+            agent.import_patch_from_file(tmp_path / "nope.patch")
+
+    def test_import_tampered_file_refuses_and_writes_nothing(
+            self, agent, tmp_path):
+        _seed_tree(tmp_path)
+        dest = tmp_path / "a.patch"
+        agent.export_patch_to_file(_set(), dest)
+        dest.write_text(dest.read_text(encoding="utf-8").replace(
+            "x = 2", "x = 9", 1), encoding="utf-8")
+        with pytest.raises(ValueError, match="anchor"):
+            agent.import_patch_from_file(dest)
+        assert (tmp_path / "src" / "app.py").read_text(
+            encoding="utf-8") == "x = 1\n"
+
+    def test_import_one_stale_file_refuses_the_whole_import(
+            self, agent, tmp_path):
+        (tmp_path / "src").mkdir(exist_ok=True)
+        (tmp_path / "src" / "a.py").write_text("changed = 9\n",
+                                              encoding="utf-8")
+        (tmp_path / "src" / "b.py").write_text("b = 1\n",
+                                              encoding="utf-8")
+        edits = [make_edit("src/a.py", "search-replace",
+                           "<<<<<<< SEARCH\nold = 1\n=======\n"
+                           "old = 2\n>>>>>>> REPLACE"),
+                 make_edit("src/b.py", "whole-file", "b = 2\n")]
+        strict = start_change_set("strict", edits)
+        strict = decide(decide(strict, 0, "accept"), 1, "accept")
+        dest = tmp_path / "strict.patch"
+        agent.export_patch_to_file(strict, dest)
+        with pytest.raises(ValueError, match="whole"):
+            agent.import_patch_from_file(dest)
+        assert (tmp_path / "src" / "b.py").read_text(
+            encoding="utf-8") == "b = 1\n"
+
+
+class TestTerminalSurface:
+    def test_show_and_set(self, agent):
+        from mythic_agent.terminal import _slash
+
+        _, _, text = _slash(agent, "/patch")
+        assert "Patch export/import (M-089)" in text
+        assert "Setting: on (patch_exchange)" in text
+        _, _, text = _slash(agent, "/patch off")
+        assert "Patch exchange is now off." in text
+        assert agent.config["patch_exchange"] is False
+        _, _, text = _slash(agent, "/patch on")
+        assert "Patch exchange is now on." in text
+
+    def test_import_via_the_terminal(self, agent, tmp_path):
+        from mythic_agent.terminal import _slash
+
+        _seed_tree(tmp_path)
+        dest = tmp_path / "hand-off.patch"
+        agent.export_patch_to_file(_set(), dest)
+        _, _, text = _slash(agent, f"/patch import {dest}")
+        assert "Imported patch 'hand-off fix'" in text
+        assert (tmp_path / "src" / "app.py").read_text(
+            encoding="utf-8") == "x = 2\n"
+        assert (tmp_path / "src" / "new.py").read_text(
+            encoding="utf-8") == "y = 3\n"
+
+    def test_export_via_the_terminal_is_an_honest_refusal(self, agent):
+        from mythic_agent.terminal import _slash
+
+        _, _, text = _slash(agent, "/patch export hand-off fix")
+        assert "no change set named" in text
+        assert "Nothing was exported." in text
+
+    def test_usage_error_is_the_message(self, agent):
+        from mythic_agent.terminal import _slash
+
+        _, _, text = _slash(agent, "/patch frobnicate")
+        assert "usage" in text
+
+
+@pytest.fixture()
+def handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestPatchCommand:
+    def test_show_is_default(self, handler, agent):
+        handler._handle_patch("")
+        assert "Patch export/import (M-089)" in _published_text(handler)
+
+    def test_set_via_the_handler(self, handler, agent):
+        handler._handle_patch("off")
+        assert "Patch exchange is now off." in _published_text(handler)
+        assert agent.config["patch_exchange"] is False
+
+    def test_import_via_the_handler(self, handler, agent, tmp_path):
+        _seed_tree(tmp_path)
+        dest = tmp_path / "hand-off.patch"
+        agent.export_patch_to_file(_set(), dest)
+        handler._handle_patch(f"import {dest}")
+        assert "Imported patch 'hand-off fix'" in _published_text(handler)
+        assert (tmp_path / "src" / "app.py").read_text(
+            encoding="utf-8") == "x = 2\n"
+
+    def test_export_via_the_handler_is_an_honest_refusal(
+            self, handler, agent):
+        handler._handle_patch("export hand-off fix")
+        assert "Nothing was exported." in _published_text(handler)
+
+    def test_usage_error_is_published(self, handler, agent):
+        handler._handle_patch("frobnicate")
+        assert "usage" in _published_text(handler)
+
+
+class TestChatScreenRouting:
+    def test_patch_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/patch off", _FakeLog())
+        assert calls == [("/patch", "off")]
