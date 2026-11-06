@@ -10,6 +10,15 @@ edit_format: auto
 hash_anchored_edits: true
 apply_repair_loop: true
 hunk_review: true
+commit_craft: true
+checkpoints: true
+session_branching: true
+undo_timeline: true
+auto_commit: false
+auto_commit_allow_protected: false
+auto_commit_branch: mythic/working
+auto_commit_protected: [main, master, development, develop]
+guardian_explicit_word: false
 edit_truth_loop: true
 formatter_covenant: true
 debugger: true
