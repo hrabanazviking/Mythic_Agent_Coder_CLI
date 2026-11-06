@@ -543,6 +543,13 @@ settings:
   default: 'True'
   source: mythic_agent/data/config_defaults.yaml
   effect: 'PR craft (M-082): when true, the /prcraft road is open - pull requests are created, reviewed, and responded to from inside Mythic: a pull request is fetched as data through the user''s own gh road and its review comments are fetched and turned into tasks (one task per comment, carrying its author, words, and place; a review with no words makes no task). Drafts (a PR draft, a review draft with approve/comment/request_changes verdicts and line notes riding in the review body, and a reply draft posting as a PR comment) are prepared locally and send nothing. Anything that would send as the user posts only at the user''s recorded word: the draft must be armed with that word before the post road runs at all, an unarmed post refuses and the runner is never touched, and the word itself is never journaled (records carry armed: true only). /prcraft shows the gate and a worked example over a fake runner, /prcraft tasks <n> fetches review comments as tasks; when false, fetches and posts through the agent refuse and say so, while the pure draft maths stays readable.'
+- id: S-75
+  name: issue_to_slice
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Issue-to-slice (M-083): when true, the /issueslice road is open - a GitHub issue becomes a planned slice in the house format (title, summary, and status planned) with acceptance checks drafted only from the issue''s own words: task-list items in its body, bullets under an acceptance heading, or, when the body carries neither, the issue''s title itself; every check carries the verbatim excerpt it was drafted from, and a check that cannot be traced to the issue refuses. GitHub fetches go through the user''s own gh road (github.view_issue) over an injectable fetcher seam, so tests fake GitHub completely; the Samverk source is named for Part X (M-242) and refuses honestly until that road provides the surfaces, its internals never invented. Planning files nothing and changes no roadmap: the planned slice is product output, recorded on the session journal as issue_slice_planned. /issueslice shows the gate, the seam''s sources, and a worked sample; /issueslice github <number> plans that issue; when false, planning through the agent refuses and says so, while the pure drafting maths stays readable.'
 
 env_vars:
 - id: V-01
