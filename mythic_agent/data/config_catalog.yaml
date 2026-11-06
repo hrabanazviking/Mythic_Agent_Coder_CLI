@@ -473,6 +473,14 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Session branching (M-076): when true, the /branch road is open — a session forks at any message into a new v1 session sharing the parent''s history up to and including the fork message, lineage (parent, fork index and role, root, depth) recorded in the branch''s metadata, the fork journaled session_branched on the child and session_branch_forked on the parent; branches diverge independently and any two sessions can be compared by shared prefix and first divergence. When false, forks through the agent refuse and say so, while comparing and listing stay available.'
 
+- id: S-66
+  name: undo_timeline
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Undo grown up (M-077): when true, /undo walks edits, commands, and checkpoints as one timeline, newest first — an edit undoes through the EditJournal, a command undoes through its recorded footprint (the files it created, changed, or deleted, judged from snapshots taken around its run through the agent run_command tool, before-contents backed up within the snapshot bounds), labelled certain when the snapshots were complete and every changed file is backed up or best-effort with its reasons otherwise; one file changed since the command refuses the whole undo; checkpoints join through the CheckpointTimelineSource seam (M-075), wired at banking to M-075''s own checkpoints through the agent seam adapter. /undo list shows the timeline and the gate, /undo on/off changes it (journaled, with a save-failure revert); when false, /undo keeps its original last-edit behaviour and timeline undos refuse.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME

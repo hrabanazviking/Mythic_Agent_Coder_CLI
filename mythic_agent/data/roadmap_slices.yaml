@@ -515,7 +515,7 @@ slices:
   title: Undo grown up
   summary: '`/undo` walks edits, commands, and checkpoints as one timeline; undo of a *command''s* effects
     is attempted via its recorded footprint, labelled certain or best-effort.'
-  status: queued
+  status: done
 - id: M-078
   part: 4
   title: Auto-commit discipline (Aider's crown)
