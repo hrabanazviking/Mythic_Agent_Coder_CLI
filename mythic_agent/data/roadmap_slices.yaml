@@ -503,7 +503,7 @@ slices:
   title: Checkpoints v2
   summary: named checkpoints ("before the auth rework") capturing working tree + session state; restore
     is one command, and the journal shows the whole checkpoint tree.
-  status: queued
+  status: done
 - id: M-076
   part: 4
   title: Session branching

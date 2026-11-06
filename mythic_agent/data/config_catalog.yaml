@@ -457,6 +457,14 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Hunk-level review (M-074): when true, the hunkreview road is open — a unified diff is split into its hunks as data and each hunk is accepted, rejected, or edited on its own; rejecting one hunk never kills the rest, the accepted and edited hunks are judged by the unchanged M-071 strict applier (every hunk context must match the file exactly, no fuzz ever) and written through the existing EditJournal road, and rejected hunks simply never land. An edit may change what a hunk becomes, never what it matches — its context and removed lines stay exactly as proposed, and the edited hunk is re-judged by the same strict rules before it applies. Every hunk must be decided before anything applies: a pending hunk refuses the apply and is named, and a review whose hunks are all rejected is recorded as an honest no-change outcome. The whole review is recorded as a hunk_review_applied session event with each hunk decision and the accepted, edited, and rejected counts. /hunkreview shows the gate and a worked accept/reject/edit example, and turns the gate on or off (journaled, with a save-failure revert); when false, reviewed applies through the agent refuse and say so, while the pure review maths stays readable.'
 
+- id: S-64
+  name: checkpoints
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Named checkpoints (M-075): when true, the checkpoint road is open — a checkpoint captures the whole working tree plus the current session state under a name the user chooses, held in a manifest over a content-addressed blob store beside the EditJournal home; checkpoints form a tree, each new one hanging from the head it was taken under, and restoring an older checkpoint and taking a new one from there grows a branch. Restore brings the tree and the session back in one command and judges a dirty tree honestly: if the tree changed since the last checkpoint was taken or restored, restore refuses and names the changed files — take a checkpoint of the current tree first, or restore with discard to throw those changes away on purpose and count them. Session state returns only to the session it was captured from. Takes and restores are recorded as checkpoint_created and checkpoint_restored session events, and the journal shows the whole checkpoint tree. /checkpoint shows the tree and turns the gate on or off; when false, takes and restores through the agent refuse and say so, while the pure checkpoint maths stays readable.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
