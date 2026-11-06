@@ -332,3 +332,234 @@ def test_plan_record_is_journal_shaped():
     assert record["platform"] == "linux"
     assert record["confined"] is True
     assert record["argv"][0] == "unshare"
+
+
+# -- agent layer: status, set, run road, surfaces (M-097) ---------------
+
+from mythic_agent.core import os_sandbox as osb
+from mythic_agent.core.sessions import SessionStore
+
+
+def _store_for(tmp_path):
+    return SessionStore(tmp_path, tmp_path / "state")
+
+
+class TestOsSandboxAgent:
+    def test_status_defaults_on_with_truth(self, agent):
+        status = agent.os_sandbox_status()
+        assert status["enabled"] is True
+        assert [e["platform"] for e in status["truth"]] == list(PLATFORMS)
+        assert status["screen"] == format_os_sandbox(agent.config)
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_status_reflects_off(self, agent):
+        agent.config[SETTING_KEY] = False
+        assert agent.os_sandbox_status()["enabled"] is False
+
+    def test_status_malformed_config_raises(self, agent):
+        agent.config[SETTING_KEY] = "yes"
+        with pytest.raises(ValueError):
+            agent.os_sandbox_status()
+
+    def test_set_off_then_on(self, agent):
+        record = agent.set_os_sandbox(False)
+        assert record["type"] == "os_sandbox_setting_changed"
+        assert record["from"] is True and record["to"] is False
+        assert record["journaled"] is False
+        assert agent.config[SETTING_KEY] is False
+        record = agent.set_os_sandbox(True)
+        assert record["from"] is False and record["to"] is True
+        assert format_gate_change(record) == "The OS sandbox is now on."
+
+    def test_set_noop_refuses_and_changes_nothing(self, agent):
+        with pytest.raises(ValueError, match="already on"):
+            agent.set_os_sandbox(True)
+        assert SETTING_KEY not in agent.config
+        with pytest.raises(ValueError):
+            agent.set_os_sandbox("off")
+
+    def test_set_journals_on_the_session(self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        record = agent.set_os_sandbox(False)
+        assert record["journaled"] is True
+        events = [e for e in store.export(session_id)["events"]
+                  if e["type"] == "os_sandbox_setting_changed"]
+        assert len(events) == 1
+        assert events[0]["from"] is True and events[0]["to"] is False
+        agent.close()
+
+    def test_save_failure_restores_and_journals_the_revert(
+            self, agent, tmp_path, monkeypatch):
+        from mythic_agent.agents import llm
+
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        monkeypatch.setattr(llm.config_manager, "save_config",
+                            lambda config: False)
+        with pytest.raises(RuntimeError, match="could not be saved"):
+            agent.set_os_sandbox(False)
+        assert SETTING_KEY not in agent.config
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert types[-2:] == ["os_sandbox_setting_changed",
+                              "os_sandbox_setting_reverted"]
+        agent.close()
+
+    def test_plan_road_is_pure(self, agent):
+        plan = agent.os_sandbox_plan("git status", platform="windows")
+        assert plan.confined is False
+        plan = agent.os_sandbox_plan(["git", "status"])
+        assert plan.platform == "linux" and plan.confined is True
+
+
+class TestRunOsSandboxed:
+    def test_echo_runs_under_the_namespace_prefix(self, agent):
+        record = agent.run_os_sandboxed("echo SANDBOX_HELLO")
+        assert record["confined"] is True
+        assert record["gate_enabled"] is True
+        assert record["executed"].startswith("unshare")
+        assert record["returncode"] == 0 and record["ok"] is True
+        assert "SANDBOX_HELLO" in record["stdout"]
+        assert record["plan"]["network"] == "deny"
+        assert record["support"] == "limited"  # never proven
+
+    def test_seccomp_is_rendered_data_never_claimed_installed(self, agent):
+        record = agent.run_os_sandboxed("echo hi")
+        assert record["seccomp_installed"] is False
+        assert "not installed" in record["note"] or (
+            "no seccomp installation" in record["note"])
+        from pathlib import Path
+        rendered = Path(record["seccomp_filter_file"]).read_text()
+        assert "execve" in rendered and "read" in rendered
+
+    def test_network_marker_rides_the_confined_run(self, agent):
+        record = agent.run_os_sandboxed("printenv MYTHIC_SANDBOX_NO_NETWORK")
+        assert record["stdout"].strip() == "1"
+        record = agent.run_os_sandboxed(
+            "printenv MYTHIC_SANDBOX_NO_NETWORK || true", network="allow")
+        assert record["stdout"].strip() == ""
+        assert "--net" not in record["executed"]
+
+    def test_gate_off_takes_the_elder_road_unchanged(self, agent):
+        agent.config[SETTING_KEY] = False
+        record = agent.run_os_sandboxed("echo ELDER_ROAD")
+        assert record["confined"] is False
+        assert record["gate_enabled"] is False
+        assert record["executed"] == "echo ELDER_ROAD"
+        assert "ELDER_ROAD" in record["stdout"]
+        assert "elder" in record["note"]
+
+    def test_unconfined_platform_reports_honestly(self, agent, monkeypatch):
+        monkeypatch.setattr(osb, "current_platform", lambda: "windows")
+        record = agent.run_os_sandboxed("echo WIN_ROAD")
+        assert record["confined"] is False
+        assert record["platform"] == "windows"
+        assert "WIN_ROAD" in record["stdout"]
+
+    def test_require_confined_refuses_unconfined(self, agent, monkeypatch):
+        monkeypatch.setattr(osb, "current_platform", lambda: "windows")
+        with pytest.raises(ValueError, match="cannot confine"):
+            agent.run_os_sandboxed("echo x", require_confined=True)
+
+    def test_denylist_still_refuses_under_confinement(self, agent):
+        from mythic_agent.core.sandbox import SandboxError
+        with pytest.raises(SandboxError):
+            agent.run_os_sandboxed("rm -rf /tmp/whatever")
+
+    def test_docker_still_refuses(self, agent):
+        with pytest.raises(ValueError, match="no Docker"):
+            agent.run_os_sandboxed("docker run img")
+
+    def test_empty_command_refuses(self, agent):
+        with pytest.raises(ValueError):
+            agent.run_os_sandboxed("  ")
+
+    def test_run_journals_the_plan(self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        agent.run_os_sandboxed("echo JOURNALED")
+        events = [e for e in store.export(session_id)["events"]
+                  if e["type"] == "os_sandbox_plan"]
+        assert len(events) == 1 and events[0]["confined"] is True
+        agent.close()
+
+
+class TestSandboxTerminalSurface:
+    def test_show_is_the_whole_slice(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/sandbox")
+        assert "M-097" in text and "Setting: on (os_sandbox)" in text
+        assert "unshare" in text
+
+    def test_truth_shows_the_table(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/sandbox truth")
+        assert "platform truth" in text and "windows" in text
+
+    def test_plan_renders_the_prefix(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/sandbox plan git status")
+        assert "Would run: unshare" in text
+        _, _, text = _slash(agent, "/sandbox plan windows -- git status")
+        assert "no confined argv" in text
+
+    def test_gate_via_the_terminal(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/sandbox off")
+        assert text == "The OS sandbox is now off."
+        assert agent.config[SETTING_KEY] is False
+        _, _, text = _slash(agent, "/sandbox off")
+        assert "already off" in text
+        _, _, text = _slash(agent, "/sandbox on")
+        assert text == "The OS sandbox is now on."
+
+    def test_bad_grammar_is_the_usage(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/sandbox frobnicate")
+        assert text.startswith("Usage: /sandbox")
+
+
+@pytest.fixture()
+def sandbox_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _sandbox_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestSandboxCommand:
+    def test_show_is_default(self, sandbox_handler, agent):
+        sandbox_handler._handle_sandbox("")
+        text = _sandbox_published_text(sandbox_handler)
+        assert "M-097" in text and "Setting: on" in text
+
+    def test_truth_and_plan(self, sandbox_handler, agent):
+        sandbox_handler._handle_sandbox("truth")
+        assert "platform truth" in _sandbox_published_text(sandbox_handler)
+        sandbox_handler._handle_sandbox("plan git status")
+        assert "Would run: unshare" in _sandbox_published_text(
+            sandbox_handler)
+
+    def test_gate_via_the_handler(self, sandbox_handler, agent):
+        sandbox_handler._handle_sandbox("off")
+        assert "now off" in _sandbox_published_text(sandbox_handler)
+        assert agent.config[SETTING_KEY] is False
+
+    def test_bad_grammar_is_published(self, sandbox_handler, agent):
+        sandbox_handler._handle_sandbox("frobnicate")
+        assert "Usage: /sandbox" in _sandbox_published_text(sandbox_handler)
