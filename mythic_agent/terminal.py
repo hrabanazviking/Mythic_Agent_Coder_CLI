@@ -260,8 +260,8 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /checkpoint [take <name>|restore <name> [discard]|on|off] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo /quit"
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
         return True, False, "Conversation cleared."
@@ -1086,9 +1086,56 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         agent.add_context(f"File context ({path.relative_to(agent.project_root)}):\n{content}")
         return True, False, f"Added {values[0]} to context."
     if command == "/undo":
+        from .core.undo_timeline import (
+            TimelineEntry,
+            enabled_from_config,
+            format_setting_change,
+            format_undo_outcome,
+            format_undo_timeline,
+            parse_undo_args,
+        )
         if not agent.tool_policy.authorize("undo_edit", {}):
             return True, False, "Permission denied for undo_edit; no operation was performed."
-        return True, False, EditJournal(agent.project_root).undo()
+        try:
+            request = parse_undo_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.undo_timeline_status()
+            entries = [TimelineEntry(**entry)
+                       for entry in status["entries"]]
+            return True, False, format_undo_timeline(
+                agent.config, entries,
+                checkpoint_wired=status["checkpoint_wired"])
+        if request["action"] == "setting":
+            try:
+                record = agent.set_undo_timeline(request["enabled"])
+            except (ValueError, KeyError, RuntimeError) as exc:
+                return True, False, str(exc)
+            return True, False, format_setting_change(record)
+        if not enabled_from_config(agent.config):
+            if request["action"] == "next" and request["count"] == 1:
+                return True, False, EditJournal(agent.project_root).undo()
+            return True, False, (
+                "Undo timeline is off — /undo keeps its original "
+                "last-edit behaviour; turn it on with /undo on.")
+        try:
+            if request["action"] == "kind":
+                return True, False, format_undo_outcome(
+                    agent.undo_kind(request["kind"]))
+            if request["action"] == "checkpoint":
+                return True, False, format_undo_outcome(
+                    agent.restore_checkpoint_via_seam(
+                        request["checkpoint_id"]))
+            messages = []
+            for _ in range(request["count"]):
+                record = agent.undo_newest()
+                messages.append(format_undo_outcome(record))
+                if not record.get("changed"):
+                    break
+            return True, False, "\n".join(messages)
+        except ValueError as exc:
+            return True, False, str(exc)
     return True, False, f"Unknown command: {command}. Use /help."
 
 

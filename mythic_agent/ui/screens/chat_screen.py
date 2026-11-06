@@ -702,7 +702,7 @@ class MainChatScreen(Screen):
                     "/status": "Usage: /status\nShows current git status and recent commits.",
                     "/gh": "Usage: /gh <args>\nRuns arbitrary native GitHub CLI commands.",
                     "/test": "Usage: /test\nRuns pytest natively in the repository.",
-                    "/undo": "Usage: /undo\nRestores the last unchanged agent edit from the workspace journal. Preserves Git history, staged changes and unrelated files.",
+                    "/undo": "Usage: /undo [list|edit|command|checkpoint <id>|<count>|on|off]\nWalks edits, commands, and checkpoints as one timeline, newest first: bare /undo undoes the newest entry, a command undoes through its recorded footprint (labelled certain or best-effort), and an edit restores through the workspace journal. Preserves Git history, staged changes and unrelated files.",
                     "/doctor": "Usage: /doctor\nExamines the output of the last failed command and automatically generates a fix.",
                     "/ollama": "Usage: /ollama [list] | /ollama pull <model> | /ollama show <model>\nTalks to the local Ollama server (OLLAMA_HOST or http://localhost:11434): list shows installed and running models, pull downloads a model, show gives one model's details — or an honest 'not present' answer.",
                     "/local": "Usage: /local [list] | /local <lmstudio|llama.cpp|local-openai> show <model>\nDiscovers the local OpenAI-compatible runtimes (LM Studio http://localhost:1234, llama.cpp http://localhost:8080, or any local port): list shows what each server is serving, show gives one model's presence — or an honest 'not present' answer with its remedy.",
