@@ -118,6 +118,12 @@ class EditJournal:
                 (actual_mode, cursor.lastrowid),
             )
             connection.commit()
+            try:
+                from .undo_timeline import register_edit_entry
+
+                register_edit_entry(self.root, cursor.lastrowid)
+            except Exception:
+                pass  # the shared timeline never breaks an edit
             return path
 
     def write_anchored_range(self, value: str, start: int, end: int,
@@ -172,6 +178,22 @@ class EditJournal:
             if content.count(target) != 1:
                 raise ValueError("target_content must match exactly one block")
             return self.write(value, content.replace(target, replacement, 1))
+
+    def entries(self) -> list:
+        """Edits still in force, oldest first (M-077).
+
+        The edit strand of the shared undo timeline reads
+        through here: each entry's id, path, and status.
+        Undone and aborted edits are not on the timeline.
+        """
+        with self.lock, self._connect() as connection:
+            self._recover(connection)
+            rows = connection.execute(
+                "SELECT id,path,status FROM edits "
+                "WHERE status IN ('applied','conflict') ORDER BY id ASC"
+            ).fetchall()
+        return [{"id": row[0], "path": row[1], "status": row[2]}
+                for row in rows]
 
     def undo(self) -> str:
         with self.lock, self._connect() as connection:

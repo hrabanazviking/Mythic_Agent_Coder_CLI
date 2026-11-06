@@ -12,6 +12,7 @@ apply_repair_loop: true
 hunk_review: true
 checkpoints: true
 session_branching: true
+undo_timeline: true
 edit_truth_loop: true
 formatter_covenant: true
 debugger: true

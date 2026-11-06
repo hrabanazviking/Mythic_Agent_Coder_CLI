@@ -297,6 +297,53 @@ def _role_route_for(config: dict, name: str):
     return route if route.source == "route" else None
 
 
+
+
+class _CheckpointTimelineAdapter:
+    """M-075 checkpoints speaking the M-077 seam (banking wiring).
+
+    Coordinator wiring at M-077 banking: M-077's undo
+    timeline reads its checkpoint strand through the
+    ``checkpoint_timeline_source`` seam and M-075
+    (Checkpoints v2) is banked, so the Agent carries
+    this adapter by default (see the Agent property).
+    Entries are M-075's own checkpoints (id as text,
+    name as label; certainty is not claimed, so the
+    seam's honest ``unknown`` default stands). Restore
+    maps the seam id back to the checkpoint's name and
+    drives the Agent's own M-075 restore road, whose
+    dirty-tree judgement and gate refusals propagate
+    unchanged; the outcome is returned in plain words,
+    as the seam requires.
+    """
+
+    def __init__(self, agent: Any) -> None:
+        self._agent = agent
+
+    def list_checkpoint_entries(self) -> list[dict[str, Any]]:
+        from ..core import checkpoints
+
+        store = checkpoints.CheckpointStore(
+            self._agent.project_root)
+        return [{"id": str(cp.id), "name": cp.name}
+                for cp in store.list_checkpoints()]
+
+    def restore_checkpoint(self, checkpoint_id: str) -> str:
+        from ..core import checkpoints
+
+        store = checkpoints.CheckpointStore(
+            self._agent.project_root)
+        for cp in store.list_checkpoints():
+            if str(cp.id) == str(checkpoint_id):
+                record = self._agent.restore_checkpoint(cp.name)
+                return (f"Restored checkpoint {cp.name!r}: "
+                        f"{record['restored']} file(s) restored, "
+                        f"{record['removed']} removed, "
+                        f"{record['unchanged']} unchanged.")
+        raise ValueError(
+            f"no checkpoint with id {checkpoint_id!r} in "
+            "this workspace; nothing was restored")
+
 class Agent:
     def __init__(self, project_root: Path | None = None, name: str = "Primary", config: dict[str, Any] | None = None):
         import copy
@@ -1815,6 +1862,233 @@ class Agent:
         branches = self._session_store.branches_of(parent_id)
         return {"parent_session_id": parent_id,
                 "branches": branches, "count": len(branches)}
+
+
+    # ------------------------------------------------ M-077: undo grown up
+
+    def _checkpoint_timeline_source(self) -> Any:
+        """The checkpoint seam source, if one is wired (M-077).
+
+        M-075 (Checkpoints v2) wires its source under the
+        ``checkpoint_timeline_source`` attribute named by
+        the seam in :mod:`mythic_agent.core.undo_timeline`
+        — the source object itself, or a zero-argument
+        callable returning it. With no source wired the
+        checkpoint strand is honestly empty and the edit
+        and command strands walk alone; nothing about
+        M-075's internals is guessed at here.
+        """
+        from ..core.undo_timeline import CHECKPOINT_SOURCE_ATTR
+
+        source = getattr(self, CHECKPOINT_SOURCE_ATTR, None)
+        if callable(source) and not hasattr(
+                source, "list_checkpoint_entries"):
+            source = source()
+        return source
+
+    @property
+    def checkpoint_timeline_source(self) -> Any:
+        """The checkpoint seam source this agent carries.
+
+        Wired at M-077 banking to M-075's checkpoints
+        through :class:`_CheckpointTimelineAdapter`.
+        Assigning a source replaces the wiring (the
+        seam's own tests do exactly this); assigning
+        ``None`` unwires the strand explicitly, and
+        checkpoint restores then refuse with the
+        DEPENDS-ON-M-075 word, as the seam promises.
+        """
+        if "_checkpoint_source_override" in self.__dict__:
+            return self.__dict__["_checkpoint_source_override"]
+        return _CheckpointTimelineAdapter(self)
+
+    @checkpoint_timeline_source.setter
+    def checkpoint_timeline_source(self, source: Any) -> None:
+        self.__dict__["_checkpoint_source_override"] = source
+
+    def _undo_store_and_entries(self) -> tuple[Any, Any]:
+        from ..core.edits import EditJournal
+        from ..core.undo_timeline import (
+            UndoStore,
+            checkpoint_entries_from_source,
+        )
+
+        checkpoints = checkpoint_entries_from_source(
+            self._checkpoint_timeline_source())
+        store = UndoStore(self.project_root)
+        entries = store.timeline(
+            EditJournal(self.project_root).entries(), checkpoints)
+        return store, entries
+
+    def undo_timeline_status(self) -> dict[str, Any]:
+        """The undo-timeline gate and timeline (M-077).
+
+        The setting exactly as stored (validated — a
+        malformed stored value raises), the plain
+        explanation, the timeline entries newest first,
+        and whether a checkpoint source is wired through
+        the seam.
+        """
+        from ..core import undo_timeline
+
+        _, entries = self._undo_store_and_entries()
+        return {
+            "enabled": undo_timeline.enabled_from_config(self.config),
+            "explanation": undo_timeline.PLAIN_EXPLANATION,
+            "entries": [entry.to_dict() for entry in entries],
+            "checkpoint_wired":
+                self._checkpoint_timeline_source() is not None,
+        }
+
+    def set_undo_timeline(self, enabled: bool) -> dict[str, Any]:
+        """Turn the undo timeline on or off (M-077).
+
+        Validated by :mod:`mythic_agent.core.undo_timeline`
+        before anything mutates; journaled first as an
+        ``undo_timeline_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``undo_timeline_setting_reverted``.
+        """
+        import copy
+
+        from ..core import undo_timeline
+
+        new_value, change = undo_timeline.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[undo_timeline.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "undo_timeline_setting_reverted",
+                        "reason": "The undo-timeline change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Undo-timeline change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def _require_undo_timeline(self) -> None:
+        from ..core import undo_timeline
+
+        if not undo_timeline.enabled_from_config(self.config):
+            raise ValueError(
+                "undo timeline is off — /undo keeps its "
+                "original last-edit behaviour; turn the "
+                "timeline on with /undo on; nothing was changed")
+
+    def _journal_undo(self, event: dict[str, Any]) -> bool:
+        if self._session_store and self.session_id:
+            self._checkpoint(event)
+            return True
+        return False
+
+    def undo_newest(self) -> dict[str, Any]:
+        """Undo the newest entry on the shared timeline (M-077)."""
+        self._require_undo_timeline()
+        store, entries = self._undo_store_and_entries()
+        if not entries:
+            return {"kind": None, "changed": False, "journaled": False,
+                    "message": "Nothing to undo: the timeline "
+                               "holds no edits, commands, or "
+                               "checkpoints yet."}
+        return self._undo_timeline_entry(store, entries, entries[0])
+
+    def undo_kind(self, kind: str) -> dict[str, Any]:
+        """Undo the newest entry of one strand (M-077).
+
+        The walk order still governs: a newer entry of
+        another strand blocks it and is named.
+        """
+        self._require_undo_timeline()
+        store, entries = self._undo_store_and_entries()
+        for entry in entries:
+            if entry.kind == kind:
+                return self._undo_timeline_entry(store, entries, entry)
+        return {"kind": kind, "changed": False, "journaled": False,
+                "message": f"Nothing to undo: the timeline "
+                           f"holds no {kind} entry."}
+
+    def restore_checkpoint_via_seam(
+            self, checkpoint_id: str) -> dict[str, Any]:
+        """Restore a checkpoint through the seam (M-077).
+
+        The restore itself is M-075's road, driven through
+        :class:`CheckpointTimelineSource`; with no source
+        wired this refuses and says so (DEPENDS-ON-M-075).
+        """
+        self._require_undo_timeline()
+        source = self._checkpoint_timeline_source()
+        if source is None:
+            raise ValueError(
+                "no checkpoint source is wired yet — the "
+                "checkpoint strand is DEPENDS-ON-M-075 "
+                "(Checkpoints v2); nothing was changed")
+        _, entries = self._undo_store_and_entries()
+        target = None
+        for entry in entries:
+            if entry.kind == "checkpoint" \
+                    and entry.ref_id == checkpoint_id:
+                target = entry
+                break
+        if target is None:
+            raise ValueError(
+                f"there is no checkpoint {checkpoint_id!r} on "
+                f"the timeline; nothing was changed")
+        message = source.restore_checkpoint(checkpoint_id)
+        journaled = self._journal_undo(target.event())
+        return {"kind": "checkpoint", "ref_id": checkpoint_id,
+                "label": target.label,
+                "certainty": target.certainty, "changed": True,
+                "message": message, "journaled": journaled}
+
+    def _undo_timeline_entry(self, store: Any, entries: Any,
+                             target: Any) -> dict[str, Any]:
+        from ..core.edits import EditJournal
+        from ..core.undo_timeline import judge_walk
+
+        judge_walk(list(entries), target)
+        if target.kind == "checkpoint":
+            return self.restore_checkpoint_via_seam(target.ref_id)
+        if target.kind == "edit":
+            journal = EditJournal(self.project_root)
+            live = journal.entries()
+            if not live or str(live[-1]["id"]) != target.ref_id:
+                raise ValueError(
+                    "undo refused: the edit strand has moved "
+                    "since the timeline was read; nothing was "
+                    "changed")
+            message = journal.undo()
+            changed = message.startswith("Restored")
+            journaled = False
+            if changed:
+                journaled = self._journal_undo(target.event())
+            return {"kind": "edit", "ref_id": target.ref_id,
+                    "label": target.label, "certainty": "certain",
+                    "changed": changed, "message": message,
+                    "journaled": journaled}
+        outcome = store.undo_footprint(int(target.ref_id))
+        journaled = self._journal_undo({
+            "type": "undo_performed", "kind": "command",
+            "ref_id": target.ref_id, "label": target.label,
+            "certainty": outcome.certainty,
+            "restored": outcome.restored,
+            "deleted": outcome.deleted,
+            "recreated": outcome.recreated})
+        record = outcome.record(self.session_id, journaled)
+        record["label"] = target.label
+        return record
 
     def _repair_offered(self, path: str,
                         packet: Any) -> dict[str, Any]:
