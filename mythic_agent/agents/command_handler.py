@@ -209,6 +209,8 @@ class CommandHandler:
                 self._handle_repairloop(args)
             elif cmd == "/hunkreview":
                 self._handle_hunkreview(args)
+            elif cmd == "/checkpoint":
+                self._handle_checkpoint(args)
             elif cmd == "/kista":
                 self._handle_kista(args)
             elif cmd == "/resume-thought":
@@ -1117,6 +1119,74 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[green]{format_setting_change(record)}[/green]\n")
+
+    def _handle_checkpoint(self, args: str):
+        """M-075: /checkpoint — named checkpoints.
+
+        ``/checkpoint`` shows the gate (on by default),
+        the plain-words explanation, and the whole
+        checkpoint tree; ``/checkpoint take <name>``
+        freezes the tree and session under a name;
+        ``/checkpoint restore <name>`` brings one back
+        in one command (a dirty tree refuses unless the
+        trailing word ``discard`` throws the un-
+        checkpointed changes away on purpose);
+        ``/checkpoint on`` / ``off`` changes the gate
+        (journaled by the agent layer).
+        """
+        from ..core.checkpoints import (
+            enabled_from_config,
+            format_checkpoint_created,
+            format_checkpoint_restored,
+            format_checkpoints,
+            format_setting_change,
+            parse_checkpoint_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_checkpoint_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.checkpoint_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_checkpoints(primary.config, status['checkpoints'], status['head_id'])}[/bold cyan]\n"
+                     "[dim]Freeze the tree with /checkpoint take <name>, "
+                     "or bring one back with /checkpoint restore "
+                     "<name>.[/dim]\n")
+            return
+        try:
+            if request["action"] == "setting":
+                record = primary.set_checkpoints(request["enabled"])
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_setting_change(record)}[/green]\n")
+                return
+            if request["action"] == "take":
+                taken = primary.take_checkpoint(request["name"])
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_checkpoint_created(taken)}[/green]\n")
+                return
+            restored = primary.restore_checkpoint(
+                request["name"], request["discard"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_checkpoint_restored(restored)}[/green]\n")
 
     def _handle_costroute(self, args: str):
         """M-031: /costroute — cost-aware routing, in plain words.
