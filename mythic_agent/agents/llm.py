@@ -1164,13 +1164,24 @@ class Agent:
         """
         from ..core.edit_formats import apply_edit
         from ..core.edits import EditJournal
+        from ..core.file_guardians import explicit_from_config
         from ..core.workspace import resolve_file
 
         target = resolve_file(self.project_root, path, write=True)
         current = (target.read_text(encoding="utf-8")
                    if target.exists() else None)
         new_text, units = apply_edit(format_id, current, payload)
-        EditJournal(self.project_root).write(path, new_text)
+        # M-079: the guardians judge the apply by the
+        # operation it truly is — a whole-file format is an
+        # overwrite, a diff or a search block is in-place,
+        # a missing file is a creation — and the journal
+        # enforces the verdict under this config's word.
+        operation = ("create" if current is None else
+                     "overwrite" if format_id == "whole-file"
+                     else "inplace")
+        EditJournal(self.project_root,
+                    explicit_word=explicit_from_config(self.config)
+                    ).write(path, new_text, operation=operation)
         record: dict[str, Any] = {
             "path": path, "format": format_id, "units": units,
             "changed": current != new_text, "journaled": False}
@@ -1239,8 +1250,17 @@ class Agent:
                              current: str | None) -> dict[str, Any]:
         """Write one judged anchored edit via EditJournal (M-072)."""
         from ..core.edits import EditJournal
+        from ..core.file_guardians import explicit_from_config
 
-        EditJournal(self.project_root).write(path, new_text)
+        # M-079: a span covering the whole file is an
+        # overwrite; a partial span is an in-place edit.
+        line_count = len(current.splitlines()) if current else 0
+        operation = ("overwrite" if applied.start <= 1
+                     and applied.end >= max(line_count, 1)
+                     else "inplace")
+        EditJournal(self.project_root,
+                    explicit_word=explicit_from_config(self.config)
+                    ).write(path, new_text, operation=operation)
         record: dict[str, Any] = {
             "path": path, "start": applied.start, "end": applied.end,
             "before": applied.before.hash, "after": applied.after_hash,
@@ -1414,6 +1434,62 @@ class Agent:
                 "setting was preserved")
         return change.record(self.session_id, journaled)
 
+    def guardian_status(self) -> dict[str, Any]:
+        """The guardians and the explicit word (M-079).
+
+        Whether the user's explicit word is on record
+        (validated — a malformed stored value raises, never
+        vanishes), the guarded kinds, and the plain
+        explanation. This is the answer ``/guardians`` shows.
+        """
+        from ..core import file_guardians
+
+        return {
+            "explicit_word": file_guardians.explicit_from_config(
+                self.config),
+            "guarded_kinds": list(file_guardians.GUARDED_KINDS),
+            "explanation": file_guardians.PLAIN_EXPLANATION,
+        }
+
+    def set_guardian_word(self, given: bool) -> dict[str, Any]:
+        """Give or take back the explicit word (M-079).
+
+        Validated by :mod:`mythic_agent.core.file_guardians`
+        before anything mutates; journaled first as a
+        ``guardian_word_changed`` event when a session is
+        attached; a failed save restores the previous value
+        exactly and journals a compensating
+        ``guardian_word_reverted``.
+        """
+        import copy
+
+        from ..core import file_guardians
+
+        new_value, change = file_guardians.set_explicit_word(
+            self.config, given)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[file_guardians.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "guardian_word_reverted",
+                        "reason": "The explicit-word change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Explicit-word change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
     def split_for_review(self, payload: str) -> dict[str, Any]:
         """Split a unified diff into its reviewable hunks (M-074).
 
@@ -1484,7 +1560,14 @@ class Agent:
                     f"got {item!r}")
         new_text, outcome = hunk_review.apply_review(current, review)
         if outcome.applied:
-            EditJournal(self.project_root).write(path, new_text)
+            # M-079: a reviewed hunk apply modifies the file
+            # in place — judged as such by the guardians.
+            from ..core.file_guardians import explicit_from_config
+
+            EditJournal(
+                self.project_root,
+                explicit_word=explicit_from_config(self.config)
+            ).write(path, new_text, operation="inplace")
         record: dict[str, Any] = {
             "path": path, "applied": outcome.applied,
             "rejected": outcome.rejected,
@@ -1541,6 +1624,7 @@ class Agent:
         """
         from ..core import apply_repair
         from ..core.edits import EditJournal
+        from ..core.file_guardians import GuardianRefusal
         from ..core.workspace import resolve_file
 
         if not apply_repair.enabled_from_config(self.config):
@@ -1551,6 +1635,8 @@ class Agent:
         try:
             return {**self.apply_edit_format(path, format_id, payload),
                     "repaired": False}
+        except GuardianRefusal:
+            raise  # M-079: no packet repairs a guardian refusal
         except ValueError as exc:
             reason = str(exc)
         target_range = apply_repair.target_range_for_format(
@@ -1569,7 +1655,14 @@ class Agent:
             self._repair_journal(
                 "apply_repair_exhausted", path, packet.road)
             raise
-        EditJournal(self.project_root).write(path, new_text)
+        from ..core.file_guardians import explicit_from_config
+
+        operation = ("create" if current is None else
+                     "overwrite" if format_id == "whole-file"
+                     else "inplace")
+        EditJournal(self.project_root,
+                    explicit_word=explicit_from_config(self.config)
+                    ).write(path, new_text, operation=operation)
         self._repair_journal("apply_repair_applied", path, packet.road)
         record.update({"applied": True, "repaired": True,
                        "format": format_id, "units": units,
@@ -1593,6 +1686,7 @@ class Agent:
         make no packet.
         """
         from ..core import apply_repair, hash_anchored
+        from ..core.file_guardians import GuardianRefusal
         from ..core.workspace import resolve_file
 
         if not apply_repair.enabled_from_config(self.config):
@@ -1614,6 +1708,8 @@ class Agent:
             return {**self._write_hash_anchored(
                 path, new_text, applied, current),
                 "applied": True, "repaired": False}
+        except GuardianRefusal:
+            raise  # M-079: no packet repairs a guardian refusal
         except ValueError as exc:
             reason = str(exc)
         packet = apply_repair.build_packet(
@@ -1654,6 +1750,7 @@ class Agent:
         *retry_replacement* read from the packet's true text.
         """
         from ..core import apply_repair, hash_anchored
+        from ..core.file_guardians import GuardianRefusal
         from ..core.workspace import resolve_file
 
         if not apply_repair.enabled_from_config(self.config):
@@ -1675,6 +1772,8 @@ class Agent:
             return {**self._write_hash_anchored(
                 path, new_text, applied, current),
                 "applied": True, "repaired": False}
+        except GuardianRefusal:
+            raise  # M-079: no packet repairs a guardian refusal
         except ValueError as exc:
             reason = str(exc)
         lines = current.split("\n")
