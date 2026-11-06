@@ -6425,6 +6425,184 @@ class Agent:
             logging.warning("Tool %s failed: %s", name, type(exc).__name__)
             return f"Tool {name} failed: {exc}"
 
+    # -- M-090: editor bridges lite against the real editor --
+
+    def _editor_bridge_dir(self):
+        """The editor-bridge scratch home for this workspace."""
+        from ..core.config_manager import config_manager
+        from ..core.workspace import workspace_id
+
+        directory = (config_manager.MYTHIC_DIR / "editor-bridge"
+                     / workspace_id(self.project_root))
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        return directory
+
+    def editor_bridge_status(self) -> dict[str, Any]:
+        """The editor-bridge gate and editor, in plain data (M-090).
+
+        The setting exactly as stored (validated - a
+        malformed stored value raises, never vanishes), the
+        plain explanation, and the editor resolved honestly
+        from the process environment: no editor configured
+        is reported as None plus the remedy, never raised
+        here and never guessed.
+        """
+        import os
+
+        from ..core import editor_bridge
+
+        editor = None
+        editor_error = None
+        try:
+            choice = editor_bridge.resolve_editor(dict(os.environ))
+        except ValueError as exc:
+            editor_error = str(exc)
+        else:
+            editor = {"source": choice.source, "raw": choice.raw,
+                      "name": choice.name,
+                      "argv": list(choice.argv)}
+        return {
+            "enabled": editor_bridge.enabled_from_config(self.config),
+            "explanation": editor_bridge.PLAIN_EXPLANATION,
+            "editor": editor,
+            "editor_error": editor_error,
+        }
+
+    def set_editor_bridge(self, enabled: bool) -> dict[str, Any]:
+        """Turn editor bridges on or off (M-090).
+
+        Validated by :mod:`mythic_agent.core.editor_bridge`
+        before anything mutates; journaled first as an
+        ``editor_bridge_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``editor_bridge_setting_reverted``.
+        """
+        import copy
+
+        from ..core import editor_bridge
+
+        new_value, change = editor_bridge.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[editor_bridge.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "editor_bridge_setting_reverted",
+                        "reason": "The editor bridge change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Editor bridge change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def _run_editor_round_trip(self, kind: str, label: str,
+                               original: str,
+                               environ=None) -> dict[str, Any]:
+        """Run one prepared round-trip through the real editor.
+
+        Gate first, then the editor resolved from *environ*
+        (the process environment when it is None), a real
+        scratch file under the agent state dir, the real
+        editor process, and the pure layer's judgement. A
+        changed file is written to the real file through
+        the EditJournal; a prompt writes no file and its
+        judged text rides the returned record.
+        """
+        import os
+        import subprocess
+
+        from ..core import editor_bridge
+        from ..core.edits import EditJournal
+        from ..core.workspace import resolve_file
+
+        if not editor_bridge.enabled_from_config(self.config):
+            raise ValueError(
+                "editor bridge is off - turn it on with "
+                "/editor on; nothing was edited")
+        env = dict(os.environ) if environ is None else dict(environ)
+        choice = editor_bridge.resolve_editor(env)
+        if kind == "file":
+            trip = editor_bridge.prepare_file_round_trip(label, original)
+        else:
+            trip = editor_bridge.prepare_prompt_round_trip(label, original)
+        scratch = self._editor_bridge_dir() / trip.scratch_name
+        scratch.write_text(trip.original, encoding="utf-8")
+        try:
+            completed = subprocess.run(
+                editor_bridge.editor_command(env, str(scratch)))
+            if completed.returncode != 0:
+                raise ValueError(
+                    f"editor {choice.name} exited with code "
+                    f"{completed.returncode}; nothing was written")
+            returned = scratch.read_text(encoding="utf-8")
+        finally:
+            try:
+                scratch.unlink()
+            except OSError:
+                pass
+        outcome = editor_bridge.judge_round_trip(trip, returned)
+        if kind == "file" and outcome.status == "changed":
+            journal = EditJournal(self.project_root)
+            journal.write(trip.label, outcome.text)
+        record: dict[str, Any] = outcome.record(trip)
+        record["text"] = outcome.text
+        record["editor"] = choice.name
+        record["editor_source"] = choice.source
+        record["journaled"] = False
+        if self._session_store and self.session_id:
+            event = outcome.record(trip)
+            event["editor"] = choice.name
+            event["editor_source"] = choice.source
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
+    def edit_file_in_editor(self, path, environ=None) -> dict[str, Any]:
+        """Round-trip a real file through the user's editor (M-090).
+
+        The file's true current text travels; a changed
+        result lands through the EditJournal, an unchanged
+        result writes nothing, and an emptied file refuses
+        so the original stands. A missing file refuses
+        plainly. With the gate off this refuses and
+        launches nothing.
+        """
+        from ..core.workspace import resolve_file
+
+        target = resolve_file(self.project_root, str(path), write=True)
+        if not target.exists():
+            raise ValueError(
+                f"no file at {path} - nothing was edited")
+        current = target.read_text(encoding="utf-8")
+        return self._run_editor_round_trip(
+            "file", str(path), current, environ=environ)
+
+    def edit_prompt_in_editor(self, draft, label: str = "chat draft",
+                              environ=None) -> dict[str, Any]:
+        """Round-trip a prompt draft through the editor (M-090).
+
+        No file is written: a changed draft returns as the
+        record's text, an unchanged draft returns as it
+        stood, and an emptied draft is a cancellation.
+        With the gate off this refuses and launches
+        nothing.
+        """
+        return self._run_editor_round_trip(
+            "prompt", label, draft, environ=environ)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
