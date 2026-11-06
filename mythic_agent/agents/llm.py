@@ -1499,6 +1499,214 @@ class Agent:
             record["journaled"] = True
         return record
 
+
+    def auto_commit_status(self) -> dict[str, Any]:
+        """The auto-commit discipline, in plain data (M-078).
+
+        The gate and the protected-branch standing word
+        exactly as stored (validated — a malformed stored
+        value raises, never vanishes), the protected set,
+        the working branch, the branch checked out in the
+        project now (None outside a repository or on a
+        detached head), and the plain explanation. This is
+        the answer ``/autocommit`` shows.
+        """
+        from ..core import auto_commit
+
+        return {
+            "enabled": auto_commit.enabled_from_config(self.config),
+            "allow_protected": auto_commit.allow_protected_from_config(
+                self.config),
+            "protected": list(auto_commit.protected_from_config(
+                self.config)),
+            "working_branch": auto_commit.working_branch_from_config(
+                self.config),
+            "current_branch": self._auto_commit_branch(),
+            "explanation": auto_commit.PLAIN_EXPLANATION,
+        }
+
+    def _auto_commit_git(self, *args: str):
+        """Run one git command in the project; (rc, out, err)."""
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(self.project_root), *args],
+                capture_output=True, text=True, timeout=30)
+        except FileNotFoundError:
+            raise ValueError(
+                "auto-commit needs git on this machine; git "
+                "was not found — nothing was committed")
+        return result.returncode, result.stdout.strip(), \
+            result.stderr.strip()
+
+    def _auto_commit_branch(self) -> str | None:
+        """The branch checked out in the project, or None."""
+        try:
+            code, out, _ = self._auto_commit_git(
+                "rev-parse", "--abbrev-ref", "HEAD")
+        except ValueError:
+            return None
+        if code != 0 or not out or out == "HEAD":
+            return None
+        return out
+
+    def _set_auto_commit_setting(self, change, key: str,
+                                 new_value: bool,
+                                 label: str) -> dict[str, Any]:
+        """Journal-first setting change with save revert (M-078)."""
+        import copy
+
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[key] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "auto_commit_setting_reverted",
+                        "reason": f"The {label} change could not "
+                                  "be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                f"{label} change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def set_auto_commit(self, enabled: bool) -> dict[str, Any]:
+        """Turn the auto-commit discipline on or off (M-078).
+
+        Validated by :mod:`mythic_agent.core.auto_commit`
+        before anything mutates; journaled first as an
+        ``auto_commit_setting_changed`` event when a session
+        is attached; a failed save restores the previous
+        value exactly and journals a compensating
+        ``auto_commit_setting_reverted``.
+        """
+        from ..core import auto_commit
+
+        new_value, change = auto_commit.set_enabled(
+            self.config, enabled)
+        return self._set_auto_commit_setting(
+            change, auto_commit.SETTING_KEY, new_value, "Auto-commit")
+
+    def set_auto_commit_allow_protected(
+            self, allowed: bool) -> dict[str, Any]:
+        """Give or withdraw the protected-branch word (M-078).
+
+        The explicit standing setting under which an
+        accepted edit set may land on a protected branch
+        itself. Journaled first as an
+        ``auto_commit_protected_setting_changed`` event; a
+        failed save restores the previous value exactly.
+        """
+        from ..core import auto_commit
+
+        new_value, change = auto_commit.set_allow_protected(
+            self.config, allowed)
+        return self._set_auto_commit_setting(
+            change, auto_commit.ALLOW_PROTECTED_KEY, new_value,
+            "Protected-branch auto-commit")
+
+    def commit_accepted_edits(
+            self, files: Any, summary: str) -> dict[str, Any]:
+        """Land one accepted edit set as its own commit (M-078).
+
+        The set's written message is composed from
+        *summary* plus the files it carries, judged by
+        :mod:`mythic_agent.core.auto_commit` into a plan —
+        on the current branch when it is ordinary, on the
+        working branch when the current branch is
+        protected, on the protected branch itself only
+        under the user's standing word — and exactly that
+        plan is executed: only the accepted files are
+        staged, and the commit is recorded on the session
+        as an ``auto_commit_committed`` event. With the
+        gate off, a blank message, a bad file set, a
+        detached head, or no repository at all, this
+        refuses and commits nothing. An accepted set that
+        leaves nothing staged is an honest no-commit
+        record, not an error.
+        """
+        from ..core import auto_commit
+
+        if not auto_commit.enabled_from_config(self.config):
+            raise ValueError(
+                "auto-commit is off — turn it on with "
+                "/autocommit on; nothing was committed")
+        code, _, _ = self._auto_commit_git(
+            "rev-parse", "--git-dir")
+        if code != 0:
+            raise ValueError(
+                "auto-commit needs a git repository; the "
+                "project is not inside one — nothing was "
+                "committed")
+        _, branch, _ = self._auto_commit_git(
+            "rev-parse", "--abbrev-ref", "HEAD")
+        message = auto_commit.build_message(summary, files)
+        plan = auto_commit.plan_commit(
+            self.config, branch, files, message)
+        switched = False
+        if plan.switch_needed:
+            code, _, _ = self._auto_commit_git(
+                "show-ref", "--verify",
+                f"refs/heads/{plan.target_branch}")
+            if code == 0:
+                code, _, err = self._auto_commit_git(
+                    "switch", plan.target_branch)
+            else:
+                code, _, err = self._auto_commit_git(
+                    "switch", "-c", plan.target_branch)
+            if code != 0:
+                raise RuntimeError(
+                    "auto-commit could not move onto the "
+                    f"working branch {plan.target_branch!r}: "
+                    f"{err} — nothing was committed")
+            switched = True
+        code, _, err = self._auto_commit_git("add", "--", *plan.files)
+        if code != 0:
+            raise RuntimeError(
+                f"auto-commit could not stage the accepted "
+                f"files: {err} — nothing was committed")
+        _, staged, _ = self._auto_commit_git(
+            "diff", "--cached", "--name-only")
+        if not staged:
+            outcome = auto_commit.CommitOutcome(
+                committed=False, branch=plan.branch,
+                target_branch=plan.target_branch,
+                on_protected=plan.on_protected, switched=switched,
+                files=plan.files, message=plan.message,
+                reason="the accepted edits left nothing "
+                       "to commit on "
+                       f"{plan.target_branch}")
+        else:
+            code, _, err = self._auto_commit_git(
+                "commit", "-m", plan.message)
+            if code != 0:
+                raise RuntimeError(
+                    f"auto-commit's commit failed: {err} — "
+                    "nothing was committed")
+            _, short, _ = self._auto_commit_git(
+                "rev-parse", "--short", "HEAD")
+            outcome = auto_commit.CommitOutcome(
+                committed=True, branch=plan.branch,
+                target_branch=plan.target_branch,
+                on_protected=plan.on_protected, switched=switched,
+                files=plan.files, message=plan.message,
+                commit=short)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(outcome.event())
+            journaled = True
+        return outcome.record(self.session_id, journaled)
+
     def _repair_offered(self, path: str,
                         packet: Any) -> dict[str, Any]:
         """Journal a repair packet and shape its record (M-073)."""
