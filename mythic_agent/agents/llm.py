@@ -6846,6 +6846,148 @@ class Agent:
         return record
 
 
+    # -- M-093: guarded mass edits --
+
+    def mass_edit_guard_status(self) -> dict[str, Any]:
+        """The mass-edit gate, in plain data (M-093).
+
+        The setting exactly as stored (validated - a
+        malformed stored value raises, never vanishes)
+        and the plain explanation.
+        """
+        from ..core import mass_edit_guard
+
+        return {
+            "enabled": mass_edit_guard.enabled_from_config(self.config),
+            "explanation": mass_edit_guard.PLAIN_EXPLANATION,
+        }
+
+    def set_mass_edit_guard(self, enabled: bool) -> dict[str, Any]:
+        """Turn the mass edit guard on or off (M-093).
+
+        Validated by :mod:`mythic_agent.core.mass_edit_guard`
+        before anything mutates; journaled first as a
+        ``mass_edit_guard_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``mass_edit_guard_setting_reverted``.
+        """
+        import copy
+
+        from ..core import mass_edit_guard
+
+        new_value, change = mass_edit_guard.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[mass_edit_guard.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "mass_edit_guard_setting_reverted",
+                        "reason": "The mass edit guard change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Mass edit guard change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def apply_mass_edit(self, edits: Any,
+                        approval: Any = None) -> dict[str, Any]:
+        """Apply a guarded mass edit (M-093).
+
+        *edits* is a list of proposed new texts, each a
+        ``(path, new_text)`` pair or a mapping with
+        ``path`` and ``after``. Gate first: with the
+        guard off this refuses and changes nothing. The
+        dry-run report is built by the pure layer from
+        the files' true current texts - never from a
+        caller's claim - and when the report requires
+        an approval, an approval covering the report's
+        fingerprint is required BEFORE any byte moves:
+        an unapproved mass apply refuses with every
+        file untouched. An approved (or approval-free)
+        plan lands through the EditJournal road, one
+        journaled write per changed file; a file
+        proposed unchanged is listed in the report and
+        never written. The apply is recorded on the
+        session as a ``mass_edit`` event carrying the
+        report record and the approval fingerprint
+        when a session is attached.
+        """
+        from ..core import mass_edit_guard
+        from ..core.edits import EditJournal
+        from ..core.workspace import resolve_file
+
+        if not mass_edit_guard.enabled_from_config(self.config):
+            raise ValueError(
+                "mass edit guard is off - turn it on with "
+                "/massedit on; nothing was changed")
+        plan: list[dict[str, Any]] = []
+        afters: dict[str, str] = {}
+        for item in edits or []:
+            if isinstance(item, dict):
+                path = item.get("path")
+                after = item.get("after")
+            else:
+                try:
+                    path, after = item
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        "each mass edit is a (path, new text) "
+                        "pair or a mapping with path and "
+                        f"after; got {item!r}") from exc
+            if not isinstance(after, str):
+                raise ValueError(
+                    f"{path}: the new text must be a string")
+            target = resolve_file(
+                self.project_root, str(path), write=True)
+            before = (target.read_text(encoding="utf-8")
+                      if target.exists() else "")
+            cleaned = str(path).strip()
+            if cleaned.startswith("./"):
+                cleaned = cleaned[2:]
+            plan.append({"path": path, "before": before,
+                         "after": after})
+            afters[cleaned] = after
+        report = mass_edit_guard.build_report(plan)
+        mass_edit_guard.require_approval(report, approval)
+        fingerprint = None
+        if isinstance(approval, mass_edit_guard.Approval):
+            fingerprint = approval.fingerprint
+        elif isinstance(approval, dict):
+            fingerprint = approval.get("fingerprint")
+        journal = EditJournal(self.project_root)
+        applied: list[str] = []
+        for entry in report.changed_files:
+            journal.write(entry.path, afters[entry.path])
+            applied.append(entry.path)
+        record: dict[str, Any] = {
+            "type": "mass_edit",
+            "report": report.record(),
+            "approval_fingerprint": fingerprint,
+            "applied": applied,
+            "rendered": mass_edit_guard.format_report(report),
+            "journaled": False}
+        if self._session_store and self.session_id:
+            event = {"type": "mass_edit",
+                     "report": report.record(),
+                     "approval_fingerprint": fingerprint,
+                     "applied": applied}
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
