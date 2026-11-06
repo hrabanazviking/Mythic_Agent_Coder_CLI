@@ -1669,6 +1669,153 @@ class Agent:
             record["journaled"] = True
         return record
 
+    def session_branching_status(self) -> dict[str, Any]:
+        """The session-branching gate, in plain data (M-076).
+
+        The setting exactly as stored (validated — a
+        malformed stored value raises, never vanishes) and
+        the plain explanation. This is the answer
+        ``/branch`` shows.
+        """
+        from ..core import session_branching
+
+        return {
+            "enabled": session_branching.enabled_from_config(self.config),
+            "explanation": session_branching.PLAIN_EXPLANATION,
+        }
+
+    def set_session_branching(self, enabled: bool) -> dict[str, Any]:
+        """Turn session branching on or off (M-076).
+
+        Validated by
+        :mod:`mythic_agent.core.session_branching` before
+        anything mutates; journaled first as a
+        ``session_branching_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``session_branching_setting_reverted``.
+        """
+        import copy
+
+        from ..core import session_branching
+
+        new_value, change = session_branching.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[session_branching.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "session_branching_setting_reverted",
+                        "reason": "The session-branching change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Session-branching change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def fork_session(self, at_index: int,
+                     name: str | None = None) -> dict[str, Any]:
+        """Fork the attached session at a message (M-076).
+
+        The branch is a new stored session sharing this
+        session's history up to and including the fork
+        message; this session continues untouched, and the
+        two diverge independently from here. The fork is
+        recorded on this session as a
+        ``session_branch_forked`` event naming the child,
+        and on the child (by the store) as
+        ``session_branched``. With the gate off, or with
+        no session attached, the fork refuses and creates
+        nothing.
+        """
+        from ..core import session_branching
+
+        if not session_branching.enabled_from_config(self.config):
+            raise ValueError(
+                "session branching is off — turn it on with "
+                "/branch on; nothing was changed")
+        if not self._session_store or not self.session_id:
+            raise ValueError(
+                "no session is attached to fork; nothing "
+                "was changed")
+        branch_id = self._session_store.branch(
+            self.session_id, at_index, name=name)
+        record: dict[str, Any] = {
+            "type": "session_branch_forked",
+            "parent_session_id": self.session_id,
+            "branch_session_id": branch_id,
+            "fork_index": at_index,
+            "fork_role": self._session_store.load(
+                branch_id)["context"][-1]["role"],
+            "branch_name": name.strip() if isinstance(name, str) else None,
+            "shared_messages": at_index + 1,
+            "session_id": self.session_id,
+            "journaled": False,
+        }
+        self._checkpoint({
+            "type": "session_branch_forked",
+            "branch_session_id": branch_id,
+            "fork_index": at_index,
+            "branch_name": record["branch_name"],
+        })
+        record["journaled"] = True
+        return record
+
+    def compare_sessions(self, first_id: str,
+                         second_id: str) -> dict[str, Any]:
+        """Compare two stored sessions' histories (M-076).
+
+        A pure read: the true shared prefix, the first
+        divergence, and each side's own messages after the
+        shared history — judged by
+        :mod:`mythic_agent.core.session_branching`.
+        Available whether the branching gate is on or off:
+        comparing what already exists creates nothing.
+        """
+        from ..core import session_branching
+
+        if not self._session_store:
+            raise ValueError(
+                "no session store is attached; nothing "
+                "to compare against")
+        first = self._session_store.load(first_id)
+        second = self._session_store.load(second_id)
+        comparison = session_branching.compare_contexts(
+            first["context"], second["context"])
+        return comparison.record(first_id, second_id)
+
+    def list_session_branches(
+            self, session_id: str | None = None) -> dict[str, Any]:
+        """The branches forked from a session (M-076).
+
+        Defaults to the attached session. A pure read over
+        the store's session list, judged by
+        :mod:`mythic_agent.core.session_branching`.
+        """
+        if not self._session_store:
+            raise ValueError(
+                "no session store is attached; nothing "
+                "to list branches from")
+        parent_id = session_id or self.session_id
+        if not parent_id:
+            raise ValueError(
+                "no session is attached and none was named; "
+                "nothing to list branches for")
+        branches = self._session_store.branches_of(parent_id)
+        return {"parent_session_id": parent_id,
+                "branches": branches, "count": len(branches)}
+
     def _repair_offered(self, path: str,
                         packet: Any) -> dict[str, Any]:
         """Journal a repair packet and shape its record (M-073)."""
