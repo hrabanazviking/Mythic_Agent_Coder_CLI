@@ -590,6 +590,14 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'The stash shelf (M-088): when true, the /stash road is open - work-in-progress is shelved by name: the difference between the working tree and its base (the last clean state, recorded on disk at first contact) is captured under the name the user chooses and the tree goes back to its base exactly. A shelved entry restores in any later session, judged against the tree as it stands then: a path that moved since the shelve is a conflict - the restore refuses, names every conflicted path, and changes nothing - unless those changes are discarded on purpose through the agent road, counted in the record. The shelf itself is an append-only journal of checksummed records on disk (one JSON line per entry, each carrying the SHA-256 of its canonical form), so it survives crashes; a torn or corrupted line is counted in the status and skipped, never silently applied. Shelving nothing refuses in plain words, and a name already on the shelf refuses. The gate toggles through /stash on and /stash off, journaled with save-failure revert; when false, shelving and restoring through the agent refuse and say so, while the shelf stays readable.'
 
+- id: S-81
+  name: patch_exchange
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Patch export/import (M-089): when true, the /patch road is open - a reviewed change set (M-084) becomes one portable patch file: a magic line, a checksummed JSON evidence header (the set name, its test evidence record or an honest none, every accepted file with its format, byte count and SHA-256 payload anchor, and every rejected file named as rejected, never silently dropped), then each accepted payload byte-exact under a length-headed section. Only a fully decided set exports - a pending file refuses and is named. Import proves the header checksum and every payload anchor before trusting a single payload, rebuilds the set through M-084 roads, and plans it through M-084 planner unchanged against the receiving trees true current texts: one stale file refuses the whole import and nothing is written; a clean plan is written through the EditJournal road. The agent layer holds no persistent named change sets, so export takes the ChangeSet object itself plus a destination path (export_patch_to_file, recorded in the dead-code quarantine as an Agent API surface, M-074 pattern) and /patch export names that plainly and exports nothing. The gate toggles through /patch on and /patch off, journaled with save-failure revert; when false, exports and imports through the agent refuse and say so, while the pure format maths stays available.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
