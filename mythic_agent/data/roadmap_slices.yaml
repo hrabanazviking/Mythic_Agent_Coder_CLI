@@ -509,7 +509,7 @@ slices:
   title: Session branching
   summary: fork a session at any message ("try the other road from here") — branches share history, diverge
     honestly, and can be compared.
-  status: queued
+  status: done
 - id: M-077
   part: 4
   title: Undo grown up
