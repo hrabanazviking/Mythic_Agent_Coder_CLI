@@ -192,7 +192,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, BinaryIO, Callable, Dict, List, Optional, Tuple
 from urllib.parse import unquote, urlparse
-from urllib.request import pathname2url
 
 from ..core.edits import EditJournal
 from ..core.exceptions import MythicIntegrationError
@@ -398,7 +397,7 @@ def discover_servers() -> List[Dict[str, Any]]:
 
 def path_to_uri(path: Path | str) -> str:
     """A local file path as an LSP ``file://`` URI."""
-    return "file://" + pathname2url(str(Path(path).resolve()))
+    return Path(path).resolve().as_uri()
 
 
 def uri_to_path(uri: str) -> str:
