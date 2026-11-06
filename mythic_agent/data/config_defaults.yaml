@@ -18,6 +18,7 @@ stash_shelf: true
 patch_exchange: true
 editor_bridge: true
 diff_theatre: true
+blame_sight: true
 issue_to_slice: true
 pr_craft: true
 conflict_workbench: true
