@@ -596,7 +596,7 @@ slices:
   title: Diff theatre in the TUI
   summary: side-by-side and unified views, word-level highlighting, whitespace toggle — colour never the
     only signal.
-  status: queued
+  status: done
 - id: M-092
   part: 4
   title: Blame and history sight
