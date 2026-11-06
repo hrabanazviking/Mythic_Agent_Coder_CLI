@@ -626,7 +626,7 @@ slices:
   title: Remembered approvals with scope
   summary: '"always allow *this* command in *this* project" — scopes are exact (command + args pattern
     + path), listed, and revocable in one screen; nothing is remembered silently.'
-  status: queued
+  status: done
 - id: M-097
   part: 5
   title: The OS sandbox (Codex's crown, native)
