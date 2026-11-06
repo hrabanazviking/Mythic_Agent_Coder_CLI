@@ -654,6 +654,7 @@ class MainChatScreen(Screen):
                 chat_log.write("  [green]/checkpoint[/green] - Named checkpoints: freeze the whole working tree plus session state under a name, and bring it back with one command (on by default)")
                 chat_log.write("  [green]/branch[/green] - Session branching: fork a session at any message to try the other road — branches share history, diverge honestly, and can be compared (on by default)")
                 chat_log.write("  [green]/autocommit[/green] - Auto-commit discipline: every accepted edit set lands as its own commit with a written message, on a working branch by default — never on a protected branch unasked (off by default)")
+                chat_log.write("  [green]/guardians[/green] - README and licence guardians: a README is never overwritten and licence files are never touched, without the user's explicit word (guard on; the word is off by default)")
                 chat_log.write("  [green]/kista[/green]     - Key custody: where each door's key lives (Kista holds the keys; the config holds references)")
                 chat_log.write("  [green]/resume-thought[/green] - Streaming discipline: resume an interrupted answer from its salvaged partial (where the model is known to support it)")
                 chat_log.write("  [green]/retry[/green] - Retry honesty: bounded retries on temporary failures only, each announced with its reason and wait; mutating calls are never silently replayed")
@@ -819,7 +820,7 @@ class MainChatScreen(Screen):
             else:
                 SecureAPI.publish_chat_request(f"{action_text} {args}", target_agent=active)
             chat_log.write(f"[magenta]{action_text}[/magenta] {args}")
-        elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr", "/stop", "/clear", "/compact", "/cost", "/review", "/ollama", "/local", "/gateway", "/model", "/route", "/fallback", "/costroute", "/editformat", "/hashanchor", "/repairloop", "/hunkreview", "/autocommit", "/checkpoint", "/branch", "/kista", "/resume-thought", "/retry", "/weather", "/vision", "/longcontext", "/offline", "/testkit", "/map", "/ssearch", "/srewrite", "/lsp"]:
+        elif cmd in ["/gh", "/status", "/commit", "/test", "/doctor", "/undo", "/issue", "/pr", "/stop", "/clear", "/compact", "/cost", "/review", "/ollama", "/local", "/gateway", "/model", "/route", "/fallback", "/costroute", "/editformat", "/hashanchor", "/repairloop", "/hunkreview", "/autocommit", "/guardians", "/checkpoint", "/branch", "/kista", "/resume-thought", "/retry", "/weather", "/vision", "/longcontext", "/offline", "/testkit", "/map", "/ssearch", "/srewrite", "/lsp"]:
             # M-023: /ollama rides this same system-command road — the
             # M-024: /local rides it too, for the same reason.
             # UI stays presentation-only (arch-conformance: no
