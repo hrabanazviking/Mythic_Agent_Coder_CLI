@@ -2276,6 +2276,299 @@ class Agent:
             data["journaled"] = True
         return data
 
+
+    # -- M-088: the stash shelf against the real tree --
+
+    def _stash_shelf_dir(self):
+        """The shelf's home for this workspace, on disk."""
+        from ..core.config_manager import config_manager
+        from ..core.workspace import workspace_id
+
+        directory = (config_manager.MYTHIC_DIR / "stash-shelf"
+                     / workspace_id(self.project_root))
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        return directory
+
+    def _stash_tree(self) -> dict[str, Any]:
+        """The real working tree as path -> text (M-088).
+
+        Text work-in-progress only: symlinks, files that
+        do not decode as UTF-8 (binaries), the checkpoint
+        store's skipped directories, and the agent's own
+        state directory when it lives inside the tree
+        are left out of the shelf's judgement.
+        """
+        import os
+        from pathlib import Path
+
+        from ..core import checkpoints
+        from ..core.config_manager import config_manager
+
+        root = Path(self.project_root).resolve()
+        state_rel = None
+        try:
+            state_rel = config_manager.MYTHIC_DIR.resolve().relative_to(root)
+        except (ValueError, OSError):
+            state_rel = None
+        tree: dict[str, Any] = {}
+        for dirpath, dirnames, filenames in os.walk(root):
+            here = Path(dirpath)
+            kept = []
+            for dirname in sorted(dirnames):
+                if dirname in checkpoints.SKIP_DIRS:
+                    continue
+                candidate = here / dirname
+                if candidate.is_symlink():
+                    continue
+                if state_rel is not None:
+                    rel = candidate.relative_to(root)
+                    if rel == state_rel or state_rel in rel.parents:
+                        continue
+                    if rel in state_rel.parents:
+                        kept.append(dirname)
+                        continue
+                kept.append(dirname)
+            dirnames[:] = kept
+            for filename in sorted(filenames):
+                candidate = here / filename
+                if candidate.is_symlink():
+                    continue
+                try:
+                    data = candidate.read_bytes()
+                except OSError:
+                    continue
+                try:
+                    text = data.decode("utf-8")
+                except UnicodeDecodeError:
+                    continue
+                tree[str(candidate.relative_to(root))] = text
+        return tree
+
+    def _stash_base(self, establish: bool = False):
+        """The shelf's base: the last clean tree state.
+
+        Stored as one JSON file beside the journal. When
+        no base has been recorded yet and *establish* is
+        true, the tree as it stands now becomes the base
+        - the first clean state the shelf has seen - and
+        is written to disk before anything is judged.
+        """
+        import json
+
+        from ..core.edits import atomic_write
+
+        base_file = self._stash_shelf_dir() / "base.json"
+        if base_file.exists():
+            return json.loads(base_file.read_text(encoding="utf-8"))
+        if not establish:
+            return None
+        base = self._stash_tree()
+        atomic_write(base_file,
+                     json.dumps(base, sort_keys=True).encode("utf-8"),
+                     0o600)
+        return base
+
+    def _stash_load(self):
+        """The shelf rebuilt from its journal file."""
+        from ..core import stash_shelf
+
+        journal = self._stash_shelf_dir() / "shelf.journal"
+        if not journal.exists():
+            return stash_shelf.Shelf(), 0
+        return stash_shelf.Shelf.from_journal_text(
+            journal.read_text(encoding="utf-8"))
+
+    def _stash_save(self, shelf) -> None:
+        """Write the shelf's journal whole, atomically."""
+        from ..core.edits import atomic_write
+
+        journal = self._stash_shelf_dir() / "shelf.journal"
+        atomic_write(journal,
+                     shelf.to_journal_text().encode("utf-8"), 0o600)
+
+    def _stash_apply_tree(self, before, after) -> None:
+        """Move the real tree from *before* to *after*.
+
+        Only paths that differ are touched: changed or
+        new paths are written, vanished paths removed.
+        """
+        for path in sorted(set(before) | set(after)):
+            if before.get(path) == after.get(path):
+                continue
+            target = self.project_root / path
+            if path in after:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if target.is_symlink():
+                    target.unlink()
+                target.write_text(after[path], encoding="utf-8")
+            elif target.is_symlink() or target.exists():
+                target.unlink()
+
+    def stash_shelf_status(self) -> dict[str, Any]:
+        """The stash shelf gate and contents (M-088).
+
+        The setting exactly as stored (validated - a
+        malformed stored value raises, never vanishes),
+        the plain explanation, every shelved entry as a
+        record, and the journal's corrupt-line count,
+        reported rather than hidden. The first status
+        read establishes the base from the tree as it
+        stands. This is the answer ``/stash`` shows.
+        """
+        from ..core import stash_shelf
+
+        shelf, corrupt = self._stash_load()
+        base = self._stash_base(establish=True)
+        return {
+            "enabled": stash_shelf.enabled_from_config(self.config),
+            "explanation": stash_shelf.PLAIN_EXPLANATION,
+            "count": len(shelf),
+            "names": shelf.names(),
+            "entries": [entry.record() for entry in shelf.entries()],
+            "corrupt_lines": corrupt,
+            "base_files": len(base),
+        }
+
+    def set_stash_shelf(self, enabled: bool) -> dict[str, Any]:
+        """Turn the stash shelf on or off (M-088).
+
+        Validated by :mod:`mythic_agent.core.stash_shelf`
+        before anything mutates; journaled first as a
+        ``stash_shelf_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``stash_shelf_setting_reverted``.
+        """
+        import copy
+
+        from ..core import stash_shelf
+
+        new_value, change = stash_shelf.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[stash_shelf.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "stash_shelf_setting_reverted",
+                        "reason": "The stash shelf change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Stash shelf change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def shelve_stash(self, name: str) -> dict[str, Any]:
+        """Shelve the tree's work-in-progress by name (M-088).
+
+        The difference between the working tree and its
+        base is captured under *name* in the journal on
+        disk first - the entry is durable before the
+        tree moves - and the tree then goes back to its
+        base exactly. Shelving nothing, or a name already
+        on the shelf, refuses and changes nothing. With
+        the gate off this refuses and shelves nothing.
+        The shelve is recorded on the session as a
+        ``stash_shelved`` event when one is attached.
+        """
+        from ..core import stash_shelf
+
+        if not stash_shelf.enabled_from_config(self.config):
+            raise ValueError(
+                "the stash shelf is off - turn it on with "
+                "/stash on; nothing was shelved")
+        base = self._stash_base(establish=True)
+        working = self._stash_tree()
+        entry = stash_shelf.build_entry(
+            name, base, working, session_id=self.session_id)
+        shelf, _corrupt = self._stash_load()
+        shelf.shelve(entry)
+        self._stash_save(shelf)
+        cleaned = stash_shelf.clean_tree(base, entry)
+        self._stash_apply_tree(working, cleaned)
+        record: dict[str, Any] = {
+            "type": "stash_shelved", "name": entry.name,
+            "files": entry.file_count, "bytes": entry.total_bytes,
+            "entry": entry.record(), "journaled": False}
+        if self._session_store and self.session_id:
+            event = {key: value for key, value in record.items()
+                     if key not in ("journaled", "entry")}
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
+    def restore_stash(self, name: str,
+                      discard: bool = False) -> dict[str, Any]:
+        """Restore one shelved entry into the tree (M-088).
+
+        Judged against the tree as it stands now: a path
+        that moved since the shelve is a conflict - the
+        restore refuses, names every conflicted path,
+        and changes nothing - unless *discard* throws
+        those changes away on purpose, counted in the
+        record. A restored entry leaves the shelf. With
+        the gate off this refuses and restores nothing.
+        The restore is recorded on the session as a
+        ``stash_restored`` event when one is attached.
+        """
+        from ..core import stash_shelf
+
+        if not stash_shelf.enabled_from_config(self.config):
+            raise ValueError(
+                "the stash shelf is off - turn it on with "
+                "/stash on; nothing was restored")
+        base = self._stash_base(establish=True)
+        working = self._stash_tree()
+        shelf, _corrupt = self._stash_load()
+        entry = shelf.get(name)
+        conflicts = stash_shelf.restore_conflicts(entry, base, working)
+        restored = shelf.restore(name, base, working, discard=discard)
+        self._stash_save(shelf)
+        self._stash_apply_tree(working, restored)
+        record: dict[str, Any] = {
+            "type": "stash_restored", "name": entry.name,
+            "files": entry.file_count, "conflicts": conflicts,
+            "discarded": len(conflicts) if discard else 0,
+            "entry": entry.record(), "journaled": False}
+        if self._session_store and self.session_id:
+            event = {key: value for key, value in record.items()
+                     if key not in ("journaled", "entry")}
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
+    def drop_stash(self, name: str) -> dict[str, Any]:
+        """Drop one shelved entry; the tree is untouched (M-088).
+
+        The entry leaves the journal on disk and the
+        drop is recorded on the session as a
+        ``stash_dropped`` event when one is attached.
+        A name that is not on the shelf refuses.
+        """
+        shelf, _corrupt = self._stash_load()
+        entry = shelf.drop(name)
+        self._stash_save(shelf)
+        record: dict[str, Any] = {
+            "type": "stash_dropped", "name": entry.name,
+            "files": entry.file_count,
+            "entry": entry.record(), "journaled": False}
+        if self._session_store and self.session_id:
+            event = {key: value for key, value in record.items()
+                     if key not in ("journaled", "entry")}
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
     def conflict_workbench_status(self) -> dict[str, Any]:
         """The conflict-workbench gate, in plain data (M-081)."""
         from ..core import conflict_workbench
