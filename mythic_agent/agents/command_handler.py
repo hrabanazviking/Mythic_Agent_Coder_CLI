@@ -209,6 +209,8 @@ class CommandHandler:
                 self._handle_repairloop(args)
             elif cmd == "/hunkreview":
                 self._handle_hunkreview(args)
+            elif cmd == "/commitcraft":
+                self._handle_commitcraft(args)
             elif cmd == "/kista":
                 self._handle_kista(args)
             elif cmd == "/resume-thought":
@@ -1117,6 +1119,71 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[green]{format_setting_change(record)}[/green]\n")
+
+    def _handle_commitcraft(self, args: str):
+        """M-080: /commitcraft — commit craft.
+
+        ``/commitcraft`` shows the gate (on by default),
+        the plain-words explanation, and a worked
+        split-and-draft example; ``on`` / ``off`` changes
+        the gate (journaled by the agent layer);
+        ``plan`` drafts the working tree's split by
+        concern; ``commit <concern>`` commits one group
+        under its drafted message; ``push`` pushes the
+        current branch under the house rules (fetch +
+        remote-diff first, never force-push, ls-remote
+        verification after).
+        """
+        from ..core.commit_craft import (
+            enabled_from_config,
+            format_commit_craft,
+            format_commit_record,
+            format_plan,
+            format_push_record,
+            format_setting_change,
+            parse_commitcraft_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_commitcraft_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.commit_craft_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_commit_craft(primary.config)}[/bold cyan]\n"
+                     "[dim]Turn the gate off with /commitcraft off, "
+                     "or back on with /commitcraft on.[/dim]\n")
+            return
+        try:
+            if request["action"] == "setting":
+                record = primary.set_commit_craft(request["enabled"])
+                text = format_setting_change(record)
+            elif request["action"] == "plan":
+                text = format_plan(primary.plan_commit_split())
+            elif request["action"] == "commit":
+                text = format_commit_record(
+                    primary.commit_craft_group(request["concern"]))
+            else:
+                text = format_push_record(
+                    primary.push_with_house_rules())
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{text}[/green]\n")
 
     def _handle_costroute(self, args: str):
         """M-031: /costroute — cost-aware routing, in plain words.
