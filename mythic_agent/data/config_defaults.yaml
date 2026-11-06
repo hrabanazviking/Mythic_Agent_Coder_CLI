@@ -64,6 +64,8 @@ machine_permission_mode: read-only
 permission_profile: trusted-forge
 remembered_approvals: []
 os_sandbox: true
+network_gates: true
+network_allowlist: []
 streaming: false
 runtime: {}
 github:
