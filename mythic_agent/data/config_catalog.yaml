@@ -638,6 +638,14 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Permission profiles (M-095): the stored posture - A permission profile is the session''s posture: one named answer to what it may do - which tools, whether it may write, whether it may reach the network, and whether it may run commands. The posture rides the status line so it is never a surprise. The value is a shipped posture''s name (read-only-scout, trusted-forge, full-autonomy) or a whole custom posture mapping validated to the same four bindings. It is set through /posture <name> or /posture custom, journaled with save-failure revert, and applying it rebuilds the live ToolPolicy in the posture''s mapped mode.'
 
+- id: S-87
+  name: remembered_approvals
+  scope: top-level
+  type: list
+  default: '[]'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Remembered approvals with scope (M-096): the stored list of standing approvals - each entry is one exact scope (command + args pattern + path) the user explicitly said to always allow in this project. Nothing is remembered silently: an entry is created only through the explicit approval road (Agent.remember_command_approval with explicit=True), the stored list is validated whole (malformed data raises, never quietly trusted), an exact match on the live ask road allows without asking again, and the whole list is listed and revocable in one screen through /remember (list / forget <id> / clear).'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
