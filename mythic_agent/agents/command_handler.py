@@ -235,6 +235,8 @@ class CommandHandler:
                 self._handle_posture(args)
             elif cmd == "/remember":
                 self._handle_remember(args)
+            elif cmd == "/sandbox":
+                self._handle_sandbox(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -1989,6 +1991,71 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[green]{message}[/green]\n")
+
+    def _handle_sandbox(self, args: str):
+        """M-097: /sandbox - the OS sandbox (native).
+
+        ``/sandbox`` shows the whole slice (the gate, the
+        per-platform truth table, and a sample Linux plan);
+        ``on`` / ``off`` steer the gate (journaled by the
+        agent layer); ``truth`` shows the platform truth
+        table alone; ``plan <command>`` builds one
+        command's confinement plan for the current
+        platform and ``plan <platform> -- <command>``
+        names the platform. Nothing here runs a command -
+        running under a plan is the agent layer's
+        ``run_os_sandboxed`` road.
+        """
+        from ..core.os_sandbox import (
+            enabled_from_config,
+            format_confinement_plan,
+            format_gate_change,
+            format_platform_truth,
+            parse_sandbox_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_sandbox_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] in ("show", "truth", "plan"):
+            try:
+                if request["action"] == "show":
+                    status = primary.os_sandbox_status()
+                    assert status["enabled"] == enabled_from_config(
+                        primary.config)
+                    text = status["screen"]
+                elif request["action"] == "truth":
+                    text = format_platform_truth()
+                else:
+                    plan = primary.os_sandbox_plan(
+                        request["command"],
+                        platform=request["platform"])
+                    text = format_confinement_plan(plan)
+            except ValueError as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{text}[/bold cyan]\n")
+            return
+        try:
+            record = primary.set_os_sandbox(request["action"] == "on")
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_gate_change(record)}[/green]\n")
 
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.
