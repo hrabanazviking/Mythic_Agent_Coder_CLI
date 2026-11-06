@@ -221,6 +221,8 @@ class CommandHandler:
                 self._handle_stash(args)
             elif cmd == "/patch":
                 self._handle_patch(args)
+            elif cmd == "/editor":
+                self._handle_editor(args)
             elif cmd == "/issueslice":
                 self._handle_issueslice(args)
             elif cmd == "/conflicts":
@@ -1602,6 +1604,84 @@ class CommandHandler:
                     "agent_chat_chunk", agent_name="Primary",
                     text=f"\n[red]{text}[/red]\n")
                 return
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{text}[/green]\n")
+
+    def _handle_editor(self, args: str):
+        """M-090: /editor - editor bridges lite.
+
+        ``/editor`` shows the gate (on by default), the
+        plain-words explanation, and the editor resolved
+        from the environment; ``/editor on`` / ``off``
+        changes the gate (journaled by the agent layer);
+        ``/editor file <path>`` round-trips a real file
+        through the user's editor; ``/editor prompt``
+        refuses plainly on this surface - it holds no
+        draft, so a prompt round-trip runs through the
+        agent road with the draft text itself.
+        """
+        from ..core.editor_bridge import (
+            enabled_from_config,
+            format_editor_bridge,
+            format_setting_change,
+            parse_editor_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_editor_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.editor_bridge_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            if status["editor"] is not None:
+                editor_line = (
+                    f"Editor: {status['editor']['name']} "
+                    f"(from {status['editor']['source']}: "
+                    f"{status['editor']['raw']})")
+            else:
+                editor_line = f"Editor: none - {status['editor_error']}"
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_editor_bridge(primary.config)}[/bold cyan]\n"
+                     f"{editor_line}\n"
+                     "[dim]Round-trip a file with /editor file "
+                     "<path>.[/dim]\n")
+            return
+        if request["action"] == "prompt":
+            text = ("This surface holds no draft - a prompt "
+                    "round-trip runs through the agent road "
+                    "(edit_prompt_in_editor) with the draft text "
+                    "itself. Nothing was sent.")
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{text}[/red]\n")
+            return
+        try:
+            if request["action"] in ("on", "off"):
+                record = primary.set_editor_bridge(
+                    request["action"] == "on")
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_setting_change(record)}[/green]\n")
+                return
+            record = primary.edit_file_in_editor(request["path"])
+            text = (f"Editor round-trip (file) {record['label']}: "
+                    f"{record['status']}\n  {record['reason']}")
+            if record["status"] == "changed":
+                text += "\n  The changed text was written to the file."
         except (ValueError, KeyError, RuntimeError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
