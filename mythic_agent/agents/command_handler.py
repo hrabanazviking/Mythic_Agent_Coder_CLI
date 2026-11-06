@@ -227,6 +227,8 @@ class CommandHandler:
                 self._handle_issueslice(args)
             elif cmd == "/diff":
                 self._handle_diff(args)
+            elif cmd == "/blame":
+                self._handle_blame(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -1747,6 +1749,62 @@ class CommandHandler:
                 record = primary.show_diff_theatre(
                     demo_before, demo_after,
                     ignore_whitespace=request["ignore_whitespace"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{record['rendered']}[/green]\n")
+
+    def _handle_blame(self, args: str):
+        """M-092: /blame - blame and history sight.
+
+        ``/blame`` shows the gate (on by default), the
+        plain-words explanation, a demo file blamed, and
+        its second line explained by blame and journal
+        together; ``/blame on`` / ``off`` changes the gate
+        (journaled by the agent layer); ``/blame <path>``
+        blames the whole file through the agent road and
+        ``/blame <path> <line>`` (or ``<path>:<line>``)
+        asks why that one line is the way it is.
+        """
+        from ..core.blame_sight import (
+            enabled_from_config,
+            format_blame_sight,
+            format_setting_change,
+            parse_blame_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_blame_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.blame_sight_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_blame_sight(primary.config)}[/bold cyan]\n")
+            return
+        try:
+            if request["action"] in ("on", "off"):
+                record = primary.set_blame_sight(
+                    request["action"] == "on")
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_setting_change(record)}[/green]\n")
+                return
+            record = primary.show_blame_sight(
+                request["path"], request["line"])
         except (ValueError, KeyError, RuntimeError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
