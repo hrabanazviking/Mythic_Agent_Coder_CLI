@@ -1218,6 +1218,18 @@ class Agent:
         current = (target.read_text(encoding="utf-8")
                    if target.exists() else None)
         new_text, units = apply_edit(format_id, current, payload)
+        # M-086: a hand-edit to a generated file warns
+        # before saving - the assessment is computed from
+        # the file's true current text, before any write,
+        # and the warning rides the returned record (and
+        # the session, when one is attached). The edit
+        # itself still applies: the warning is honesty,
+        # not a refusal.
+        gen_assessment = None
+        if current is not None:
+            from ..core import generated_code as _gc
+            gen_assessment = _gc.assess_edit(
+                _gc.classify_text(path, current), config=self.config)
         # M-079: the guardians judge the apply by the
         # operation it truly is — a whole-file format is an
         # overwrite, a diff or a search block is in-place,
@@ -1231,7 +1243,13 @@ class Agent:
                     ).write(path, new_text, operation=operation)
         record: dict[str, Any] = {
             "path": path, "format": format_id, "units": units,
-            "changed": current != new_text, "journaled": False}
+            "changed": current != new_text, "journaled": False,
+            "generated_warning": (gen_assessment.warning
+                                  if gen_assessment is not None
+                                  and gen_assessment.warns else None)}
+        if (gen_assessment is not None and gen_assessment.warns
+                and self._session_store and self.session_id):
+            self._checkpoint(gen_assessment.record())
         if self._session_store and self.session_id:
             self._checkpoint({"type": "edit_format_applied",
                               "path": path, "format": format_id,
@@ -1972,6 +1990,132 @@ class Agent:
             self._checkpoint(event)
             record["journaled"] = True
         return record
+
+    def generated_code_status(self) -> dict[str, Any]:
+        """The generated-code gate, in plain data (M-086).
+
+        The setting exactly as stored (validated - a
+        malformed stored value raises, never vanishes) and
+        the plain explanation. This is the answer
+        ``/generated`` shows.
+        """
+        from ..core import generated_code
+
+        return {
+            "enabled": generated_code.enabled_from_config(self.config),
+            "explanation": generated_code.PLAIN_EXPLANATION,
+        }
+
+    def set_generated_code(self, enabled: bool) -> dict[str, Any]:
+        """Turn generated-code honesty on or off (M-086).
+
+        Validated by :mod:`mythic_agent.core.generated_code`
+        before anything mutates; journaled first as a
+        ``generated_code_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``generated_code_setting_reverted``.
+        """
+        import copy
+
+        from ..core import generated_code
+
+        new_value, change = generated_code.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[generated_code.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "generated_code_setting_reverted",
+                        "reason": "The generated-code change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Generated-code change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def check_generated_code(self, path: str) -> dict[str, Any]:
+        """Classify one real file from its own face (M-086).
+
+        A pure read: the file's true current text is
+        classified by its head marker, the generator the
+        marker names is recorded exactly (or honestly as
+        unknown), and a hand-edit to it is assessed under
+        this config - the warning computed before any
+        save. A missing file refuses; nothing is written.
+        """
+        from ..core import generated_code
+        from ..core.workspace import resolve_file
+
+        target = resolve_file(self.project_root, path)
+        if not target.exists():
+            raise ValueError(f"{path} does not exist; nothing was checked")
+        record = generated_code.classify_text(
+            path, target.read_text(encoding="utf-8"))
+        assessment = generated_code.assess_edit(record, config=self.config)
+        data = record.record()
+        data["assessment"] = assessment.record()
+        data["journaled"] = False
+        return data
+
+    def mark_generated_file(
+            self, path: str, generator: str) -> dict[str, Any]:
+        """Mark one real file as generated by *generator* (M-086).
+
+        The registration is judged against the file's own
+        face first: a marker already present governs, and
+        a conflicting generator name refuses and writes
+        nothing. An unmarked file gains the one header
+        line in its own comment style, written through
+        the EditJournal road; an already-marked file is
+        left byte-identical. The mark is recorded on the
+        session as a ``generated_file`` event when one is
+        attached. The gate being off refuses and marks
+        nothing.
+        """
+        from ..core import generated_code
+        from ..core.edits import EditJournal
+        from ..core.workspace import resolve_file
+
+        if not generated_code.enabled_from_config(self.config):
+            raise ValueError(
+                "generated-code honesty is off - turn it on with "
+                "/generated on; nothing was changed")
+        target = resolve_file(self.project_root, path, write=True)
+        if not target.exists():
+            raise ValueError(f"{path} does not exist; nothing was marked")
+        text = target.read_text(encoding="utf-8")
+        record = generated_code.register_generated(
+            path, generator, text=text)
+        marked = record.marker is None
+        if marked:
+            header = generated_code.marker_header(path, record.generator)
+            EditJournal(self.project_root).write(path, header + "\n" + text)
+        data = record.record()
+        if marked:
+            data["marker"] = {"line": 1, "form": "generated_by",
+                               "generator": record.generator,
+                               "text": generated_code.marker_header(
+                                   path, record.generator)}
+        data["marked"] = marked
+        data["journaled"] = False
+        if self._session_store and self.session_id:
+            event = record.record()
+            event["marked"] = marked
+            self._checkpoint(event)
+            data["journaled"] = True
+        return data
 
     def conflict_workbench_status(self) -> dict[str, Any]:
         """The conflict-workbench gate, in plain data (M-081)."""
