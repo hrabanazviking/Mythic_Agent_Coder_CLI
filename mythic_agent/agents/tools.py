@@ -212,6 +212,22 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
 
     if name == "run_command":
         command = arguments.get("command", "")
+        # M-077: a snapshot is taken before the command
+        # runs, so its footprint — the files it creates,
+        # changes, or deletes — can be recorded on the
+        # shared undo timeline. Recording never alters
+        # the command or its result.
+        _footprint_before = None
+        if agent is not None:
+            try:
+                from ..core.undo_timeline import (
+                    enabled_from_config as _undo_enabled,
+                    take_snapshot as _take_snapshot,
+                )
+                if _undo_enabled(getattr(agent, "config", {}) or {}):
+                    _footprint_before = _take_snapshot(root_path)
+            except Exception:
+                _footprint_before = None
         try:
             settings = runtime_settings(getattr(agent, "config", {}))
             from ..core.secure_api import publish_sync
@@ -221,6 +237,23 @@ def execute_tool(name: str, arguments: dict[str, Any], project_root: Path | None
                                  timeout=settings["command_timeout"], grace=settings["process_kill_grace"],
                                  progress=progress)
             rendered = result.render()
+            if _footprint_before is not None:
+                try:
+                    from ..core.undo_timeline import (
+                        UndoStore,
+                        build_footprint,
+                        take_snapshot,
+                    )
+                    _footprint = build_footprint(
+                        command, _footprint_before,
+                        take_snapshot(root_path))
+                    UndoStore(root_path).record_footprint(
+                        _footprint, _footprint_before)
+                    if getattr(agent, "_session_store", None) \
+                            and getattr(agent, "session_id", None):
+                        agent._checkpoint(_footprint.event())
+                except Exception:
+                    pass  # recording never alters the result
             # M-056: test intelligence — a pytest run's named
             # outcomes are recorded to the project history,
             # the only ground flaky marks may come from.

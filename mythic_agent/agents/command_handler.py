@@ -425,15 +425,104 @@ class CommandHandler:
 
     @requires_permission("undo_edit")
     def _handle_undo(self, args: str):
+        """M-077: /undo — one timeline of edits, commands, checkpoints.
+
+        Bare ``/undo`` undoes the newest timeline entry
+        (with no primary agent attached, or the timeline
+        gate off, it keeps its original last-edit road
+        exactly); ``/undo list`` shows the timeline;
+        ``/undo edit`` / ``/undo command`` undo the newest
+        entry of a strand, walked from the top;
+        ``/undo checkpoint <id>`` restores through the
+        M-075 seam; ``/undo <count>`` walks back that many
+        entries; ``/undo on`` / ``off`` is the gate.
+        """
         from ..core.edits import EditJournal
+        from ..core.undo_timeline import (
+            TimelineEntry,
+            enabled_from_config,
+            format_setting_change,
+            format_undo_outcome,
+            format_undo_timeline,
+            parse_undo_args,
+        )
         from .llm import AGENT_REGISTRY
+
         primary = AGENT_REGISTRY.get("Primary")
         root = primary.project_root if primary else self.project_root
         try:
-            result = EditJournal(root).undo()
-        except Exception as exc:
-            result = f"Undo failed; no Git reset was performed: {exc}"
-        publish_sync("agent_chat_chunk", agent_name="Primary", text=f"\n{result}\n")
+            request = parse_undo_args(args)
+        except ValueError as exc:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n{exc}\n")
+            return
+
+        def legacy() -> str:
+            try:
+                return EditJournal(root).undo()
+            except Exception as exc:
+                return f"Undo failed; no Git reset was performed: {exc}"
+
+        if primary is None:
+            if request["action"] == "next" and request["count"] == 1:
+                result = legacy()
+            elif request["action"] == "kind" \
+                    and request.get("kind") == "edit":
+                result = legacy()
+            else:
+                result = ("The undo timeline needs the primary "
+                          "agent; only the original last-edit "
+                          "/undo is available right now.")
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n{result}\n")
+            return
+        if request["action"] == "show":
+            status = primary.undo_timeline_status()
+            entries = [TimelineEntry(**entry)
+                       for entry in status["entries"]]
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n{format_undo_timeline(primary.config, entries, checkpoint_wired=status['checkpoint_wired'])}\n")
+            return
+        if request["action"] == "setting":
+            try:
+                record = primary.set_undo_timeline(request["enabled"])
+                result = format_setting_change(record)
+            except (ValueError, KeyError, RuntimeError) as exc:
+                result = str(exc)
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n{result}\n")
+            return
+        if not enabled_from_config(primary.config):
+            if request["action"] == "next" and request["count"] == 1:
+                result = legacy()
+            else:
+                result = ("Undo timeline is off — /undo keeps its "
+                          "original last-edit behaviour; turn it "
+                          "on with /undo on.")
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n{result}\n")
+            return
+        try:
+            if request["action"] == "kind":
+                result = format_undo_outcome(
+                    primary.undo_kind(request["kind"]))
+            elif request["action"] == "checkpoint":
+                result = format_undo_outcome(
+                    primary.restore_checkpoint_via_seam(
+                        request["checkpoint_id"]))
+            else:
+                messages = []
+                for _ in range(request["count"]):
+                    record = primary.undo_newest()
+                    messages.append(format_undo_outcome(record))
+                    if not record.get("changed"):
+                        break
+                result = "\n".join(messages)
+        except ValueError as exc:
+            result = str(exc)
+        publish_sync("agent_chat_chunk", agent_name="Primary",
+                     text=f"\n{result}\n")
 
     @requires_permission("github_execute")
     def _handle_issue(self, args: str):
