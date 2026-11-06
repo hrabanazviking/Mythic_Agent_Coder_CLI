@@ -141,11 +141,12 @@ from .hunk_review import Hunk, split_diff
 #: The slice that owns this module.
 COMMIT_CRAFT_SLICE = "M-080"
 
-#: The slice that will supply the auto-commit trigger
+#: The slice that supplies the auto-commit trigger
 #: this layer reads through a seam (see
 #: :func:`auto_commit_trigger`). Flagged DEPENDS-ON-M-078
-#: in the team log: M-078 is built by a parallel team
-#: from the same base and is not in this tree.
+#: in the team log: M-078 was built by a parallel team
+#: from the same base; it banked before this slice,
+#: so the seam is closed at this banking.
 AUTO_COMMIT_SLICE = "M-078"
 
 #: The config key the commit-craft gate lives under.
@@ -646,23 +647,40 @@ def verify_remote_moved(before: Optional[str],
 def auto_commit_trigger() -> Dict[str, Any]:
     """The M-078 seam, read honestly.
 
-    M-078 (auto-commit discipline) will supply the
-    trigger that calls this planner when work lands.
-    It is built by a parallel team from the same base
-    and is not in this tree, so the seam reports it as
-    unavailable — commit craft never invents a trigger
-    of its own, and never commits unasked.
-    DEPENDS-ON-M-078.
+    M-078 (auto-commit discipline) supplies the
+    trigger: with its gate on, accepted edit sets land
+    as commits through it. It banked before this slice,
+    so the seam reports it available when its module
+    is in this tree — read live, never assumed — and
+    commit craft still never invents a trigger of its
+    own, and never commits unasked. (Before M-078
+    banked, this reported unavailable: DEPENDS-ON-M-078,
+    closed at the M-080 banking.)
     """
-    return {"slice": AUTO_COMMIT_SLICE, "available": False,
-            "note": "commit craft never commits on its "
-                    "own; the trigger that will call "
-                    "the planner when work lands is "
-                    "M-078's (auto-commit discipline) "
-                    "and has not banked into this tree "
-                    "yet — until it does, plans are "
-                    "drafted and groups committed only "
-                    "when asked"}
+    import importlib.util
+
+    available = importlib.util.find_spec(
+        "mythic_agent.core.auto_commit") is not None
+    if available:
+        note = ("commit craft never commits on its "
+                "own; the trigger is M-078's "
+                "(auto-commit discipline), banked in "
+                "this tree — with /autocommit on, "
+                "accepted edit sets land as commits "
+                "through it, while this planner's "
+                "split is drafted and committed group "
+                "by group only when asked")
+    else:
+        note = ("commit craft never commits on its "
+                "own; the trigger that will call "
+                "the planner when work lands is "
+                "M-078's (auto-commit discipline) "
+                "and has not banked into this tree "
+                "yet — until it does, plans are "
+                "drafted and groups committed only "
+                "when asked")
+    return {"slice": AUTO_COMMIT_SLICE,
+            "available": available, "note": note}
 
 
 # ---------------------------------------------------------------------

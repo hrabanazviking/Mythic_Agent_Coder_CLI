@@ -322,7 +322,7 @@ class TestPushDiscipline:
     def test_the_m078_seam_is_honest(self):
         trigger = auto_commit_trigger()
         assert trigger["slice"] == "M-078"
-        assert trigger["available"] is False
+        assert trigger["available"] is True
         assert "never commits on its own" in trigger["note"]
 
 
@@ -411,7 +411,7 @@ class TestAgentGate:
         status = agent.commit_craft_status()
         assert status["enabled"] is True
         assert status["explanation"] == PLAIN_EXPLANATION
-        assert status["auto_commit_trigger"]["available"] is False
+        assert status["auto_commit_trigger"]["available"] is True
 
     def test_set_without_session(self, agent):
         record = agent.set_commit_craft(False)
