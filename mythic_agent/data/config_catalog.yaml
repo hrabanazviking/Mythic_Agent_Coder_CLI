@@ -654,6 +654,22 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'The OS sandbox, native (M-097): the stored gate - Commands run under the operating system''s own confinement - Linux namespaces and seccomp, macOS sandbox-exec, Windows job objects, each as far as it honestly goes - never Docker. This layer plans the confinement and tells the per-platform truth about it; it runs nothing itself. The gate ships on; with it on, Agent.run_os_sandboxed executes commands through the pure layer confinement plan joined to the elder Sandbox runner (Linux via the unshare namespace prefix; the seccomp baseline is rendered as filter data and honestly not claimed installed; a plan that confines nothing reports confined=False). With it off, commands take the elder Sandbox guardrail road unchanged. It is set through /sandbox on|off, journaled with save-failure revert.'
 
+- id: S-89
+  name: network_gates
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Network gates (M-098): the stored gate - Outbound network is gated per tool and per domain: a tool may reach only the domains its allowlist entries name, everything else is refused by default, and every refusal is surfaced as news - a session event naming the tool, the host and the reason - never just a log line. This layer holds the allowlist and decides; it opens no socket itself. The gate ships on; with it on, Agent.check_network_reach decides every reach against the stored allowlist and publishes each refusal as a network_refusal session event - news, not a log line. With it off, reaches are not gated and the /network show surface says so plainly. It is set through /network on|off, journaled with save-failure revert.'
+
+- id: S-90
+  name: network_allowlist
+  scope: top-level
+  type: list
+  default: '[]'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Network gates (M-098): the stored allowlist - each entry names one tool and one domain: a plain domain matches that host exactly, a *.domain matches subdomains at any depth but never the base host, and the tool * names every tool. An empty allowlist refuses every outbound reach - the posture is deny, fail-closed. Entries are added through /network allow <tool> <domain>, listed through /network list, validated whole (a malformed stored entry raises, never silently narrowed), and journaled with save-failure revert.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
