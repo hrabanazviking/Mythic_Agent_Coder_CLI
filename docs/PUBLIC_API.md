@@ -5,7 +5,7 @@ module on 2026-11-06T11:36:41Z.
 Regenerate: re-run the scan in `tests/test_public_api.py`
 (`test_public_api_inventory_matches_scan`) or repeat the AST walk.
 
-TOTAL: 2782 public names across the package (modules listed below; `__init__.py`
+TOTAL: 2807 public names across the package (modules listed below; `__init__.py`
 package namespaces are intentionally excluded — see the test).
 
 ## Modules
@@ -891,6 +891,32 @@ mythic_agent.core.file_guardians: 27 public names
     judge
     parse_guardians_args
     set_explicit_word
+mythic_agent.core.generated_code: 25 public names
+    PLAIN_EXPLANATION
+    GENERATED_CODE_SLICE
+    SETTING_KEY
+    USAGE
+    Any
+    BoolChange
+    Dict
+    EditAssessment
+    GeneratedRecord
+    List
+    Marker
+    Optional
+    Tuple
+    assess_edit
+    classify_text
+    detect_marker
+    enabled_from_config
+    format_edit_warning
+    format_generated_code
+    format_generated_record
+    format_setting_change
+    marker_header
+    parse_generated_args
+    register_generated
+    set_enabled
 mythic_agent.core.gap_audit: 16 public names
     AUDIT_RESOURCE
     AUDIT_SCHEMA

@@ -567,6 +567,14 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Rename/move files as first-class edits (M-085): when true, the /rename road is open - a rename or move is an edit with a name: the plan is computed whole in memory first (repo-relative paths validated; a missing source, an existing destination, and a move onto itself all refuse), the file itself moves only by git mv so its history is preserved, and the reference updates are computed from Part III''s symbol graph - the files whose graph edges name the source - as exact whole-token replacements of the old path and, for Python, the old dotted module name, written through the edit journal and recorded on the session as file_moved. Graph-named files whose text holds no exact token are named as warnings, never silently passed over; a source git does not track refuses in git''s own words and nothing else is written. The gate toggles through /rename on and /rename off, journaled with save-failure revert; preview_rename_move is recorded in the dead-code quarantine as an Agent API surface (M-074 pattern); when false, moves through the agent refuse and say so, while the pure planning maths stays readable.'
 
+- id: S-78
+  name: generated_code
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Generated-code honesty (M-086): when true, the /generated road is open - a generated file says so on its face: an explicit marker in its first lines (a generated-by line, a this-file-is-generated line, an @generated tag, or a DO NOT EDIT line) is read, never guessed from the file name or shape, and the generator the marker names is recorded exactly; a marker naming none records the generator honestly as unknown. A hand-edit to a generated file warns before saving through the agent save road (apply_edit_format): the assessment is computed from the files true current text before any write, names the generator when known, and states that the next regeneration will overwrite the edit; the warning rides the edit record and the session, and the edit itself still applies - the warning is honesty, not a refusal. Marking writes one header line in the files own comment style through the edit journal; a file already marked is never marked twice, and a conflicting generator name refuses. The gate toggles through /generated on and /generated off, journaled with save-failure revert; when false, edit warnings are suppressed (never the classification) and marks through the agent refuse and say so, while the pure classification maths stays readable.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
