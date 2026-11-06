@@ -556,7 +556,7 @@ slices:
   part: 4
   title: Multi-file change sets
   summary: a change set is a named, reviewable unit across files with its test evidence attached.
-  status: queued
+  status: done
 - id: M-085
   part: 4
   title: Rename/move files as first-class edits
