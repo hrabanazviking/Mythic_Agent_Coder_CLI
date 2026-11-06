@@ -7528,6 +7528,151 @@ class Agent:
             self._checkpoint(os_sandbox.confinement_plan_record(plan))
         return record
 
+    # -- M-098: network gates --
+
+    def network_gates_status(self) -> dict[str, Any]:
+        """The network gates, in plain data (M-098).
+
+        The gate exactly as stored (validated - a
+        malformed stored value or allowlist entry raises,
+        never vanishes), the allowlist entries as plain
+        records, the one screen rendered from that same
+        gate, and the plain explanation.
+        """
+        from ..core import network_gates
+
+        gates = network_gates.gates_from_config(self.config)
+        return {
+            "enabled": network_gates.enabled_from_config(self.config),
+            "entries": [e.to_record() for e in gates.entries],
+            "screen": network_gates.format_network_gates(self.config),
+            "explanation": network_gates.PLAIN_EXPLANATION,
+        }
+
+    def set_network_gates(self, enabled: bool) -> dict[str, Any]:
+        """Turn the network gates on or off (M-098).
+
+        Validated by :mod:`mythic_agent.core.network_gates`
+        before anything mutates (a no-op change refuses);
+        journaled first as the pure layer's
+        ``network_gates_setting_changed`` event when a
+        session is attached; the stored value is the plain
+        bool under the setting key; a failed save restores
+        the previous config exactly and journals a
+        compensating ``network_gates_setting_reverted``.
+        """
+        import copy
+
+        from ..core import network_gates
+
+        new_value, change = network_gates.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[network_gates.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "network_gates_setting_reverted",
+                        "reason": "The network gates change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Network gates change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def add_network_allowlist_entry(self, entry_spec: Any) -> dict[str, Any]:
+        """Allow one tool to reach one domain (M-098).
+
+        The entry is validated by the pure layer before
+        anything mutates (a malformed entry refuses, and
+        an entry already on the list refuses as a
+        duplicate); journaled first as a
+        ``network_allowlist_changed`` record when a session
+        is attached; the stored list is the entries' plain
+        records under the allowlist key; a failed save
+        restores the previous config exactly and journals
+        a compensating ``network_allowlist_reverted``.
+        """
+        import copy
+
+        from ..core import network_gates
+
+        entry = network_gates.validate_entry(entry_spec)
+        gates = network_gates.gates_from_config(self.config)
+        if entry in gates.entries:
+            raise ValueError(
+                f"the network allowlist already grants tool "
+                f"{entry.tool!r} a reach to {entry.domain!r}")
+        record = entry.to_record()
+        change: dict[str, Any] = {
+            "type": "network_allowlist_changed",
+            "action": "allow",
+            "entry": record,
+        }
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change)
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[network_gates.ALLOWLIST_KEY] = [
+            e.to_record() for e in gates.entries] + [record]
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "network_allowlist_reverted",
+                        "action": "allow",
+                        "entry": record,
+                        "reason": "The network allowlist change "
+                                  "could not be saved; the "
+                                  "previous allowlist was "
+                                  "preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Network allowlist change could not be saved; "
+                "previous allowlist was preserved")
+        return {**change, "session_id": self.session_id,
+                "journaled": journaled}
+
+    def check_network_reach(self, tool: Any, target: Any,
+                            command: Any = None):
+        """Decide one outbound reach (M-098).
+
+        The pure layer's decision itself, computed always:
+        a malformed tool raises, and a target whose host
+        cannot be read is a denied decision, never an
+        exception. With the gate on, a denied reach is
+        news: its refusal record is published as a session
+        event when a session is attached. With the gate
+        off, the decision is returned unpublished - the
+        gate is off, and the status screen says so plainly.
+        """
+        from ..core import network_gates
+
+        gates = network_gates.gates_from_config(self.config)
+        enabled = network_gates.enabled_from_config(self.config)
+        decision = network_gates.check_network(
+            tool, target, gates.entries)
+        if enabled and not decision.allowed:
+            record = network_gates.refusal_record(
+                decision, command=command)
+            if self._session_store and self.session_id:
+                self._checkpoint(record)
+        return decision
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
