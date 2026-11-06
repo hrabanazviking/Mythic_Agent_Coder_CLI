@@ -1,0 +1,47 @@
+.FFF..........                                                           [100%]
+=================================== FAILURES ===================================
+____________________ test_every_defaults_key_is_catalogued _____________________
+
+catalog = ConfigCatalog(catalogued='2026-10-30', scope_note="Every setting in config_defaults.yaml and runtime_defaults.yaml, ev...honour.", names=('AGENTS.md', 'CLAUDE.md', '.mythic.md', '.mythic', '.muserules', '.cursorrules', '.aider.rules.md'))))
+
+    def test_every_defaults_key_is_catalogued(catalog):
+        names = set(catalog.setting_names())
+        defaults = yaml.safe_load((resource_root() / "config_defaults.yaml").read_text())
+        for key in defaults:
+>           assert key in names, f"config_defaults key {key!r} uncatalogued"
+E           AssertionError: config_defaults key 'auto_commit' uncatalogued
+E           assert 'auto_commit' in {'api_keys', 'apply_repair_loop', 'approval_timeout', 'asset_sight', 'auto_accept_permissions', 'base_url', ...}
+
+tests/test_config_catalog.py:69: AssertionError
+_____________________ test_every_schema_key_is_catalogued ______________________
+
+catalog = ConfigCatalog(catalogued='2026-10-30', scope_note="Every setting in config_defaults.yaml and runtime_defaults.yaml, ev...honour.", names=('AGENTS.md', 'CLAUDE.md', '.mythic.md', '.mythic', '.muserules', '.cursorrules', '.aider.rules.md'))))
+
+    def test_every_schema_key_is_catalogued(catalog):
+        names = set(catalog.setting_names())
+        for key in CONFIG_SCHEMA:
+>           assert key in names, f"CONFIG_SCHEMA key {key!r} uncatalogued"
+E           AssertionError: CONFIG_SCHEMA key 'auto_commit' uncatalogued
+E           assert 'auto_commit' in {'api_keys', 'apply_repair_loop', 'approval_timeout', 'asset_sight', 'auto_accept_permissions', 'base_url', ...}
+
+tests/test_config_catalog.py:80: AssertionError
+___________ test_setting_types_and_defaults_match_the_defaults_files ___________
+
+catalog = ConfigCatalog(catalogued='2026-10-30', scope_note="Every setting in config_defaults.yaml and runtime_defaults.yaml, ev...honour.", names=('AGENTS.md', 'CLAUDE.md', '.mythic.md', '.mythic', '.muserules', '.cursorrules', '.aider.rules.md'))))
+
+    def test_setting_types_and_defaults_match_the_defaults_files(catalog):
+        by_name = {s.name: s for s in catalog.settings}
+        defaults = yaml.safe_load((resource_root() / "config_defaults.yaml").read_text())
+        for key, value in defaults.items():
+            if key in ("runtime", "github"):
+                continue
+>           assert by_name[key].type == type(value).__name__, key
+                   ^^^^^^^^^^^^
+E           KeyError: 'auto_commit'
+
+tests/test_config_catalog.py:89: KeyError
+=========================== short test summary info ============================
+FAILED tests/test_config_catalog.py::test_every_defaults_key_is_catalogued - ...
+FAILED tests/test_config_catalog.py::test_every_schema_key_is_catalogued - As...
+FAILED tests/test_config_catalog.py::test_setting_types_and_defaults_match_the_defaults_files
+3 failed, 11 passed in 0.36s

@@ -209,6 +209,8 @@ class CommandHandler:
                 self._handle_repairloop(args)
             elif cmd == "/hunkreview":
                 self._handle_hunkreview(args)
+            elif cmd == "/autocommit":
+                self._handle_autocommit(args)
             elif cmd == "/kista":
                 self._handle_kista(args)
             elif cmd == "/resume-thought":
@@ -1110,6 +1112,61 @@ class CommandHandler:
             return
         try:
             record = primary.set_hunk_review(request["enabled"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_setting_change(record)}[/green]\n")
+
+
+    def _handle_autocommit(self, args: str):
+        """M-078: /autocommit — auto-commit discipline.
+
+        ``/autocommit`` shows the gate (off by default),
+        the plain-words explanation, the protected set,
+        the working branch, and worked landing examples;
+        ``/autocommit on`` / ``off`` changes the gate and
+        ``/autocommit allow-protected`` /
+        ``block-protected`` gives or withdraws the standing
+        word for protected branches (journaled by the
+        agent layer).
+        """
+        from ..core.auto_commit import (
+            enabled_from_config,
+            format_auto_commit,
+            format_setting_change,
+            parse_autocommit_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_autocommit_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.auto_commit_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_auto_commit(primary.config)}[/bold cyan]\n"
+                     "[dim]Turn the discipline on with /autocommit on, "
+                     "or off with /autocommit off.[/dim]\n")
+            return
+        try:
+            if request["action"] == "setting":
+                record = primary.set_auto_commit(request["enabled"])
+            else:
+                record = primary.set_auto_commit_allow_protected(
+                    request["allowed"])
         except (ValueError, KeyError, RuntimeError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
