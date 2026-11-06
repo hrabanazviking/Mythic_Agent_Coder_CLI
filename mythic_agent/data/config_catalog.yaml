@@ -670,6 +670,21 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Network gates (M-098): the stored allowlist - each entry names one tool and one domain: a plain domain matches that host exactly, a *.domain matches subdomains at any depth but never the base host, and the tool * names every tool. An empty allowlist refuses every outbound reach - the posture is deny, fail-closed. Entries are added through /network allow <tool> <domain>, listed through /network list, validated whole (a malformed stored entry raises, never silently narrowed), and journaled with save-failure revert.'
 
+- id: S-91
+  name: path_jail
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Path jail (M-099): the stored gate - File tools are jailed to the workspace plus named grants: a path is allowed only when, after every symlink on it is resolved, it lands inside the workspace or inside a granted directory; everything else is refused by default, and an escape hidden behind a symlink is caught by resolving it, never assumed away. This layer judges paths; it opens no file itself. The gate ships on; with it on, Agent.check_path_jail judges every candidate path against the workspace plus the stored grants and publishes each refusal as a path_jail_refusal session event - news, not a log line. With it off, paths are not jailed and the /pathjail show surface says so plainly. It is set through /pathjail on|off, journaled with save-failure revert.'
+- id: S-92
+  name: path_grants
+  scope: top-level
+  type: list
+  default: '[]'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Path jail (M-099): the stored grants - each grant is one absolute directory path, realpath-normalized; a relative grant refuses, duplicates are dropped, and one malformed grant refuses the whole list. A path is allowed only when its fully symlink-resolved form lands inside the workspace or inside a granted directory, judged on path components so a sibling-prefix never matches. Grants are added through /pathjail grant <abs-path>, listed through /pathjail grants, validated whole, and journaled with save-failure revert.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
