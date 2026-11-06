@@ -545,7 +545,7 @@ slices:
   title: PR craft
   summary: create, review, and respond to pull requests — review comments fetched as tasks; a review pass
     posts only at the user's word (sending as the user is a standing pause-line).
-  status: queued
+  status: done
 - id: M-083
   part: 4
   title: Issue-to-slice
