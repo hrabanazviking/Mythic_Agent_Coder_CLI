@@ -614,7 +614,7 @@ slices:
   title: Part IV gate
   summary: benchmark refactor task completed with zero failed applies, hunk review used, auto-commits
     clean, checkpoint restore proven mid-task.
-  status: queued
+  status: done
 - id: M-095
   part: 5
   title: Permission profiles
