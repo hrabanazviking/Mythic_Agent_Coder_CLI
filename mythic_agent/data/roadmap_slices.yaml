@@ -551,7 +551,7 @@ slices:
   title: Issue-to-slice
   summary: a GitHub issue (or Samverk issue, Part X) becomes a planned slice with acceptance checks drafted
     from its text.
-  status: queued
+  status: done
 - id: M-084
   part: 4
   title: Multi-file change sets
