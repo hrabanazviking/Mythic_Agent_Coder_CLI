@@ -1499,6 +1499,166 @@ class Agent:
             record["journaled"] = True
         return record
 
+    def change_set_status(self) -> dict[str, Any]:
+        """The change-set gate, in plain data (M-084).
+
+        The setting exactly as stored (validated — a malformed
+        stored value raises, never vanishes) and the plain
+        explanation. This is the answer ``/changeset`` shows.
+        """
+        from ..core import change_sets
+
+        return {
+            "enabled": change_sets.enabled_from_config(self.config),
+            "explanation": change_sets.PLAIN_EXPLANATION,
+        }
+
+    def set_change_sets(self, enabled: bool) -> dict[str, Any]:
+        """Turn multi-file change sets on or off (M-084).
+
+        Validated by :mod:`mythic_agent.core.change_sets`
+        before anything mutates; journaled first as a
+        ``change_set_setting_changed`` event when a session
+        is attached; a failed save restores the previous
+        value exactly and journals a compensating
+        ``change_set_setting_reverted``.
+        """
+        import copy
+
+        from ..core import change_sets
+
+        new_value, change = change_sets.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[change_sets.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "change_set_setting_reverted",
+                        "reason": "The change-set change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Change-set change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def preview_change_set(
+            self, name: str, edits: Any,
+            evidence: Any = None) -> dict[str, Any]:
+        """Show a change set as a reviewable unit (M-084).
+
+        Purely a read: the set is built and validated (its
+        name, one edit per file, each format concrete) and
+        returned as data — each file with its format, plus
+        the attached evidence's record when *evidence* (a
+        mapping with command / passed / failed / skipped /
+        log_ref) is given. Nothing is read from disk and
+        nothing is written.
+        """
+        from ..core import change_sets
+
+        change_set = change_sets.start_change_set(
+            name, [change_sets.make_edit(*edit) for edit in edits])
+        if evidence is not None:
+            change_set = change_sets.attach_evidence(
+                change_set, change_sets.make_evidence(**evidence))
+        return {"name": change_set.name,
+                "files": [edit.record()
+                          for edit in change_set.edits],
+                "evidence": (change_set.evidence.record()
+                             if change_set.evidence is not None
+                             else None)}
+
+    def apply_change_set(
+            self, name: str, edits: Any, decisions: Any,
+            evidence: Any = None) -> dict[str, Any]:
+        """Apply a named multi-file change set (M-084).
+
+        *edits* is a list of ``(path, format_id, payload)``
+        triples — one edit per file, each in an M-071
+        concrete format; *decisions* names every file:
+        ``(index, "accept")`` or ``(index, "reject")``.
+        Rejecting one file never kills the rest: the
+        accepted files are planned in memory through
+        M-071's strict appliers against the files' true
+        current text — one stale file refuses the whole
+        set and writes nothing — and only a clean plan is
+        written, through the EditJournal road, one
+        journaled write per file. An undecided file and
+        the gate being off also refuse and write nothing.
+        *evidence*, when given, is a mapping with the test
+        command and its passed / failed / skipped counts
+        (plus a log reference); it is validated, attached
+        to the set, and carried in the session record —
+        a set applied without evidence records exactly
+        that. The whole set is recorded on the session as
+        a ``change_set_applied`` event under its name when
+        a session is attached — including an all-rejected
+        set, which is an honest no-change outcome.
+        """
+        from ..core import change_sets
+        from ..core.edits import EditJournal
+        from ..core.workspace import resolve_file
+
+        if not change_sets.enabled_from_config(self.config):
+            raise ValueError(
+                "change sets are off — turn them on with "
+                "/changeset on; nothing was changed")
+        change_set = change_sets.start_change_set(
+            name, [change_sets.make_edit(*edit) for edit in edits])
+        for item in decisions:
+            if len(item) != 2:
+                raise ValueError(
+                    "each decision is (index, 'accept') or "
+                    f"(index, 'reject'); got {item!r}")
+            change_set = change_sets.decide(
+                change_set, item[0], item[1])
+        if evidence is not None:
+            change_set = change_sets.attach_evidence(
+                change_set, change_sets.make_evidence(**evidence))
+        currents: dict[str, Any] = {}
+        for edit in change_set.edits:
+            target = resolve_file(
+                self.project_root, edit.path, write=True)
+            currents[edit.path] = (
+                target.read_text(encoding="utf-8")
+                if target.exists() else None)
+        new_texts, outcome = change_sets.apply_change_set(
+            change_set, currents)
+        journal = EditJournal(self.project_root)
+        for path, new_text in new_texts.items():
+            journal.write(path, new_text)
+        record: dict[str, Any] = {
+            "name": change_set.name,
+            "applied": outcome.applied,
+            "rejected": outcome.rejected,
+            "units": outcome.units,
+            "changed_files": outcome.changed_files,
+            "changed": outcome.changed,
+            "evidence": (change_set.evidence.record()
+                         if change_set.evidence is not None
+                         else None),
+            "journaled": False}
+        if self._session_store and self.session_id:
+            event = change_set.event()
+            event["applied"] = outcome.applied
+            event["units"] = outcome.units
+            event["changed_files"] = outcome.changed_files
+            event["changed"] = outcome.changed
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
     def _repair_offered(self, path: str,
                         packet: Any) -> dict[str, Any]:
         """Journal a repair packet and shape its record (M-073)."""
