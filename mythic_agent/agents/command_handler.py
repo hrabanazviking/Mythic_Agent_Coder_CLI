@@ -221,6 +221,8 @@ class CommandHandler:
                 self._handle_autocommit(args)
             elif cmd == "/guardians":
                 self._handle_guardians(args)
+            elif cmd == "/prcraft":
+                self._handle_prcraft(args)
             elif cmd == "/kista":
                 self._handle_kista(args)
             elif cmd == "/resume-thought":
@@ -1697,6 +1699,71 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[green]{format_decision(applied['decision'])}[/green]\n")
+
+    def _handle_prcraft(self, args: str):
+        """M-082: /prcraft — PR craft.
+
+        ``/prcraft`` shows the gate (on by default), the
+        plain-words explanation, and a worked example over
+        a fake GitHub road: a PR fetched as data, its
+        review comments fetched as tasks, an unarmed review
+        draft refusing to post, and the same draft posting
+        once armed with the user's word. ``/prcraft on`` /
+        ``off`` changes the gate (journaled by the agent
+        layer); ``/prcraft tasks <n>`` fetches PR <n>'s
+        review comments as tasks through the user's own gh
+        road. Posting itself rides the agent's draft roads
+        and only ever at the user's recorded word.
+        """
+        from ..core.pr_craft import (
+            enabled_from_config,
+            format_pr_craft,
+            format_setting_change,
+            format_tasks,
+            parse_prcraft_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_prcraft_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.pr_craft_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_pr_craft(primary.config)}[/bold cyan]\n"
+                     "[dim]Turn the gate off with /prcraft off, "
+                     "or back on with /prcraft on.[/dim]\n")
+            return
+        if request["action"] == "tasks":
+            try:
+                fetched = primary.fetch_review_tasks(request["number"])
+            except (ValueError, KeyError, RuntimeError) as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_tasks(fetched['tasks'])}[/bold cyan]\n")
+            return
+        try:
+            record = primary.set_pr_craft(request["enabled"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_setting_change(record)}[/green]\n")
 
     def _handle_kista(self, args: str):
         """M-032: /kista — key custody, in plain words.
