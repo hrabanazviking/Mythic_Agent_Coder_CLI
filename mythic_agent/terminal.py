@@ -260,7 +260,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
         return True, False, "Conversation cleared."
@@ -445,6 +445,37 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_setting_change(record)
+    if command == "/branch":
+        from .core.session_branching import (
+            enabled_from_config,
+            format_branch_list,
+            format_branching,
+            format_comparison,
+            format_fork,
+            format_setting_change,
+            parse_branch_args,
+        )
+        try:
+            request = parse_branch_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.session_branching_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, format_branching(agent.config)
+        try:
+            if request["action"] == "setting":
+                record = agent.set_session_branching(request["enabled"])
+                return True, False, format_setting_change(record)
+            if request["action"] == "fork":
+                record = agent.fork_session(request["at_index"], request["name"])
+                return True, False, format_fork(record)
+            if request["action"] == "list":
+                return True, False, format_branch_list(agent.list_session_branches())
+            record = agent.compare_sessions(request["first_id"], request["second_id"])
+            return True, False, format_comparison(record)
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
     if command == "/kista":
         from .core.key_custody import (
             custody_entries,
