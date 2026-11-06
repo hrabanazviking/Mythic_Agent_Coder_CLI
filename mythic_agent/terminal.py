@@ -267,7 +267,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /changeset [on|off] /rename [on|off|<old-path> <new-path>] /generated [on|off|<path>|mark <path> <generator>] /largefile [on|off|<path>]/largefile [on|off|<path>] /stash [show|on|off|shelve <name>|restore <name>|drop <name>] /patch [show|on|off|export <set name>|import <patch file>] /editor [show|on|off|file <path>|prompt] /diff [show|on|off|unified|side-by-side|whitespace|whitespace off] /blame [show|on|off|<path> [<line>]] /massedit [show|on|off] /posture [show|<profile name>] /remember [list|forget <id>|clear] /sandbox [show|on|off|truth|plan <command>] /network [show|on|off|list|check <tool> <host>|allow <tool> <domain>] /issueslice [on|off|github <number>] /prcraft [on|off|tasks <pr>] /commitcraft [on|off|plan|commit <concern>|push] /guardians [word on|word off|check <path>] /autocommit [on|off|allow-protected|block-protected] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /changeset [on|off] /rename [on|off|<old-path> <new-path>] /generated [on|off|<path>|mark <path> <generator>] /largefile [on|off|<path>]/largefile [on|off|<path>] /stash [show|on|off|shelve <name>|restore <name>|drop <name>] /patch [show|on|off|export <set name>|import <patch file>] /editor [show|on|off|file <path>|prompt] /diff [show|on|off|unified|side-by-side|whitespace|whitespace off] /blame [show|on|off|<path> [<line>]] /massedit [show|on|off] /posture [show|<profile name>] /remember [list|forget <id>|clear] /sandbox [show|on|off|truth|plan <command>] /network [show|on|off|list|check <tool> <host>|allow <tool> <domain>] /pathjail [show|on|off|grants|check <path>|grant <abs-path>] /issueslice [on|off|github <number>] /prcraft [on|off|tasks <pr>] /commitcraft [on|off|plan|commit <concern>|push] /guardians [word on|word off|check <path>] /autocommit [on|off|allow-protected|block-protected] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
         return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /issueslice [on|off|github <number>] /prcraft [on|off|tasks <pr>] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
@@ -864,6 +864,43 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
                 f"{entry['domain']} added.")
         try:
             record = agent.set_network_gates(request["action"] == "on")
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_gate_change(record)
+    if command == "/pathjail":
+        from .core.path_jail import (
+            enabled_from_config,
+            format_gate_change,
+            format_grants,
+            format_jail_decision,
+            grants_from_config,
+            parse_pathjail_args,
+        )
+        try:
+            request = parse_pathjail_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.path_jail_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, status["screen"]
+        if request["action"] == "grants":
+            return True, False, format_grants(
+                grants_from_config(agent.config))
+        if request["action"] == "check":
+            try:
+                decision = agent.check_path_jail(request["path"])
+            except ValueError as exc:
+                return True, False, str(exc)
+            return True, False, format_jail_decision(decision)
+        if request["action"] == "grant":
+            try:
+                record = agent.add_path_grant(request["grant"])
+            except (ValueError, KeyError, RuntimeError) as exc:
+                return True, False, str(exc)
+            return True, False, f"Path grant: {record['grant']} added."
+        try:
+            record = agent.set_path_jail(request["action"] == "on")
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_gate_change(record)
