@@ -590,7 +590,7 @@ slices:
   title: Editor bridges lite
   summary: '`$EDITOR` round-trip for any file or prompt at any approval point (the terminal user''s oldest
     right).'
-  status: queued
+  status: done
 - id: M-091
   part: 4
   title: Diff theatre in the TUI

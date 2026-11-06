@@ -106,3 +106,4 @@ mythic_agent/agents/llm.py:1555:preview_change_set:method
 mythic_agent/agents/llm.py:1902:preview_rename_move:method
 mythic_agent/agents/llm.py:2227:apply_large_file_chunk_edit:method
 mythic_agent/agents/llm.py:2630:export_patch_to_file:method
+mythic_agent/agents/llm.py:6592:edit_prompt_in_editor:method
