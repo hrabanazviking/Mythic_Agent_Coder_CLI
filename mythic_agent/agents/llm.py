@@ -7673,6 +7673,160 @@ class Agent:
                 self._checkpoint(record)
         return decision
 
+    # -- M-099: path jail --
+
+    def path_jail_status(self) -> dict[str, Any]:
+        """The path jail, in plain data (M-099).
+
+        The gate exactly as stored (validated - a
+        malformed stored value or grant raises, never
+        vanishes), the grant roots as plain path
+        strings, the session workspace resolved, the
+        one screen rendered from that same jail, and
+        the plain explanation.
+        """
+        from ..core import path_jail
+
+        jail = path_jail.jail_from_config(self.config)
+        workspace = path_jail.resolve_workspace_root(
+            str(self.project_root))
+        return {
+            "enabled": path_jail.enabled_from_config(self.config),
+            "grants": list(jail.grants),
+            "workspace": workspace,
+            "screen": path_jail.format_path_jail(
+                self.config, workspace),
+            "explanation": path_jail.PLAIN_EXPLANATION,
+        }
+
+    def set_path_jail(self, enabled: bool) -> dict[str, Any]:
+        """Turn the path jail on or off (M-099).
+
+        Validated by :mod:`mythic_agent.core.path_jail`
+        before anything mutates (a no-op change refuses);
+        journaled first as the pure layer's
+        ``path_jail_setting_changed`` event when a
+        session is attached; the stored value is the
+        plain bool under the setting key; a failed save
+        restores the previous config exactly and journals
+        a compensating ``path_jail_setting_reverted``.
+        """
+        import copy
+
+        from ..core import path_jail
+
+        new_value, change = path_jail.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[path_jail.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "path_jail_setting_reverted",
+                        "reason": "The path jail change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Path jail change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def add_path_grant(self, grant_spec: Any) -> dict[str, Any]:
+        """Grant one named directory to the path jail (M-099).
+
+        The grant is validated by the pure layer before
+        anything mutates (a malformed grant refuses, and
+        a grant already named refuses as a duplicate);
+        journaled first as a ``path_grants_changed``
+        record when a session is attached; the stored
+        list is the grants' plain path strings under the
+        grants key; a failed save restores the previous
+        config exactly and journals a compensating
+        ``path_grants_reverted``.
+        """
+        import copy
+
+        from ..core import path_jail
+
+        grant = path_jail.validate_grant(grant_spec)
+        jail = path_jail.jail_from_config(self.config)
+        if grant in jail.grants:
+            raise ValueError(
+                f"the path grants already name {grant!r}")
+        change: dict[str, Any] = {
+            "type": "path_grants_changed",
+            "action": "grant",
+            "grant": grant,
+        }
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change)
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[path_jail.GRANTS_KEY] = list(jail.grants) + [grant]
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "path_grants_reverted",
+                        "action": "grant",
+                        "grant": grant,
+                        "reason": "The path grant change "
+                                  "could not be saved; the "
+                                  "previous grants were "
+                                  "preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Path grant change could not be saved; "
+                "previous grants were preserved")
+        return {**change, "session_id": self.session_id,
+                "journaled": journaled}
+
+    def check_path_jail(self, path: Any, workspace_root: Any = None):
+        """Decide one file-tool path (M-099).
+
+        The pure layer's decision itself, computed
+        always, judged against this agent's project
+        root unless *workspace_root* names another:
+        the candidate is resolved (every symlink
+        followed) before judging, and a malformed
+        candidate is a denied decision, never an
+        exception. With the gate on, a denied path is
+        news: its refusal record is published as a
+        session event when a session is attached.
+        With the gate off, the decision is returned
+        unpublished - the gate is off, and the status
+        screen says so plainly. This is the judgement
+        road the /pathjail check surface rides; the
+        elder workspace road keeps its own write rules
+        on the live file tools (see TEAM_LOG boundary).
+        """
+        from ..core import path_jail
+
+        jail = path_jail.jail_from_config(self.config)
+        enabled = path_jail.enabled_from_config(self.config)
+        root = (workspace_root if workspace_root is not None
+                else str(self.project_root))
+        decision = jail.check(path, root)
+        if enabled and not decision.allowed:
+            record = path_jail.refusal_record(decision)
+            if self._session_store and self.session_id:
+                self._checkpoint(record)
+        return decision
+
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""

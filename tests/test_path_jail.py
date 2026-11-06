@@ -431,3 +431,370 @@ def test_format_path_jail_whole_slice(layout):
     assert text.endswith(USAGE)
     off = format_path_jail({SETTING_KEY: False}, str(layout["ws"]))
     assert "Setting: off (path_jail)." in off
+
+
+# -- agent layer: status, set, grants, check, surfaces (M-099) -------
+
+import copy as _copy
+
+from mythic_agent.core import path_jail as pj
+from mythic_agent.core.sessions import SessionStore
+
+
+class _OfflineMemory:
+    def __init__(self):
+        self.archived = []
+
+    def search(self, query, top_k=2):
+        return []
+
+    def insert(self, text, metadata=None):
+        self.archived.append(text)
+
+
+@pytest.fixture()
+def agent(tmp_path, monkeypatch):
+    from mythic_agent.agents import llm
+    from mythic_agent.core.secure_api import unsubscribe
+
+    config = {"model": "test-model", "base_url": "http://localhost:1/v1", "api_keys": {}}
+    monkeypatch.setattr(llm.config_manager, "MYTHIC_DIR", tmp_path / "state")
+    monkeypatch.setattr(llm.config_manager, "load_config", lambda: _copy.deepcopy(config))
+    monkeypatch.setattr(llm.config_manager, "save_config", lambda config: True)
+    monkeypatch.setattr(llm, "get_vector_provider", lambda *args: _OfflineMemory())
+    instance = llm.Agent(project_root=tmp_path)
+    from mythic_agent.core.policy import ToolPolicy
+    instance.tool_policy = ToolPolicy("trusted")
+    yield instance
+    unsubscribe("agent_clear_history", instance._handle_clear_history)
+    unsubscribe("agent_compact_history", instance._handle_compact_history)
+
+
+def _store_for(tmp_path):
+    return SessionStore(tmp_path, tmp_path / "state")
+
+
+def _events(store, session_id, type_name):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == type_name]
+
+
+def _outside(tmp_path):
+    path = tmp_path.parent / (tmp_path.name + "-outside")
+    path.mkdir(exist_ok=True)
+    return path
+
+
+class TestPathJailAgent:
+    def test_status_defaults_on(self, agent):
+        status = agent.path_jail_status()
+        assert status["enabled"] is True
+        assert status["grants"] == []
+        assert status["workspace"] == os.path.realpath(agent.project_root)
+        assert status["screen"] == format_path_jail(
+            agent.config, str(agent.project_root))
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_status_reflects_off(self, agent):
+        agent.config[SETTING_KEY] = False
+        assert agent.path_jail_status()["enabled"] is False
+
+    def test_status_reflects_grants(self, agent, tmp_path):
+        granted = _outside(tmp_path) / "granted"
+        granted.mkdir(exist_ok=True)
+        agent.add_path_grant(str(granted))
+        status = agent.path_jail_status()
+        assert status["grants"] == [os.path.realpath(granted)]
+
+    def test_status_malformed_config_raises(self, agent):
+        agent.config[SETTING_KEY] = "yes"
+        with pytest.raises(ValueError):
+            agent.path_jail_status()
+        agent.config[SETTING_KEY] = True
+        agent.config[GRANTS_KEY] = ["relative/path"]
+        with pytest.raises(ValueError):
+            agent.path_jail_status()
+
+    def test_set_off_then_on(self, agent):
+        record = agent.set_path_jail(False)
+        assert record["type"] == "path_jail_setting_changed"
+        assert record["from"] is True and record["to"] is False
+        assert record["journaled"] is False
+        assert agent.config[SETTING_KEY] is False
+        assert format_gate_change(record) == "The path jail is now off."
+        record = agent.set_path_jail(True)
+        assert record["from"] is False and record["to"] is True
+        assert format_gate_change(record) == "The path jail is now on."
+
+    def test_set_noop_refuses_and_changes_nothing(self, agent):
+        with pytest.raises(ValueError, match="already on"):
+            agent.set_path_jail(True)
+        assert SETTING_KEY not in agent.config
+        with pytest.raises(ValueError):
+            agent.set_path_jail("off")
+
+    def test_set_journals_on_the_session(self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        record = agent.set_path_jail(False)
+        assert record["journaled"] is True
+        events = _events(store, session_id, "path_jail_setting_changed")
+        assert len(events) == 1
+        assert events[0]["from"] is True and events[0]["to"] is False
+        agent.close()
+
+    def test_save_failure_restores_and_journals_the_revert(
+            self, agent, tmp_path, monkeypatch):
+        from mythic_agent.agents import llm
+
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        monkeypatch.setattr(llm.config_manager, "save_config",
+                            lambda config: False)
+        with pytest.raises(RuntimeError, match="could not be saved"):
+            agent.set_path_jail(False)
+        assert SETTING_KEY not in agent.config
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert types[-2:] == ["path_jail_setting_changed",
+                              "path_jail_setting_reverted"]
+        agent.close()
+
+    def test_add_grant_stores_plain_string_and_refuses(self, agent, tmp_path):
+        granted = _outside(tmp_path) / "granted"
+        granted.mkdir(exist_ok=True)
+        want = os.path.realpath(granted)
+        record = agent.add_path_grant(str(granted))
+        assert record["type"] == "path_grants_changed"
+        assert record["grant"] == want
+        assert record["journaled"] is False
+        assert agent.config[GRANTS_KEY] == [want]
+        with pytest.raises(ValueError, match="already"):
+            agent.add_path_grant(str(granted))
+        with pytest.raises(ValueError):
+            agent.add_path_grant("relative/path")
+        with pytest.raises(ValueError):
+            agent.add_path_grant({"path": str(granted), "extra": 1})
+        assert agent.config[GRANTS_KEY] == [want]
+
+    def test_add_journals_on_the_session(self, agent, tmp_path):
+        granted = _outside(tmp_path) / "granted"
+        granted.mkdir(exist_ok=True)
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        record = agent.add_path_grant(str(granted))
+        assert record["journaled"] is True
+        events = _events(store, session_id, "path_grants_changed")
+        assert len(events) == 1
+        assert events[0]["action"] == "grant"
+        assert events[0]["grant"] == os.path.realpath(granted)
+        agent.close()
+
+    def test_add_save_failure_restores_previous_grants(
+            self, agent, tmp_path, monkeypatch):
+        from mythic_agent.agents import llm
+
+        first = _outside(tmp_path) / "first"
+        first.mkdir(exist_ok=True)
+        second = _outside(tmp_path) / "second"
+        second.mkdir(exist_ok=True)
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        agent.add_path_grant(str(first))
+        monkeypatch.setattr(llm.config_manager, "save_config",
+                            lambda config: False)
+        with pytest.raises(RuntimeError, match="could not be saved"):
+            agent.add_path_grant(str(second))
+        assert agent.config[GRANTS_KEY] == [os.path.realpath(first)]
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert types[-2:] == ["path_grants_changed",
+                              "path_grants_reverted"]
+        agent.close()
+
+
+class TestCheckPathJail:
+    def test_allowed_path_publishes_nothing(self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        before = len(store.export(session_id)["events"])
+        decision = agent.check_path_jail("notes.txt")
+        assert decision.allowed is True
+        assert decision.decision == "allow"
+        assert decision.granted_by == "workspace"
+        assert len(store.export(session_id)["events"]) == before
+        assert _events(store, session_id, "path_jail_refusal") == []
+        agent.close()
+
+    def test_denied_path_publishes_refusal_news(self, agent, tmp_path):
+        outside = _outside(tmp_path)
+        target = str(outside / "secret.txt")
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        decision = agent.check_path_jail(target)
+        assert decision.allowed is False
+        events = _events(store, session_id, "path_jail_refusal")
+        assert len(events) == 1
+        assert events[0]["news"] is True
+        assert events[0]["surface"] == "session_event"
+        assert events[0]["candidate"] == target
+        assert events[0]["resolved"] == os.path.realpath(target)
+        agent.close()
+
+    def test_denied_path_with_gate_off_publishes_nothing(
+            self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        agent.config[SETTING_KEY] = False
+        decision = agent.check_path_jail(
+            str(_outside(tmp_path) / "secret.txt"))
+        assert decision.allowed is False
+        assert _events(store, session_id, "path_jail_refusal") == []
+        agent.close()
+
+    def test_granted_outside_path_is_allowed(self, agent, tmp_path):
+        granted = _outside(tmp_path) / "granted"
+        (granted / "deep").mkdir(parents=True, exist_ok=True)
+        agent.add_path_grant(str(granted))
+        decision = agent.check_path_jail(str(granted / "deep" / "f.txt"))
+        assert decision.allowed is True
+        assert decision.granted_by == os.path.realpath(granted)
+
+    def test_symlink_escape_is_denied_and_published(self, agent, tmp_path):
+        outside = _outside(tmp_path)
+        (outside / "secret.txt").write_text("no", encoding="utf-8")
+        os.symlink(outside, tmp_path / "escape")
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        decision = agent.check_path_jail("escape/secret.txt")
+        assert decision.allowed is False
+        assert decision.resolved == os.path.realpath(
+            outside / "secret.txt")
+        assert len(_events(store, session_id, "path_jail_refusal")) == 1
+        agent.close()
+
+    def test_malformed_candidate_is_denied_not_raised(self, agent):
+        decision = agent.check_path_jail("")
+        assert decision.allowed is False
+        assert decision.decision == "deny"
+
+
+class TestPathJailTerminalSurface:
+    def test_show_is_the_whole_slice(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/pathjail")
+        assert "M-099" in text and "Setting: on (path_jail)" in text
+
+    def test_grants_empty_message(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/pathjail grants")
+        assert "Path grants: none" in text
+
+    def test_check_denied_headline(self, agent, tmp_path):
+        from mythic_agent.terminal import _slash
+        target = str(_outside(tmp_path) / "secret.txt")
+        _, _, text = _slash(agent, f"/pathjail check {target}")
+        assert text.startswith("Path jail refusal:")
+
+    def test_check_allowed_inside_workspace(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/pathjail check notes.txt")
+        assert text.startswith("Path allowed:")
+
+    def test_grant_then_check_allowed(self, agent, tmp_path):
+        from mythic_agent.terminal import _slash
+        granted = _outside(tmp_path) / "granted"
+        granted.mkdir(exist_ok=True)
+        _, _, text = _slash(agent, f"/pathjail grant {granted}")
+        assert os.path.realpath(granted) in text
+        _, _, text = _slash(agent, "/pathjail grants")
+        assert os.path.realpath(granted) in text
+        _, _, text = _slash(
+            agent, f"/pathjail check {granted}/deep/f.txt")
+        assert text.startswith("Path allowed:")
+
+    def test_gate_via_the_terminal(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/pathjail off")
+        assert text == "The path jail is now off."
+        assert agent.config[SETTING_KEY] is False
+        _, _, text = _slash(agent, "/pathjail off")
+        assert "already off" in text
+        _, _, text = _slash(agent, "/pathjail on")
+        assert text == "The path jail is now on."
+
+    def test_bad_grammar_is_the_usage(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/pathjail frobnicate")
+        assert text.startswith("Usage: /pathjail")
+        assert text == USAGE
+
+
+@pytest.fixture()
+def pathjail_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _pathjail_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestPathJailCommand:
+    def test_show_is_default(self, pathjail_handler, agent):
+        pathjail_handler._handle_pathjail("")
+        text = _pathjail_published_text(pathjail_handler)
+        assert "M-099" in text and "Setting: on" in text
+
+    def test_check_denied_is_published(self, pathjail_handler, agent, tmp_path):
+        target = str(_outside(tmp_path) / "secret.txt")
+        pathjail_handler._handle_pathjail(f"check {target}")
+        assert "Path jail refusal:" in _pathjail_published_text(pathjail_handler)
+
+    def test_grant_is_published_and_stored(self, pathjail_handler, agent, tmp_path):
+        granted = _outside(tmp_path) / "granted"
+        granted.mkdir(exist_ok=True)
+        pathjail_handler._handle_pathjail(f"grant {granted}")
+        assert os.path.realpath(granted) in _pathjail_published_text(pathjail_handler)
+        assert agent.config[GRANTS_KEY] == [os.path.realpath(granted)]
+
+    def test_gate_via_the_handler(self, pathjail_handler, agent):
+        pathjail_handler._handle_pathjail("off")
+        assert "now off" in _pathjail_published_text(pathjail_handler)
+        assert agent.config[SETTING_KEY] is False
+
+    def test_bad_grammar_is_published(self, pathjail_handler, agent):
+        pathjail_handler._handle_pathjail("frobnicate")
+        assert "Usage: /pathjail" in _pathjail_published_text(pathjail_handler)
+
+
+class TestChatScreenRouting:
+    def test_pathjail_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/pathjail off", _FakeLog())
+        assert calls == [("/pathjail", "off")]
