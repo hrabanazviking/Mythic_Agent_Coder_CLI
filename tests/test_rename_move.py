@@ -1,4 +1,7 @@
-"""Tests for M-085: rename/move files as first-class edits."""
+"""Tests for M-085: rename/move files as first-class edits.
+
+TIER: integration
+"""
 
 import pytest
 

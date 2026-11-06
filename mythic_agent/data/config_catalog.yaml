@@ -559,6 +559,14 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Multi-file change sets (M-084): when true, the /changeset road is open - Multi-file change sets: work that lands together is named and reviewed together. A change set is a name plus one edit per file — each edit in one of the usual formats (whole-file, unified diff, or search-and-replace) — and each file''s edit is accepted or rejected on its own before anything applies. Rejecting one file never kills the rest. The whole set is judged in memory first, through the same strict appliers as any single edit (exact matches only, no fuzz, ever): one stale file refuses the whole set and nothing is written. Accepted edits are then written through the edit journal, one journaled write per file under the set''s name. The set carries its test evidence as data — the command that ran, the passed, failed, and skipped counts, and where the log lives — with the verdict computed from those counts; a set with no evidence attached says so plainly, and missing evidence is never presented as a pass. The gate toggles through /changeset on and /changeset off, journaled with save-failure revert; preview_change_set is recorded in the dead-code quarantine as an Agent API surface (M-074 pattern).'
 
+- id: S-77
+  name: rename_move
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Rename/move files as first-class edits (M-085): when true, the /rename road is open - a rename or move is an edit with a name: the plan is computed whole in memory first (repo-relative paths validated; a missing source, an existing destination, and a move onto itself all refuse), the file itself moves only by git mv so its history is preserved, and the reference updates are computed from Part III''s symbol graph - the files whose graph edges name the source - as exact whole-token replacements of the old path and, for Python, the old dotted module name, written through the edit journal and recorded on the session as file_moved. Graph-named files whose text holds no exact token are named as warnings, never silently passed over; a source git does not track refuses in git''s own words and nothing else is written. The gate toggles through /rename on and /rename off, journaled with save-failure revert; preview_rename_move is recorded in the dead-code quarantine as an Agent API surface (M-074 pattern); when false, moves through the agent refuse and say so, while the pure planning maths stays readable.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
