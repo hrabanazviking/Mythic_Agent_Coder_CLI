@@ -457,6 +457,77 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Hunk-level review (M-074): when true, the hunkreview road is open — a unified diff is split into its hunks as data and each hunk is accepted, rejected, or edited on its own; rejecting one hunk never kills the rest, the accepted and edited hunks are judged by the unchanged M-071 strict applier (every hunk context must match the file exactly, no fuzz ever) and written through the existing EditJournal road, and rejected hunks simply never land. An edit may change what a hunk becomes, never what it matches — its context and removed lines stay exactly as proposed, and the edited hunk is re-judged by the same strict rules before it applies. Every hunk must be decided before anything applies: a pending hunk refuses the apply and is named, and a review whose hunks are all rejected is recorded as an honest no-change outcome. The whole review is recorded as a hunk_review_applied session event with each hunk decision and the accepted, edited, and rejected counts. /hunkreview shows the gate and a worked accept/reject/edit example, and turns the gate on or off (journaled, with a save-failure revert); when false, reviewed applies through the agent refuse and say so, while the pure review maths stays readable.'
 
+- id: S-64
+  name: checkpoints
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Named checkpoints (M-075): when true, the checkpoint road is open — a checkpoint captures the whole working tree plus the current session state under a name the user chooses, held in a manifest over a content-addressed blob store beside the EditJournal home; checkpoints form a tree, each new one hanging from the head it was taken under, and restoring an older checkpoint and taking a new one from there grows a branch. Restore brings the tree and the session back in one command and judges a dirty tree honestly: if the tree changed since the last checkpoint was taken or restored, restore refuses and names the changed files — take a checkpoint of the current tree first, or restore with discard to throw those changes away on purpose and count them. Session state returns only to the session it was captured from. Takes and restores are recorded as checkpoint_created and checkpoint_restored session events, and the journal shows the whole checkpoint tree. /checkpoint shows the tree and turns the gate on or off; when false, takes and restores through the agent refuse and say so, while the pure checkpoint maths stays readable.'
+
+- id: S-65
+  name: session_branching
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Session branching (M-076): when true, the /branch road is open — a session forks at any message into a new v1 session sharing the parent''s history up to and including the fork message, lineage (parent, fork index and role, root, depth) recorded in the branch''s metadata, the fork journaled session_branched on the child and session_branch_forked on the parent; branches diverge independently and any two sessions can be compared by shared prefix and first divergence. When false, forks through the agent refuse and say so, while comparing and listing stay available.'
+
+- id: S-66
+  name: undo_timeline
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Undo grown up (M-077): when true, /undo walks edits, commands, and checkpoints as one timeline, newest first — an edit undoes through the EditJournal, a command undoes through its recorded footprint (the files it created, changed, or deleted, judged from snapshots taken around its run through the agent run_command tool, before-contents backed up within the snapshot bounds), labelled certain when the snapshots were complete and every changed file is backed up or best-effort with its reasons otherwise; one file changed since the command refuses the whole undo; checkpoints join through the CheckpointTimelineSource seam (M-075), wired at banking to M-075''s own checkpoints through the agent seam adapter. /undo list shows the timeline and the gate, /undo on/off changes it (journaled, with a save-failure revert); when false, /undo keeps its original last-edit behaviour and timeline undos refuse.'
+- id: S-67
+  name: auto_commit
+  scope: top-level
+  type: bool
+  default: 'False'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Auto-commit discipline (M-078): when true, every accepted edit set lands as its own commit with a written message naming the files it carries — one edit set, one commit, staged with exactly the accepted files through Agent.commit_accepted_edits and recorded as an auto_commit_committed session event. On a protected branch the commit moves onto the working branch unless the standing protected word is given; a blank message, an empty or escaping file set, or a detached head refuses and commits nothing. /autocommit shows the discipline and turns it on or off (journaled, with a save-failure revert); when false, accepted edits are not committed by this road.'
+
+- id: S-68
+  name: auto_commit_allow_protected
+  scope: top-level
+  type: bool
+  default: 'False'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Auto-commit discipline (M-078): the standing word for protected branches. When true, an accepted edit set may be committed directly onto a protected branch (main, master, development, develop, plus the names in auto_commit_protected) and the commit is recorded as on-protected; when false (the default), the commit moves onto the working branch instead and a protected branch is never committed to. /autocommit allow-protected and block-protected give or withdraw the word (journaled auto_commit_protected_setting_changed, with a save-failure revert).'
+
+- id: S-69
+  name: auto_commit_branch
+  scope: top-level
+  type: str
+  default: mythic/working
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Auto-commit discipline (M-078): the working branch an accepted edit set is committed to when the current branch is protected and the standing protected word has not been given. The branch is created on demand from the current head; the default is mythic/working. Read by the pure plan in mythic_agent/core/auto_commit.py (plan_commit) on every commit; a blank or malformed stored value raises rather than being silently replaced.'
+
+- id: S-70
+  name: auto_commit_protected
+  scope: top-level
+  type: list
+  default: '[main, master, development, develop]'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Auto-commit discipline (M-078): the branch names treated as protected by the auto-commit road — the shipped set is main, master, development, develop, and the user may name more. A commit planned on one of these branches moves onto the working branch unless the standing protected word (auto_commit_allow_protected) is given. Judged by exact branch name in the pure plan; a detached head is never a protected branch and refuses instead.'
+
+- id: S-71
+  name: guardian_explicit_word
+  scope: top-level
+  type: bool
+  default: 'False'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'README and licence guardians (M-079): the user''s explicit word for guarded files. The guardians are always on and live in the edit layer (EditJournal): a whole-file overwrite of an existing README refuses on every edit road, as does deleting one, while modifying a README in place, creating a README, and overwriting a barely-anything stub README (<=5 non-empty lines, <=200 characters) are allowed; licence files (LICENSE, LICENCE, COPYING, NOTICE, any extension or suffix) refuse every touch. False (default - never presumed) refuses and changes nothing; true records the user''s explicit word and allows the guarded operations, still journaled. A guardian refusal is never a repair-loop packet. /guardians shows the guards, /guardians check <path> judges one path, /guardians word on|off gives or takes back the word (journaled guardian_word_changed, save-failure revert). Undo is restoration, not re-judged.'
+
+- id: S-72
+  name: commit_craft
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Commit craft (M-080): when true, the commitcraft road is open — a working-tree change is split into commits by concern (code, tests, docs, config), each message drafted from its own actual diff (verb, file names, and per-file counts read off the diff; every hunk judged by the M-074 hunk layer), one group committed at a time with the index proven to hold exactly that group, and pushes follow the house rules wired in as refusals: fetch first, the remote-diff read before pushing, never force-push (a diverged remote refuses), and ls-remote verification afterwards that the remote moved to the pushed head; an up-to-date remote is an honest no-send. Commit craft never commits on its own — the auto-commit trigger is M-078''s seam (DEPENDS-ON-M-078), reported honestly through it since M-078 banked (before that banking it reported unavailable). /commitcraft shows the gate, a worked split-and-draft example, plans the split, commits one concern group, and pushes under the house rules (journaled, with a save-failure revert); when false, commits and pushes through the agent refuse and say so, while the pure planning maths stays readable.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME
