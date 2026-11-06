@@ -2,11 +2,14 @@
 
 __all__ = [
     "EditJournal",
+    "GuardianRefusal",
     "FileLock",
     "Iterator",
     "Path",
     "atomic_write",
     "config_manager",
+    "explicit_from_config",
+    "guard_or_raise",
     "contextmanager",
     "resolve_file",
     "runtime_settings",
@@ -24,6 +27,7 @@ from typing import Iterator
 from filelock import FileLock
 
 from .config_manager import config_manager
+from .file_guardians import GuardianRefusal, explicit_from_config, guard_or_raise
 from .runtime import runtime_settings
 from .workspace import resolve_file, workspace_id
 
@@ -45,7 +49,12 @@ def atomic_write(path: Path, content: bytes, mode: int) -> None:
 
 
 class EditJournal:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, explicit_word: bool | None = None):
+        # M-079: the user's explicit word for guarded files
+        # (README / licence), when the caller carries it (the
+        # agent layer passes its own config's word). None
+        # means: read the stored config at write time.
+        self._explicit_word_override = explicit_word
         self.root = root.resolve()
         directory = config_manager.MYTHIC_DIR / "edits" / workspace_id(self.root)
         directory.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -93,7 +102,22 @@ class EditJournal:
             )
         connection.commit()
 
-    def write(self, value: str, text: str) -> Path:
+    def _explicit_word(self, explicit_word: bool | None) -> bool:
+        """The explicit word for one write (M-079).
+
+        A per-call word wins, then this journal's own, then
+        the stored config's — absent everywhere means not
+        given; the word is never presumed.
+        """
+        if explicit_word is not None:
+            return explicit_word
+        if self._explicit_word_override is not None:
+            return self._explicit_word_override
+        return explicit_from_config(config_manager.load_config())
+
+    def write(self, value: str, text: str, *,
+              operation: str | None = None,
+              explicit_word: bool | None = None) -> Path:
         if not isinstance(text, str):
             raise ValueError("content must be a string")
         with self.lock, self._connect() as connection:
@@ -103,6 +127,22 @@ class EditJournal:
             after = text.encode("utf-8")
             if before == after:
                 return path
+            # M-079: the guardians judge every write that
+            # passes through this journal — every edit road
+            # in the layer (formats, anchored, reviewed,
+            # tool, LSP, rewrite, formatter) writes here.
+            # An unclassified write to an existing file is
+            # an overwrite; to a new file, a creation. A
+            # refusal raises before the journal records or
+            # the file moves: nothing is changed.
+            guard_or_raise(
+                value,
+                operation or ("overwrite" if before is not None
+                              else "create"),
+                exists=before is not None,
+                explicit_word=self._explicit_word(explicit_word),
+                current_text=(before.decode("utf-8", "replace")
+                              if before is not None else None))
             mode = stat.S_IMODE(path.stat().st_mode) if path.exists() else 0o600
             relative = str(path.relative_to(self.root))
             cursor = connection.execute(
@@ -147,7 +187,13 @@ class EditJournal:
         current = path.read_text(encoding="utf-8")
         new_text, _applied = apply_anchored_range(
             current, start, end, expected, replacement)
-        return self.write(value, new_text)
+        # M-079: a range covering the whole file is an
+        # overwrite, however it arrives; a partial range is
+        # an in-place edit.
+        operation = ("overwrite" if start <= 1
+                     and end >= len(current.splitlines())
+                     else "inplace")
+        return self.write(value, new_text, operation=operation)
 
     def write_anchored_search(self, value: str, target: str,
                               expected: str, replacement: str) -> Path:
@@ -167,7 +213,14 @@ class EditJournal:
         current = path.read_text(encoding="utf-8")
         new_text, _applied = apply_anchored_search(
             current, target, expected, replacement)
-        return self.write(value, new_text)
+        # M-079: a search block that is the file's whole
+        # text is an overwrite; any lesser block is in-place.
+        # (One trailing newline is the file's ending, not
+        # part of the comparison.)
+        whole = current[:-1] if current.endswith("\n") else current
+        sought = target[:-1] if target.endswith("\n") else target
+        operation = "overwrite" if sought == whole else "inplace"
+        return self.write(value, new_text, operation=operation)
 
     def replace(self, value: str, target: str, replacement: str) -> Path:
         if not target:
@@ -177,7 +230,9 @@ class EditJournal:
             content = path.read_text(encoding="utf-8")
             if content.count(target) != 1:
                 raise ValueError("target_content must match exactly one block")
-            return self.write(value, content.replace(target, replacement, 1))
+            # M-079: a targeted replace is the in-place road.
+            return self.write(value, content.replace(target, replacement, 1),
+                              operation="inplace")
 
     def entries(self) -> list:
         """Edits still in force, oldest first (M-077).

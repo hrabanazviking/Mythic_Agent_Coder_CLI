@@ -215,6 +215,8 @@ class CommandHandler:
                 self._handle_branch(args)
             elif cmd == "/autocommit":
                 self._handle_autocommit(args)
+            elif cmd == "/guardians":
+                self._handle_guardians(args)
             elif cmd == "/kista":
                 self._handle_kista(args)
             elif cmd == "/resume-thought":
@@ -1393,6 +1395,123 @@ class CommandHandler:
             else:
                 record = primary.set_auto_commit_allow_protected(
                     request["allowed"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_setting_change(record)}[/green]\n")
+
+    def _handle_costroute(self, args: str):
+        """M-031: /costroute — cost-aware routing, in plain words.
+
+        ``/costroute`` shows the setting (off by default), the
+        plain-words explanation, the configured doors with their
+        costs-table prices, and the task classes;
+        ``/costroute on`` / ``off`` changes the setting (journaled
+        by the agent layer); ``/costroute <task-class>`` asks the
+        router for a decision for that class and applies it when
+        it prefers a cheaper adequate door — applied through the
+        agent's journaled model switch, with the decision's own
+        reason, and announced here, never silent.
+        """
+        from ..core.cost_routing import (
+            candidate_doors,
+            enabled_from_config,
+            format_cost_change,
+            format_cost_routing,
+            format_decision,
+            parse_cost_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_cost_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.cost_routing_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            assert [d["model"] for d in status["doors"]] == [
+                d.model for d in candidate_doors(primary.config)]
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_cost_routing(primary.config)}[/bold cyan]\n"
+                     "[dim]Decide for a kind of work with "
+                     "/costroute <task-class>; turn the setting on "
+                     "with /costroute on.[/dim]\n")
+            return
+        try:
+            if request["action"] == "setting":
+                record = primary.set_cost_routing(request["enabled"])
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_cost_change(record)}[/green]\n")
+                return
+            applied = primary.cost_route(request["task_class"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_decision(applied['decision'])}[/green]\n")
+
+    def _handle_guardians(self, args: str):
+        """M-079: /guardians — README and licence guardians.
+
+        ``/guardians`` shows the guards, the guarded names
+        judged, worked refusal / allowed examples, and
+        whether the user's explicit word is on record;
+        ``/guardians word on`` / ``word off`` gives or takes
+        back the word (journaled by the agent layer);
+        ``/guardians check <path>`` judges one path under
+        every operation.
+        """
+        from ..core.file_guardians import (
+            explicit_from_config,
+            format_guard_check,
+            format_guardians,
+            format_setting_change,
+            parse_guardians_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_guardians_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.guardian_status()
+            assert status["explicit_word"] == explicit_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_guardians(primary.config)}[/bold cyan]\n"
+                     "[dim]Give the word with /guardians word on, "
+                     "or take it back with /guardians word off.[/dim]\n")
+            return
+        if request["action"] == "check":
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_guard_check(primary.config, request['path'])}[/bold cyan]\n")
+            return
+        try:
+            record = primary.set_guardian_word(request["enabled"])
         except (ValueError, KeyError, RuntimeError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
