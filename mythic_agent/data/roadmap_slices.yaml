@@ -561,7 +561,7 @@ slices:
   part: 4
   title: Rename/move files as first-class edits
   summary: (history-preserving git mv, references updated via Part III's graph).
-  status: queued
+  status: done
 - id: M-086
   part: 4
   title: Generated-code honesty
