@@ -1499,6 +1499,120 @@ class Agent:
             record["journaled"] = True
         return record
 
+    def issue_slice_status(self) -> dict[str, Any]:
+        """The issue-to-slice gate, in plain data (M-083).
+
+        The setting exactly as stored (validated — a malformed
+        stored value raises, never vanishes) and the plain
+        explanation. This is the answer ``/issueslice`` shows.
+        """
+        from ..core import issue_slice
+
+        return {
+            "enabled": issue_slice.enabled_from_config(self.config),
+            "explanation": issue_slice.PLAIN_EXPLANATION,
+        }
+
+    def set_issue_slice(self, enabled: bool) -> dict[str, Any]:
+        """Turn issue-to-slice on or off (M-083).
+
+        Validated by :mod:`mythic_agent.core.issue_slice`
+        before anything mutates; journaled first as a
+        ``issue_slice_setting_changed`` event when a session
+        is attached; a failed save restores the previous
+        value exactly and journals a compensating
+        ``issue_slice_setting_reverted``.
+        """
+        import copy
+
+        from ..core import issue_slice
+
+        new_value, change = issue_slice.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[issue_slice.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "issue_slice_setting_reverted",
+                        "reason": "The issue-to-slice change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Issue-to-slice change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def plan_issue_slice(
+            self, source: str, number: int,
+            fetcher: Any = None) -> dict[str, Any]:
+        """Fetch an issue through the seam and plan it (M-083).
+
+        The issue comes from *source* — ``github`` today,
+        through the existing gh road; ``samverk`` is the
+        seam's named Part X source (M-242) and refuses
+        honestly until that road provides the surfaces.
+        *fetcher* is the seam's test door, forwarded to
+        :func:`mythic_agent.core.issue_slice.fetch_issue`;
+        no caller in the app passes one. The planned slice
+        — the roadmap slice's shape, status ``planned``,
+        with acceptance checks drafted from the issue's own
+        words, each keeping the verbatim excerpt it came
+        from — is recorded on the session as an
+        ``issue_slice_planned`` event when a session is
+        attached, and returned as a plain record. Planning
+        files nothing: the record is product output data,
+        never an edit to the campaign's roadmap file. The
+        gate off refuses and says so.
+        """
+        from ..core import issue_slice
+
+        if not issue_slice.enabled_from_config(self.config):
+            raise ValueError(
+                "issue-to-slice is off — turn it on with "
+                "/issueslice on; nothing was planned")
+        issue = issue_slice.fetch_issue(source, number,
+                                        fetcher=fetcher)
+        return self._record_planned_slice(issue_slice.plan_slice(issue))
+
+    def draft_slice_from_issue(
+            self, record: dict[str, Any],
+            source: str = "github") -> dict[str, Any]:
+        """Plan a slice from an already-fetched issue record (M-083).
+
+        The offline twin of :meth:`plan_issue_slice`: the
+        record is the shape a fetcher returns (``number``,
+        ``title``, ``body``, ``state``, ``labels``, ``url``),
+        for callers that already hold the issue — a webhook
+        door (Part X) or a test. Same gate, same journal,
+        same planned-slice record.
+        """
+        from ..core import issue_slice
+
+        if not issue_slice.enabled_from_config(self.config):
+            raise ValueError(
+                "issue-to-slice is off — turn it on with "
+                "/issueslice on; nothing was planned")
+        issue = issue_slice.issue_from_record(record, source=source)
+        return self._record_planned_slice(issue_slice.plan_slice(issue))
+
+    def _record_planned_slice(self, plan: Any) -> dict[str, Any]:
+        """Journal a planned slice and shape its record (M-083)."""
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(plan.event())
+            journaled = True
+        return plan.record(self.session_id, journaled)
+
     def _repair_offered(self, path: str,
                         packet: Any) -> dict[str, Any]:
         """Journal a repair packet and shape its record (M-073)."""
