@@ -614,6 +614,14 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Diff theatre in the TUI (M-091): when true, the /diff road is open - Diff theatre: a change can be read two ways - unified, one column in order, or side-by-side, with the before and after facing each other on one row so a replacement meets itself. Inside a changed line the words that actually changed are picked out, so a one-word fix in a long line reads as a one-word fix. A whitespace toggle judges lines that differ only in whitespace as unchanged - and flags them as whitespace-only on the line, never hiding them and never counting them as change. Colour is never the only signal: every line carries its written sign (+ added, - removed, blank for unchanged) and every view opens with the counted header, so the change reads in plain text, in grayscale, and through a screen reader. The gate toggles through /diff on and /diff off, journaled with save-failure revert; when false, staging through the agent refuses and says so, while the pure staging maths stays available.'
 
+- id: S-84
+  name: blame_sight
+  scope: top-level
+  type: bool
+  default: 'True'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Blame and history sight (M-092): when true, the /blame road is open - Blame and history sight: ask why a line is the way it is, and two records answer together. Git blame names the commit that last touched the line - its author, its date, its summary, the line''s own text - read from blame''s porcelain form, never guessed. The tool''s own journal is then matched against the same file and line: an entry that names the file and covers the line names the session that wrote it, so the answer can say which session, in which commit. Where the journal does not reach the line, the answer says so and blame alone speaks; a line that is not committed yet is named as the working tree''s own, with no commit invented for it. The gate toggles through /blame on and /blame off, journaled with save-failure revert; when false, asking through the agent refuses and says so, while the pure parsing and matching stays available.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME

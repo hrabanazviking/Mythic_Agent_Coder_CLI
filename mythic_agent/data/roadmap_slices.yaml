@@ -602,7 +602,7 @@ slices:
   title: Blame and history sight
   summary: '"why is this line like this?" — blame + the journal''s own record of the session that wrote
     it.'
-  status: queued
+  status: done
 - id: M-093
   part: 4
   title: Guarded mass edits
