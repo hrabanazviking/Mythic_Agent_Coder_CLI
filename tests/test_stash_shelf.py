@@ -275,3 +275,283 @@ def test_format_setting_change_words():
         "The stash shelf is now on.")
     assert ss.format_setting_change({"to": False}) == (
         "The stash shelf is now off.")
+
+
+# ---------------------------------------------------------------------
+# Agent layer + surfaces (keeper restart tick, 2026-11-06).
+# ---------------------------------------------------------------------
+
+from mythic_agent.core.sessions import SessionStore
+
+
+def store_for(tmp_path, workspace=None):
+    return SessionStore(workspace or tmp_path, tmp_path / "state")
+
+
+def _seed(agent, tmp_path):
+    """A clean base, then work-in-progress on top of it."""
+    (tmp_path / "src").mkdir(exist_ok=True)
+    (tmp_path / "src" / "app.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "src" / "old.py").write_text("gone = True\n",
+                                             encoding="utf-8")
+    agent.stash_shelf_status()  # the first read establishes the base
+    (tmp_path / "src" / "app.py").write_text("x = 2\n", encoding="utf-8")
+    (tmp_path / "src" / "new.py").write_text("y = 3\n", encoding="utf-8")
+    (tmp_path / "src" / "old.py").unlink()
+
+
+class TestAgentGate:
+    def test_status(self, agent):
+        status = agent.stash_shelf_status()
+        assert status["enabled"] is True
+        assert status["explanation"] == ss.PLAIN_EXPLANATION
+        assert status["count"] == 0
+        assert status["corrupt_lines"] == 0
+
+    def test_set_without_session(self, agent):
+        record = agent.set_stash_shelf(False)
+        assert record["journaled"] is False
+        assert agent.config["stash_shelf"] is False
+        with pytest.raises(ValueError, match="already"):
+            agent.set_stash_shelf(False)
+
+    def test_set_journals_on_the_session(self, agent, tmp_path):
+        store = store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        agent.set_stash_shelf(False)
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert "stash_shelf_setting_changed" in types
+        agent.close()
+
+    def test_save_failure_restores_and_journals_the_revert(
+            self, agent, tmp_path, monkeypatch):
+        from mythic_agent.agents import llm
+
+        store = store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        monkeypatch.setattr(llm.config_manager, "save_config",
+                            lambda config: False)
+        with pytest.raises(RuntimeError, match="could not be saved"):
+            agent.set_stash_shelf(False)
+        assert agent.config.get("stash_shelf") is not False
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert types[-2:] == ["stash_shelf_setting_changed",
+                              "stash_shelf_setting_reverted"]
+        agent.close()
+
+
+class TestShelveRestore:
+    def test_shelve_cleans_the_tree_and_journals_on_disk(
+            self, agent, tmp_path):
+        _seed(agent, tmp_path)
+        record = agent.shelve_stash("half-done fix")
+        assert record["files"] == 3
+        assert (tmp_path / "src" / "app.py").read_text(
+            encoding="utf-8") == "x = 1\n"
+        assert not (tmp_path / "src" / "new.py").exists()
+        assert (tmp_path / "src" / "old.py").read_text(
+            encoding="utf-8") == "gone = True\n"
+        journal = agent._stash_shelf_dir() / "shelf.journal"
+        assert "half-done fix" in journal.read_text(encoding="utf-8")
+        status = agent.stash_shelf_status()
+        assert status["names"] == ["half-done fix"]
+
+    def test_shelve_journals_on_the_session(self, agent, tmp_path):
+        _seed(agent, tmp_path)
+        store = store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        record = agent.shelve_stash("wip")
+        assert record["journaled"] is True
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert "stash_shelved" in types
+        agent.close()
+
+    def test_shelving_nothing_refuses(self, agent, tmp_path):
+        (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
+        agent.stash_shelf_status()
+        with pytest.raises(ValueError, match="nothing to shelve"):
+            agent.shelve_stash("empty")
+        assert agent.stash_shelf_status()["count"] == 0
+
+    def test_duplicate_name_refuses(self, agent, tmp_path):
+        _seed(agent, tmp_path)
+        agent.shelve_stash("wip")
+        (tmp_path / "src" / "app.py").write_text("x = 5\n",
+                                                encoding="utf-8")
+        with pytest.raises(ValueError, match="already holds"):
+            agent.shelve_stash("wip")
+
+    def test_restore_round_trip_across_instances(self, agent, tmp_path):
+        from mythic_agent.agents import llm
+
+        _seed(agent, tmp_path)
+        agent.shelve_stash("wip")
+        other = llm.Agent(project_root=tmp_path)
+        assert other.stash_shelf_status()["names"] == ["wip"]
+        record = other.restore_stash("wip")
+        assert record["files"] == 3
+        assert (tmp_path / "src" / "app.py").read_text(
+            encoding="utf-8") == "x = 2\n"
+        assert (tmp_path / "src" / "new.py").read_text(
+            encoding="utf-8") == "y = 3\n"
+        assert not (tmp_path / "src" / "old.py").exists()
+        assert other.stash_shelf_status()["count"] == 0
+
+    def test_restore_conflict_refuses_then_discard_applies(
+            self, agent, tmp_path):
+        _seed(agent, tmp_path)
+        agent.shelve_stash("wip")
+        (tmp_path / "src" / "app.py").write_text("x = 9\n",
+                                                encoding="utf-8")
+        with pytest.raises(ValueError, match="src/app.py"):
+            agent.restore_stash("wip")
+        assert agent.stash_shelf_status()["count"] == 1
+        record = agent.restore_stash("wip", discard=True)
+        assert record["discarded"] == 1
+        assert (tmp_path / "src" / "app.py").read_text(
+            encoding="utf-8") == "x = 2\n"
+
+    def test_drop_removes_without_touching_the_tree(
+            self, agent, tmp_path):
+        _seed(agent, tmp_path)
+        agent.shelve_stash("wip")
+        record = agent.drop_stash("wip")
+        assert record["name"] == "wip"
+        assert agent.stash_shelf_status()["count"] == 0
+        assert (tmp_path / "src" / "app.py").read_text(
+            encoding="utf-8") == "x = 1\n"
+        with pytest.raises(ValueError, match="no shelf entry"):
+            agent.drop_stash("wip")
+
+    def test_gate_off_refuses_but_the_shelf_stays_readable(
+            self, agent, tmp_path):
+        _seed(agent, tmp_path)
+        agent.shelve_stash("wip")
+        agent.set_stash_shelf(False)
+        status = agent.stash_shelf_status()
+        assert status["enabled"] is False
+        assert status["names"] == ["wip"]
+        (tmp_path / "src" / "app.py").write_text("x = 7\n",
+                                                encoding="utf-8")
+        with pytest.raises(ValueError, match="stash shelf is off"):
+            agent.shelve_stash("more")
+        with pytest.raises(ValueError, match="stash shelf is off"):
+            agent.restore_stash("wip")
+
+    def test_torn_journal_line_is_counted_not_hidden(
+            self, agent, tmp_path):
+        _seed(agent, tmp_path)
+        agent.shelve_stash("wip")
+        journal = agent._stash_shelf_dir() / "shelf.journal"
+        with journal.open("a", encoding="utf-8") as handle:
+            handle.write('{"record": {"name": "tor')
+        status = agent.stash_shelf_status()
+        assert status["corrupt_lines"] == 1
+        assert status["names"] == ["wip"]
+
+
+class TestTerminalSurface:
+    def test_show_and_set(self, agent):
+        from mythic_agent.terminal import _slash
+
+        _, _, text = _slash(agent, "/stash")
+        assert "The stash shelf (M-088)" in text
+        assert "Setting: on (stash_shelf)" in text
+        assert "The stash shelf is empty." in text
+        _, _, text = _slash(agent, "/stash off")
+        assert "The stash shelf is now off." in text
+        assert agent.config["stash_shelf"] is False
+        _, _, text = _slash(agent, "/stash on")
+        assert "The stash shelf is now on." in text
+
+    def test_shelve_restore_and_drop_via_the_terminal(
+            self, agent, tmp_path):
+        from mythic_agent.terminal import _slash
+
+        _seed(agent, tmp_path)
+        _, _, text = _slash(agent, "/stash shelve half-done fix")
+        assert "Shelved 'half-done fix'" in text
+        assert (tmp_path / "src" / "app.py").read_text(
+            encoding="utf-8") == "x = 1\n"
+        _, _, text = _slash(agent, "/stash")
+        assert "half-done fix" in text
+        _, _, text = _slash(agent, "/stash restore half-done fix")
+        assert "Restored 'half-done fix'" in text
+        assert (tmp_path / "src" / "app.py").read_text(
+            encoding="utf-8") == "x = 2\n"
+        _seed(agent, tmp_path)
+        agent.shelve_stash("second")
+        _, _, text = _slash(agent, "/stash drop second")
+        assert "Dropped 'second'" in text
+
+    def test_usage_error_is_the_message(self, agent):
+        from mythic_agent.terminal import _slash
+
+        _, _, text = _slash(agent, "/stash frobnicate")
+        assert "usage" in text
+
+
+@pytest.fixture()
+def handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestStashCommand:
+    def test_show_is_default(self, handler, agent):
+        handler._handle_stash("")
+        assert "The stash shelf (M-088)" in _published_text(handler)
+
+    def test_set_via_the_handler(self, handler, agent):
+        handler._handle_stash("off")
+        assert "The stash shelf is now off." in _published_text(handler)
+        assert agent.config["stash_shelf"] is False
+
+    def test_shelve_via_the_handler(self, handler, agent, tmp_path):
+        _seed(agent, tmp_path)
+        handler._handle_stash("shelve wip")
+        assert "Shelved 'wip'" in _published_text(handler)
+        assert (tmp_path / "src" / "app.py").read_text(
+            encoding="utf-8") == "x = 1\n"
+
+    def test_usage_error_is_published(self, handler, agent):
+        handler._handle_stash("frobnicate")
+        assert "usage" in _published_text(handler)
+
+
+class TestChatScreenRouting:
+    def test_stash_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/stash off", _FakeLog())
+        assert calls == [("/stash", "off")]
