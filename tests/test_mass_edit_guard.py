@@ -291,3 +291,253 @@ def test_show_surface_exercises_the_report_road():
     assert "notes.txt: no change" in text
     assert "sensitive path" in text
     assert "Approval: required" in text
+
+
+# --- agent layer: gate, apply road, surfaces ----------------
+
+from mythic_agent.core.sessions import SessionStore
+
+
+def _store_for(tmp_path):
+    return SessionStore(tmp_path, tmp_path / "state")
+
+
+def _write(tmp_path, name, text):
+    (tmp_path / name).write_text(text, encoding="utf-8")
+
+
+def _read(tmp_path, name):
+    return (tmp_path / name).read_text(encoding="utf-8")
+
+
+class TestMassEditAgentGate:
+    def test_status(self, agent):
+        status = agent.mass_edit_guard_status()
+        assert status["enabled"] is True
+        assert status["explanation"] == mg.PLAIN_EXPLANATION
+
+    def test_set_without_session(self, agent):
+        record = agent.set_mass_edit_guard(False)
+        assert record["journaled"] is False
+        assert agent.config["mass_edit_guard"] is False
+        with pytest.raises(ValueError, match="already"):
+            agent.set_mass_edit_guard(False)
+
+    def test_set_journals_on_the_session(self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        agent.set_mass_edit_guard(False)
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert "mass_edit_guard_setting_changed" in types
+        agent.close()
+
+    def test_save_failure_restores_and_journals_the_revert(
+            self, agent, tmp_path, monkeypatch):
+        from mythic_agent.agents import llm
+
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        monkeypatch.setattr(llm.config_manager, "save_config",
+                            lambda config: False)
+        with pytest.raises(RuntimeError, match="could not be saved"):
+            agent.set_mass_edit_guard(False)
+        assert agent.config.get("mass_edit_guard") is not False
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert types[-2:] == ["mass_edit_guard_setting_changed",
+                              "mass_edit_guard_setting_reverted"]
+        agent.close()
+
+
+class TestMassEditApplyRoad:
+    def test_single_ordinary_file_needs_no_approval(
+            self, agent, tmp_path):
+        from mythic_agent.core.edits import EditJournal
+
+        _write(tmp_path, "a.py", "one\ntwo\n")
+        record = agent.apply_mass_edit([("a.py", "one\nTWO\n")])
+        assert record["type"] == "mass_edit"
+        assert record["report"]["changed_files"] == 1
+        assert record["report"]["requires_approval"] is False
+        assert record["approval_fingerprint"] is None
+        assert record["applied"] == ["a.py"]
+        assert record["journaled"] is False
+        assert _read(tmp_path, "a.py") == "one\nTWO\n"
+        paths = [row["path"] for row in EditJournal(tmp_path).entries()]
+        assert "a.py" in paths
+
+    def test_mapping_entries_are_accepted(self, agent, tmp_path):
+        _write(tmp_path, "a.py", "x = 1\n")
+        record = agent.apply_mass_edit(
+            [{"path": "a.py", "after": "x = 2\n"}])
+        assert record["applied"] == ["a.py"]
+        assert _read(tmp_path, "a.py") == "x = 2\n"
+
+    def test_unchanged_file_is_listed_never_written(
+            self, agent, tmp_path):
+        from mythic_agent.core.edits import EditJournal
+
+        _write(tmp_path, "a.py", "same\n")
+        _write(tmp_path, "b.py", "old\n")
+        plan = [("a.py", "same\n"), ("b.py", "new\n")]
+        report = mg.build_report([
+            {"path": p, "before": _read(tmp_path, p), "after": a}
+            for p, a in plan])
+        record = agent.apply_mass_edit(
+            plan, approval=mg.approve_report(report))
+        assert record["applied"] == ["b.py"]
+        paths = [row["path"] for row in EditJournal(tmp_path).entries()]
+        assert "a.py" not in paths and "b.py" in paths
+
+    def test_unapproved_mass_apply_refused_before_any_byte_moves(
+            self, agent, tmp_path):
+        _write(tmp_path, "a.py", "one\n")
+        _write(tmp_path, "b.py", "two\n")
+        with pytest.raises(ValueError, match="needs an approval"):
+            agent.apply_mass_edit(
+                [("a.py", "ONE\n"), ("b.py", "TWO\n")])
+        assert _read(tmp_path, "a.py") == "one\n"
+        assert _read(tmp_path, "b.py") == "two\n"
+
+    def test_approval_for_another_report_covers_nothing(
+            self, agent, tmp_path):
+        _write(tmp_path, "a.py", "one\n")
+        _write(tmp_path, "b.py", "two\n")
+        other = mg.build_report([
+            {"path": "a.py", "before": "one\n", "after": "ONE\n"},
+            {"path": "b.py", "before": "two\n", "after": "CHANGED\n"}])
+        with pytest.raises(ValueError, match="needs an approval"):
+            agent.apply_mass_edit(
+                [("a.py", "ONE\n"), ("b.py", "TWO\n")],
+                approval=mg.approve_report(other))
+        assert _read(tmp_path, "a.py") == "one\n"
+        assert _read(tmp_path, "b.py") == "two\n"
+
+    def test_approved_mass_apply_lands_and_journals(
+            self, agent, tmp_path):
+        from mythic_agent.core.edits import EditJournal
+
+        _write(tmp_path, "a.py", "one\n")
+        _write(tmp_path, "b.py", "two\n")
+        plan = [("a.py", "ONE\n"), ("b.py", "TWO\n")]
+        report = mg.build_report([
+            {"path": p, "before": _read(tmp_path, p), "after": a}
+            for p, a in plan])
+        approval = mg.approve_report(report)
+        record = agent.apply_mass_edit(plan, approval=approval)
+        assert record["applied"] == ["a.py", "b.py"]
+        assert record["approval_fingerprint"] == report.fingerprint
+        assert record["report"]["fingerprint"] == report.fingerprint
+        assert _read(tmp_path, "a.py") == "ONE\n"
+        assert _read(tmp_path, "b.py") == "TWO\n"
+        paths = [row["path"] for row in EditJournal(tmp_path).entries()]
+        assert "a.py" in paths and "b.py" in paths
+
+    def test_approval_record_mapping_is_accepted(
+            self, agent, tmp_path):
+        _write(tmp_path, "a.py", "one\n")
+        _write(tmp_path, "b.py", "two\n")
+        plan = [("a.py", "ONE\n"), ("b.py", "TWO\n")]
+        report = mg.build_report([
+            {"path": p, "before": _read(tmp_path, p), "after": a}
+            for p, a in plan])
+        record = agent.apply_mass_edit(
+            plan, approval=mg.approve_report(report).record())
+        assert record["approval_fingerprint"] == report.fingerprint
+        assert _read(tmp_path, "b.py") == "TWO\n"
+
+    def test_high_risk_single_file_needs_approval(
+            self, agent, tmp_path):
+        _write(tmp_path, ".env", "TOKEN=old\n")
+        with pytest.raises(ValueError, match="needs an approval"):
+            agent.apply_mass_edit([(".env", "TOKEN=new\n")])
+        assert _read(tmp_path, ".env") == "TOKEN=old\n"
+
+    def test_gate_off_refuses_and_changes_nothing(
+            self, agent, tmp_path):
+        _write(tmp_path, "a.py", "one\n")
+        agent.set_mass_edit_guard(False)
+        with pytest.raises(ValueError, match="mass edit guard is off"):
+            agent.apply_mass_edit([("a.py", "ONE\n")])
+        assert _read(tmp_path, "a.py") == "one\n"
+
+    def test_apply_journals_a_mass_edit_session_event(
+            self, agent, tmp_path):
+        _write(tmp_path, "a.py", "one\n")
+        _write(tmp_path, "b.py", "two\n")
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        plan = [("a.py", "ONE\n"), ("b.py", "TWO\n")]
+        report = mg.build_report([
+            {"path": p, "before": _read(tmp_path, p), "after": a}
+            for p, a in plan])
+        record = agent.apply_mass_edit(
+            plan, approval=mg.approve_report(report))
+        assert record["journaled"] is True
+        events = [e for e in store.export(session_id)["events"]
+                  if e["type"] == "mass_edit"]
+        assert len(events) == 1
+        assert events[0]["report"]["fingerprint"] == report.fingerprint
+        assert events[0]["approval_fingerprint"] == report.fingerprint
+        assert events[0]["applied"] == ["a.py", "b.py"]
+        agent.close()
+
+
+class TestMassEditTerminalSurface:
+    def test_show_and_set(self, agent):
+        from mythic_agent.terminal import _slash
+
+        _, _, text = _slash(agent, "/massedit")
+        assert "Guarded mass edits (M-093)" in text
+        assert "Setting: on (mass_edit_guard)" in text
+        _, _, text = _slash(agent, "/massedit off")
+        assert "Mass edit guard is now off." in text
+        assert agent.config["mass_edit_guard"] is False
+        _, _, text = _slash(agent, "/massedit on")
+        assert "Mass edit guard is now on." in text
+
+    def test_usage_error_is_the_message(self, agent):
+        from mythic_agent.terminal import _slash
+
+        _, _, text = _slash(agent, "/massedit bogus")
+        assert "Usage: /massedit" in text
+
+
+@pytest.fixture()
+def mass_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _mass_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestMassEditCommand:
+    def test_show_is_default(self, mass_handler, agent):
+        mass_handler._handle_massedit("")
+        assert "Guarded mass edits (M-093)" in _mass_published_text(
+            mass_handler)
+
+    def test_set_via_the_handler(self, mass_handler, agent):
+        mass_handler._handle_massedit("off")
+        assert "Mass edit guard is now off." in _mass_published_text(
+            mass_handler)
+        assert agent.config["mass_edit_guard"] is False
+
+    def test_usage_error_is_published(self, mass_handler, agent):
+        mass_handler._handle_massedit("bogus")
+        assert "Usage: /massedit" in _mass_published_text(mass_handler)
+
