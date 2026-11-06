@@ -445,6 +445,27 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_setting_change(record)
+    if command == "/conflicts":
+        from .core.conflict_workbench import (
+            enabled_from_config,
+            format_conflict_workbench,
+            format_setting_change,
+            parse_conflicts_args,
+        )
+        try:
+            request = parse_conflicts_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.conflict_workbench_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, format_conflict_workbench(
+                agent.config, agent.project_root)
+        try:
+            record = agent.set_conflict_workbench(request["enabled"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_setting_change(record)
     if command == "/kista":
         from .core.key_custody import (
             custody_entries,
