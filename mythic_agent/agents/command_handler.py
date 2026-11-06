@@ -209,6 +209,8 @@ class CommandHandler:
                 self._handle_repairloop(args)
             elif cmd == "/hunkreview":
                 self._handle_hunkreview(args)
+            elif cmd == "/changeset":
+                self._handle_changeset(args)
             elif cmd == "/issueslice":
                 self._handle_issueslice(args)
             elif cmd == "/conflicts":
@@ -1215,6 +1217,53 @@ class CommandHandler:
             return
         try:
             record = primary.set_hunk_review(request["enabled"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_setting_change(record)}[/green]\n")
+
+    def _handle_changeset(self, args: str):
+        """M-084: /changeset — multi-file change sets.
+
+        ``/changeset`` shows the gate (on by default), the
+        plain-words explanation, and a worked two-file
+        accept / reject example with its test evidence
+        attached; ``/changeset on`` / ``off`` changes the
+        gate (journaled by the agent layer).
+        """
+        from ..core.change_sets import (
+            enabled_from_config,
+            format_change_sets,
+            format_setting_change,
+            parse_changeset_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_changeset_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.change_set_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_change_sets(primary.config)}[/bold cyan]\n"
+                     "[dim]Turn the gate off with /changeset off, "
+                     "or back on with /changeset on.[/dim]\n")
+            return
+        try:
+            record = primary.set_change_sets(request["enabled"])
         except (ValueError, KeyError, RuntimeError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
