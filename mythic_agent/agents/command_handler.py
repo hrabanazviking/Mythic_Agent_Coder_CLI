@@ -237,6 +237,8 @@ class CommandHandler:
                 self._handle_remember(args)
             elif cmd == "/sandbox":
                 self._handle_sandbox(args)
+            elif cmd == "/network":
+                self._handle_network(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -2049,6 +2051,86 @@ class CommandHandler:
             return
         try:
             record = primary.set_os_sandbox(request["action"] == "on")
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_gate_change(record)}[/green]\n")
+
+    def _handle_network(self, args: str):
+        """M-098: /network - the network gates.
+
+        ``/network`` shows the whole slice (the gate and
+        its allowlist); ``on`` / ``off`` steer the gate
+        (journaled by the agent layer); ``list`` shows the
+        allowlist alone; ``check <tool> <host>`` decides one
+        reach (a denied reach under the gate is published
+        by the agent layer as session news); ``allow <tool>
+        <domain>`` adds one allowlist entry. Nothing here
+        opens a socket - deciding is the pure layer's work
+        and holding the list is the agent layer's.
+        """
+        from ..core.network_gates import (
+            enabled_from_config,
+            format_allowlist,
+            format_gate_change,
+            format_network_decision,
+            gates_from_config,
+            parse_network_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_network_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] in ("show", "list"):
+            try:
+                if request["action"] == "show":
+                    status = primary.network_gates_status()
+                    assert status["enabled"] == enabled_from_config(
+                        primary.config)
+                    text = status["screen"]
+                else:
+                    text = format_allowlist(
+                        gates_from_config(primary.config).entries)
+            except ValueError as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{text}[/bold cyan]\n")
+            return
+        try:
+            if request["action"] == "check":
+                decision = primary.check_network_reach(
+                    request["tool"], request["target"])
+                text = format_network_decision(decision)
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[bold cyan]{text}[/bold cyan]\n")
+                return
+            if request["action"] == "allow":
+                record = primary.add_network_allowlist_entry(
+                    request["entry"])
+                entry = record["entry"]
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=(f"\n[green]Network allowlist: "
+                          f"{entry['tool']}: {entry['domain']} "
+                          f"added.[/green]\n"))
+                return
+            record = primary.set_network_gates(
+                request["action"] == "on")
         except (ValueError, KeyError, RuntimeError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

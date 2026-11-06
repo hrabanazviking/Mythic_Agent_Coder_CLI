@@ -345,3 +345,305 @@ def test_format_whole_slice():
     allowed = format_network_gates(
         {ALLOWLIST_KEY: [{"tool": "curl", "domain": "example.com"}]})
     assert "Network allowed:" in allowed
+
+
+# -- agent layer: status, set, allowlist, check, surfaces (M-098) -------
+
+import copy as _copy
+
+from mythic_agent.core import network_gates as ng
+from mythic_agent.core.network_gates import USAGE
+from mythic_agent.core.sessions import SessionStore
+
+
+class _OfflineMemory:
+    def __init__(self):
+        self.archived = []
+
+    def search(self, query, top_k=2):
+        return []
+
+    def insert(self, text, metadata=None):
+        self.archived.append(text)
+
+
+@pytest.fixture()
+def agent(tmp_path, monkeypatch):
+    from mythic_agent.agents import llm
+    from mythic_agent.core.secure_api import unsubscribe
+
+    config = {"model": "test-model", "base_url": "http://localhost:1/v1", "api_keys": {}}
+    monkeypatch.setattr(llm.config_manager, "MYTHIC_DIR", tmp_path / "state")
+    monkeypatch.setattr(llm.config_manager, "load_config", lambda: _copy.deepcopy(config))
+    monkeypatch.setattr(llm.config_manager, "save_config", lambda config: True)
+    monkeypatch.setattr(llm, "get_vector_provider", lambda *args: _OfflineMemory())
+    instance = llm.Agent(project_root=tmp_path)
+    from mythic_agent.core.policy import ToolPolicy
+    instance.tool_policy = ToolPolicy("trusted")
+    yield instance
+    unsubscribe("agent_clear_history", instance._handle_clear_history)
+    unsubscribe("agent_compact_history", instance._handle_compact_history)
+
+
+def _store_for(tmp_path):
+    return SessionStore(tmp_path, tmp_path / "state")
+
+
+def _events(store, session_id, type_name):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == type_name]
+
+
+class TestNetworkGatesAgent:
+    def test_status_defaults_on(self, agent):
+        status = agent.network_gates_status()
+        assert status["enabled"] is True
+        assert status["entries"] == []
+        assert status["screen"] == format_network_gates(agent.config)
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_status_reflects_off(self, agent):
+        agent.config[SETTING_KEY] = False
+        assert agent.network_gates_status()["enabled"] is False
+
+    def test_status_reflects_entries(self, agent):
+        agent.add_network_allowlist_entry("curl:example.com")
+        status = agent.network_gates_status()
+        assert status["entries"] == [
+            {"tool": "curl", "domain": "example.com"}]
+
+    def test_status_malformed_config_raises(self, agent):
+        agent.config[SETTING_KEY] = "yes"
+        with pytest.raises(ValueError):
+            agent.network_gates_status()
+        agent.config[SETTING_KEY] = True
+        agent.config[ALLOWLIST_KEY] = [{"tool": "curl"}]
+        with pytest.raises(ValueError):
+            agent.network_gates_status()
+
+    def test_set_off_then_on(self, agent):
+        record = agent.set_network_gates(False)
+        assert record["type"] == "network_gates_setting_changed"
+        assert record["from"] is True and record["to"] is False
+        assert record["journaled"] is False
+        assert agent.config[SETTING_KEY] is False
+        assert format_gate_change(record) == "The network gates are now off."
+        record = agent.set_network_gates(True)
+        assert record["from"] is False and record["to"] is True
+        assert format_gate_change(record) == "The network gates are now on."
+
+    def test_set_noop_refuses_and_changes_nothing(self, agent):
+        with pytest.raises(ValueError, match="already on"):
+            agent.set_network_gates(True)
+        assert SETTING_KEY not in agent.config
+        with pytest.raises(ValueError):
+            agent.set_network_gates("off")
+
+    def test_set_journals_on_the_session(self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        record = agent.set_network_gates(False)
+        assert record["journaled"] is True
+        events = _events(store, session_id, "network_gates_setting_changed")
+        assert len(events) == 1
+        assert events[0]["from"] is True and events[0]["to"] is False
+        agent.close()
+
+    def test_save_failure_restores_and_journals_the_revert(
+            self, agent, tmp_path, monkeypatch):
+        from mythic_agent.agents import llm
+
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        monkeypatch.setattr(llm.config_manager, "save_config",
+                            lambda config: False)
+        with pytest.raises(RuntimeError, match="could not be saved"):
+            agent.set_network_gates(False)
+        assert SETTING_KEY not in agent.config
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert types[-2:] == ["network_gates_setting_changed",
+                              "network_gates_setting_reverted"]
+        agent.close()
+
+    def test_add_entry_stores_record_and_refuses(self, agent):
+        record = agent.add_network_allowlist_entry(
+            {"tool": "curl", "domain": "example.com"})
+        assert record["type"] == "network_allowlist_changed"
+        assert record["entry"] == {"tool": "curl", "domain": "example.com"}
+        assert record["journaled"] is False
+        assert agent.config[ALLOWLIST_KEY] == [
+            {"tool": "curl", "domain": "example.com"}]
+        with pytest.raises(ValueError, match="already"):
+            agent.add_network_allowlist_entry("curl:example.com")
+        with pytest.raises(ValueError):
+            agent.add_network_allowlist_entry({"tool": "curl"})
+        with pytest.raises(ValueError):
+            agent.add_network_allowlist_entry("bad tool!:example.com")
+        assert len(agent.config[ALLOWLIST_KEY]) == 1
+
+    def test_add_journals_on_the_session(self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        record = agent.add_network_allowlist_entry("git:*.github.com")
+        assert record["journaled"] is True
+        events = _events(store, session_id, "network_allowlist_changed")
+        assert len(events) == 1
+        assert events[0]["action"] == "allow"
+        assert events[0]["entry"] == {"tool": "git", "domain": "*.github.com"}
+        agent.close()
+
+    def test_add_save_failure_restores_previous_allowlist(
+            self, agent, tmp_path, monkeypatch):
+        from mythic_agent.agents import llm
+
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        agent.add_network_allowlist_entry("curl:example.com")
+        monkeypatch.setattr(llm.config_manager, "save_config",
+                            lambda config: False)
+        with pytest.raises(RuntimeError, match="could not be saved"):
+            agent.add_network_allowlist_entry("git:github.com")
+        assert agent.config[ALLOWLIST_KEY] == [
+            {"tool": "curl", "domain": "example.com"}]
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert types[-2:] == ["network_allowlist_changed",
+                              "network_allowlist_reverted"]
+        agent.close()
+
+
+class TestCheckNetworkReach:
+    def test_allowed_reach_publishes_nothing(self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        agent.add_network_allowlist_entry("curl:example.com")
+        before = len(store.export(session_id)["events"])
+        decision = agent.check_network_reach(
+            "curl", "https://example.com/a")
+        assert decision.allowed is True
+        assert decision.decision == "allow"
+        assert len(store.export(session_id)["events"]) == before
+        assert _events(store, session_id, "network_refusal") == []
+        agent.close()
+
+    def test_denied_reach_publishes_refusal_news(self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        decision = agent.check_network_reach("curl", "example.com")
+        assert decision.allowed is False
+        events = _events(store, session_id, "network_refusal")
+        assert len(events) == 1
+        assert events[0]["news"] is True
+        assert events[0]["tool"] == "curl"
+        assert events[0]["host"] == "example.com"
+        agent.close()
+
+    def test_denied_reach_with_gate_off_publishes_nothing(
+            self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        agent.config[SETTING_KEY] = False
+        decision = agent.check_network_reach("curl", "example.com")
+        assert decision.allowed is False
+        assert _events(store, session_id, "network_refusal") == []
+        agent.close()
+
+    def test_unreadable_target_is_denied_not_raised(self, agent):
+        decision = agent.check_network_reach("curl", "http://")
+        assert decision.allowed is False
+        assert decision.host is None
+
+    def test_malformed_tool_raises(self, agent):
+        with pytest.raises(ValueError):
+            agent.check_network_reach("bad tool!", "example.com")
+
+
+class TestNetworkTerminalSurface:
+    def test_show_is_the_whole_slice(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/network")
+        assert "M-098" in text and "Setting: on (network_gates)" in text
+
+    def test_list_empty_message(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/network list")
+        assert "empty" in text and "refused by default" in text
+
+    def test_check_denied_headline(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/network check curl example.com")
+        assert text.startswith("Network refusal:")
+
+    def test_allow_then_check_allowed(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/network allow curl example.com")
+        assert "curl: example.com" in text
+        _, _, text = _slash(agent, "/network list")
+        assert "curl: example.com" in text
+        _, _, text = _slash(
+            agent, "/network check curl https://example.com/a")
+        assert text.startswith("Network allowed:")
+
+    def test_gate_via_the_terminal(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/network off")
+        assert text == "The network gates are now off."
+        assert agent.config[SETTING_KEY] is False
+        _, _, text = _slash(agent, "/network off")
+        assert "already off" in text
+        _, _, text = _slash(agent, "/network on")
+        assert text == "The network gates are now on."
+
+    def test_bad_grammar_is_the_usage(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/network frobnicate")
+        assert text.startswith("Usage: /network")
+        assert text == USAGE
+
+
+@pytest.fixture()
+def network_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _network_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestNetworkCommand:
+    def test_show_is_default(self, network_handler, agent):
+        network_handler._handle_network("")
+        text = _network_published_text(network_handler)
+        assert "M-098" in text and "Setting: on" in text
+
+    def test_check_denied_is_published(self, network_handler, agent):
+        network_handler._handle_network("check curl example.com")
+        assert "Network refusal:" in _network_published_text(network_handler)
+
+    def test_allow_is_published_and_stored(self, network_handler, agent):
+        network_handler._handle_network("allow git *.github.com")
+        assert "git: *.github.com" in _network_published_text(network_handler)
+        assert agent.config[ALLOWLIST_KEY] == [
+            {"tool": "git", "domain": "*.github.com"}]
+
+    def test_gate_via_the_handler(self, network_handler, agent):
+        network_handler._handle_network("off")
+        assert "now off" in _network_published_text(network_handler)
+        assert agent.config[SETTING_KEY] is False
+
+    def test_bad_grammar_is_published(self, network_handler, agent):
+        network_handler._handle_network("frobnicate")
+        assert "Usage: /network" in _network_published_text(network_handler)
