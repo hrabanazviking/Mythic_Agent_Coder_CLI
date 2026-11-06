@@ -1499,6 +1499,274 @@ class Agent:
             record["journaled"] = True
         return record
 
+    def pr_craft_status(self) -> dict[str, Any]:
+        """The PR-craft gate, in plain data (M-082).
+
+        The setting exactly as stored (validated — a
+        malformed stored value raises, never vanishes) and
+        the plain explanation. This is the answer
+        ``/prcraft`` shows.
+        """
+        from ..core import pr_craft
+
+        return {
+            "enabled": pr_craft.enabled_from_config(self.config),
+            "explanation": pr_craft.PLAIN_EXPLANATION,
+        }
+
+    def set_pr_craft(self, enabled: bool) -> dict[str, Any]:
+        """Turn PR craft on or off (M-082).
+
+        Validated by :mod:`mythic_agent.core.pr_craft`
+        before anything mutates; journaled first as a
+        ``pr_craft_setting_changed`` event when a session
+        is attached; a failed save restores the previous
+        value exactly and journals a compensating
+        ``pr_craft_setting_reverted``.
+        """
+        import copy
+
+        from ..core import pr_craft
+
+        new_value, change = pr_craft.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[pr_craft.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "pr_craft_setting_reverted",
+                        "reason": "The PR-craft change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "PR-craft change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def _pr_craft_runner(self, runner: Any) -> Any:
+        """The GitHub runner for M-082: injected, or the real gh road."""
+        if runner is not None:
+            return runner
+        from ..integrations.github import _run_gh
+
+        return lambda args: _run_gh(*args)
+
+    def _require_pr_craft(self) -> None:
+        from ..core import pr_craft
+
+        if not pr_craft.enabled_from_config(self.config):
+            raise ValueError(
+                "PR craft is off — turn it on with /prcraft "
+                "on; nothing was fetched or sent")
+
+    def fetch_pull_request(self, number: int,
+                           runner: Any = None) -> dict[str, Any]:
+        """Fetch a pull request as data (M-082).
+
+        A read through the user's own gh road; the fetch is
+        recorded on the session as a ``pr_fetched`` event
+        when a session is attached. With the gate off this
+        refuses and fetches nothing.
+        """
+        from ..core import pr_craft
+
+        self._require_pr_craft()
+        pr = pr_craft.fetch_pull_request(
+            self._pr_craft_runner(runner), number)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "pr_fetched", "number": pr.number,
+                "title": pr.title, "state": pr.state})
+            journaled = True
+        return pr.record(self.session_id, journaled)
+
+    def fetch_review_tasks(self, number: int,
+                           runner: Any = None) -> dict[str, Any]:
+        """Fetch a PR's review comments, as tasks (M-082).
+
+        One task per comment, carrying its author, words,
+        and place; the fetch is recorded on the session as
+        a ``pr_review_tasks_fetched`` event with its count
+        when a session is attached. With the gate off this
+        refuses and fetches nothing.
+        """
+        from ..core import pr_craft
+
+        self._require_pr_craft()
+        comments = pr_craft.fetch_review_comments(
+            self._pr_craft_runner(runner), number)
+        tasks = pr_craft.comments_to_tasks(comments)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "pr_review_tasks_fetched",
+                "pr_number": number, "comments": len(tasks)})
+            journaled = True
+        return {"pr_number": number, "count": len(tasks),
+                "tasks": tasks, "journaled": journaled}
+
+    def prepare_pr_draft(self, title: str, body: str, base: str,
+                         head: str,
+                         draft: bool = False) -> dict[str, Any]:
+        """Prepare a PR draft (M-082). Sends nothing.
+
+        The draft is recorded on the session as a
+        ``pr_draft_prepared`` event when a session is
+        attached. Creating the PR is a separate road —
+        :meth:`post_pr_draft` — and posts only at the
+        user's word.
+        """
+        from ..core import pr_craft
+
+        prepared = pr_craft.prepare_pr(title, body, base, head,
+                                       draft=draft)
+        journaled = False
+        if self._session_store and self.session_id:
+            event = {k: v for k, v in
+                     prepared.record(None, False).items()
+                     if k not in ("session_id", "journaled")}
+            self._checkpoint(event)
+            journaled = True
+        return prepared.record(self.session_id, journaled)
+
+    def post_pr_draft(self, title: str, body: str, base: str,
+                      head: str, draft: bool = False,
+                      word: str = "",
+                      runner: Any = None) -> dict[str, Any]:
+        """Create a PR — only at the user's word (M-082).
+
+        *word* is the user's own word authorising this
+        post. With no word, the draft is unarmed and the
+        post refuses before the GitHub runner is touched:
+        nothing is sent. The word is never journaled; the
+        ``pr_posted`` event carries only that a word was
+        recorded.
+        """
+        from ..core import pr_craft
+
+        self._require_pr_craft()
+        prepared = pr_craft.arm_pr_draft(
+            pr_craft.prepare_pr(title, body, base, head,
+                                draft=draft), word)
+        posted = pr_craft.post_pr(
+            self._pr_craft_runner(runner), prepared)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "pr_posted",
+                "number": posted.get("number"),
+                "url": posted.get("url"), "armed": True})
+            journaled = True
+        return prepared.post_record(self.session_id, journaled,
+                                    posted)
+
+    def prepare_review_draft(self, pr_number: int, verdict: str,
+                             body: str,
+                             notes: Any = ()) -> dict[str, Any]:
+        """Prepare a review draft (M-082). Sends nothing.
+
+        *notes* are ``(path, line, body)`` line notes; they
+        ride in the review's body when it posts. The draft
+        is recorded as a ``pr_review_draft_prepared``
+        event when a session is attached.
+        """
+        from ..core import pr_craft
+
+        prepared = pr_craft.prepare_review(pr_number, verdict,
+                                           body, notes=notes)
+        journaled = False
+        if self._session_store and self.session_id:
+            event = {k: v for k, v in
+                     prepared.record(None, False).items()
+                     if k not in ("session_id", "journaled")}
+            self._checkpoint(event)
+            journaled = True
+        return prepared.record(self.session_id, journaled)
+
+    def post_review_draft(self, pr_number: int, verdict: str,
+                          body: str, notes: Any = (),
+                          word: str = "",
+                          runner: Any = None) -> dict[str, Any]:
+        """Post a review — only at the user's word (M-082).
+
+        With no word recorded, the post refuses before the
+        GitHub runner is touched: nothing is sent. A
+        posted review is recorded as a ``pr_review_posted``
+        event (the word itself is never journaled).
+        """
+        from ..core import pr_craft
+
+        self._require_pr_craft()
+        prepared = pr_craft.arm_review_draft(
+            pr_craft.prepare_review(pr_number, verdict, body,
+                                    notes=notes), word)
+        pr_craft.post_review(self._pr_craft_runner(runner),
+                             prepared)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "pr_review_posted",
+                "pr_number": pr_number, "verdict": verdict,
+                "armed": True})
+            journaled = True
+        return prepared.post_record(self.session_id, journaled)
+
+    def prepare_reply_draft(self, pr_number: int, comment_id: Any,
+                            body: str) -> dict[str, Any]:
+        """Prepare a reply draft (M-082). Sends nothing."""
+        from ..core import pr_craft
+
+        prepared = pr_craft.prepare_reply(pr_number, comment_id,
+                                          body)
+        journaled = False
+        if self._session_store and self.session_id:
+            event = {k: v for k, v in
+                     prepared.record(None, False).items()
+                     if k not in ("session_id", "journaled")}
+            self._checkpoint(event)
+            journaled = True
+        return prepared.record(self.session_id, journaled)
+
+    def post_reply_draft(self, pr_number: int, comment_id: Any,
+                         body: str, word: str = "",
+                         runner: Any = None) -> dict[str, Any]:
+        """Post a reply — only at the user's word (M-082).
+
+        With no word recorded, the post refuses before the
+        GitHub runner is touched: nothing is sent. A
+        posted reply is recorded as a ``pr_reply_posted``
+        event (the word itself is never journaled).
+        """
+        from ..core import pr_craft
+
+        self._require_pr_craft()
+        prepared = pr_craft.arm_reply_draft(
+            pr_craft.prepare_reply(pr_number, comment_id, body),
+            word)
+        pr_craft.post_reply(self._pr_craft_runner(runner),
+                            prepared)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "pr_reply_posted",
+                "pr_number": pr_number,
+                "comment_id": prepared.comment_id,
+                "armed": True})
+            journaled = True
+        return prepared.post_record(self.session_id, journaled)
+
+
     def _repair_offered(self, path: str,
                         packet: Any) -> dict[str, Any]:
         """Journal a repair packet and shape its record (M-073)."""
