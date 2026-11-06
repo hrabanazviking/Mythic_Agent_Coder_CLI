@@ -584,7 +584,7 @@ slices:
   title: Patch export/import
   summary: a change set as a portable patch file with its evidence header — the hand-off format betweenmachines
     and between agents.
-  status: queued
+  status: done
 - id: M-090
   part: 4
   title: Editor bridges lite
