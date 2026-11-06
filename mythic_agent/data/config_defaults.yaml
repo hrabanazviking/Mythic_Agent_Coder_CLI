@@ -13,6 +13,10 @@ hunk_review: true
 checkpoints: true
 session_branching: true
 undo_timeline: true
+auto_commit: false
+auto_commit_allow_protected: false
+auto_commit_branch: mythic/working
+auto_commit_protected: [main, master, development, develop]
 edit_truth_loop: true
 formatter_covenant: true
 debugger: true
