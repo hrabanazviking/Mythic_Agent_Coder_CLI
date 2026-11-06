@@ -1,0 +1,179 @@
+schema: mythic.part4_gate/1
+gate_slice: M-094
+part: 4
+part_title: The Editor's Hand
+verdict: PASS
+gate_note: |
+  The Part IV gate: on a benchmark-pack-style throwaway git repo (seed files + hidden
+  grading tests, the M-008 pattern), one benchmark refactor task — renaming a legacy
+  discount helper across both of its files — is completed with zero failed applies
+  through Part IV edit roads, its unified diff passing through hunk review (one
+  hunk rejected and proven never to land), its accepted edits auto-committed clean
+  on a working branch through the M-078 road, and a named checkpoint taken
+  mid-refactor proven by restore against later changes, all re-proven live by the
+  gate tests on every run, evidence banked here against the M-093 confirmation
+  suite named below. Every step rides the real Agent roads (apply_hunk_review,
+  apply_edit_format, take_checkpoint / restore_checkpoint, commit_accepted_edits)
+  against a real throwaway repository — agent-roads-measured; no step is faked or
+  stubbed, the auto-commit lands on the exercise repo own working branch
+  (feature/refactor), never on a protected branch, and the campaign tree is never
+  the exercise repo.
+baseline:
+  resource: m093_confirmation_suite
+  collected: 4811
+  passed: 4808
+  failed: 2
+  skipped: 1
+slices:
+- slice: M-071
+  title: Edit-format plurality
+- slice: M-072
+  title: Hash-anchored edits
+- slice: M-073
+  title: Apply-failure repair loop
+- slice: M-074
+  title: Hunk-level review
+- slice: M-075
+  title: Checkpoints v2
+- slice: M-076
+  title: Session branching
+- slice: M-077
+  title: Undo grown up
+- slice: M-078
+  title: Auto-commit discipline (Aider's crown)
+- slice: M-079
+  title: README and licence guardians
+- slice: M-080
+  title: Commit craft
+- slice: M-081
+  title: Conflict workbench
+- slice: M-082
+  title: PR craft
+- slice: M-083
+  title: Issue-to-slice
+- slice: M-084
+  title: Multi-file change sets
+- slice: M-085
+  title: Rename/move files as first-class edits
+- slice: M-086
+  title: Generated-code honesty
+- slice: M-087
+  title: Large-file and binary care
+- slice: M-088
+  title: The stash shelf
+- slice: M-089
+  title: Patch export/import
+- slice: M-090
+  title: Editor bridges lite
+- slice: M-091
+  title: Diff theatre in the TUI
+- slice: M-092
+  title: Blame and history sight
+- slice: M-093
+  title: Guarded mass edits
+exercises:
+- id: refactor
+  title: Benchmark refactor task
+  owning_slices:
+  - M-071
+  - M-074
+  - M-075
+  - M-078
+  status: completed
+  evidence_kind: agent-roads-measured
+  old_name: legacy_discount
+  new_name: apply_discount
+  attempted_applies: 2
+  failed_applies: 0
+  hunks_proposed: 3
+  hunks_accepted: 2
+  hunks_rejected: 1
+  checkpoint_name: mid-refactor
+  commit_branch: feature/refactor
+  rejected_marker: '1.25'
+  evidence: |
+    legacy_discount renamed to apply_discount across pricing.py and shop.py in a
+    throwaway git repo on branch feature/refactor, with 2 attempted applies and 0
+    failed: pricing.py edited through a 3-hunk unified diff that passed through
+    M-074 hunk review first (the definition rename and the SALE call accepted; the
+    tax-rate hunk, 1.2 to 1.25, rejected and proven absent from the file), shop.py
+    edited through M-071 search-and-replace blocks (import + call site). Mid-task,
+    the checkpoint mid-refactor was taken; a later change (a rounding edit in
+    shop.py and a scratch notes.txt) was then discarded by restore, returning both
+    files to their checkpoint contents exactly and removing the scratch file. The
+    accepted edits were then auto-committed through M-078 commit_accepted_edits as
+    one commit on feature/refactor, the working tree clean afterwards, and the
+    exercise hidden grading tests pass 3/3.
+  seed_files:
+  - path: pricing.py
+    content: |
+      def price_with_tax(amount):
+          return amount * 1.2
+
+
+      def legacy_discount(amount):
+          return amount * 0.9
+
+
+      TOTAL = price_with_tax(100)
+      SALE = legacy_discount(TOTAL)
+  - path: shop.py
+    content: |
+      from pricing import legacy_discount, price_with_tax
+
+
+      def checkout(amount):
+          return legacy_discount(price_with_tax(amount))
+  - path: .gitignore
+    content: |
+      __pycache__/
+      .pytest_cache/
+      test_grading.py
+  diff_payload: |
+    --- a/pricing.py
+    +++ b/pricing.py
+    @@ -1,2 +1,2 @@
+     def price_with_tax(amount):
+    -    return amount * 1.2
+    +    return amount * 1.25
+    @@ -5,2 +5,2 @@
+    -def legacy_discount(amount):
+    +def apply_discount(amount):
+         return amount * 0.9
+    @@ -9,2 +9,2 @@
+     TOTAL = price_with_tax(100)
+    -SALE = legacy_discount(TOTAL)
+    +SALE = apply_discount(TOTAL)
+  search_payload: |
+    <<<<<<< SEARCH
+    from pricing import legacy_discount, price_with_tax
+    =======
+    from pricing import apply_discount, price_with_tax
+    >>>>>>> REPLACE
+    <<<<<<< SEARCH
+        return legacy_discount(price_with_tax(amount))
+    =======
+        return apply_discount(price_with_tax(amount))
+    >>>>>>> REPLACE
+  grading_file:
+    path: test_grading.py
+    content: |
+      import pricing
+      import shop
+      from pricing import SALE, TOTAL, apply_discount, price_with_tax
+
+
+      def test_renamed_discount_works():
+          assert apply_discount(100) == 90.0
+          assert not hasattr(pricing, "legacy_discount")
+
+
+      def test_rejected_hunk_never_landed():
+          assert price_with_tax(100) == 120.0
+          assert TOTAL == 120.0
+          assert SALE == 108.0
+
+
+      def test_checkout_uses_the_renamed_discount():
+          assert shop.checkout(100) == 108.0
+  grading_tests: 3
