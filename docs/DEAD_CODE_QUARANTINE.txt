@@ -92,3 +92,4 @@ mythic_agent/providers/aesir.py:315:list_models:method
 mythic_agent/providers/aesir.py:379:native_generate:method
 mythic_agent/providers/aesir.py:486:ollama_snapshot:method
 mythic_agent/providers/aesir.py:415:reported_capabilities:method
+mythic_agent/agents/llm.py:1555:preview_change_set:method
