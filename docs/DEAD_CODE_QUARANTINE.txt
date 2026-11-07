@@ -113,3 +113,4 @@ mythic_agent/agents/llm.py:7407:run_os_sandboxed:method
 mythic_agent/agents/llm.py:7912:set_current_plan:method
 mythic_agent/agents/llm.py:7930:build_current_plan:method
 mythic_agent/agents/llm.py:8032:configured_hooks:method
+mythic_agent/agents/llm.py:8535:register_keeper_watch:method
