@@ -114,3 +114,6 @@ mythic_agent/agents/llm.py:7912:set_current_plan:method
 mythic_agent/agents/llm.py:7930:build_current_plan:method
 mythic_agent/agents/llm.py:8032:configured_hooks:method
 mythic_agent/agents/llm.py:8535:register_keeper_watch:method
+mythic_agent/agents/llm.py:8774:get_scheduled_job:method
+mythic_agent/agents/llm.py:8800:register_scheduled_job:method
+mythic_agent/agents/llm.py:8816:record_scheduled_run:method

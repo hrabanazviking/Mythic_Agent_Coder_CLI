@@ -680,7 +680,7 @@ slices:
   title: Scheduled work
   summary: cron-style jobs ("run the suite at dawn", "check the upstream repo weekly") as data, with the
     same approval lines as live work.
-  status: queued
+  status: done
 - id: M-106
   part: 5
   title: Headless fleet mode
