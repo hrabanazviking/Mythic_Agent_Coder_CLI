@@ -508,6 +508,11 @@ class Agent:
                 self._note_audit_approval(
                     name, True, "a remembered approval")
                 return True
+            # M-116: the fresh ask is shaped as one
+            # approval moment from this real call and
+            # held for the session before the prompt
+            # is raised - shaping is news, never a gate.
+            self._note_approval_moment(name, arguments)
             settings = runtime_settings(self.config)
             description = self.redactor.text(name + ": " + json.dumps(arguments, ensure_ascii=False))
             decided = prompt_approval_sync(description, app, self._cancel, settings["approval_timeout"])
@@ -11031,6 +11036,225 @@ class Agent:
         announced.add(record["record_id"])
         if self._session_store and self.session_id:
             self._checkpoint(record)
+
+    # -- M-116: approval by phone-sized moments --
+
+    def _approval_moment_registry(self):
+        """The held approval-moment registry (M-116).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer moment assessments in
+        the order they were judged. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named ``_approval_moment_store``,
+        never the method's own name (the M-108
+        lesson).
+        """
+        registry = getattr(self, "_approval_moment_store", None)
+        if registry is None:
+            from ..core.approval_moments import ApprovalMomentRegistry
+            registry = ApprovalMomentRegistry()
+            self._approval_moment_store = registry
+        return registry
+
+    def approval_moment_status(self) -> dict[str, Any]:
+        """The held approval moments, in plain data (M-116).
+
+        Every held assessment as its plain record, in
+        the order judged, the one screen rendered
+        from that same registry, and the plain
+        explanation. Reading changes nothing: a
+        status read judges, registers, or publishes
+        nothing.
+        """
+        from ..core import approval_moments
+
+        registry = self._approval_moment_registry()
+        return {
+            "records": [a.to_record() for a in registry.list_records()],
+            "screen": approval_moments.format_moment_screen(registry),
+            "explanation": approval_moments.PLAIN_EXPLANATION,
+        }
+
+    def get_approval_moment(self, record_id: Any):
+        """The one held assessment an id names (M-116).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._approval_moment_registry().get(record_id)
+
+    def register_approval_moment(self, assessment: Any) -> dict[str, Any]:
+        """Hold one judged moment for the session (M-116).
+
+        The assessment is held by the pure registry
+        under its id or a fresh deterministic one - a
+        duplicate id refuses, and a refusal holds
+        nothing new and publishes nothing - and a
+        held assessment is published as its
+        ``approval_moment`` session-news record
+        through the checkpoint road, so an approval
+        ask is announced as the complete question it
+        is, never lost as a bare prompt. Returns the
+        held assessment, its news record, the screen
+        rendered after it landed, and the plain
+        explanation.
+        """
+        from ..core import approval_moments
+
+        registry = self._approval_moment_registry()
+        held = registry.register(assessment)
+        record = registry.record(held.record_id)
+        self._publish_approval_moment_record(record)
+        return {
+            "assessment": held.to_record(),
+            "record": record,
+            "screen": approval_moments.format_moment_screen(registry),
+            "explanation": approval_moments.PLAIN_EXPLANATION,
+        }
+
+    def judge_approval_moment(self, proposal: Any) -> dict[str, Any]:
+        """Judge a moment proposal and hold it (M-116).
+
+        The pure judge derives completeness from the
+        given proposal only - one question, full
+        context (what, where, what it does), every
+        choice stating its effect, the whole text
+        within one phone-sized moment - and invents
+        no context, choice or effect the proposal
+        does not carry. The assessment is held for
+        the session and published as an
+        ``approval_moment`` session event. A bad
+        proposal refuses plainly, and a refusal holds
+        nothing and publishes nothing. Returns the
+        held assessment, its news record, the screen,
+        and the plain explanation.
+        """
+        from ..core import approval_moments
+
+        registry = self._approval_moment_registry()
+        held = registry.judge_and_register(proposal)
+        record = registry.record(held.record_id)
+        self._publish_approval_moment_record(record)
+        return {
+            "assessment": held.to_record(),
+            "record": record,
+            "screen": approval_moments.format_moment_screen(registry),
+            "explanation": approval_moments.PLAIN_EXPLANATION,
+        }
+
+    def approval_moment_for_call(self, name: Any, arguments: Any):
+        """Shape one approval moment from a real tool call (M-116).
+
+        The moment is built from the call the
+        ``ToolPolicy`` ask road actually carries -
+        the tool ``name`` and its ``arguments`` - and
+        from nothing else. What is asked is the call
+        itself. Where it acts is named only when the
+        arguments themselves name a place (a path, a
+        file, a directory); what it does is named
+        only when the arguments themselves carry the
+        act (a command). A part the real call does
+        not name is left empty, so the judge honestly
+        names it missing - this layer invents no
+        context. The two choices are the approval
+        road's own: approve lets this call run, deny
+        stops it, each stating that effect. Shaping
+        registers and publishes nothing.
+        """
+        from ..core.approval_moments import build_choice, build_moment
+
+        tool = name.strip() if isinstance(name, str) else ""
+        args = arguments if isinstance(arguments, dict) else {}
+        where = ""
+        for key in ("path", "file_path", "file", "directory",
+                    "cwd", "root", "destination"):
+            value = args.get(key)
+            if isinstance(value, str) and value.strip():
+                where = value.strip()
+                break
+        does = ""
+        for key in ("command", "cmd"):
+            value = args.get(key)
+            if isinstance(value, str) and value.strip():
+                does = value.strip()
+                break
+        choices = ()
+        if tool:
+            choices = (
+                build_choice(
+                    "approve", "Approve it",
+                    f"the {tool} call runs"),
+                build_choice(
+                    "deny", "Deny it",
+                    f"the {tool} call does not run"),
+            )
+        return build_moment(
+            what=f"Run {tool}?" if tool else "",
+            where=where, what_it_does=does, choices=choices)
+
+    def judge_approval_call(self, name: Any,
+                            arguments: Any) -> dict[str, Any]:
+        """Shape, judge and hold the moment of one real call (M-116).
+
+        The moment is shaped from the real call alone
+        (see :meth:`approval_moment_for_call`), judged
+        by the pure judge, held for the session, and
+        published as an ``approval_moment`` session
+        event. Returns the held assessment, its news
+        record, the screen, and the plain explanation.
+        """
+        return self.judge_approval_moment(
+            self.approval_moment_for_call(name, arguments))
+
+    def _note_approval_moment(self, name: Any, arguments: Any) -> None:
+        """Shape and hold the moment of one fresh ask (M-116).
+
+        Called from :meth:`bind_tui` at the moment a
+        fresh approval ask is raised on the live
+        ``ToolPolicy`` road - after a remembered
+        approval has had its say (a standing answer
+        raises no fresh ask, so it shapes no moment)
+        and before the prompt itself. Shaping is
+        news, never a gate: a failure to shape must
+        never turn an ask into a refusal, so a
+        shaping failure is swallowed here and the
+        prompt road decides, exactly as it did
+        before this slice.
+        """
+        try:
+            self.judge_approval_call(name, arguments)
+        except Exception:
+            pass
+
+    def _publish_approval_moment_record(self, record: dict[str, Any]) -> None:
+        """Publish one judged moment as session news (M-116).
+
+        The pure layer's ``approval_moment`` record
+        is journaled through the same checkpoint
+        road every sibling slice uses, when a session
+        is attached - for EVERY judged moment, as the
+        pure layer shapes it: an approval ask is owed
+        as one complete question, its headline always
+        stating the question whole or naming what it
+        lacks. Each record is announced at most once:
+        the announcement is keyed by the record id,
+        and every held record holds a fresh id.
+        """
+        if record.get("type") != "approval_moment":
+            return
+        announced = getattr(self, "_approval_moment_announced", None)
+        if announced is None:
+            announced = set()
+            self._approval_moment_announced = announced
+        if record["record_id"] in announced:
+            return
+        announced.add(record["record_id"])
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 
 class AgentManager:

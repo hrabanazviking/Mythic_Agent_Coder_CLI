@@ -273,6 +273,8 @@ class CommandHandler:
                 self._handle_remote(args)
             elif cmd == "/grace":
                 self._handle_grace(args)
+            elif cmd == "/moment":
+                self._handle_moment(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -3130,6 +3132,52 @@ class CommandHandler:
                 text = primary.grace_status()["screen"]
             else:
                 text = format_assessment(primary.get_grace_record(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_moment(self, args: str):
+        """M-116: /moment - approval by phone-sized moments.
+
+        /moment shows the approval moments held this
+        session, each a single, complete question
+        with full context; show <record> (or a bare
+        record id) shows one moment; parts shows the
+        parts a complete moment must carry alone.
+        Reading judges, registers and publishes
+        nothing: a moment is held only when an
+        approval ask is judged through the agent. The
+        registry is session state held by the agent;
+        it is not a stored setting.
+        """
+        from ..core.approval_moments import (
+            format_assessment,
+            format_parts,
+            parse_moment_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_moment_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "parts":
+                text = format_parts()
+            elif target is None:
+                text = primary.approval_moment_status()["screen"]
+            else:
+                text = format_assessment(primary.get_approval_moment(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
