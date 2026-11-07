@@ -746,7 +746,7 @@ slices:
   title: Approval by phone-sized moments
   summary: 'approvals are single, complete questions with full context (Volmarr''s law for his own Muse,
     applied to his coder): what, where, what it does, one tap.'
-  status: queued
+  status: done
 - id: M-117
   part: 5
   title: Safety regression suite
