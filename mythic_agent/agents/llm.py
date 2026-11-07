@@ -11878,6 +11878,183 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-122: the six offices formalised --
+
+    def _offices_registry(self):
+        """The held offices registry (M-122).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer office definitions in
+        the order they were taken up. It is created
+        on first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named ``_offices_store``, never
+        the method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_offices_store", None)
+        if registry is None:
+            from ..core.offices import OfficeRegistry
+            registry = OfficeRegistry()
+            self._offices_store = registry
+        return registry
+
+    def offices_status(self) -> dict[str, Any]:
+        """The offices, in plain data (M-122).
+
+        The definitions held this session as plain
+        records, the shipped book as plain records
+        (the six offices formalised, as data), the
+        one screen - rendered from the held registry,
+        or from the shipped book when nothing is held
+        yet - and the plain explanation. Reading
+        registers and publishes nothing.
+        """
+        from ..core import offices
+
+        registry = self._offices_registry()
+        held = registry.list_definitions()
+        book = offices.load_offices()
+        shown = registry if held else book
+        return {
+            "offices": [d.to_record() for d in held],
+            "book": [d.to_record() for d in book.definitions],
+            "screen": offices.format_offices_screen(shown),
+            "explanation": offices.PLAIN_EXPLANATION,
+        }
+
+    def get_office_definition(self, office: Any):
+        """The one held definition an office names (M-122).
+
+        An office the session does not hold raises
+        KeyError, exactly as the pure registry
+        answers; an unformalised office raises
+        ValueError, as the pure layer refuses it.
+        """
+        return self._offices_registry().get(office)
+
+    def find_office_definition(self, office: Any):
+        """One office definition: held first, then the book (M-122).
+
+        The session's held registry answers first; an
+        office the session has not taken up is read
+        from the shipped book. An office neither
+        holds raises KeyError; an unformalised office
+        raises ValueError.
+        """
+        try:
+            return self._offices_registry().get(office)
+        except KeyError:
+            from ..core.offices import load_offices
+            return load_offices().get(office)
+
+    def office_handoffs(self, office: Any):
+        """Every hand-off contract one office hands out (M-122).
+
+        Read from the held definition when the
+        session holds the office, and from the
+        shipped book otherwise. Reading registers
+        and publishes nothing.
+        """
+        return self.find_office_definition(office).handoffs
+
+    def office_contract(self, from_office: Any, to_office: Any):
+        """The hand-off contract between two offices (M-122).
+
+        Read from the held definition when the
+        session holds the from-office, and from the
+        shipped book otherwise; no contract between
+        the two raises KeyError. Reading registers
+        and publishes nothing.
+        """
+        return self.find_office_definition(from_office).contract_to(to_office)
+
+    def register_office(self, definition: Any) -> dict[str, Any]:
+        """Hold one formalised office for the session (M-122).
+
+        The definition is held by the pure registry
+        under its office id - a duplicate office
+        refuses, and a refusal holds nothing new and
+        publishes nothing - and a held office is
+        published as its ``office_record``
+        session-news record through the checkpoint
+        road, so an office taken up is news with its
+        shape attached. Returns the held definition,
+        its news record, the screen rendered after it
+        landed, and the plain explanation.
+        """
+        from ..core import offices
+
+        registry = self._offices_registry()
+        held = registry.register(definition)
+        record = offices.office_record(held)
+        self._publish_office_record(record)
+        return {
+            "office": held.to_record(),
+            "record": record,
+            "screen": offices.format_offices_screen(registry),
+            "explanation": offices.PLAIN_EXPLANATION,
+        }
+
+    def load_offices_book(self, book: Any = None) -> dict[str, Any]:
+        """Hold a whole offices book for the session (M-122).
+
+        With no book named, the shipped book is
+        loaded through the pure layer - the six
+        offices formalised. A book loaded from a file
+        (the pure layer's ``load_offices_file`` road)
+        may be passed instead, so an offices file
+        formalising fewer offices is held as it
+        stands. Every definition is held in file
+        order and published as its ``office_record``
+        session news, deduped per office id. The pure
+        registry refuses a duplicate office - a book
+        the session already holds cannot be loaded
+        twice. Returns the held definitions, their
+        news records, the count, the screen, and the
+        explanation.
+        """
+        from ..core import offices
+
+        registry = self._offices_registry()
+        book = book if book is not None else offices.load_offices()
+        held = registry.register_book(book)
+        records = [offices.office_record(d) for d in held]
+        for record in records:
+            self._publish_office_record(record)
+        return {
+            "offices": [d.to_record() for d in held],
+            "records": records,
+            "count": len(held),
+            "screen": offices.format_offices_screen(registry),
+            "explanation": offices.PLAIN_EXPLANATION,
+        }
+
+    def _publish_office_record(self, record: dict[str, Any]) -> None:
+        """Publish one formalised office as session news (M-122).
+
+        The pure layer's ``office_record`` is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each office is announced at most
+        once: the announcement is keyed by the
+        record's office id, and every office record
+        carries one. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") != "office":
+            return
+        announced = getattr(self, "_offices_announced", None)
+        if announced is None:
+            announced = set()
+            self._offices_announced = announced
+        office_id = record.get("office")
+        if office_id is not None:
+            if office_id in announced:
+                return
+            announced.add(office_id)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
 
 
 class AgentManager:
