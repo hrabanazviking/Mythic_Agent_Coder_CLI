@@ -12466,6 +12466,299 @@ class Agent:
             announced.add(member_id)
         if self._session_store and self.session_id:
             self._checkpoint(record)
+    # -- M-125: task dealing --
+
+    def _task_dealing_registry(self):
+        """The held task-dealing registry (M-125).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer dealt assignments in
+        the order they were dealt, beside the session
+        worktree registry (M-124) and never in it: a
+        dealt assignment is the dealing's record of
+        who takes which slice, not a worktree
+        assignment. It is created on first use, so
+        an agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_task_dealing_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_task_dealing_store", None)
+        if registry is None:
+            from ..core.task_dealing import TaskDealingRegistry
+            registry = TaskDealingRegistry()
+            self._task_dealing_store = registry
+        return registry
+
+    def task_dealing_status(self) -> dict[str, Any]:
+        """The task dealing, in plain data (M-125).
+
+        The assignments held this session as plain
+        records, the session plan's tasks as plain
+        records (the shipped example plan - the next
+        ten roadmap slices - until a plan is loaded),
+        the one screen - rendered from the held
+        registry, or from the shipped example
+        dealing when nothing is held yet - and the
+        plain explanation. Reading registers and
+        publishes nothing, starts no crew and spawns
+        nothing: this layer holds the dealing as
+        data only. There is no Part VIII board yet;
+        the screen is where the dealing is visible.
+        """
+        from ..core import task_dealing
+
+        registry = self._task_dealing_registry()
+        held = registry.list_assignments()
+        plan = self.dealing_plan()
+        screen = task_dealing.format_dealing_screen(registry) \
+            if held else task_dealing.format_dealing_screen()
+        return {
+            "assignments": [a.to_record() for a in held],
+            "plan": [t.to_record() for t in plan.tasks],
+            "screen": screen,
+            "explanation": task_dealing.PLAIN_EXPLANATION,
+        }
+
+    def get_dealt_assignment(self, slice_id: Any):
+        """The one held assignment a slice holds (M-125).
+
+        A slice the session does not hold raises
+        KeyError, exactly as the pure registry
+        answers.
+        """
+        return self._task_dealing_registry().by_slice(slice_id)
+
+    def find_dealt_assignment(self, slice_id: Any):
+        """One dealt assignment: held first, then the example (M-125).
+
+        The session's held registry answers first;
+        a slice the session has not dealt is read
+        from the shipped example dealing. A slice
+        neither holds raises KeyError. Reading
+        registers and publishes nothing.
+        """
+        try:
+            return self._task_dealing_registry().by_slice(slice_id)
+        except KeyError:
+            from ..core.crew_members import load_casting
+            from ..core.task_dealing import (
+                deal_tasks, load_dealing_plan)
+            dealing = deal_tasks(
+                load_dealing_plan(), load_casting().members)
+            return dealing.get(slice_id)
+
+    def find_dealt_assignments(self, member: Any):
+        """Every assignment one member holds (M-125).
+
+        The session's held registry answers when the
+        session holds any dealing; otherwise the
+        shipped example dealing answers. A member
+        holding nothing in the answering dealing
+        raises KeyError naming the member. Reading
+        registers and publishes nothing.
+        """
+        from ..core.crew_members import (
+            load_casting, normalize_member_id)
+        from ..core.task_dealing import (
+            deal_tasks, load_dealing_plan)
+
+        wanted = normalize_member_id(member)
+        registry = self._task_dealing_registry()
+        if registry.list_assignments():
+            found = registry.by_member(wanted)
+        else:
+            dealing = deal_tasks(
+                load_dealing_plan(), load_casting().members)
+            found = tuple(
+                a for a in dealing.assignments if a.member == wanted)
+        if not found:
+            raise KeyError(
+                f"no assignment holds the member: {wanted!r}")
+        return found
+
+    def dealing_plan(self):
+        """The session's dealing plan, as data (M-125).
+
+        The plan the session loaded through
+        :meth:`deal_task_dealing_plan`, or the
+        shipped example plan until one is loaded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.task_dealing import load_dealing_plan
+
+        plan = getattr(self, "_task_dealing_plan", None)
+        if plan is None:
+            return load_dealing_plan()
+        return plan
+
+    def dealing_loads(self) -> dict[str, Any]:
+        """The whole crew's loads from what is held (M-125).
+
+        Every shipped member's count of dealt slices
+        held this session - the current load the
+        next dealing is dealt under - read through
+        the pure layer's member_loads against the
+        shipped casting. Members holding nothing
+        read 0. Reading registers and publishes
+        nothing.
+        """
+        from ..core.crew_members import load_casting
+        from ..core.task_dealing import member_loads
+
+        return member_loads(
+            load_casting().members, self._task_dealing_registry())
+
+    def register_dealt_assignment(self, assignment: Any) -> dict[str, Any]:
+        """Hold one dealt assignment for the session (M-125).
+
+        The assignment is held by the pure registry
+        under its id or a fresh deterministic one -
+        a slice already dealt refuses (a held slice
+        moves only by an explicit re-deal), and a
+        refusal holds nothing new and publishes
+        nothing - and a held assignment is published
+        as its ``dealing_record`` session-news record
+        through the checkpoint road, so a slice dealt
+        is news with its shape attached. Returns the
+        held assignment, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding an assignment starts no
+        crew and spawns nothing: the registry holds
+        the dealing as data.
+        """
+        from ..core import task_dealing
+
+        registry = self._task_dealing_registry()
+        held = registry.register(assignment)
+        record = task_dealing.dealing_record(held)
+        self._publish_dealing_record(record)
+        return {
+            "assignment": held.to_record(),
+            "record": record,
+            "screen": task_dealing.format_dealing_screen(registry),
+            "explanation": task_dealing.PLAIN_EXPLANATION,
+        }
+
+    def deal_task_dealing_plan(self, plan: Any = None) -> dict[str, Any]:
+        """Deal a whole plan to the crew for the session (M-125).
+
+        With no plan named, the shipped example plan
+        is dealt through the pure layer - the next
+        ten roadmap slices, each to the member whose
+        office its work fits. A plan loaded from a
+        file (the pure layer's
+        ``load_dealing_plan_file`` road) may be
+        passed instead, so a real plan is dealt as
+        it stands. The dealing is derived by the
+        pure ``deal_tasks`` judge under the loads
+        the session already holds, every assignment
+        is held in plan order and published as its
+        ``dealing_record`` session news, deduped per
+        slice and member, and the plan is remembered
+        as the session's plan. The pure registry
+        refuses a slice already dealt - a plan the
+        session already dealt cannot be dealt twice;
+        the human re-deals a slice explicitly.
+        Returns the held assignments, their news
+        records, the count, the screen, and the
+        explanation. Dealing starts no crew and
+        spawns nothing.
+        """
+        from ..core import task_dealing
+        from ..core.crew_members import load_casting
+
+        registry = self._task_dealing_registry()
+        plan = plan if plan is not None \
+            else task_dealing.load_dealing_plan()
+        members = load_casting().members
+        loads = {
+            member.member_id: len(registry.by_member(member.member_id))
+            for member in members}
+        dealing = task_dealing.deal_tasks(plan, members, loads=loads)
+        held = registry.register_dealing(dealing)
+        self._task_dealing_plan = plan
+        records = [task_dealing.dealing_record(a) for a in held]
+        for record in records:
+            self._publish_dealing_record(record)
+        return {
+            "assignments": [a.to_record() for a in held],
+            "records": records,
+            "count": len(held),
+            "screen": task_dealing.format_dealing_screen(registry),
+            "explanation": task_dealing.PLAIN_EXPLANATION,
+        }
+
+    def redeal_task_assignment(self, slice_id: Any,
+                               member: Any) -> dict[str, Any]:
+        """Re-deal one held slice to another member (M-125).
+
+        The human's re-deal, carried out: the named
+        slice, held this session, moves to the named
+        member of the shipped casting, carrying that
+        member's cast office, and the held loads are
+        recomputed by the pure registry. A member
+        the casting does not hold refuses, and a
+        slice the session does not hold raises
+        KeyError, exactly as the pure registry
+        answers. The moved assignment is published
+        as its ``dealing_record`` session news - a
+        re-deal to a new member is news again; the
+        announcement is deduped per slice and
+        member. Returns the moved assignment, its
+        news record, the screen rendered after it
+        landed, and the plain explanation.
+        """
+        from ..core import task_dealing
+        from ..core.crew_members import load_casting, normalize_member_id
+
+        wanted = normalize_member_id(member)
+        offices = {
+            member.member_id: member.office
+            for member in load_casting().members}
+        if wanted not in offices:
+            raise ValueError(
+                f"the member {wanted!r} is not in the shipped "
+                f"casting; a slice is re-dealt to a crew member")
+        registry = self._task_dealing_registry()
+        moved = registry.redeal(slice_id, wanted, offices[wanted])
+        record = task_dealing.dealing_record(moved)
+        self._publish_dealing_record(record)
+        return {
+            "assignment": moved.to_record(),
+            "record": record,
+            "screen": task_dealing.format_dealing_screen(registry),
+            "explanation": task_dealing.PLAIN_EXPLANATION,
+        }
+
+    def _publish_dealing_record(self, record: dict[str, Any]) -> None:
+        """Publish one dealt assignment as session news (M-125).
+
+        The pure layer's ``dealing_record`` is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each (slice, member) pair is
+        announced at most once: the announcement is
+        keyed by the record's slice and member, so a
+        slice re-dealt to a new member is announced
+        again for that member, and every dealing
+        record carries both. A foreign record type
+        is never published on this road.
+        """
+        if record.get("type") != "task_dealing":
+            return
+        announced = getattr(self, "_task_dealing_announced", None)
+        if announced is None:
+            announced = set()
+            self._task_dealing_announced = announced
+        key = (record.get("slice_id"), record.get("member"))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 
 class AgentManager:

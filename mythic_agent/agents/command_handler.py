@@ -283,6 +283,8 @@ class CommandHandler:
                 self._handle_offices(args)
             elif cmd == "/worktrees":
                 self._handle_worktrees(args)
+            elif cmd == "/dealing":
+                self._handle_dealing(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -3486,6 +3488,71 @@ class CommandHandler:
             else:
                 text = format_assignment(
                     primary.find_worktree_assignment(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_dealing(self, args: str):
+        """M-125: /dealing - task dealing.
+
+        ``/dealing`` shows the dealt assignments
+        held this session (the shipped example
+        dealing - the next ten roadmap slices dealt
+        to the M-121 casting - when none is held
+        yet); ``/dealing show <member>`` (or a bare
+        member id) shows one member's assignments;
+        ``/dealing plan`` shows the whole plan with
+        its dealer; ``/dealing loads`` shows the
+        crew's loads from what the session holds.
+        Reading registers and publishes nothing as
+        session news: an assignment is held only
+        when it is dealt through the agent layer,
+        and a held assignment is published as a
+        task_dealing session event. This road starts
+        no crew and spawns nothing: the registry
+        holds the dealing as data, and there is no
+        Part VIII board yet - this surface is where
+        the dealing is visible. The registry is
+        session state held by the agent; it is not
+        a stored setting.
+        """
+        from ..core.task_dealing import (
+            format_assignments,
+            format_loads,
+            format_tasks,
+            parse_dealing_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_dealing_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "plan":
+                plan = primary.dealing_plan()
+                text = (format_tasks(plan)
+                        + f"\nDealer: {plan.dealer} - "
+                        "the dealer deals by office fit and "
+                        "current load, and the human may "
+                        "re-deal any slice.")
+            elif action == "loads":
+                text = format_loads(primary.dealing_loads())
+            elif target is None:
+                text = primary.task_dealing_status()["screen"]
+            else:
+                text = format_assignments(
+                    primary.find_dealt_assignments(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

@@ -537,3 +537,290 @@ def test_module_purity():
     assert "normalize_office" in source
     assert "from .worktrees import" in source
     assert "normalize_slice_id" in source
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-125 agent layer: the agent holds a
+# TaskDealingRegistry for the session (session
+# state only, no new setting), a plan is dealt by
+# the pure deal_tasks judge and held by being
+# registered - published as its dealing_record
+# session news through the checkpoint road,
+# deduped per slice and member - the human's
+# re-deal is carried out on the held registry, and
+# the /dealing surface rides both roads on the
+# pure parser + formatters. Status, find, plan and
+# loads reads register and publish nothing. This
+# layer starts no crew and spawns nothing, and
+# there is no Part VIII board: the screen is where
+# the dealing is visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _dealing_events(store, session_id):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == "task_dealing"]
+
+
+class TestTaskDealingAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.task_dealing_status()
+        assert status["assignments"] == []
+        assert [t["slice_id"] for t in status["plan"]] == \
+            [f"M-{n:03d}" for n in range(125, 135)]
+        assert "Dealt assignments: 10 dealt." in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        assert agent._task_dealing_registry() is \
+            agent._task_dealing_registry()
+        assert agent._task_dealing_store is \
+            agent._task_dealing_registry()
+
+    def test_reads_register_and_publish_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.task_dealing_status()
+        found = agent.find_dealt_assignments("scribe")
+        assert [a.slice_id for a in found] == ["M-126", "M-133"]
+        assert agent.find_dealt_assignment(
+            "M-130").member == "auditor"
+        plan = agent.dealing_plan()
+        assert plan.dealer == "coordinator"
+        loads = agent.dealing_loads()
+        assert loads["forge_worker"] == 0
+        assert loads["architect"] == 0
+        assert agent._task_dealing_registry().list_assignments() == ()
+        assert _dealing_events(store, session_id) == []
+        agent.close()
+
+    def test_unheld_assignment_raises_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_dealt_assignment("M-125")
+
+    def test_find_unknown_member_raises_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.find_dealt_assignments("nobody")
+
+    def test_status_after_register_shows_the_held_assignment(
+            self, agent):
+        agent.register_dealt_assignment(_assignment())
+        status = agent.task_dealing_status()
+        assert [a["member"] for a in status["assignments"]] == \
+            ["forge_worker"]
+        assert "Dealt assignments: 1 dealt." in status["screen"]
+        assert len(status["plan"]) == 10
+
+
+class TestTaskDealingAgentRegister:
+    def test_register_holds_and_publishes_once(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_dealt_assignment(_assignment())
+        assert outcome["assignment"]["member"] == "forge_worker"
+        assert outcome["record"]["type"] == "task_dealing"
+        assert outcome["record"]["news"] is True
+        assert agent.get_dealt_assignment(
+            "M-125").member == "forge_worker"
+        events = _dealing_events(store, session_id)
+        assert len(events) == 1
+        assert events[0]["slice_id"] == "M-125"
+        # Deduped per slice and member: no second event.
+        agent._publish_dealing_record(outcome["record"])
+        assert len(_dealing_events(store, session_id)) == 1
+        # Foreign record types are never published on this road.
+        agent._publish_dealing_record(
+            {"type": "office", "member": "scribe",
+             "slice_id": "M-126"})
+        agent._publish_dealing_record(
+            {"type": "crew_member", "member": "scribe",
+             "slice_id": "M-126"})
+        agent._publish_dealing_record(
+            {"type": "custom_office", "member": "scribe",
+             "slice_id": "M-126"})
+        agent._publish_dealing_record(
+            {"type": "worktree_assignment", "member": "scribe",
+             "slice_id": "M-126"})
+        assert len(_dealing_events(store, session_id)) == 1
+        agent.close()
+
+    def test_register_duplicate_slice_refuses(self, agent):
+        agent.register_dealt_assignment(_assignment())
+        with pytest.raises(ValueError):
+            agent.register_dealt_assignment(_assignment(
+                member="scribe", office="scribe"))
+        assert len(
+            agent._task_dealing_registry().list_assignments()) == 1
+
+    def test_deal_plan_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.deal_task_dealing_plan()
+        assert outcome["count"] == 10
+        assert agent.get_dealt_assignment(
+            "M-130").member == "auditor"
+        status = agent.task_dealing_status()
+        assert len(status["assignments"]) == 10
+        assert "Dealt assignments: 10 dealt." in status["screen"]
+        loads = agent.dealing_loads()
+        assert loads["forge_worker"] == 2
+        assert loads["architect"] == 0
+        events = _dealing_events(store, session_id)
+        assert len(events) == 10
+        assert {e["slice_id"] for e in events} == \
+            {f"M-{n:03d}" for n in range(125, 135)}
+        with pytest.raises(ValueError):
+            agent.deal_task_dealing_plan()
+        agent.close()
+
+    def test_plan_from_a_file_is_dealt_at_the_agent_layer(
+            self, agent, tmp_path):
+        outcome = agent.deal_task_dealing_plan(
+            load_dealing_plan_file(_write_plan(tmp_path, _plan_data())))
+        assert outcome["count"] == 2
+        assert agent.get_dealt_assignment(
+            "M-128").member == "forge_worker"
+        assert agent.get_dealt_assignment(
+            "M-128").load_after == 1
+        assert agent.get_dealt_assignment(
+            "M-125").load_after == 2
+        assert agent.dealing_plan().dealer == "coordinator"
+
+    def test_find_prefers_the_held_assignment(self, agent):
+        agent.register_dealt_assignment(_assignment(
+            member="scribe", office="scribe", load_after=1))
+        found = agent.find_dealt_assignments("scribe")
+        assert [a.slice_id for a in found] == ["M-125"]
+        assert agent.find_dealt_assignment(
+            "M-125").member == "scribe"
+        # Held session, member holding nothing: KeyError,
+        # no silent fall back to the example dealing.
+        with pytest.raises(KeyError):
+            agent.find_dealt_assignments("auditor")
+
+    def test_redeal_moves_a_held_slice_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.deal_task_dealing_plan()
+        outcome = agent.redeal_task_assignment("M-125", "scribe")
+        assert outcome["assignment"]["member"] == "scribe"
+        assert outcome["assignment"]["office"] == "scribe"
+        assert outcome["record"]["member"] == "scribe"
+        assert agent.get_dealt_assignment(
+            "M-125").member == "scribe"
+        assert agent.dealing_loads()["scribe"] == 3
+        assert agent.dealing_loads()["forge_worker"] == 1
+        events = _dealing_events(store, session_id)
+        # Ten dealt, plus the re-deal announced for its
+        # new (slice, member) pair.
+        assert len(events) == 11
+        with pytest.raises(ValueError):
+            agent.redeal_task_assignment("M-126", "nobody")
+        with pytest.raises(KeyError):
+            agent.redeal_task_assignment("M-140", "scribe")
+        agent.close()
+
+    def test_no_spawn_or_board_road_for_dealing(self, agent):
+        # This layer holds the dealing as data: it
+        # starts no crew, spawns nothing and builds
+        # no board - Part VIII does not exist yet.
+        assert not hasattr(agent, "spawn_dealing")
+        assert not hasattr(agent, "start_crew")
+        assert not hasattr(agent, "dealing_board")
+
+
+class TestTaskDealingTerminalSurface:
+    def test_show_plan_and_loads(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/dealing")
+        assert "Dealt assignments: 10 dealt." in text
+        _, _, text = _slash(agent, "/dealing show scribe")
+        assert "M-126" in text and "M-133" in text
+        _, _, text = _slash(agent, "/dealing plan")
+        assert "Dealing plan: 10 tasks." in text
+        assert "Dealer: coordinator" in text
+        _, _, text = _slash(agent, "/dealing loads")
+        assert text.startswith("Crew load:")
+        assert "forge_worker 0" in text
+
+    def test_bare_member_shows_theirs(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/dealing auditor")
+        assert "M-130" in text and "M-132" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert "/dealing [show|show <member>|plan|loads]" in text
+        _, _, text = _slash(agent, "/dealing dance")
+        assert "no assignment holds the member" in text
+        _, _, text = _slash(agent, "/dealing dance party")
+        assert text == USAGE
+
+
+@pytest.fixture()
+def dealing_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _dealing_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestTaskDealingCommand:
+    def test_show_is_default(self, dealing_handler, agent):
+        dealing_handler._handle_dealing("")
+        assert "Dealt assignments: 10 dealt." in \
+            _dealing_published_text(dealing_handler)
+
+    def test_show_one_plan_and_loads(self, dealing_handler, agent):
+        dealing_handler._handle_dealing("show scribe")
+        assert "M-126" in _dealing_published_text(dealing_handler)
+        dealing_handler._handle_dealing("plan")
+        assert "Dealer: coordinator" in \
+            _dealing_published_text(dealing_handler)
+        dealing_handler._handle_dealing("loads")
+        assert "Crew load:" in \
+            _dealing_published_text(dealing_handler)
+
+    def test_bad_grammar_is_published(self, dealing_handler, agent):
+        dealing_handler._handle_dealing("dance party")
+        assert USAGE in _dealing_published_text(dealing_handler)
+
+
+class TestChatScreenRoutingDealing:
+    def test_dealing_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/dealing loads", _FakeLog())
+        assert calls == [("/dealing", "loads")]
