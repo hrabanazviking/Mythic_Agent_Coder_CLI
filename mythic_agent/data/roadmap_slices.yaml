@@ -763,7 +763,7 @@ slices:
   title: Policy as code
   summary: project policies in a checked-in file (postures, jails, hooks) so a team's rules travel with
     the repo.
-  status: queued
+  status: done
 - id: M-120
   part: 5
   title: Part V gate
