@@ -582,3 +582,267 @@ def test_parse_doctrine_args_refuses_bad_grammar():
             parse_doctrine_args(bad)
     with pytest.raises(ValueError):
         parse_doctrine_args(42)
+
+# -- agent layer: doctrine held for a session (M-111) ---------------------
+
+import json as _json
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _doctrine_events(store, session_id):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == "destructive_act"]
+
+
+def _call(agent, name, arguments):
+    return agent._execute_call({"function": {
+        "name": name, "arguments": _json.dumps(arguments)}})
+
+
+def _held(agent):
+    return agent._doctrine_registry().list_judgements()
+
+
+class TestDoctrineAgentStatus:
+    def test_status_starts_empty(self, agent):
+        status = agent.doctrine_status()
+        assert status["judgements"] == []
+        assert "no commands judged" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+        assert status["screen"] == format_doctrine_screen(
+            agent._doctrine_registry())
+
+    def test_unknown_judgement_raises_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_judgement("judgement-99")
+
+    def test_reversible_judgement_holds_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.judge_command("ls")
+        assert outcome["judgement"]["rung"] == "reversible"
+        assert outcome["judgement"]["approval"] == "none"
+        assert outcome["record"]["type"] == "destructive_act"
+        assert _doctrine_events(store, session_id) == []
+        status = agent.doctrine_status()
+        assert [j["judgement_id"] for j in status["judgements"]] == [
+            "judgement-1"]
+        assert agent.get_judgement("judgement-1").command == "ls"
+        assert _doctrine_events(store, session_id) == []
+
+    def test_costly_judgement_publishes_once(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.judge_command("rm old.txt")
+        assert outcome["judgement"]["rung"] == "costly"
+        assert outcome["record"]["news"] is True
+        assert outcome["record"]["headline"].startswith("This has a cost")
+        events = _doctrine_events(store, session_id)
+        assert len(events) == 1
+        assert events[0]["command"] == "rm old.txt"
+        agent._publish_doctrine_record(outcome["record"])
+        agent.doctrine_status()
+        agent.get_judgement("judgement-1")
+        assert len(_doctrine_events(store, session_id)) == 1
+
+    def test_irreversible_judgement_names_targets_first(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.judge_command("rm -rf build dist")
+        assert outcome["judgement"]["rung"] == "irreversible"
+        assert outcome["judgement"]["targets"] == ["build", "dist"]
+        assert outcome["judgement"]["approval"] == (
+            "explicit_named_targets")
+        headline = outcome["record"]["headline"]
+        assert headline.startswith("This cannot be undone")
+        assert "build, dist" in headline
+        events = _doctrine_events(store, session_id)
+        assert len(events) == 1
+        assert events[0]["headline"] == headline
+        assert events[0]["targets"] == ["build", "dist"]
+
+    def test_unclassified_held_never_claimed_safe_or_published(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.judge_command("frobnicate")
+        assert outcome["judgement"]["classification"] == "unclassified"
+        assert outcome["judgement"]["rung"] is None
+        assert outcome["judgement"]["approval"] == "ask_once"
+        assert "not claimed safe" in outcome["record"]["headline"]
+        assert _doctrine_events(store, session_id) == []
+        assert len(_held(agent)) == 1
+
+    def test_judge_command_accepts_argv_words(self, agent):
+        outcome = agent.judge_command(["git", "push", "--force"])
+        assert outcome["judgement"]["rung"] == "irreversible"
+        assert outcome["judgement"]["command"] == "git push --force"
+        assert outcome["judgement"]["targets"] != []
+
+    def test_empty_command_refuses_and_holds_nothing(self, agent):
+        with pytest.raises(ValueError):
+            agent.judge_command("")
+        assert _held(agent) == ()
+
+
+class TestDoctrineCommandRoad:
+    def test_run_command_costly_is_judged_and_published(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        (tmp_path / "note.txt").write_text("gone soon")
+        _call(agent, "run_command", {"command": "rm note.txt"})
+        (held,) = _held(agent)
+        assert held.rung == "costly" and held.command == "rm note.txt"
+        events = _doctrine_events(store, session_id)
+        assert len(events) == 1
+        assert events[0]["rung"] == "costly"
+
+    def test_run_command_irreversible_names_its_targets(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        (tmp_path / "build").mkdir()
+        _call(agent, "run_command", {"command": "rm -rf build"})
+        (held,) = _held(agent)
+        assert held.rung == "irreversible"
+        assert list(held.targets) == ["build"]
+        events = _doctrine_events(store, session_id)
+        assert len(events) == 1
+        assert events[0]["headline"].startswith("This cannot be undone")
+        assert "build" in events[0]["headline"]
+
+    def test_run_command_reversible_is_held_not_published(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = _call(agent, "run_command",
+                       {"command": "echo doctrine-hello"})
+        assert "doctrine-hello" in result
+        (held,) = _held(agent)
+        assert held.rung == "reversible"
+        assert _doctrine_events(store, session_id) == []
+
+    def test_run_command_unknown_is_held_unclassified(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        _call(agent, "run_command", {"command": "frobnicate-xyz"})
+        (held,) = _held(agent)
+        assert held.classification == "unclassified"
+        assert held.rung is None
+        assert _doctrine_events(store, session_id) == []
+
+    def test_non_command_tools_are_not_judged(self, agent, tmp_path):
+        (tmp_path / "note.txt").write_text("hello doctrine")
+        result = _call(agent, "read_file", {"path": "note.txt"})
+        assert result == "hello doctrine"
+        assert _held(agent) == ()
+
+class TestDoctrineTerminalSurface:
+    def test_show_is_the_whole_slice(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/doctrine")
+        assert text.startswith("Destructive-command doctrine (M-111) - ")
+        assert "no commands judged" in text
+        assert USAGE in text
+
+    def test_ladder_via_the_terminal(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/doctrine ladder")
+        assert text.startswith("Destructive-command ladder: 3 rungs.")
+        assert "explicit approval naming every target first" in text
+        assert _held(agent) == ()
+
+    def test_check_and_show_one_via_the_terminal(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/doctrine check rm -rf build dist")
+        assert "1 judged." in text
+        _, _, text = _slash(agent, "/doctrine show judgement-1")
+        assert text.startswith(
+            "judgement-1: rm -rf build dist - irreversible")
+        _, _, text = _slash(agent, "/doctrine judgement-1")
+        assert "build, dist" in text
+
+    def test_unknown_and_bad_grammar_via_the_terminal(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/doctrine show judgement-99")
+        assert "unknown judgement" in text
+        _, _, text = _slash(agent, "/doctrine check")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/doctrine reversible")
+        assert text == USAGE
+
+
+@pytest.fixture()
+def doctrine_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _doctrine_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestDoctrineCommand:
+    def test_show_is_default(self, doctrine_handler, agent):
+        doctrine_handler._handle_doctrine("")
+        assert "no commands judged" in _doctrine_published_text(
+            doctrine_handler)
+
+    def test_check_and_show_one_via_the_handler(
+            self, doctrine_handler, agent):
+        doctrine_handler._handle_doctrine("check rm old.txt")
+        assert "1 judged." in _doctrine_published_text(doctrine_handler)
+        doctrine_handler._handle_doctrine("show judgement-1")
+        assert "judgement-1: " in _doctrine_published_text(doctrine_handler)
+
+    def test_ladder_via_the_handler(self, doctrine_handler, agent):
+        doctrine_handler._handle_doctrine("ladder")
+        assert "Destructive-command ladder: 3 rungs." in (
+            _doctrine_published_text(doctrine_handler))
+
+    def test_bad_grammar_and_unknown_are_published(
+            self, doctrine_handler, agent):
+        doctrine_handler._handle_doctrine("check")
+        assert "Usage: /doctrine" in _doctrine_published_text(
+            doctrine_handler)
+        doctrine_handler._handle_doctrine("show judgement-99")
+        assert "unknown judgement" in _doctrine_published_text(
+            doctrine_handler)
+
+
+class TestChatScreenRoutingDoctrine:
+    def test_doctrine_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/doctrine check rm -rf build", _FakeLog())
+        assert calls == [("/doctrine", "check rm -rf build")]
