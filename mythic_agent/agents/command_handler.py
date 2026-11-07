@@ -275,6 +275,8 @@ class CommandHandler:
                 self._handle_grace(args)
             elif cmd == "/moment":
                 self._handle_moment(args)
+            elif cmd == "/policy":
+                self._handle_policy(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -3182,6 +3184,63 @@ class CommandHandler:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
             return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_policy(self, args: str):
+        """M-119: /policy - policy as code.
+
+        ``/policy`` shows the current policy state
+        (the held policy, or the policy the file on
+        disk names, or the plain no-policy state);
+        ``/policy plan`` shows the data-only plan for
+        the file on disk, applying nothing; ``/policy
+        sections`` names the sections the file
+        carries; ``/policy apply`` loads the file and
+        applies its plan through the agent layer's
+        journal-first roads. A file that fails
+        validation is refused whole and said so
+        plainly; no file is a plain no-policy answer.
+        """
+        from ..core.policy_file import (
+            format_plan,
+            format_policy_sections,
+            parse_policy_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_policy_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{primary.project_policy_status()['screen']}[/bold cyan]\n")
+            return
+        if request["action"] == "apply":
+            outcome = primary.apply_project_policy()
+            style = "red" if outcome["status"] == "refused" else "green"
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[{style}]{outcome['screen']}[/{style}]\n")
+            return
+        try:
+            policy = primary.policy_on_disk()
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]Project policy refused: {e}[/red]\n")
+            return
+        text = (format_plan(policy)
+                if request["action"] == "plan"
+                else format_policy_sections(policy))
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
