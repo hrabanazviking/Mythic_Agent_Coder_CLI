@@ -799,7 +799,7 @@ slices:
   title: Task dealing
   summary: a plan's slices are dealt to the crew by office fit and current load; the dealing is visible
     on the board (Part VIII) and re-dealable by the human.
-  status: queued
+  status: done
 - id: M-126
   part: 6
   title: Crew comms
