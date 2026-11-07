@@ -722,7 +722,7 @@ slices:
   title: Rollback drills
   summary: scripted disasters (bad mass edit, wrong branch push attempt, corrupted session) recovered
     in tests.
-  status: queued
+  status: done
 - id: M-113
   part: 5
   title: Multi-repo workspaces

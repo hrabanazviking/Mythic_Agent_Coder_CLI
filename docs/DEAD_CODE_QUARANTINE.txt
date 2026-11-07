@@ -129,3 +129,5 @@ mythic_agent/core/budgets.py:1101:paused_record:method
 mythic_agent/core/budgets.py:1106:report_record:method
 mythic_agent/agents/llm.py:9875:record_audit_entry:method
 mythic_agent/agents/llm.py:10209:redact_output:method
+mythic_agent/agents/llm.py:10463:register_drill_result:method
+mythic_agent/agents/llm.py:10489:judge_drill_run:method
