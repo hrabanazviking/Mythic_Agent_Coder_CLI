@@ -378,6 +378,7 @@ class Agent:
         self.tui_app = None
         self.tool_policy = ToolPolicy("read-only")
         self._permission_override = None
+        self._current_plan = None  # M-100: the held plan (Plan or None)
         self.active_task_start_time = None
         self.rebuild_system_prompt()
         
@@ -7826,6 +7827,186 @@ class Agent:
                 self._checkpoint(record)
         return decision
 
+
+
+    # -- M-100: plan mode --
+
+    def _held_plan(self):
+        """The plan this agent currently holds, or None (M-100).
+
+        The current plan lives in the agent layer alone -
+        it is session state, not a stored setting - and it
+        exists only as a pure-layer :class:`Plan`, built
+        through ``validate_plan`` / ``build_plan`` and
+        approved through ``approve``.
+        """
+        return getattr(self, "_current_plan", None)
+
+    def current_plan(self):
+        """The held plan itself, or None (M-100)."""
+        return self._held_plan()
+
+    def plan_mode_status(self) -> dict[str, Any]:
+        """Plan mode, in plain data (M-100).
+
+        The gate exactly as stored (validated - a
+        malformed stored value raises, never vanishes),
+        the held plan as its plain record (or None), the
+        one screen rendered from that same gate and plan,
+        whether the build gate is open, and the plain
+        explanation.
+        """
+        from ..core import plan_mode
+
+        plan = self._held_plan()
+        enabled = plan_mode.enabled_from_config(self.config)
+        return {
+            "enabled": enabled,
+            "plan": plan.to_record() if plan is not None else None,
+            "screen": plan_mode.format_plan_mode(self.config, plan),
+            "explanation": plan_mode.PLAIN_EXPLANATION,
+            "can_build": plan_mode.can_build(enabled, plan),
+        }
+
+    def set_plan_mode(self, enabled: bool) -> dict[str, Any]:
+        """Turn plan mode on or off (M-100).
+
+        Validated by :mod:`mythic_agent.core.plan_mode`
+        before anything mutates (a no-op change refuses);
+        journaled first as the pure layer's
+        ``plan_mode_setting_changed`` event when a session
+        is attached; the stored value is the plain bool
+        under the setting key; a failed save restores the
+        previous config exactly and journals a compensating
+        ``plan_mode_setting_reverted``.
+        """
+        import copy
+
+        from ..core import plan_mode
+
+        new_value, change = plan_mode.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[plan_mode.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "plan_mode_setting_reverted",
+                        "reason": "The plan mode change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Plan mode change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def set_current_plan(self, plan_spec: Any):
+        """Hold one plan as the current plan (M-100).
+
+        The plan is built through the pure layer's
+        ``validate_plan`` - a mapping is validated whole
+        (one malformed piece refuses the whole plan and
+        nothing is held), a :class:`Plan` passes through
+        as itself. A plan starts unapproved unless its
+        own record says otherwise; approval is a separate
+        act (see :meth:`approve_current_plan`). Returns
+        the held plan itself.
+        """
+        from ..core import plan_mode
+
+        plan = plan_mode.validate_plan(plan_spec)
+        self._current_plan = plan
+        return plan
+
+    def build_current_plan(self, title: Any, intent: Any,
+                           slices: Any):
+        """Build and hold a plan from its pieces (M-100).
+
+        The plan is built through the pure layer's
+        ``build_plan`` (title, intent, and the ordered
+        slice specs, each validated to Part IX form) and
+        held as the current plan, unapproved. Returns the
+        held plan itself.
+        """
+        from ..core import plan_mode
+
+        plan = plan_mode.build_plan(title, intent, slices)
+        self._current_plan = plan
+        return plan
+
+    def approve_current_plan(self):
+        """Approve the held plan - the one gate opens (M-100).
+
+        Approval goes through the pure layer's ``approve``:
+        the held plan is replaced by its approved copy, so
+        the approval belongs to this plan alone. With no
+        plan held there is nothing to approve and the call
+        refuses plainly. Returns the approved plan itself.
+        """
+        from ..core import plan_mode
+
+        plan = self._held_plan()
+        if plan is None:
+            raise ValueError(
+                "there is no plan to approve - set a plan first")
+        approved = plan_mode.approve(plan)
+        self._current_plan = approved
+        return approved
+
+    def check_plan_effect(self, effect: Any) -> str:
+        """Decide one tool effect before it runs (M-100).
+
+        The pure layer's decision itself - ``allow`` or
+        ``deny`` - computed always: an unknown effect
+        raises, never guessed at. With the gate on, a
+        denied effect is news: its refusal record is
+        published as a session event when a session is
+        attached. With the gate off, the decision is
+        computed but returned unpublished - the gate is
+        off, and the status screen says so plainly.
+        """
+        from ..core import plan_mode
+
+        enabled = plan_mode.enabled_from_config(self.config)
+        decision = plan_mode.decide(enabled, effect)
+        if enabled and decision == "deny":
+            record = plan_mode.refusal_record(effect=effect)
+            if self._session_store and self.session_id:
+                self._checkpoint(record)
+        return decision
+
+    def check_plan_build(self) -> bool:
+        """Whether building may begin (M-100).
+
+        The pure layer's ``can_build`` answer, computed
+        always against the held plan: out of plan posture
+        building is the normal posture; in posture only an
+        approved held plan opens the gate. With the gate
+        on, a refused build is news: its refusal record is
+        published as a session event when a session is
+        attached. With the gate off, the answer is computed
+        but returned unpublished.
+        """
+        from ..core import plan_mode
+
+        enabled = plan_mode.enabled_from_config(self.config)
+        plan = self._held_plan()
+        allowed = plan_mode.can_build(enabled, plan)
+        if enabled and not allowed:
+            record = plan_mode.refusal_for_build(
+                enabled, plan).to_record()
+            if self._session_store and self.session_id:
+                self._checkpoint(record)
+        return allowed
 
 
 class AgentManager:
