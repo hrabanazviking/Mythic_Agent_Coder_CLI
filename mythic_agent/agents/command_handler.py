@@ -255,6 +255,8 @@ class CommandHandler:
                 self._handle_schedule(args)
             elif cmd == "/fleet":
                 self._handle_fleet(args)
+            elif cmd == "/budgets":
+                self._handle_budgets(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -2659,6 +2661,62 @@ class CommandHandler:
                 text = primary.fleet_status()["verdict_screen"]
             else:  # resume
                 text = primary.fleet_resume_plan()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_budgets(self, args: str):
+        """M-107: /budgets - budgets as guardrails.
+
+        /budgets shows the held budgets with each
+        budget's verdict judged from its recorded
+        usage reading - within, warning, or exceeded,
+        with the used-of-limit amounts always stated
+        in words; show <budget> (or a bare budget id)
+        shows one budget with its verdict; check
+        judges every held budget now (check <budget>
+        judges one) and acts on what is owed - an
+        exceeded budget is carried out as a graceful
+        pause at this resting point and published as
+        a budget_paused session event, never a
+        mid-edit death. Judging is the pure layer's
+        work; recording real usage from the real
+        roads and carrying the pause out are the
+        agent layer's. The registry is session state
+        held by the agent; it is not a stored setting.
+        """
+        from ..core.budgets import (
+            format_budget,
+            parse_budgets_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_budgets_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "show":
+                if target is None:
+                    text = primary.budget_status()["screen"]
+                else:
+                    text = format_budget(
+                        primary.get_budget(target),
+                        primary.get_budget_verdict(target))
+            elif target is None:  # check
+                text = primary.budget_check()["screen"]
+            else:
+                text = primary.budget_check(target)["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
