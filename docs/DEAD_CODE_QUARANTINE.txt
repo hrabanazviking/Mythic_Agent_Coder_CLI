@@ -121,3 +121,9 @@ mythic_agent/agents/llm.py:9003:register_fleet_task:method
 mythic_agent/agents/llm.py:9023:record_fleet_bundle:method
 mythic_agent/agents/llm.py:9064:fleet_check:method
 mythic_agent/core/fleet_mode.py:1257:get_bundle:method
+mythic_agent/agents/llm.py:9312:get_budget_usage:method
+mythic_agent/agents/llm.py:9333:register_budget:method
+mythic_agent/agents/llm.py:9352:record_budget_usage:method
+mythic_agent/agents/llm.py:9413:refresh_budget_usage:method
+mythic_agent/core/budgets.py:1101:paused_record:method
+mythic_agent/core/budgets.py:1106:report_record:method

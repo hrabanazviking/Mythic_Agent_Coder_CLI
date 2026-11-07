@@ -692,7 +692,7 @@ slices:
   title: Budgets as guardrails
   summary: per-task and per-session token, cost, time, and command budgets; hitting a budget is a graceful
     pause with a report, never a mid-edit death.
-  status: queued
+  status: done
 - id: M-108
   part: 5
   title: The kill switch everywhere
