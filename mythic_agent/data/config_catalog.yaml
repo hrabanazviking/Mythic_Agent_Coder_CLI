@@ -693,6 +693,14 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Plan mode (M-100): the stored gate - Plan mode is a read-everything, write-nothing posture: while it is on, the coder may read and plan but may not write or execute, the plan it produces is an ordered list of slices - each with a title, an intent, and acceptance checks - in Part IX form, and approving that one plan is the only gate to building; with plan mode off, building is the normal posture. This layer judges and formats only; it writes nothing itself. The gate ships off; with it on, Agent.check_plan_effect judges every tool effect (read allowed, write and execute denied) and Agent.check_plan_build asks whether the held plan is approved before building, publishing each refusal as a plan_mode_refusal session event - news, not a log line. With it off, building is the normal posture and the checks publish nothing. It is set through /plan on|off, journaled with save-failure revert.'
 
+- id: S-94
+  name: hooks
+  scope: top-level
+  type: list
+  default: '[]'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Hooks (M-101): the stored hook list - each entry names one of the seven lifecycle events (pre_tool, post_tool, pre_edit, post_edit, on_test, on_commit, on_session) and one user script command, with an optional name, an enabled flag and a bounded timeout (1..600 seconds, default 30); the list is validated whole - one malformed entry refuses the whole list, never silently narrowed. This layer validates, selects and judges only; it runs no script itself. Agent.run_hooks is the live road: for one event it runs each enabled hook''s command for real (a subprocess in the workspace, the hook''s own timeout as the bound; a timeout is judged an error at exit 124 and a command the OS cannot start an error at exit 127), and every finished run is judged mechanically from its exit code and JSON output alone - exit 0 allows, exit 2 blocks, a JSON block record blocks at any exit code, and any other failure is an error, blocking before the act (pre_tool, pre_edit) or at a gate (on_test, on_commit) and news only after it (post_tool, post_edit, on_session). Each blocking verdict is published through block_record as a hook_block session event - news carrying the reason the coder must answer. There is no on/off gate: the list itself is the setting, empty by default. Hooks are shown and checked through /hooks show|check <event>.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME

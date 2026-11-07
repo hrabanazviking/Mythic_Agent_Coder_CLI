@@ -656,7 +656,7 @@ slices:
   title: Hooks — the full lifecycle
   summary: pre/post tool, pre/post edit, on-test, on-commit, on-session events running user scripts; hook
     output can block with a reason the coder must answer.
-  status: queued
+  status: done
 - id: M-102
   part: 5
   title: Hook packs

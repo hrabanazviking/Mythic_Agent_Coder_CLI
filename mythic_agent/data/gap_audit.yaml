@@ -41,7 +41,7 @@ rows:
   part: V
   state: MISSING
   owning_module: mythic_agent/core/hooks.py
-  module_kind: proposed
+  module_kind: existing
   basis: mythic_agent/core/lifecycle.py
   fix_shape: User hook lifecycle (pre/post tool, edit, test, commit, session) dispatched beside the lifecycle core.
 - feature: skills-plugins
