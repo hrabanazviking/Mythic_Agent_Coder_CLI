@@ -657,3 +657,358 @@ def test_module_purity():
     assert "os.system" not in source
     assert "agents.llm" not in source
     assert "import os" not in source
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-127 agent layer: the agent holds a
+# DeadlockWatchRegistry for the session (session
+# state only, no new setting), a watch is recorded
+# by being registered - published as its
+# delegation_record / claim_record session news
+# through the checkpoint road, deduped per evidence
+# id - the findings are published as finding_record
+# session news and the report as ONE report_record
+# session event holding every finding, deduped per
+# report, and the /deadlock surface rides both roads
+# on the pure parser + formatters. Status, find,
+# watch and report reads register and publish
+# nothing. This layer spawns no crew, stops no
+# member and runs no git, and there is no Part VIII
+# board: the screen is where the findings are
+# visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _deadlock_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+class TestDeadlockAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.deadlock_status()
+        assert status["delegations"] == []
+        assert status["claims"] == []
+        assert status["watch"]["keeper"] == "guardian"
+        assert len(status["watch"]["delegations"]) == 5
+        assert len(status["watch"]["claims"]) == 5
+        assert status["report"]["type"] == "deadlock_report"
+        assert status["report"]["count"] == 3
+        assert "Deadlock watch: 3 hazards caught" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        assert agent._deadlock_watch_registry() is \
+            agent._deadlock_watch_registry()
+        assert agent._deadlock_watch_store is \
+            agent._deadlock_watch_registry()
+
+    def test_reads_register_and_publish_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.deadlock_status()
+        found = agent.find_findings("cartographer")
+        assert [f.kind for f in found] == ["delegation_cycle"]
+        assert found[0].members == (
+            "architect", "forge_worker", "cartographer")
+        assert agent.deadlock_watch().keeper == "guardian"
+        report = agent.deadlock_report()
+        assert [f.kind for f in report.findings] == [
+            "delegation_cycle", "merge_conflict", "duplicated_work"]
+        registry = agent._deadlock_watch_registry()
+        assert registry.list_delegations() == ()
+        assert registry.list_claims() == ()
+        for kind in ("crew_delegation", "crew_claim",
+                     "deadlock_finding", "deadlock_report"):
+            assert _deadlock_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_unheld_evidence_raises_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_delegation("delegation-1")
+        with pytest.raises(KeyError):
+            agent.get_claim("claim-1")
+
+    def test_find_unknown_member_raises_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.find_findings("nobody")
+
+    def test_status_after_register_shows_the_held_evidence(
+            self, agent):
+        agent.register_delegation(_delegation())
+        status = agent.deadlock_status()
+        assert [d["delegator"] for d in status["delegations"]] == \
+            ["scribe"]
+        assert "Deadlock watch: clean." in status["screen"]
+        assert len(status["watch"]["delegations"]) == 5
+
+
+class TestDeadlockAgentRegister:
+    def test_register_delegation_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_delegation(_delegation())
+        assert outcome["delegation"]["delegator"] == "scribe"
+        assert outcome["delegation"]["delegation_id"] == \
+            "delegation-1"
+        assert outcome["record"]["type"] == "crew_delegation"
+        assert outcome["record"]["news"] is True
+        assert agent.get_delegation(
+            "delegation-1").delegatee == "auditor"
+        events = _deadlock_events(store, session_id, "crew_delegation")
+        assert len(events) == 1
+        assert events[0]["delegator"] == "scribe"
+        # Deduped per delegation id: no second event.
+        agent._publish_deadlock_record(outcome["record"])
+        assert len(_deadlock_events(
+            store, session_id, "crew_delegation")) == 1
+        # Foreign record types are never published on these roads.
+        agent._publish_deadlock_record(
+            {"type": "crew_handoff", "delegation_id": "delegation-9"})
+        agent._publish_deadlock_record(
+            {"type": "task_dealing", "claim_id": "claim-9"})
+        agent._publish_deadlock_record(
+            {"type": "deadlock_finding", "claim_id": "claim-9"})
+        agent._publish_finding_record(
+            {"type": "deadlock_report", "findings": []})
+        agent._publish_report_record(
+            {"type": "deadlock_finding", "findings": []})
+        assert len(_deadlock_events(
+            store, session_id, "crew_delegation")) == 1
+        assert _deadlock_events(store, session_id, "crew_claim") == []
+        assert _deadlock_events(
+            store, session_id, "deadlock_finding") == []
+        assert _deadlock_events(
+            store, session_id, "deadlock_report") == []
+        agent.close()
+
+    def test_register_claim_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_claim(_claim())
+        assert outcome["claim"]["member"] == "scribe"
+        assert outcome["claim"]["claim_id"] == "claim-1"
+        assert outcome["record"]["type"] == "crew_claim"
+        assert outcome["record"]["news"] is True
+        assert agent.get_claim("claim-1").path == \
+            "mythic_agent/core/keeper.py"
+        events = _deadlock_events(store, session_id, "crew_claim")
+        assert len(events) == 1
+        assert events[0]["member"] == "scribe"
+        agent.close()
+
+    def test_record_watch_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_deadlock_watch()
+        assert outcome["count"] == 10
+        assert [d["delegation_id"] for d in outcome["delegations"]] == \
+            [f"delegation-{n}" for n in range(1, 6)]
+        assert [c["claim_id"] for c in outcome["claims"]] == \
+            [f"claim-{n}" for n in range(1, 6)]
+        assert agent.get_delegation(
+            "delegation-1").delegator == "cartographer"
+        assert agent.get_claim("claim-1").member == "forge_worker"
+        status = agent.deadlock_status()
+        assert len(status["delegations"]) == 5
+        assert len(status["claims"]) == 5
+        assert [f.kind for f in agent.deadlock_report().findings] == [
+            "delegation_cycle", "merge_conflict", "duplicated_work"]
+        assert len(_deadlock_events(
+            store, session_id, "crew_delegation")) == 5
+        assert len(_deadlock_events(
+            store, session_id, "crew_claim")) == 5
+        agent.close()
+
+    def test_record_same_watch_twice_refuses(self, agent):
+        agent.record_deadlock_watch()
+        with pytest.raises(ValueError):
+            agent.record_deadlock_watch()
+        registry = agent._deadlock_watch_registry()
+        assert len(registry.list_delegations()) == 5
+        assert len(registry.list_claims()) == 5
+
+    def test_watch_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        outcome = agent.record_deadlock_watch(
+            load_deadlock_watch_file(
+                _write_watch(tmp_path, _watch_data())))
+        assert outcome["count"] == 3
+        assert agent.get_delegation(
+            "delegation-1").delegator == "auditor"
+        assert agent.deadlock_watch().keeper == "guardian"
+        assert [f.kind for f in agent.deadlock_report().findings] == [
+            "delegation_cycle"]
+
+    def test_find_prefers_the_held_evidence(self, agent):
+        agent.register_delegation(_delegation(
+            delegator="auditor", delegatee="scribe"))
+        agent.register_delegation(_delegation(
+            delegator="scribe", delegatee="auditor"))
+        found = agent.find_findings("auditor")
+        assert [f.kind for f in found] == ["delegation_cycle"]
+        assert found[0].members == ("auditor", "scribe")
+        # Held session, member held in no held finding: KeyError,
+        # no silent fall back to the example watch - the
+        # cartographer is in the example's cycle.
+        with pytest.raises(KeyError):
+            agent.find_findings("cartographer")
+
+
+class TestDeadlockAgentReport:
+    def test_report_publishes_one_report_event_for_all_findings(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.record_deadlock_watch()
+        outcome = agent.report_deadlock()
+        assert outcome["count"] == 3
+        assert outcome["record"]["type"] == "deadlock_report"
+        assert outcome["record"]["count"] == 3
+        assert "Deadlock watch: 3 hazards caught" in \
+            outcome["screen"]
+        findings = _deadlock_events(
+            store, session_id, "deadlock_finding")
+        assert len(findings) == 3
+        reports = _deadlock_events(store, session_id, "deadlock_report")
+        # ONE report event holds all three findings.
+        assert len(reports) == 1
+        assert reports[0]["count"] == 3
+        assert len(reports[0]["findings"]) == 3
+        # Reporting again on the same evidence publishes
+        # nothing new.
+        agent.report_deadlock()
+        assert len(_deadlock_events(
+            store, session_id, "deadlock_finding")) == 3
+        assert len(_deadlock_events(
+            store, session_id, "deadlock_report")) == 1
+        # Newly held evidence grows the report: a new report.
+        agent.register_delegation(_delegation(
+            delegator="guardian", delegatee="guardian"))
+        outcome = agent.report_deadlock()
+        assert outcome["count"] == 4
+        assert len(_deadlock_events(
+            store, session_id, "deadlock_report")) == 2
+        agent.close()
+
+    def test_report_with_clean_evidence_publishes_a_clean_report_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_delegation(_delegation())
+        outcome = agent.report_deadlock()
+        assert outcome["count"] == 0
+        assert outcome["record"]["clean"] is True
+        assert outcome["screen"].startswith("Deadlock watch: clean.")
+        assert _deadlock_events(
+            store, session_id, "deadlock_finding") == []
+        reports = _deadlock_events(store, session_id, "deadlock_report")
+        assert len(reports) == 1
+        assert reports[0]["clean"] is True
+        agent.report_deadlock()
+        assert len(_deadlock_events(
+            store, session_id, "deadlock_report")) == 1
+        agent.close()
+
+    def test_no_stop_or_board_road_for_deadlock(self, agent):
+        # This layer holds the watch as data: it spawns
+        # no crew, stops no member, runs no git and
+        # builds no board - Part VIII does not exist yet.
+        assert not hasattr(agent, "stop_member")
+        assert not hasattr(agent, "halt_member")
+        assert not hasattr(agent, "deadlock_board")
+
+
+class TestDeadlockTerminalSurface:
+    def test_show_and_kinds(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/deadlock")
+        assert "Deadlock watch: 3 hazards caught" in text
+        _, _, text = _slash(agent, "/deadlock show cartographer")
+        assert "Deadlock watch: 1 hazards caught" in text
+        assert "delegation_cycle" in text
+        _, _, text = _slash(agent, "/deadlock kinds")
+        assert text.startswith("Finding kinds:")
+
+    def test_bare_member_shows_theirs(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/deadlock skald")
+        assert "duplicated_work" in text
+        _, _, text = _slash(agent, "/deadlock scribe")
+        assert "duplicated_work" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert "/deadlock [show|show <member>|kinds]" in text
+        _, _, text = _slash(agent, "/deadlock dance")
+        assert "no finding holds the member" in text
+        _, _, text = _slash(agent, "/deadlock dance party")
+        assert text == USAGE
+
+
+@pytest.fixture()
+def deadlock_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _deadlock_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestDeadlockCommand:
+    def test_show_is_default(self, deadlock_handler, agent):
+        deadlock_handler._handle_deadlock("")
+        assert "Deadlock watch: 3 hazards caught" in \
+            _deadlock_published_text(deadlock_handler)
+
+    def test_show_one_and_kinds(self, deadlock_handler, agent):
+        deadlock_handler._handle_deadlock("show cartographer")
+        assert "delegation_cycle" in \
+            _deadlock_published_text(deadlock_handler)
+        deadlock_handler._handle_deadlock("kinds")
+        assert "Finding kinds:" in \
+            _deadlock_published_text(deadlock_handler)
+
+    def test_bad_grammar_is_published(self, deadlock_handler, agent):
+        deadlock_handler._handle_deadlock("dance party")
+        assert USAGE in _deadlock_published_text(deadlock_handler)
+
+
+class TestChatScreenRoutingDeadlock:
+    def test_deadlock_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/deadlock kinds", _FakeLog())
+        assert calls == [("/deadlock", "kinds")]
