@@ -552,3 +552,438 @@ def test_the_trail_only_grows_by_appending():
     assert after[:1] == before
     assert [e.summary for e in after] == ["one", "two", "three"]
     assert export_trail(registry)["count"] == 3
+
+# -- agent layer: the trail held for a session (M-109) --------------------
+
+import copy as _copy
+import json as _json
+import sys as _sys
+
+from mythic_agent.core.sessions import SessionStore
+
+
+class _OfflineMemoryAudit:
+    def __init__(self):
+        self.archived = []
+
+    def search(self, query, top_k=2):
+        return []
+
+    def insert(self, text, metadata=None):
+        self.archived.append(text)
+
+
+@pytest.fixture()
+def audit_agent(tmp_path, monkeypatch):
+    from mythic_agent.agents import llm
+    from mythic_agent.core.secure_api import unsubscribe
+
+    config = {"model": "test-model", "base_url": "http://localhost:1/v1",
+              "api_keys": {}}
+    monkeypatch.setattr(llm.config_manager, "MYTHIC_DIR", tmp_path / "state")
+    monkeypatch.setattr(llm.config_manager, "load_config",
+                        lambda: _copy.deepcopy(config))
+    monkeypatch.setattr(llm.config_manager, "save_config",
+                        lambda config: True)
+    monkeypatch.setattr(llm, "get_vector_provider",
+                        lambda *args: _OfflineMemoryAudit())
+    instance = llm.Agent(project_root=tmp_path)
+    from mythic_agent.core.policy import ToolPolicy
+    instance.tool_policy = ToolPolicy("trusted")
+    yield instance
+    unsubscribe("agent_clear_history", instance._handle_clear_history)
+    unsubscribe("agent_compact_history", instance._handle_compact_history)
+
+
+def _audit_events(store, session_id):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == "audit_recorded"]
+
+
+def _call(agent, name, arguments):
+    return agent._execute_call({"function": {
+        "name": name, "arguments": _json.dumps(arguments)}})
+
+
+def _entries(agent):
+    return agent._audit_registry().list_entries()
+
+
+class TestAuditAgentStatus:
+    def test_status_starts_empty(self, audit_agent):
+        status = audit_agent.audit_status()
+        assert status["entries"] == []
+        assert status["export"]["count"] == 0
+        assert "Audit trail: none recorded." in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+        assert status["screen"] == format_audit_screen(
+            audit_agent._audit_registry())
+
+    def test_unknown_entry_raises_keyerror(self, audit_agent):
+        with pytest.raises(KeyError):
+            audit_agent.get_audit_entry("audit-99")
+
+    def test_record_audit_entry_publishes_once(self, audit_agent, tmp_path):
+        store = SessionStore(tmp_path, tmp_path / "state")
+        session_id = audit_agent.attach_session(store)
+        result = audit_agent.record_audit_entry({
+            "kind": "approval", "actor": "human",
+            "summary": "approved the push"})
+        assert result["entry"]["entry_id"] == "audit-1"
+        assert result["record"]["type"] == "audit_recorded"
+        assert result["record"]["news"] is True
+        events = _audit_events(store, session_id)
+        assert len(events) == 1 and events[0]["entry_id"] == "audit-1"
+        status = audit_agent.audit_status()
+        assert [e["entry_id"] for e in status["entries"]] == ["audit-1"]
+        assert audit_agent.get_audit_entry("audit-1").summary == (
+            "approved the push")
+
+    def test_record_audit_entry_refusals_hold_nothing(self, audit_agent):
+        with pytest.raises(ValueError):
+            audit_agent.record_audit_entry({
+                "kind": "thought", "actor": "coder", "summary": "x"})
+        audit_agent.record_audit_entry({
+            "kind": "edit", "actor": "coder", "summary": "one"})
+        with pytest.raises(ValueError):
+            audit_agent.record_audit_entry({
+                "entry_id": "audit-1", "kind": "edit",
+                "actor": "coder", "summary": "rewrite"})
+        assert len(_entries(audit_agent)) == 1
+
+    def test_status_and_export_reads_publish_nothing(
+            self, audit_agent, tmp_path):
+        store = SessionStore(tmp_path, tmp_path / "state")
+        session_id = audit_agent.attach_session(store)
+        audit_agent.record_audit_entry({
+            "kind": "edit", "actor": "coder", "summary": "one"})
+        assert len(_audit_events(store, session_id)) == 1
+        audit_agent.audit_status()
+        audit_agent.audit_export()
+        audit_agent.get_audit_entry("audit-1")
+        assert len(_audit_events(store, session_id)) == 1
+        assert len(_entries(audit_agent)) == 1
+
+
+class TestAuditToolRoad:
+    def test_read_file_is_a_tool_call(self, audit_agent, tmp_path):
+        (tmp_path / "note.txt").write_text("hello trail")
+        result = _call(audit_agent, "read_file", {"path": "note.txt"})
+        assert result == "hello trail"
+        (entry,) = _entries(audit_agent)
+        assert entry.kind == "tool_call" and entry.actor == "coder"
+        assert entry.target == "read_file"
+        assert entry.summary == "ran tool read_file"
+        assert entry.detail == "completed"
+
+    def test_write_file_is_an_edit_recorded_once(self, audit_agent):
+        result = _call(audit_agent, "write_file",
+                       {"path": "made.txt", "content": "body"})
+        assert "Successfully wrote" in result
+        (entry,) = _entries(audit_agent)
+        assert entry.kind == "edit" and entry.actor == "coder"
+        assert entry.target == "made.txt"
+        assert "edited made.txt" in entry.summary
+
+    def test_replace_is_an_edit(self, audit_agent, tmp_path):
+        (tmp_path / "editme.txt").write_text("before")
+        result = _call(audit_agent, "replace_file_content", {
+            "path": "editme.txt", "target_content": "before",
+            "replacement_content": "after"})
+        assert "Successfully replaced" in result
+        (entry,) = _entries(audit_agent)
+        assert entry.kind == "edit" and entry.target == "editme.txt"
+
+    def test_run_command_is_a_command(self, audit_agent):
+        result = _call(audit_agent, "run_command",
+                       {"command": "echo audit-hello"})
+        assert "audit-hello" in result
+        (entry,) = _entries(audit_agent)
+        assert entry.kind == "command" and entry.actor == "coder"
+        assert entry.target == "echo audit-hello"
+        assert entry.summary.startswith("ran command")
+        assert "audit-hello" not in entry.detail
+
+    def test_named_subagent_acts_are_crew(self, audit_agent, tmp_path):
+        (tmp_path / "note.txt").write_text("crew read")
+        audit_agent.name = "Scout"
+        _call(audit_agent, "read_file", {"path": "note.txt"})
+        (entry,) = _entries(audit_agent)
+        assert entry.actor == "crew" and entry.kind == "tool_call"
+
+    def test_permission_denied_is_trailed_as_refused(self, audit_agent):
+        from mythic_agent.core.policy import ToolPolicy
+        audit_agent.tool_policy = ToolPolicy("read-only")
+        result = _call(audit_agent, "write_file",
+                       {"path": "never.txt", "content": "x"})
+        assert "Permission denied" in result
+        (entry,) = _entries(audit_agent)
+        assert entry.kind == "edit"
+        assert entry.detail.startswith("permission denied")
+
+    def test_failed_calls_are_trailed_once(self, audit_agent):
+        result = audit_agent._execute_call({"function": {
+            "name": "read_file", "arguments": "not json"}})
+        assert result.startswith("Tool read_file failed")
+        result = audit_agent._execute_call({"function": {
+            "name": "read_file", "arguments": "[1]"}})
+        assert result == "Tool arguments must be a JSON object."
+        entries = _entries(audit_agent)
+        assert len(entries) == 2
+        assert entries[0].detail == "failed"
+        assert entries[1].detail.startswith("refused")
+
+    def test_tool_acts_publish_as_session_news(self, audit_agent, tmp_path):
+        store = SessionStore(tmp_path, tmp_path / "state")
+        session_id = audit_agent.attach_session(store)
+        (tmp_path / "note.txt").write_text("news")
+        _call(audit_agent, "read_file", {"path": "note.txt"})
+        events = _audit_events(store, session_id)
+        assert len(events) == 1
+        assert events[0]["kind"] == "tool_call"
+        assert events[0]["actor"] == "coder"
+
+
+class _ApprovingUI:
+    def call_from_thread(self, method, *args):
+        return method(*args)
+
+    def action_request_approval(self, text, approve, reject):
+        approve()
+        return object()
+
+    def action_cancel_approval(self, modal):
+        pass
+
+
+class _RefusingUI:
+    def call_from_thread(self, method, *args):
+        return method(*args)
+
+    def action_request_approval(self, text, approve, reject):
+        reject()
+        return object()
+
+    def action_cancel_approval(self, modal):
+        pass
+
+
+class TestAuditApprovalRoad:
+    def test_prompt_approval_granted_is_trailed(self, audit_agent):
+        audit_agent.bind_tui(_ApprovingUI(), mode="ask")
+        assert audit_agent.tool_policy.authorize(
+            "write_file", {"path": "x", "content": "y"}) is True
+        (entry,) = _entries(audit_agent)
+        assert entry.kind == "approval" and entry.actor == "human"
+        assert entry.summary == "approved tool write_file"
+        assert "approval prompt" in entry.detail
+
+    def test_prompt_approval_refused_is_trailed(self, audit_agent):
+        audit_agent.bind_tui(_RefusingUI(), mode="ask")
+        assert audit_agent.tool_policy.authorize(
+            "write_file", {"path": "x", "content": "y"}) is False
+        (entry,) = _entries(audit_agent)
+        assert entry.kind == "approval" and entry.actor == "human"
+        assert entry.summary == "refused tool write_file"
+
+    def test_terminal_remembered_approval_is_trailed(
+            self, audit_agent, tmp_path):
+        from types import SimpleNamespace
+
+        from mythic_agent import terminal
+        from mythic_agent.core.secure_api import unsubscribe
+
+        args = SimpleNamespace(workspace=tmp_path, model=None,
+                               base_url=None, permission="ask",
+                               resume=None)
+        wired = terminal.configured_agent(args, "ask")
+        try:
+            spec = {"command": "git", "args_pattern": ["status"],
+                    "path": str(wired.project_root)}
+            wired.remember_command_approval(spec, explicit=True)
+            assert wired.tool_policy.authorize(
+                "run_command", {"command": "git status"}) is True
+            assert wired.tool_policy.authorize(
+                "run_command", {"command": "git log"}) is False
+        finally:
+            wired.close()
+            unsubscribe("agent_clear_history",
+                        wired._handle_clear_history)
+            unsubscribe("agent_compact_history",
+                        wired._handle_compact_history)
+        entries = wired._audit_registry().list_entries()
+        assert [e.kind for e in entries] == ["approval", "approval"]
+        assert entries[0].actor == "human"
+        assert entries[0].summary == "approved tool run_command"
+        assert "remembered approval" in entries[0].detail
+        assert entries[1].summary == "refused tool run_command"
+
+
+class TestAuditBackgroundRoad:
+    def test_background_start_is_a_command(self, audit_agent):
+        record = audit_agent.start_background_job(
+            [_sys.executable, "-c", "pass"])
+        (entry,) = _entries(audit_agent)
+        assert entry.kind == "command" and entry.actor == "coder"
+        assert record["job_id"] in entry.detail
+        assert entry.target.startswith(_sys.executable)
+
+    def test_fleet_labelled_job_is_crew(self, audit_agent):
+        audit_agent.register_fleet_task({
+            "label": "crew audit",
+            "argv": [_sys.executable, "-c", "pass"]})
+        audit_agent.start_background_job({
+            "argv": [_sys.executable, "-c", "pass"],
+            "label": "crew audit"})
+        (entry,) = _entries(audit_agent)
+        assert entry.kind == "command" and entry.actor == "crew"
+        assert "crew audit" in entry.summary
+
+    def test_unstartable_command_is_trailed(self, audit_agent):
+        record = audit_agent.start_background_job(
+            ["/nonexistent/audit-binary-xyz"])
+        assert record["state"] == "failed"
+        (entry,) = _entries(audit_agent)
+        assert entry.kind == "command" and entry.actor == "coder"
+        assert "failed" in entry.detail
+
+
+class TestAuditHookRoad:
+    def test_hook_run_is_trailed_with_hook_actor(self, audit_agent):
+        audit_agent.config["hooks"] = [
+            {"event": "on_session", "command": "exit 0"}]
+        verdicts = audit_agent.run_hooks("on_session")
+        assert len(verdicts) == 1 and verdicts[0].decision == "allow"
+        (entry,) = _entries(audit_agent)
+        assert entry.kind == "command" and entry.actor == "hook"
+        assert entry.target == "exit 0"
+        assert "on_session" in entry.summary
+        assert "decision allow" in entry.detail
+        quiet = audit_agent.run_hooks("on_test")
+        assert quiet == [] and len(_entries(audit_agent)) == 1
+
+
+class TestAuditExportRoad:
+    def test_export_names_every_entry(self, audit_agent, tmp_path):
+        audit_agent.record_audit_entry({
+            "kind": "approval", "actor": "human",
+            "summary": "approved the edit"})
+        (tmp_path / "note.txt").write_text("x")
+        _call(audit_agent, "read_file", {"path": "note.txt"})
+        out = audit_agent.audit_export()
+        assert out["export"]["count"] == 2
+        assert out["export"]["by_kind"]["approval"] == 1
+        assert out["export"]["by_kind"]["tool_call"] == 1
+        assert out["export"]["by_actor"]["human"] == 1
+        assert "approved the edit" in out["text"]
+        assert "ran tool read_file" in out["text"]
+        assert out["text"].startswith(
+            "Audit trail export (M-109) - 2 entries")
+
+
+class TestAuditTerminalSurface:
+    def test_show_is_the_whole_slice(self, audit_agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(audit_agent, "/audit")
+        assert text.startswith("Audit trail (M-109) - ")
+        assert "Audit trail: none recorded." in text
+        assert USAGE in text
+
+    def test_show_one_and_export_via_the_terminal(self, audit_agent):
+        from mythic_agent.terminal import _slash
+        audit_agent.record_audit_entry({
+            "kind": "edit", "actor": "coder",
+            "summary": "edited budgets.py", "target": "budgets.py"})
+        _, _, text = _slash(audit_agent, "/audit show audit-1")
+        assert text.startswith("audit-1: audit entry - edit by coder")
+        _, _, text = _slash(audit_agent, "/audit audit-1")
+        assert "edited budgets.py" in text
+        _, _, text = _slash(audit_agent, "/audit export")
+        assert text.startswith("Audit trail export (M-109) - 1 entries")
+        assert "By actor: human 0, coder 1, crew 0, hook 0." in text
+
+    def test_unknown_entry_is_named(self, audit_agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(audit_agent, "/audit show audit-99")
+        assert "unknown audit entry" in text
+
+    def test_bad_grammar_is_the_usage(self, audit_agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(audit_agent, "/audit tool_call")
+        assert text == USAGE
+        _, _, text = _slash(audit_agent, "/audit export all")
+        assert text == USAGE
+
+
+@pytest.fixture()
+def audit_handler(audit_agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = audit_agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _audit_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestAuditCommand:
+    def test_show_is_default(self, audit_handler, audit_agent):
+        audit_handler._handle_audit("")
+        assert "Audit trail: none recorded." in _audit_published_text(
+            audit_handler)
+
+    def test_show_one_via_the_handler(self, audit_handler, audit_agent):
+        audit_agent.record_audit_entry({
+            "kind": "command", "actor": "hook",
+            "summary": "ran the verify hook"})
+        audit_handler._handle_audit("show audit-1")
+        assert "audit-1: " in _audit_published_text(audit_handler)
+        assert "command by hook" in _audit_published_text(audit_handler)
+
+    def test_export_via_the_handler(self, audit_handler, audit_agent):
+        audit_agent.record_audit_entry({
+            "kind": "command", "actor": "hook",
+            "summary": "ran the verify hook"})
+        audit_handler._handle_audit("export")
+        assert "Audit trail export (M-109)" in _audit_published_text(
+            audit_handler)
+
+    def test_bad_grammar_and_unknown_are_published(
+            self, audit_handler, audit_agent):
+        audit_handler._handle_audit("export all")
+        assert "Usage: /audit" in _audit_published_text(audit_handler)
+        audit_handler._handle_audit("show audit-99")
+        assert "unknown audit entry" in _audit_published_text(audit_handler)
+
+
+class TestChatScreenRoutingAudit:
+    def test_audit_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/audit export", _FakeLog())
+        assert calls == [("/audit", "export")]
