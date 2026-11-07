@@ -117,3 +117,7 @@ mythic_agent/agents/llm.py:8535:register_keeper_watch:method
 mythic_agent/agents/llm.py:8774:get_scheduled_job:method
 mythic_agent/agents/llm.py:8800:register_scheduled_job:method
 mythic_agent/agents/llm.py:8816:record_scheduled_run:method
+mythic_agent/agents/llm.py:9003:register_fleet_task:method
+mythic_agent/agents/llm.py:9023:record_fleet_bundle:method
+mythic_agent/agents/llm.py:9064:fleet_check:method
+mythic_agent/core/fleet_mode.py:1257:get_bundle:method
