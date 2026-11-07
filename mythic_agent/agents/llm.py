@@ -8718,6 +8718,223 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-105: scheduled work --
+
+    def _scheduled_registry(self):
+        """The held scheduled-work registry (M-105).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer scheduled jobs in
+        registration order, with each held job's
+        recorded run moments alongside it. It is
+        created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        """
+        registry = getattr(self, "_scheduled_work_registry", None)
+        if registry is None:
+            from ..core.scheduled_work import ScheduledWorkRegistry
+            registry = ScheduledWorkRegistry()
+            self._scheduled_work_registry = registry
+        return registry
+
+    def scheduled_work_status(self, now: Any = None) -> dict[str, Any]:
+        """Scheduled work, in plain data (M-105).
+
+        Every held job as its plain record, in
+        registration order, every held job's recorded
+        last run, every job's verdict at ``now``
+        (the current moment when none is named),
+        the one screen rendered from that same
+        registry, and the plain explanation. Judging
+        changes nothing: a status read never runs,
+        records, or publishes.
+        """
+        from datetime import datetime
+
+        from ..core import scheduled_work
+
+        moment = datetime.now() if now is None else now
+        registry = self._scheduled_registry()
+        return {
+            "jobs": [j.to_record() for j in registry.list_jobs()],
+            "last_runs": {
+                j.job_id: (
+                    registry.last_run(j.job_id).isoformat()
+                    if registry.last_run(j.job_id) is not None
+                    else None)
+                for j in registry.list_jobs()},
+            "verdicts": [v.to_record() for v in registry.check(moment)],
+            "screen": scheduled_work.format_scheduled_work(
+                registry, moment),
+            "explanation": scheduled_work.PLAIN_EXPLANATION,
+            "now": moment,
+        }
+
+    def get_scheduled_job(self, job_id: Any):
+        """The one held job an id names (M-105).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._scheduled_registry().get(job_id)
+
+    def get_scheduled_verdict(self, job_id: Any, now: Any = None):
+        """The one held job's verdict at a moment (M-105).
+
+        The verdict is the registry's own judgement,
+        against the job's recorded last run, so a
+        recorded run moves it exactly as a check
+        moves it. An unknown id raises KeyError.
+        """
+        from datetime import datetime
+
+        moment = datetime.now() if now is None else now
+        registry = self._scheduled_registry()
+        job = registry.get(job_id)
+        for verdict in registry.check(moment):
+            if verdict.job_id == job.job_id:
+                return verdict
+        raise KeyError(f"unknown scheduled job: {job_id!r}")
+
+    def register_scheduled_job(self, spec: Any = None,
+                               **kwargs: Any) -> dict[str, Any]:
+        """Register one scheduled job for the session (M-105).
+
+        *spec* is a ScheduledJob, a job mapping, or
+        field words given as keyword arguments - the
+        pure layer's ``build_scheduled_job`` readings.
+        The job is held as data only: registering
+        runs nothing and starts no timer. Returns the
+        held job's plain record.
+        """
+        from ..core import scheduled_work
+
+        job = scheduled_work.build_scheduled_job(spec, **kwargs)
+        return self._scheduled_registry().register(job).to_record()
+
+    def record_scheduled_run(self, job_id: Any,
+                             at: Any = None) -> dict[str, Any]:
+        """Record one real run moment for a held job (M-105).
+
+        The run lands at ``at`` or the current
+        moment. Time never runs backwards - the pure
+        registry refuses an earlier moment - and an
+        unknown id raises KeyError. Returns the held
+        job's plain record.
+        """
+        from datetime import datetime
+
+        moment = datetime.now() if at is None else at
+        updated = self._scheduled_registry().record_run(job_id, moment)
+        return updated.to_record()
+
+    def scheduled_check(self, now: Any = None) -> dict[str, Any]:
+        """Judge every held job once, and act (M-105).
+
+        Every job is judged at ``now`` (the current
+        moment when none is named) by the pure
+        layer's mechanical reading, against its own
+        recorded last run. Where a verdict owes an
+        action, its due record is published as a
+        ``scheduled_job_due`` session event - news,
+        never just a log line, and at most once per
+        job per owed due moment. Where the owed
+        action is a run, the job is carried out in
+        the world as a real background job through
+        the M-103 road (see
+        :meth:`_carry_scheduled_run`) and the run is
+        recorded on the registry at the judgement
+        moment, so the same slot is never owed
+        twice. A job that needs approval is
+        published as waiting and never run, and no
+        run is recorded for it. Returns the
+        verdicts, the due records, the background
+        jobs started, and the screen rendered after
+        any runs landed.
+        """
+        from datetime import datetime
+
+        from ..core import scheduled_work
+
+        moment = datetime.now() if now is None else now
+        registry = self._scheduled_registry()
+        verdicts = registry.check(moment)
+        records: list[dict[str, Any]] = []
+        started: list[dict[str, Any]] = []
+        for verdict in verdicts:
+            if verdict.action == "none":
+                continue
+            job = registry.get(verdict.job_id)
+            record = scheduled_work.due_record(verdict, job)
+            if record is None:
+                continue
+            records.append(record)
+            self._publish_scheduled_due(record)
+            if verdict.action == "run":
+                started.append(self._carry_scheduled_run(job, moment))
+        return {
+            "jobs": [j.to_record() for j in registry.list_jobs()],
+            "verdicts": [v.to_record() for v in verdicts],
+            "due_records": records,
+            "started": started,
+            "screen": scheduled_work.format_scheduled_work(
+                registry, moment),
+            "explanation": scheduled_work.PLAIN_EXPLANATION,
+            "now": moment,
+        }
+
+    def _carry_scheduled_run(self, job: Any,
+                             moment: Any) -> dict[str, Any]:
+        """Carry one due job out in the world (M-105).
+
+        The job's argv - a list of words, never a
+        shell string - is started as a real
+        background job through the M-103 road, in
+        the job's cwd when it names one. The run is
+        then recorded on the held registry at the
+        judgement moment: the moment the check found
+        owed is the moment the run answers. Returns
+        the started background job's plain record.
+        """
+        record = self.start_background_job({
+            "argv": list(job.argv),
+            "cwd": job.cwd,
+            "label": job.display_label,
+        })
+        registry = self._scheduled_registry()
+        try:
+            registry.record_run(job.job_id, moment)
+        except ValueError:
+            pass  # the run landed in the world; the
+            # registry's clock is the pure layer's to judge
+        return record
+
+    def _publish_scheduled_due(self, record: dict[str, Any]) -> None:
+        """Publish one owed due moment as session news (M-105).
+
+        The pure layer's due record - the
+        ``scheduled_job_due`` session event - is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each owed due moment is announced
+        at most once: the announcement is keyed by
+        the job, its due moment, and the action
+        owed, so the next slot's due moment is new
+        news while a repeated check of the same
+        moment is not.
+        """
+        announced = getattr(self, "_scheduled_announced", None)
+        if announced is None:
+            announced = set()
+            self._scheduled_announced = announced
+        key = (record["job_id"], record["due_at"], record["action"])
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 
 class AgentManager:
