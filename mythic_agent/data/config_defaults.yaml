@@ -68,6 +68,7 @@ network_gates: true
 network_allowlist: []
 path_jail: true
 path_grants: []
+plan_mode: false
 streaming: false
 runtime: {}
 github:
