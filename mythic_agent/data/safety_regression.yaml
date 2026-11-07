@@ -1,0 +1,194 @@
+schema: mythic.safety_regression/1
+gate_slice: M-117
+part: 5
+part_title: Autonomy & Safety
+verdict: PASS
+gate_note: |
+  The Part V safety regression gate: every doctrine rule shipped by the
+  Part V safety slices M-103..M-116 held as one named rule here, each
+  rule stating its doctrine in plain words and naming the shipped core
+  module that carries it and the exact tests that pin it. The gate's
+  tests (tests/test_safety_regression.py) do not take this record's
+  word for any of it: every named pinning test must exist in its named
+  test file, every named module must import and state its own slice,
+  and the sharpest rules are re-proven live against the shipped pure
+  roads on every run. A rule that loses its pinning tests fails the
+  gate - the suite is a release gate, not documentation. Evidence is
+  banked here against the M-116 confirmation suite named below.
+baseline:
+  resource: m116_confirmation_suite
+  collected: 6021
+  passed: 6018
+  failed: 2
+  skipped: 1
+slices:
+- slice: M-103
+  title: Background tasks
+- slice: M-104
+  title: The Keeper pattern built in
+- slice: M-105
+  title: Scheduled work
+- slice: M-106
+  title: Headless fleet mode
+- slice: M-107
+  title: Budgets as guardrails
+- slice: M-108
+  title: The kill switch everywhere
+- slice: M-109
+  title: Audit trail
+- slice: M-110
+  title: Secret hygiene in action
+- slice: M-111
+  title: Destructive-command doctrine
+- slice: M-112
+  title: Rollback drills
+- slice: M-113
+  title: Multi-repo workspaces
+- slice: M-114
+  title: Remote and SSH work
+- slice: M-115
+  title: Offline and degraded grace
+- slice: M-116
+  title: Approval by phone-sized moments
+rules:
+- id: R-01
+  slice: M-103
+  rule: long commands run as managed background jobs whose command is argv data, never a shell string; a job state only changes along legal transitions, and an output tail never cuts a single long line in half.
+  module: mythic_agent/core/background_tasks.py
+  test_file: tests/test_background_tasks.py
+  evidence_kind: tests-verified
+  tests:
+  - test_spec_refuses_a_shell_string
+  - test_illegal_transitions_refuse
+  - test_tail_never_cuts_a_single_long_line
+- id: R-02
+  slice: M-104
+  rule: a keeper notices stalled work and acts per the keeper law - it restarts a stalled target while restarts remain and reports when restarts are exhausted; it never merely watches.
+  module: mythic_agent/core/keeper.py
+  test_file: tests/test_keeper.py
+  evidence_kind: tests-verified
+  tests:
+  - test_judge_stalled_restart_while_restarts_remain
+  - test_judge_stalled_report_when_restarts_exhausted
+  - test_judge_active_and_quiet_bands
+- id: R-03
+  slice: M-105
+  rule: scheduled work is data judged against the clock - a job is not due before its moment, due at it, and overdue past it - under the same approval lines as live work, and its command is argv data, never a shell string.
+  module: mythic_agent/core/scheduled_work.py
+  test_file: tests/test_scheduled_work.py
+  evidence_kind: tests-verified
+  tests:
+  - test_judge_not_due_before_the_moment
+  - test_judge_exactly_at_due_time_is_due
+  - test_job_shell_string_refuses_like_m103
+- id: R-04
+  slice: M-106
+  rule: a fleet run's verdict and exit code are honest - a failed, unfinished, or empty fleet can never yield a success verdict, and a task's command is argv data, never a shell string.
+  module: mythic_agent/core/fleet_mode.py
+  test_file: tests/test_fleet_mode.py
+  evidence_kind: tests-verified
+  tests:
+  - test_fleet_failed_task_can_never_yield_zero
+  - test_fleet_unfinished_and_empty_are_never_zero
+  - test_task_shell_string_refuses_like_m103_m105
+- id: R-05
+  slice: M-107
+  rule: hitting a budget is a graceful pause with a report, never a mid-edit death - usage is judged per dimension against the budget, and a verdict never disagrees with its own counts.
+  module: mythic_agent/core/budgets.py
+  test_file: tests/test_budgets.py
+  evidence_kind: tests-verified
+  tests:
+  - test_judge_exceeded_per_dimension
+  - test_judge_unlimited_dimensions_never_pause
+  - test_verdict_cannot_disagree_with_itself
+- id: R-06
+  slice: M-108
+  rule: one halt stops the coder, the crew, background jobs, and pending approvals - a halt with no named targets halts everything held, finished work is already stopped and never counted as halted, and a scoped halt touches only its targets.
+  module: mythic_agent/core/kill_switch.py
+  test_file: tests/test_kill_switch.py
+  evidence_kind: tests-verified
+  tests:
+  - test_halt_defaults_halt_everything
+  - test_judge_busy_session_halts_everything_held
+  - test_judge_finished_work_is_already_stopped_never_halted
+  - test_judge_scoped_halt_touches_only_its_targets
+- id: R-07
+  slice: M-109
+  rule: the audit trail is append-only - entries land in append order, a held entry id can never be rewritten, and the registry offers no mutation or removal road.
+  module: mythic_agent/core/audit_trail.py
+  test_file: tests/test_audit_trail.py
+  evidence_kind: tests-verified
+  tests:
+  - test_registry_append_order_is_the_trail_order
+  - test_a_held_id_can_never_be_rewritten
+  - test_registry_has_no_mutation_or_removal_roads
+- id: R-08
+  slice: M-110
+  rule: secrets are never echoed - known key shapes are replaced by the redaction marker wherever they appear, a screening never carries the file's content, and a refused screening is the only kind that becomes news.
+  module: mythic_agent/core/secret_hygiene.py
+  test_file: tests/test_secret_hygiene.py
+  evidence_kind: tests-verified
+  tests:
+  - test_redaction_replaces_each_shape
+  - test_redaction_never_echoes_the_secret
+  - test_screen_file_never_carries_content
+- id: R-09
+  slice: M-111
+  rule: destructive acts climb the ladder from reversible to irreversible with the approval each rung needs - an unknown command is unclassified, never safe, and an irreversible judgement refuses without named targets named in plain words first.
+  module: mythic_agent/core/destructive_doctrine.py
+  test_file: tests/test_destructive_doctrine.py
+  evidence_kind: tests-verified
+  tests:
+  - test_unknown_commands_are_unclassified_never_safe
+  - test_irreversible_judgement_refuses_without_named_targets
+  - test_rung_approval_is_derived_and_mismatch_refuses
+- id: R-10
+  slice: M-112
+  rule: scripted disasters are recovered in tests, and a drill's outcome is derived from its counts alone - a partial recovery is never rounded up, and a result never disagrees with itself.
+  module: mythic_agent/core/rollback_drills.py
+  test_file: tests/test_rollback_drills.py
+  evidence_kind: tests-verified
+  tests:
+  - test_judge_derives_outcome_from_counts_alone
+  - test_result_never_disagrees_with_itself
+  - test_partial_is_never_rounded_up_and_publishes
+- id: R-11
+  slice: M-113
+  rule: several repos sit under one session with per-repo policies, and cross-repo changes are one change set reviewed whole - the plan is whole or nothing, a rejected file never lands, and a stale file in one repo refuses the whole plan.
+  module: mythic_agent/core/multi_repo.py
+  test_file: tests/test_multi_repo.py
+  evidence_kind: tests-verified
+  tests:
+  - test_plan_is_whole_or_nothing
+  - test_plan_rejected_file_never_lands
+  - test_stale_file_in_one_repo_refuses_the_whole_plan
+- id: R-12
+  slice: M-114
+  rule: remote work stays on that machine - a plan naming a local copy refuses plainly, any step outside the remote workspace root refuses, and a command step is argv data, never a shell string.
+  module: mythic_agent/core/remote_work.py
+  test_file: tests/test_remote_work.py
+  evidence_kind: tests-verified
+  tests:
+  - test_judge_refuses_a_local_copy_plainly
+  - test_judge_refuses_steps_outside_the_remote_root
+  - test_command_step_is_argv_data_never_a_shell_string
+- id: R-13
+  slice: M-115
+  rule: each failure narrows the coder honestly and says what it lost - full function is claimed only from full affirmative evidence, and a missing key is stated honestly as a missing key, never dressed up as a dead door.
+  module: mythic_agent/core/offline_grace.py
+  test_file: tests/test_offline_grace.py
+  evidence_kind: tests-verified
+  tests:
+  - test_judge_full_only_from_full_evidence
+  - test_judge_each_failure_kind
+  - test_judge_needs_key_is_provider_down_said_honestly
+- id: R-14
+  slice: M-116
+  rule: an approval is a single, complete, phone-sized question with full context - a bare yes/no stripped of context is never complete, and every choice states what choosing it does.
+  module: mythic_agent/core/approval_moments.py
+  test_file: tests/test_approval_moments.py
+  evidence_kind: tests-verified
+  tests:
+  - test_judge_complete_moment
+  - test_judge_bare_yes_no_is_never_complete
+  - test_judge_choice_without_effect_is_incomplete
