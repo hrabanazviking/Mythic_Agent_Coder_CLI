@@ -9246,6 +9246,270 @@ class Agent:
             record["headline"] = fleet_mode.format_fleet_verdict(verdict)
             self._checkpoint(record)
 
+    # -- M-107: budgets as guardrails --
+
+    def _budget_registry(self):
+        """The held budget registry (M-107).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer budgets in registration
+        order, with each budget's latest recorded
+        usage reading alongside it. It is created on
+        first use, so an agent whose ``__init__`` never
+        ran still holds exactly one; the moment it is
+        created is also stamped, so the session's
+        elapsed time can be read from a real clock
+        (see :meth:`budget_live_usage`).
+        """
+        registry = getattr(self, "_budgets_registry", None)
+        if registry is None:
+            import time
+
+            from ..core.budgets import BudgetRegistry
+            registry = BudgetRegistry()
+            self._budgets_registry = registry
+            self._budgets_clock_started = time.time()
+        return registry
+
+    def budget_status(self) -> dict[str, Any]:
+        """The held budgets, in plain data (M-107).
+
+        Every held budget as its plain record, in
+        registration order, every budget's recorded
+        usage reading (or None where none is held),
+        every verdict judged mechanically from the
+        recorded readings, the one screen rendered
+        from that same registry, and the plain
+        explanation. Judging changes nothing: a
+        status read never records, pauses, or
+        publishes.
+        """
+        from ..core import budgets
+
+        registry = self._budget_registry()
+        usage: dict[str, Any] = {}
+        for budget in registry.list_budgets():
+            reading = registry.get_usage(budget.budget_id)
+            usage[budget.budget_id] = (
+                reading.to_record() if reading is not None else None)
+        return {
+            "budgets": [b.to_record() for b in registry.list_budgets()],
+            "usage": usage,
+            "verdicts": [v.to_record() for v in registry.list_verdicts()],
+            "screen": budgets.format_budgets_screen(registry),
+            "explanation": budgets.PLAIN_EXPLANATION,
+        }
+
+    def get_budget(self, budget_id: Any):
+        """The one held budget an id names (M-107).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._budget_registry().get(budget_id)
+
+    def get_budget_usage(self, budget_id: Any):
+        """One held budget's recorded usage, or None (M-107).
+
+        The reading is the one recorded on the
+        registry - by :meth:`record_budget_usage` or
+        :meth:`refresh_budget_usage`; a budget with
+        no recorded reading holds none. An unknown
+        id raises KeyError.
+        """
+        return self._budget_registry().get_usage(budget_id)
+
+    def get_budget_verdict(self, budget_id: Any):
+        """The one held budget's verdict, judged now (M-107).
+
+        The verdict is the registry's own judgement
+        against the budget's recorded reading, so a
+        recorded reading moves it exactly as a check
+        moves it. An unknown id raises KeyError.
+        """
+        return self._budget_registry().check(budget_id)
+
+    def register_budget(self, spec: Any = None,
+                        **kwargs: Any) -> dict[str, Any]:
+        """Register one budget for the session (M-107).
+
+        *spec* is a Budget, a budget mapping, or
+        field words given as keyword arguments - the
+        pure layer's ``build_budget`` readings. The
+        budget is held as data only: registering
+        spends nothing, records no usage, and pauses
+        nothing. A budget names no default limits -
+        a dimension it leaves unnamed is unlimited
+        on that dimension. Returns the held budget's
+        plain record.
+        """
+        from ..core import budgets
+
+        budget = budgets.build_budget(spec, **kwargs)
+        return self._budget_registry().register(budget).to_record()
+
+    def record_budget_usage(self, budget_id: Any, spec: Any = None,
+                            **kwargs: Any) -> dict[str, Any]:
+        """Record one real usage reading for a held budget (M-107).
+
+        *spec* is a BudgetUsage, a usage mapping, or
+        usage field words - the pure layer's
+        ``build_usage`` readings, in the costs road's
+        vocabulary (tokens counted, cost in US
+        dollars, elapsed time in seconds, commands
+        counted). The reading replaces the budget's
+        latest held reading; recording judges
+        nothing and publishes nothing - the pause,
+        when one is owed, is carried out by
+        :meth:`budget_check` at its resting point.
+        A budget the registry does not hold raises
+        KeyError. Returns the recorded reading's
+        plain record.
+        """
+        registry = self._budget_registry()
+        return registry.record_usage(
+            budget_id, spec, **kwargs).to_record()
+
+    def budget_live_usage(self):
+        """The session's real usage reading, from the real roads (M-107).
+
+        Every number is read from a road that really
+        counted it - nothing here is invented:
+        tokens and cost come from the costs road
+        (``core/costs.py``), as its workspace
+        ledger's recorded token sums and its total
+        cost in dollars (a model its pricing table
+        does not know is billed unknown at zero
+        there, so no price is invented here either);
+        elapsed time is the real clock time since
+        this session's budget guardrails were first
+        held; commands are the held background jobs -
+        the session's real command road (M-103) -
+        counted as they are held. Reading changes
+        nothing: no reading is recorded by asking.
+        """
+        import time
+
+        from ..core.budgets import BudgetUsage
+        from ..core.costs import CostTracker
+
+        self._budget_registry()
+        tracker = CostTracker(self.project_root)
+        tokens = 0
+        for aggregate in tracker.by_model().values():
+            tokens += aggregate["input_tokens"] + aggregate["output_tokens"]
+        commands = 0
+        background = getattr(self, "_background_registry", None)
+        if background is not None:
+            commands = len(background.list_jobs())
+        started = getattr(self, "_budgets_clock_started", time.time())
+        return BudgetUsage(
+            tokens_used=tokens,
+            cost_used=tracker.total(),
+            time_used_seconds=max(0.0, time.time() - started),
+            commands_used=commands)
+
+    def refresh_budget_usage(self, budget_id: Any) -> dict[str, Any]:
+        """Feed one held budget the session's real usage (M-107).
+
+        The live reading (see :meth:`budget_live_usage`)
+        is recorded as the budget's latest reading,
+        replacing any older one. A budget the
+        registry does not hold raises KeyError.
+        Returns the recorded reading's plain record.
+        """
+        registry = self._budget_registry()
+        return registry.record_usage(
+            budget_id, self.budget_live_usage()).to_record()
+
+    def budget_check(self, budget_id: Any = None) -> dict[str, Any]:
+        """Judge the held budgets once, and act (M-107).
+
+        Every held budget - or the one budget an id
+        names - is judged against its recorded
+        reading by the pure layer's mechanical
+        reading. Where a verdict is exceeded, the
+        budget is carried out in the world as a
+        graceful pause at this resting point: the
+        pure layer's ``budget_paused`` record is
+        published as a ``budget_paused`` session
+        event - news, never just a log line, and at
+        most once per budget per exceeded moment -
+        and the budget is named among the paused in
+        the return. A warning verdict rides along
+        as its ``budget_report`` record, as data.
+        Nothing is killed mid-edit and no in-flight
+        work is interrupted: the pause lands here,
+        between pieces of work, exactly as the pure
+        layer's headline states it. An unknown id
+        raises KeyError. Returns the verdicts, the
+        pause records, the report records, the
+        paused budget ids, and the screen rendered
+        after the judgements landed.
+        """
+        from ..core import budgets
+
+        registry = self._budget_registry()
+        if budget_id is not None:
+            verdicts = [registry.check(budget_id)]
+        else:
+            verdicts = list(registry.list_verdicts())
+        paused: list[dict[str, Any]] = []
+        reports: list[dict[str, Any]] = []
+        for verdict in verdicts:
+            record = budgets.budget_report_record(None, None, verdict)
+            if record is None:
+                continue
+            if record["type"] == "budget_paused":
+                paused.append(record)
+                self._publish_budget_paused(record)
+            else:
+                reports.append(record)
+        return {
+            "budgets": [b.to_record() for b in registry.list_budgets()],
+            "verdicts": [v.to_record() for v in verdicts],
+            "paused": paused,
+            "reports": reports,
+            "paused_ids": [record["budget_id"] for record in paused],
+            "screen": budgets.format_budgets_screen(registry),
+            "explanation": budgets.PLAIN_EXPLANATION,
+        }
+
+    def _publish_budget_paused(self, record: dict[str, Any]) -> None:
+        """Publish one reached budget as session news (M-107).
+
+        The pure layer's paused record - the
+        ``budget_paused`` session event - is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each exceeded moment is announced
+        at most once: the announcement is keyed by
+        the budget, the dimensions it exceeded, and
+        the amounts it was read at, so a budget that
+        spends further past its limit is a new
+        exceeded moment and new news, while a
+        repeated check of the same reading is not.
+        """
+        from ..core import budgets
+
+        announced = getattr(self, "_budget_announced", None)
+        if announced is None:
+            announced = set()
+            self._budget_announced = announced
+        readings = record["readings"]
+        key = (
+            record["budget_id"],
+            tuple(record["exceeded"]),
+            tuple(
+                (dimension, readings[dimension]["used"])
+                for dimension in budgets.BUDGET_DIMENSIONS),
+        )
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
