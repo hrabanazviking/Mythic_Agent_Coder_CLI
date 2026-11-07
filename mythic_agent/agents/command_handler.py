@@ -243,6 +243,8 @@ class CommandHandler:
                 self._handle_pathjail(args)
             elif cmd == "/plan":
                 self._handle_plan(args)
+            elif cmd == "/hooks":
+                self._handle_hooks(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -2312,6 +2314,68 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[green]{format_gate_change(record)}[/green]\n")
+
+    def _handle_hooks(self, args: str):
+        """M-101: /hooks - the full lifecycle.
+
+        /hooks shows every configured hook;
+        show <event> (or a bare event word) shows one
+        event's hooks; check <event> runs that event's
+        enabled hooks for real and reports each verdict -
+        a blocking verdict is published by the agent layer
+        as session news, with the reason the coder must
+        answer. Judging is the pure layer's work and
+        running is the agent layer's; nothing here runs a
+        script itself.
+        """
+        from ..core.hooks import (
+            format_hooks,
+            format_verdict,
+            hooks_from_config,
+            parse_hooks_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, event = parse_hooks_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if action == "show":
+            try:
+                if event is None:
+                    text = primary.hooks_status()["screen"]
+                else:
+                    named = [h for h in hooks_from_config(
+                        primary.config) if h.event == event]
+                    text = format_hooks(named)
+            except ValueError as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{text}[/bold cyan]\n")
+            return
+        try:
+            verdicts = primary.run_hooks(event)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if not verdicts:
+            text = (f"No hooks are configured for {event}; "
+                    f"nothing ran.")
+        else:
+            text = "\n".join(format_verdict(v) for v in verdicts)
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
 
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.
