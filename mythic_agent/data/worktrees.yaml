@@ -1,0 +1,63 @@
+schema: mythic.worktrees/1
+slice: M-124
+part: 6
+part_title: Agents as files
+coordinator: coordinator
+plan_note: |
+  Parallel worktrees: the house law as data. Each
+  building crew member works in its own git worktree
+  on its own branch - never two writers in one tree -
+  and the coordinator merges, in slice order; the
+  coordinator holds no worktree in the plan. This file
+  is ONE EXAMPLE PLAN in the shape a real wave's plan
+  file takes: it deals the shipped M-121 casting (the
+  eight existing crew members, in casting order, each
+  holding its cast office) one worktree each for an
+  example wave, slices M-124 to M-131, every member on
+  its conventional branch (crew/<member>/<slice>) and
+  at its conventional path (worktrees/<member>). A
+  real wave's plan is a new file in this same shape,
+  dealt for that wave's members and slices - it is
+  never this file edited in place, and this layer runs
+  no git command and creates no worktree itself.
+assignments:
+- member: polymath
+  office: polymath
+  slice_id: M-124
+  branch: crew/polymath/m-124
+  path: worktrees/polymath
+- member: architect
+  office: architect
+  slice_id: M-125
+  branch: crew/architect/m-125
+  path: worktrees/architect
+- member: auditor
+  office: auditor
+  slice_id: M-126
+  branch: crew/auditor/m-126
+  path: worktrees/auditor
+- member: cartographer
+  office: cartographer
+  slice_id: M-127
+  branch: crew/cartographer/m-127
+  path: worktrees/cartographer
+- member: forge_worker
+  office: forge_worker
+  slice_id: M-128
+  branch: crew/forge_worker/m-128
+  path: worktrees/forge_worker
+- member: scribe
+  office: scribe
+  slice_id: M-129
+  branch: crew/scribe/m-129
+  path: worktrees/scribe
+- member: skald
+  office: skald
+  slice_id: M-130
+  branch: crew/skald/m-130
+  path: worktrees/skald
+- member: guardian
+  office: guardian
+  slice_id: M-131
+  branch: crew/guardian/m-131
+  path: worktrees/guardian
