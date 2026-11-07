@@ -267,6 +267,8 @@ class CommandHandler:
                 self._handle_doctrine(args)
             elif cmd == "/rollback":
                 self._handle_rollback(args)
+            elif cmd == "/multirepo":
+                self._handle_multirepo(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -2986,6 +2988,52 @@ class CommandHandler:
                 text = primary.rollback_status()["screen"]
             else:
                 text = format_result(primary.get_drill_run(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_multirepo(self, args: str):
+        """M-113: /multirepo - the multi-repo workspaces.
+
+        /multirepo shows the repos held this session
+        with each repo's policy stated in words, and
+        the cross-repo change sets held with their
+        decision counts; show <set> (or a bare set
+        id) shows one set; repos shows the held
+        repos alone. Reading registers, builds and
+        publishes nothing: a set is held only when a
+        cross-repo change is built through the
+        agent. The registry is session state held by
+        the agent; it is not a stored setting.
+        """
+        from ..core.multi_repo import (
+            format_cross_set,
+            format_repos,
+            parse_multirepo_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_multirepo_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "repos":
+                text = format_repos(primary._multi_repo_registry())
+            elif target is None:
+                text = primary.multi_repo_status()["screen"]
+            else:
+                text = format_cross_set(primary.get_cross_repo_set(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
