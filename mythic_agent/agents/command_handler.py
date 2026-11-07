@@ -271,6 +271,8 @@ class CommandHandler:
                 self._handle_multirepo(args)
             elif cmd == "/remote":
                 self._handle_remote(args)
+            elif cmd == "/grace":
+                self._handle_grace(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -3082,6 +3084,52 @@ class CommandHandler:
                 text = primary.remote_work_status()["screen"]
             else:
                 text = format_work_plan(primary.get_remote_work_plan(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_grace(self, args: str):
+        """M-115: /grace - offline and degraded grace.
+
+        /grace shows the degradation records held
+        this session, each stating its state and
+        everything it lost in plain words; show
+        <record> (or a bare record id) shows one
+        record; failures shows the three failure
+        kinds alone. Reading judges, registers and
+        publishes nothing: a record is held only when
+        degradation is judged through the agent. The
+        registry is session state held by the agent;
+        it is not a stored setting.
+        """
+        from ..core.offline_grace import (
+            format_assessment,
+            format_failures,
+            parse_grace_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_grace_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "failures":
+                text = format_failures()
+            elif target is None:
+                text = primary.grace_status()["screen"]
+            else:
+                text = format_assessment(primary.get_grace_record(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
