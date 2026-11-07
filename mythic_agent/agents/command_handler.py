@@ -3310,6 +3310,10 @@ class CommandHandler:
         held office is published as an office session
         event. The registry is session state held by
         the agent; it is not a stored setting.
+        ``/offices custom ...`` is the M-123 custom
+        offices surface, handled by
+        :meth:`_handle_offices_custom` on the pure
+        layer's custom parser + formatters.
         """
         from ..core.offices import format_office, parse_offices_args
 
@@ -3317,6 +3321,10 @@ class CommandHandler:
         if primary is None:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        _words = (args or "").strip().split()
+        if _words and _words[0].lower() == "custom":
+            self._handle_offices_custom(" ".join(_words[1:]))
             return
         try:
             action, target = parse_offices_args(args)
@@ -3342,6 +3350,76 @@ class CommandHandler:
                 text = primary.offices_status()["screen"]
             else:
                 text = format_office(primary.find_office_definition(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_offices_custom(self, args: str):
+        """M-123: /offices custom - user-defined offices.
+
+        ``/offices custom`` shows the custom offices
+        held this session (the shipped custom book -
+        the roadmap's Gatekeeper and Benchmarker
+        examples - when none is held yet);
+        ``/offices custom show <office>`` (or a bare
+        custom office id) shows one office;
+        ``/offices custom handoffs <office>`` shows
+        one office's hand-off contracts;
+        ``/offices custom contract <from> <to>``
+        shows the one contract between two offices
+        (the from-office is a custom office; the
+        target may be a formalised office or a custom
+        office). A custom office is a user-defined
+        role, not a formalised office and not a cast
+        member: nothing here spawns, and spawning
+        stays the M-121 crew road's. Reading registers
+        and publishes nothing as session news: a custom
+        office is held only when it is taken up
+        through the agent layer, and a held custom
+        office is published as a custom_office session
+        event. The registry is session state held by
+        the agent; it is not a stored setting.
+        """
+        from ..core.custom_offices import (
+            format_custom_office,
+            parse_custom_offices_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_custom_offices_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "handoffs":
+                definition = primary.find_custom_office_definition(target)
+                lines = [format_custom_office(definition)]
+                for contract in definition.handoffs:
+                    lines.append(
+                        f"  -> {contract.to_office}: "
+                        f"{contract.artifact} - {contract.condition}")
+                text = "\n".join(lines)
+            elif action == "contract":
+                from_office, to_office = target
+                contract = primary.custom_office_contract(
+                    from_office, to_office)
+                text = (f"  {from_office} -> {to_office}: "
+                        f"{contract.artifact} - {contract.condition}")
+            elif target is None:
+                text = primary.custom_offices_status()["screen"]
+            else:
+                text = format_custom_office(
+                    primary.find_custom_office_definition(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
