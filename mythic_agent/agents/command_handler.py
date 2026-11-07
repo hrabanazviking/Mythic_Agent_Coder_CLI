@@ -263,6 +263,8 @@ class CommandHandler:
                 self._handle_audit(args)
             elif cmd == "/secrets":
                 self._handle_secrets(args)
+            elif cmd == "/doctrine":
+                self._handle_doctrine(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -2879,6 +2881,59 @@ class CommandHandler:
                 text = primary.secret_hygiene_status()["screen"]
             else:
                 text = format_screening(primary.get_screening(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_doctrine(self, args: str):
+        """M-111: /doctrine - the destructive-command doctrine.
+
+        /doctrine shows the commands judged this
+        session with each judgement's rung and the
+        approval it needs, stated in words; show
+        <judgement> (or a bare judgement id) shows one
+        judgement; ladder shows the three-rung ladder
+        alone; check <command> judges one command now
+        and holds the judgement - a costly or
+        irreversible judgement is published as a
+        destructive_act session event, its headline
+        naming an irreversible act's targets in plain
+        words first. Reading the judgements judges and
+        publishes nothing beyond the check road's own
+        judgement. The registry is session state held
+        by the agent; it is not a stored setting.
+        """
+        from ..core.destructive_doctrine import (
+            format_judgement,
+            format_ladder,
+            parse_doctrine_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_doctrine_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "ladder":
+                text = format_ladder()
+            elif action == "check":
+                text = primary.judge_command(target)["screen"]
+            elif target is None:
+                text = primary.doctrine_status()["screen"]
+            else:
+                text = format_judgement(primary.get_judgement(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
