@@ -281,6 +281,8 @@ class CommandHandler:
                 self._handle_crew(args)
             elif cmd == "/offices":
                 self._handle_offices(args)
+            elif cmd == "/worktrees":
+                self._handle_worktrees(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -3420,6 +3422,70 @@ class CommandHandler:
             else:
                 text = format_custom_office(
                     primary.find_custom_office_definition(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_worktrees(self, args: str):
+        """M-124: /worktrees - parallel worktrees.
+
+        ``/worktrees`` shows the worktree
+        assignments held this session (the shipped
+        example plan - the M-121 casting dealt one
+        worktree each - when none is held yet);
+        ``/worktrees show <member>`` (or a bare
+        member id) shows one member's assignment;
+        ``/worktrees plan`` shows the whole plan
+        with its coordinator; ``/worktrees merges``
+        shows the coordinator merge plan derived in
+        slice order. Reading registers and
+        publishes nothing as session news: an
+        assignment is held only when it is taken up
+        through the agent layer, and a held
+        assignment is published as a
+        worktree_assignment session event. This
+        road runs no git command and creates no
+        worktree: the registry holds the plan as
+        data, and spawning stays the M-121 crew
+        road's. The registry is session state held
+        by the agent; it is not a stored setting.
+        """
+        from ..core.worktrees import (
+            format_assignment,
+            format_assignments,
+            format_merge_plan,
+            parse_worktrees_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_worktrees_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "plan":
+                plan = primary.worktree_plan()
+                text = (format_assignments(plan)
+                        + f"\nCoordinator: {plan.coordinator} - "
+                        "the coordinator merges, and holds no "
+                        "worktree in the plan.")
+            elif action == "merges":
+                text = format_merge_plan(primary.worktree_plan())
+            elif target is None:
+                text = primary.worktrees_status()["screen"]
+            else:
+                text = format_assignment(
+                    primary.find_worktree_assignment(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
