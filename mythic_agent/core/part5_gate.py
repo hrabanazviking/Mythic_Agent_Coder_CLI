@@ -104,6 +104,7 @@ __all__ = [
 ]
 
 import re
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -253,7 +254,12 @@ def apply_solution(exercise: Exercise, root: Path) -> Tuple[str, ...]:
     """Land *exercise*'s shipped solution files at *root*.
 
     Returns the paths written, in order. Nothing outside
-    *root* is written.
+    *root* is written. The repo's bytecode caches are
+    cleared afterwards: a solution file can be the same
+    size as the seed it replaces and land within the
+    same second, which would otherwise let a grading
+    subprocess import the seed's stale bytecode and
+    grade the old file.
     """
     written = []
     for repo_file in exercise.solution_files:
@@ -261,6 +267,9 @@ def apply_solution(exercise: Exercise, root: Path) -> Tuple[str, ...]:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(repo_file.content, encoding="utf-8")
         written.append(repo_file.path)
+    for cache_dir in sorted(root.rglob("__pycache__")):
+        if cache_dir.is_dir():
+            shutil.rmtree(cache_dir, ignore_errors=True)
     return tuple(written)
 
 
