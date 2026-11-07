@@ -430,6 +430,7 @@ class Agent:
             self._session_store, self.session_id = store, session_id
             if resume is not None:
                 self._restore_salvaged_partial()
+            self._load_project_policy_at_start()
             return session_id
 
     def _restore_salvaged_partial(self) -> None:
@@ -11254,6 +11255,372 @@ class Agent:
         announced.add(record["record_id"])
         if self._session_store and self.session_id:
             self._checkpoint(record)
+
+    # -- M-119: policy as code --
+
+    def _policy_registry(self):
+        """The held project-policy registry (M-119).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer policies in the order
+        they were loaded. It is created on first use,
+        so an agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_policy_store``, never the method's own
+        name (the M-108 lesson).
+        """
+        registry = getattr(self, "_policy_store", None)
+        if registry is None:
+            from ..core.policy_file import PolicyRegistry
+            registry = PolicyRegistry()
+            self._policy_store = registry
+        return registry
+
+    def _policy_applications(self) -> dict[str, Any]:
+        """Application outcomes by policy id (M-119)."""
+        outcomes = getattr(self, "_policy_outcome_store", None)
+        if outcomes is None:
+            outcomes = {}
+            self._policy_outcome_store = outcomes
+        return outcomes
+
+    def project_policy_path(self):
+        """The policy file path in this workspace (M-119)."""
+        from ..core.policy_file import default_policy_path
+        return default_policy_path(self.project_root)
+
+    def policy_on_disk(self):
+        """The policy the file on disk names, or None (M-119).
+
+        A missing file is None - no policy, never an
+        invented one. A present file that fails
+        validation raises the pure layer's
+        ValidationError naming the file and reason.
+        """
+        from ..core.policy_file import load_policy_file
+        return load_policy_file(self.project_policy_path())
+
+    def get_project_policy(self, policy_id: Any):
+        """The one held policy an id names (M-119).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._policy_registry().get(policy_id)
+
+    def project_policy_status(self) -> dict[str, Any]:
+        """The project policy, in plain data (M-119).
+
+        The held policies as plain records with their
+        application outcomes, the policy the file on
+        disk names today (or the plain no-policy state,
+        or the refusal reason when the file on disk
+        fails validation), the one screen rendered
+        from the held-or-disk policy, and the plain
+        explanation. Reading applies, registers, and
+        publishes nothing.
+        """
+        from ..core import policy_file
+
+        registry = self._policy_registry()
+        outcomes = self._policy_applications()
+        held = []
+        for pid in registry.policy_ids():
+            entry: dict[str, Any] = {
+                "policy_id": pid,
+                "policy": registry.get(pid).to_record()}
+            if pid in outcomes:
+                entry["application"] = outcomes[pid]
+            held.append(entry)
+        refusal = None
+        disk_policy = None
+        try:
+            disk_policy = self.policy_on_disk()
+        except ValueError as exc:
+            refusal = str(exc)
+        shown = disk_policy
+        if shown is None and held:
+            shown = registry.get(registry.policy_ids()[-1])
+        if refusal is not None:
+            screen = "Project policy refused: " + refusal
+        else:
+            screen = policy_file.format_policy_screen(shown)
+        return {
+            "held": held,
+            "disk": (disk_policy.to_record()
+                     if disk_policy is not None else None),
+            "refusal": refusal,
+            "path": str(self.project_policy_path()),
+            "screen": screen,
+            "explanation": policy_file.PLAIN_EXPLANATION,
+        }
+
+    def set_hooks(self, hooks: Any) -> dict[str, Any]:
+        """Replace the configured hooks whole (M-119).
+
+        This is the M-101/M-102 storage road, in the
+        exact shape :meth:`install_hook_pack` applies
+        it: the hooks are validated by the pure M-101
+        layer before anything mutates; the change is
+        journaled first as a ``hooks_changed`` record
+        when a session is attached; the stored list is
+        the hooks' plain records under the M-101
+        ``hooks`` setting; a failed save restores the
+        previous config exactly and journals a
+        compensating ``hooks_reverted``. Hooks already
+        exactly as named change nothing and write
+        nothing (the M-102 already-installed precedent).
+        """
+        import copy
+
+        from ..core import hooks as hooks_module
+
+        target = hooks_module.validate_hooks([
+            h.to_record() if isinstance(h, hooks_module.Hook) else h
+            for h in (hooks or ())])
+        existing = hooks_module.hooks_from_config(self.config)
+        if list(existing) == list(target):
+            return {"type": "hooks_changed", "changed": False,
+                    "hooks": [h.to_record() for h in target],
+                    "session_id": self.session_id,
+                    "journaled": False}
+        change: dict[str, Any] = {
+            "type": "hooks_changed",
+            "hooks": [h.to_record() for h in target]}
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change)
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[hooks_module.SETTING_KEY] = [
+            h.to_record() for h in target]
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "hooks_reverted",
+                        "reason": "The hooks change could not "
+                                  "be saved; the previous "
+                                  "hooks were preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Hooks change could not be saved; previous "
+                "hooks were preserved")
+        return {**change, "changed": True,
+                "session_id": self.session_id,
+                "journaled": journaled}
+
+    def _publish_policy_record(self, record: dict[str, Any]) -> None:
+        """Publish one applied policy as session news (M-119).
+
+        The pure layer's ``project_policy`` record is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each policy is announced at most
+        once: the announcement is keyed by the policy
+        record id, and every held policy holds a fresh
+        id.
+        """
+        if record.get("type") != "project_policy":
+            return
+        announced = getattr(self, "_policy_announced", None)
+        if announced is None:
+            announced = set()
+            self._policy_announced = announced
+        if record["policy_id"] in announced:
+            return
+        announced.add(record["policy_id"])
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_policy_refusal(self, reason: str) -> None:
+        """Publish one whole-policy refusal as news (M-119)."""
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "project_policy_refused",
+                "session_event": "project_policy_refused",
+                "news": True,
+                "slice": "M-119",
+                "reason": reason,
+                "headline": (
+                    "Project policy refused whole - nothing "
+                    "was applied: " + reason),
+            })
+
+    def _apply_policy_plan(self, plan: Any) -> list:
+        """Apply one policy plan, step by step (M-119).
+
+        The fixed order is posture, jail, grants,
+        hooks - each step through its own shipped
+        journal-first road, never a direct settings
+        write. A step the live settings already match
+        exactly is recorded ``satisfied`` and is not
+        forced through a road that refuses no-ops.
+        Steps follow the change-set precedent: one
+        step's refusal or save failure is recorded
+        with its reason, that road's own revert
+        behaviour governs that step, and the
+        remaining steps still run. Returns the step
+        outcomes, in order.
+        """
+        from ..core import hooks as hooks_module
+        from ..core import path_jail, permission_profiles
+
+        settings = plan.settings()
+        steps: list[dict[str, Any]] = []
+
+        def run(step: str, fn: Any) -> None:
+            try:
+                detail = fn()
+                steps.append({"step": step, "status": "applied",
+                              "detail": detail})
+            except (ValueError, KeyError, RuntimeError) as exc:
+                steps.append({"step": step, "status": "failed",
+                              "reason": str(exc)})
+
+        if "permission_profile" in settings:
+            wanted = settings["permission_profile"]
+            if self.config.get(
+                    permission_profiles.SETTING_KEY) == wanted:
+                steps.append({"step": "posture",
+                              "status": "satisfied"})
+            else:
+                run("posture", lambda: self.set_permission_profile(
+                    wanted)["type"])
+        if "path_jail" in settings:
+            wanted_jail = settings["path_jail"]
+            if path_jail.enabled_from_config(self.config) == wanted_jail:
+                steps.append({"step": "jail", "status": "satisfied"})
+            else:
+                run("jail", lambda: self.set_path_jail(
+                    wanted_jail)["type"])
+            grant_steps: list[dict[str, Any]] = []
+            current = list(path_jail.grants_from_config(self.config))
+            for grant in settings.get("path_grants", []):
+                if grant in current:
+                    grant_steps.append(
+                        {"grant": grant, "status": "satisfied"})
+                    continue
+                try:
+                    self.add_path_grant(grant)
+                    current.append(grant)
+                    grant_steps.append(
+                        {"grant": grant, "status": "applied"})
+                except (ValueError, KeyError, RuntimeError) as exc:
+                    grant_steps.append(
+                        {"grant": grant, "status": "failed",
+                         "reason": str(exc)})
+            failed = [g for g in grant_steps
+                      if g["status"] == "failed"]
+            steps.append({
+                "step": "grants",
+                "status": "failed" if failed else "applied",
+                "grants": grant_steps})
+        if "hooks" in settings:
+            wanted_hooks = settings["hooks"]
+            if self.config.get(hooks_module.SETTING_KEY) == wanted_hooks:
+                steps.append({"step": "hooks", "status": "satisfied"})
+            else:
+                def apply_hooks() -> str:
+                    outcome = self.set_hooks(wanted_hooks)
+                    return "changed" if outcome["changed"] else "satisfied"
+                try:
+                    detail = apply_hooks()
+                    steps.append({
+                        "step": "hooks",
+                        "status": ("applied" if detail == "changed"
+                                   else "satisfied")})
+                except (ValueError, KeyError, RuntimeError) as exc:
+                    steps.append({"step": "hooks", "status": "failed",
+                                  "reason": str(exc)})
+        return steps
+
+    def apply_project_policy(self) -> dict[str, Any]:
+        """Load the workspace policy file and apply it (M-119).
+
+        The file at the workspace root is loaded whole
+        through the pure layer first. No file is a
+        plain no-policy outcome: nothing applied,
+        nothing invented, nothing published. A file
+        that fails validation is refused whole: no
+        step runs, the refusal is published as session
+        news with the validator's reason, and the
+        outcome says so plainly. A valid policy is
+        registered for the session, its plan applied
+        step by step through the shipped roads (see
+        :meth:`_apply_policy_plan`), every step's
+        outcome held with the policy's record, and the
+        applied policy published as ``policy_record``
+        session news, deduped per policy record id.
+        """
+        from ..core import policy_file
+
+        path = str(self.project_policy_path())
+        try:
+            policy = self.policy_on_disk()
+        except ValueError as exc:
+            reason = str(exc)
+            self._publish_policy_refusal(reason)
+            headline = ("Project policy refused whole - nothing "
+                        "was applied: " + reason)
+            return {"status": "refused", "reason": reason,
+                    "policy_id": None, "steps": [], "path": path,
+                    "headline": headline, "screen": headline}
+        if policy is None:
+            return {"status": "no_policy", "reason": None,
+                    "policy_id": None, "steps": [], "path": path,
+                    "headline": policy_file.format_policy(None),
+                    "screen": policy_file.format_policy_screen(None)}
+        registry = self._policy_registry()
+        policy_id = registry.register(policy)
+        plan = policy_file.application_plan(policy)
+        steps = self._apply_policy_plan(plan)
+        complete = all(
+            step["status"] in ("applied", "satisfied")
+            for step in steps)
+        status = "applied" if complete else "partial"
+        record = policy_file.policy_record(policy)
+        record["policy_id"] = policy_id
+        record["steps"] = steps
+        record["applied"] = complete
+        self._policy_applications()[policy_id] = {
+            "status": status, "steps": steps}
+        self._publish_policy_record(record)
+        lines = [policy_file.format_policy(policy), "",
+                 "Policy application (" + status + "):"]
+        if not steps:
+            lines.append("  no sections - nothing to set.")
+        for step in steps:
+            line = f"  {step['step']}: {step['status']}"
+            if step["status"] == "failed":
+                line += " - " + step.get("reason", "")
+            lines.append(line)
+        return {"status": status, "reason": None,
+                "policy_id": policy_id, "record": record,
+                "policy": policy.to_record(), "steps": steps,
+                "path": path,
+                "headline": policy_file.plain_words(policy),
+                "screen": "\n".join(lines)}
+
+    def _load_project_policy_at_start(self) -> None:
+        """Apply the workspace policy at session start (M-119).
+
+        Called from :meth:`attach_session` once the
+        session is attached, so an applied policy and
+        a refusal both publish as session news on the
+        new session. A failure here never breaks the
+        session itself (the salvaged-restore
+        precedent): the apply road has already
+        published any refusal it owes.
+        """
+        try:
+            self.apply_project_policy()
+        except Exception:
+            pass
 
 
 

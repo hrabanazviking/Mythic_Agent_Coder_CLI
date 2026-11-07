@@ -114,6 +114,7 @@ __all__ = [
     "default_policy_path",
     "format_plan",
     "format_policy",
+    "format_policy_sections",
     "format_policy_screen",
     "load_example_policy",
     "load_policy_file",
@@ -161,7 +162,7 @@ PLAIN_EXPLANATION = (
 
 USAGE = (
     "Usage: /policy, /policy show, /policy plan, "
-    "/policy sections"
+    "/policy sections, /policy apply"
 )
 
 
@@ -548,7 +549,9 @@ def parse_policy_args(args: Any) -> Dict[str, Any]:
 
     No words (or ``show``) shows the policy;
     ``plan`` asks for the application plan;
-    ``sections`` asks for the section list.
+    ``sections`` asks for the section list;
+    ``apply`` (or ``load``) asks the agent layer
+    to load the file on disk and apply its plan.
     Anything else is a usage error naming the
     grammar.
     """
@@ -561,6 +564,8 @@ def parse_policy_args(args: Any) -> Dict[str, Any]:
         return {"action": "plan"}
     if text == "sections":
         return {"action": "sections"}
+    if text in ("apply", "load"):
+        return {"action": "apply"}
     raise _refuse(USAGE)
 
 
@@ -588,6 +593,19 @@ def format_policy(policy: Optional[Policy]) -> str:
                 f"  hook: {hook.event} - {hook.label} ({state}, "
                 f"{hook.timeout_seconds}s)")
     return "\n".join(lines)
+
+
+def format_policy_sections(policy: Optional[Policy]) -> str:
+    """The sections one policy names, in plain words."""
+    if policy is None:
+        return (
+            f"No project policy: no {POLICY_FILENAME} file - "
+            "no sections.")
+    if not policy.sections:
+        return (
+            "Policy sections: none - the policy names no "
+            "sections and sets nothing.")
+    return "Policy sections: " + ", ".join(policy.sections) + "."
 
 
 def format_plan(policy: Optional[Policy]) -> str:
