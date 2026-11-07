@@ -686,7 +686,7 @@ slices:
   title: Headless fleet mode
   summary: '`mythic run` grown for CI — parallel tasks across repos, machine-readable verdicts, artefact
     bundles, honest exit codes; a fleet run is resumable.'
-  status: queued
+  status: done
 - id: M-107
   part: 5
   title: Budgets as guardrails
