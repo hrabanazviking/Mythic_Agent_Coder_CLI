@@ -674,7 +674,7 @@ slices:
   title: The Keeper pattern built in
   summary: a watcher that notices stalled work (a dead background job, a crew member gone quiet) and restarts
     or reports per the user's standing keeper law — timers that *work*, not timers that watch.
-  status: queued
+  status: done
 - id: M-105
   part: 5
   title: Scheduled work
