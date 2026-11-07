@@ -1133,7 +1133,11 @@ def format_scheduled_jobs(jobs: Any = None, now: Any = None) -> str:
     plain statement of that fact. Every line
     states its due or enabled state in words; a
     due or waiting job's line states its due
-    moment and its owed action.
+    moment and its owed action. When the jobs
+    come from a registry and a moment is given,
+    each line is that registry's own verdict, so
+    a recorded run moves the line exactly as a
+    check moves it.
     """
     if jobs is None:
         selected: Tuple[ScheduledJob, ...] = ()
@@ -1149,6 +1153,10 @@ def format_scheduled_jobs(jobs: Any = None, now: Any = None) -> str:
             "Scheduled jobs: none. No work is "
             "scheduled to run on a schedule.")
     lines = [f"Scheduled jobs: {len(selected)} held."]
+    if isinstance(jobs, ScheduledWorkRegistry) and now is not None:
+        for verdict in jobs.check(now):
+            lines.append(f"  {format_verdict(verdict)}")
+        return "\n".join(lines)
     for job in selected:
         lines.append(f"  {format_scheduled_job(job, now)}")
     return "\n".join(lines)
