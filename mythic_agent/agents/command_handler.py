@@ -259,6 +259,8 @@ class CommandHandler:
                 self._handle_budgets(args)
             elif cmd == "/halt":
                 self._handle_halt(args)
+            elif cmd == "/audit":
+                self._handle_audit(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -2781,6 +2783,53 @@ class CommandHandler:
                 if target is not None:
                     spec["targets"] = [target]
                 text = primary.pull_kill_switch(spec)["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_audit(self, args: str):
+        """M-109: /audit - the audit trail.
+
+        /audit shows the session's trail - every tool
+        call, approval, edit and command recorded as it
+        happened, each stamped with its actor (the
+        human, the coder, the crew or a hook); show
+        <entry> (or a bare entry id) shows one entry;
+        export renders the whole trail as a text export
+        for review, naming every held entry in append
+        order with the counts by kind and by actor. The
+        trail is append-only: no road here edits,
+        removes or reorders an entry, and reading it
+        records nothing. The registry is session state
+        held by the agent; it is not a stored setting.
+        """
+        from ..core.audit_trail import (
+            format_entry,
+            parse_audit_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_audit_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "export":
+                text = primary.audit_export()["text"]
+            elif target is None:
+                text = primary.audit_status()["screen"]
+            else:
+                text = format_entry(primary.get_audit_entry(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
