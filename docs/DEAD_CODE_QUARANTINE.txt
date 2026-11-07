@@ -127,3 +127,4 @@ mythic_agent/agents/llm.py:9352:record_budget_usage:method
 mythic_agent/agents/llm.py:9413:refresh_budget_usage:method
 mythic_agent/core/budgets.py:1101:paused_record:method
 mythic_agent/core/budgets.py:1106:report_record:method
+mythic_agent/agents/llm.py:9875:record_audit_entry:method
