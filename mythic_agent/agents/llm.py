@@ -10414,6 +10414,135 @@ class Agent:
         announced.add(record["judgement_id"])
         if self._session_store and self.session_id:
             self._checkpoint(record)
+    # -- M-112: rollback drills --
+
+    def _drill_registry(self):
+        """The held drill registry (M-112).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer drill results in the
+        order reported. It is created on first use,
+        so an agent whose ``__init__`` never ran
+        still holds exactly one.
+        """
+        registry = getattr(self, "_rollback_drill_registry", None)
+        if registry is None:
+            from ..core.rollback_drills import DrillRegistry
+            registry = DrillRegistry()
+            self._rollback_drill_registry = registry
+        return registry
+
+    def rollback_status(self) -> dict[str, Any]:
+        """The drill results, in plain data (M-112).
+
+        Every held result as its plain record, in
+        the order reported, the one screen rendered
+        from that same registry, and the plain
+        explanation. Reading changes nothing: a
+        status read judges, registers, or publishes
+        nothing.
+        """
+        from ..core import rollback_drills
+
+        registry = self._drill_registry()
+        return {
+            "results": [r.to_record() for r in registry.list_results()],
+            "screen": rollback_drills.format_rollback_screen(registry),
+            "explanation": rollback_drills.PLAIN_EXPLANATION,
+        }
+
+    def get_drill_run(self, run_id: Any):
+        """The one held drill result an id names (M-112).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._drill_registry().get(run_id)
+
+    def register_drill_result(self, result: Any = None,
+                              **kwargs: Any) -> dict[str, Any]:
+        """Hold one reported drill result, and announce it (M-112).
+
+        The result is validated and held by the pure
+        registry, and its ``rollback_drill_run``
+        record is published as a session event
+        through the checkpoint road, so the run's
+        outcome is news, never just a log line.
+        Returns the held result, its news record,
+        the screen rendered after it landed, and the
+        plain explanation.
+        """
+        from ..core import rollback_drills
+
+        registry = self._drill_registry()
+        held = registry.register(result, **kwargs)
+        record = registry.record(held.run_id)
+        self._publish_drill_record(record)
+        return {
+            "result": held.to_record(),
+            "record": record,
+            "screen": rollback_drills.format_rollback_screen(registry),
+            "explanation": rollback_drills.PLAIN_EXPLANATION,
+        }
+
+    def judge_drill_run(self, drill_id: Any,
+                        steps_passed: Any) -> dict[str, Any]:
+        """Judge one drill run from its reported count (M-112).
+
+        The pure judge reads the count a real test
+        run reported against the held drill's own
+        step count - recovered only when every step
+        passed, never rounded up - and the result is
+        held for the session and published as a
+        ``rollback_drill_run`` session event. This
+        layer judges counts, as data: it scripts no
+        disaster and restores nothing itself - the
+        drills are run in tests against the real
+        recovery roads, and their reported counts
+        are what is judged here. Returns the held
+        result, its news record, the screen rendered
+        after the judgement landed, and the plain
+        explanation.
+        """
+        from ..core import rollback_drills
+
+        registry = self._drill_registry()
+        held = registry.judge(drill_id, steps_passed)
+        record = registry.record(held.run_id)
+        self._publish_drill_record(record)
+        return {
+            "result": held.to_record(),
+            "record": record,
+            "screen": rollback_drills.format_rollback_screen(registry),
+            "explanation": rollback_drills.PLAIN_EXPLANATION,
+        }
+
+    def _publish_drill_record(self, record: dict[str, Any]) -> None:
+        """Publish one drill run as session news (M-112).
+
+        The pure layer's ``rollback_drill_run``
+        record is journaled through the same
+        checkpoint road every sibling slice uses,
+        when a session is attached - for EVERY
+        judged run, as the pure layer shapes it:
+        a drill's outcome is owed in plain words
+        whether it recovered whole, in part, or
+        not at all. Each run is announced at most
+        once: the announcement is keyed by the run
+        id, and every held result holds a fresh id.
+        """
+        if record.get("type") != "rollback_drill_run":
+            return
+        announced = getattr(self, "_rollback_announced", None)
+        if announced is None:
+            announced = set()
+            self._rollback_announced = announced
+        if record["run_id"] in announced:
+            return
+        announced.add(record["run_id"])
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
