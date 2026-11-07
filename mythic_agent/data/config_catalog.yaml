@@ -685,6 +685,14 @@ settings:
   source: mythic_agent/data/config_defaults.yaml
   effect: 'Path jail (M-099): the stored grants - each grant is one absolute directory path, realpath-normalized; a relative grant refuses, duplicates are dropped, and one malformed grant refuses the whole list. A path is allowed only when its fully symlink-resolved form lands inside the workspace or inside a granted directory, judged on path components so a sibling-prefix never matches. Grants are added through /pathjail grant <abs-path>, listed through /pathjail grants, validated whole, and journaled with save-failure revert.'
 
+- id: S-93
+  name: plan_mode
+  scope: top-level
+  type: bool
+  default: 'False'
+  source: mythic_agent/data/config_defaults.yaml
+  effect: 'Plan mode (M-100): the stored gate - Plan mode is a read-everything, write-nothing posture: while it is on, the coder may read and plan but may not write or execute, the plan it produces is an ordered list of slices - each with a title, an intent, and acceptance checks - in Part IX form, and approving that one plan is the only gate to building; with plan mode off, building is the normal posture. This layer judges and formats only; it writes nothing itself. The gate ships off; with it on, Agent.check_plan_effect judges every tool effect (read allowed, write and execute denied) and Agent.check_plan_build asks whether the held plan is approved before building, publishing each refusal as a plan_mode_refusal session event - news, not a log line. With it off, building is the normal posture and the checks publish nothing. It is set through /plan on|off, journaled with save-failure revert.'
+
 env_vars:
 - id: V-01
   name: MYTHIC_HOME

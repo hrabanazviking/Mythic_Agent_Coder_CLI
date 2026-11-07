@@ -650,7 +650,7 @@ slices:
   title: Plan mode perfected
   summary: in plan posture the coder may read everything and write nothing; the plan it produces is slices
     with acceptance checks (Part IX form), and approving the plan is the one gate to building.
-  status: queued
+  status: done
 - id: M-101
   part: 5
   title: Hooks — the full lifecycle
