@@ -1,0 +1,60 @@
+schema: mythic.deadlock_watch/1
+slice: M-127
+part: 6
+part_title: Agents as files
+keeper: guardian
+watch_note: |
+  Cycle and deadlock watch: the coordinator's evidence,
+  as data. The evidence is two lists - the delegations
+  (who handed work on which slice to whom) and the
+  claims (who holds which slice at which path) - and
+  the findings are derived from that evidence alone:
+  a delegation cycle (members waiting on each other,
+  a deadlock), a merge conflict (two members holding
+  the same path), and duplicated work (two members
+  holding the same slice) are caught by the
+  coordinator, not by the human. This file is ONE
+  EXAMPLE WATCH in the shape a real watch's file
+  takes: five delegations and five claims among the
+  shipped M-121 casting, holding exactly one hazard
+  of each kind - the architect / forge_worker /
+  cartographer delegation cycle, the engine.py path
+  held by forge_worker and auditor, and slice M-131
+  held by scribe and skald. A real watch is a new
+  file in this same shape - it is never this file
+  edited in place. This layer holds the watch as
+  data only: it spawns no crew, stops no member and
+  runs no git itself; the coordinator acts on the
+  findings through later roads.
+delegations:
+- delegator: cartographer
+  delegatee: architect
+  slice_id: M-127
+- delegator: architect
+  delegatee: forge_worker
+  slice_id: M-127
+- delegator: forge_worker
+  delegatee: cartographer
+  slice_id: M-127
+- delegator: scribe
+  delegatee: auditor
+  slice_id: M-128
+- delegator: auditor
+  delegatee: guardian
+  slice_id: M-128
+claims:
+- member: forge_worker
+  slice_id: M-129
+  path: mythic_agent/core/engine.py
+- member: auditor
+  slice_id: M-130
+  path: mythic_agent/core/engine.py
+- member: scribe
+  slice_id: M-131
+  path: mythic_agent/core/keeper.py
+- member: skald
+  slice_id: M-131
+  path: mythic_agent/core/metrics.py
+- member: guardian
+  slice_id: M-127
+  path: mythic_agent/core/deadlock_watch.py

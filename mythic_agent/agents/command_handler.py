@@ -287,6 +287,8 @@ class CommandHandler:
                 self._handle_dealing(args)
             elif cmd == "/comms":
                 self._handle_comms(args)
+            elif cmd == "/deadlock":
+                self._handle_deadlock(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -3617,6 +3619,64 @@ class CommandHandler:
             else:
                 text = format_handoffs(
                     primary.find_handoffs(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_deadlock(self, args: str):
+        """M-127: /deadlock - cycle and deadlock watch.
+
+        ``/deadlock`` shows the findings of the watch
+        held this session (the shipped example watch -
+        five delegations and five claims among the
+        M-121 casting, yielding exactly three findings,
+        one of each kind - when none is held yet);
+        ``/deadlock show <member>`` (or a bare member
+        id) shows one member's findings; ``/deadlock
+        kinds`` shows the finding kinds. Reading
+        registers and publishes nothing as session
+        news: evidence is held only when it is given
+        through the agent layer, and held evidence is
+        published as a crew_delegation / crew_claim
+        session event, each finding as a
+        deadlock_finding session event and each report
+        as ONE deadlock_report session event. This
+        road spawns no crew, stops no member and runs
+        no git: the registry holds the evidence as
+        data, and there is no Part VIII board yet -
+        this surface is where the findings are
+        visible. The registry is session state held
+        by the agent; it is not a stored setting.
+        """
+        from ..core.deadlock_watch import (
+            format_findings,
+            format_kinds,
+            parse_deadlock_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_deadlock_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "kinds":
+                text = format_kinds()
+            elif target is None:
+                text = primary.deadlock_status()["screen"]
+            else:
+                text = format_findings(
+                    primary.find_findings(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

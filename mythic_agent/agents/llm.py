@@ -13055,6 +13055,392 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-127: cycle and deadlock watch --
+
+    def _deadlock_watch_registry(self):
+        """The held deadlock-watch registry (M-127).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer delegations and claims in
+        the order they were given, beside the session
+        comms registry (M-126) and never in it: the
+        watch's evidence is the coordinator's, not the
+        crew's traffic. It is created on first use, so
+        an agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_deadlock_watch_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_deadlock_watch_store", None)
+        if registry is None:
+            from ..core.deadlock_watch import DeadlockWatchRegistry
+            registry = DeadlockWatchRegistry()
+            self._deadlock_watch_store = registry
+        return registry
+
+    def deadlock_status(self) -> dict[str, Any]:
+        """The deadlock watch, in plain data (M-127).
+
+        The delegations and claims held this session
+        as plain records, the session watch's evidence
+        as plain records (the shipped example watch -
+        five delegations and five claims among the
+        M-121 casting, kept by the guardian - until a
+        watch is recorded), the derived report as its
+        one report record, the one screen - rendered
+        from the held registry, or from the shipped
+        example watch when nothing is held yet - and
+        the plain explanation. Reading registers and
+        publishes nothing, spawns no crew, stops no
+        member and runs no git: this layer holds the
+        watch as data only. There is no Part VIII
+        board yet; the screen is where the findings
+        are visible.
+        """
+        from ..core import deadlock_watch
+
+        registry = self._deadlock_watch_registry()
+        held_delegations = registry.list_delegations()
+        held_claims = registry.list_claims()
+        watch = self.deadlock_watch()
+        screen = deadlock_watch.format_deadlock_screen(registry) \
+            if held_delegations or held_claims \
+            else deadlock_watch.format_deadlock_screen()
+        return {
+            "delegations": [d.to_record() for d in held_delegations],
+            "claims": [c.to_record() for c in held_claims],
+            "watch": {
+                "keeper": watch.keeper,
+                "delegations": [
+                    d.to_record() for d in watch.delegations],
+                "claims": [c.to_record() for c in watch.claims],
+            },
+            "report": deadlock_watch.report_record(
+                self.deadlock_report()),
+            "screen": screen,
+            "explanation": deadlock_watch.PLAIN_EXPLANATION,
+        }
+
+    def get_delegation(self, delegation_id: Any):
+        """The one held delegation an id names (M-127).
+
+        A delegation the session does not hold raises
+        KeyError, exactly as the pure registry answers.
+        """
+        return self._deadlock_watch_registry().get_delegation(
+            delegation_id)
+
+    def get_claim(self, claim_id: Any):
+        """The one held claim an id names (M-127).
+
+        A claim the session does not hold raises
+        KeyError, exactly as the pure registry answers.
+        """
+        return self._deadlock_watch_registry().get_claim(claim_id)
+
+    def find_findings(self, member: Any):
+        """Every finding one member is held in (M-127).
+
+        The session's held registry answers when the
+        session holds any evidence; otherwise the
+        shipped example watch answers. A member held
+        in no finding in the answering set raises
+        KeyError. Reading registers and publishes
+        nothing.
+        """
+        from ..core.crew_members import normalize_member_id
+        from ..core.deadlock_watch import load_deadlock_watch
+
+        wanted = normalize_member_id(member)
+        registry = self._deadlock_watch_registry()
+        if registry.list_delegations() or registry.list_claims():
+            found = registry.for_member(wanted)
+        else:
+            found = load_deadlock_watch().report().for_member(wanted)
+        if not found:
+            raise KeyError(
+                f"no finding holds the member: {wanted!r}")
+        return found
+
+    def deadlock_watch(self):
+        """The session's deadlock watch, as data (M-127).
+
+        The watch the session recorded through
+        :meth:`record_deadlock_watch`, or the shipped
+        example watch until one is recorded. Reading
+        registers and publishes nothing.
+        """
+        from ..core.deadlock_watch import load_deadlock_watch
+
+        watch = getattr(self, "_deadlock_watch_held", None)
+        if watch is None:
+            return load_deadlock_watch()
+        return watch
+
+    def deadlock_report(self):
+        """The report the watch's evidence yields (M-127).
+
+        Derived by the pure layer from what the
+        session holds - the held registry when the
+        session holds any evidence, otherwise the
+        shipped example watch - every hazard the
+        evidence holds, in detection order: delegation
+        cycles, then merge conflicts, then duplicated
+        work. Reading registers and publishes nothing:
+        publishing is :meth:`report_deadlock`' road.
+        """
+        from ..core.deadlock_watch import load_deadlock_watch
+
+        registry = self._deadlock_watch_registry()
+        if registry.list_delegations() or registry.list_claims():
+            return registry.report()
+        return load_deadlock_watch().report()
+
+    def register_delegation(self, delegation: Any) -> dict[str, Any]:
+        """Hold one delegation for the session (M-127).
+
+        The delegation is held by the pure registry
+        under its id or a fresh deterministic one - a
+        supplied id already held refuses, and a
+        refusal holds nothing new and publishes
+        nothing - and a held delegation is published
+        as its ``delegation_record`` session-news
+        record through the checkpoint road, so
+        evidence given is news with its shape
+        attached. Returns the held delegation, its
+        news record, the screen rendered after it
+        landed, and the plain explanation. Holding a
+        delegation spawns no crew and stops no
+        member: the registry holds the evidence as
+        data.
+        """
+        from ..core import deadlock_watch
+
+        registry = self._deadlock_watch_registry()
+        held = registry.register_delegation(delegation)
+        record = deadlock_watch.delegation_record(held)
+        self._publish_deadlock_record(record)
+        return {
+            "delegation": held.to_record(),
+            "record": record,
+            "screen": deadlock_watch.format_deadlock_screen(registry),
+            "explanation": deadlock_watch.PLAIN_EXPLANATION,
+        }
+
+    def register_claim(self, claim: Any) -> dict[str, Any]:
+        """Hold one claim for the session (M-127).
+
+        The claim is held by the pure registry under
+        its id or a fresh deterministic one - a
+        supplied id already held refuses, and a
+        refusal holds nothing new and publishes
+        nothing - and a held claim is published as
+        its ``claim_record`` session-news record
+        through the checkpoint road, so evidence given
+        is news with its shape attached. Returns the
+        held claim, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a claim spawns no crew,
+        stops no member and runs no git: the registry
+        holds the evidence as data.
+        """
+        from ..core import deadlock_watch
+
+        registry = self._deadlock_watch_registry()
+        held = registry.register_claim(claim)
+        record = deadlock_watch.claim_record(held)
+        self._publish_deadlock_record(record)
+        return {
+            "claim": held.to_record(),
+            "record": record,
+            "screen": deadlock_watch.format_deadlock_screen(registry),
+            "explanation": deadlock_watch.PLAIN_EXPLANATION,
+        }
+
+    def record_deadlock_watch(self, watch: Any = None) -> dict[str, Any]:
+        """Record a whole watch of evidence for the session (M-127).
+
+        With no watch named, the shipped example
+        watch is recorded through the pure layer -
+        five delegations and five claims among the
+        M-121 casting, kept by the guardian. A watch
+        loaded from a file (the pure layer's
+        ``load_deadlock_watch_file`` road) may be
+        passed instead, so a real watch is recorded as
+        it stands. Every delegation and claim is held
+        in watch order and published as its
+        ``delegation_record`` / ``claim_record``
+        session news, deduped per evidence id, the
+        watch is remembered as the session's watch,
+        and the same watch recorded twice refuses - a
+        watch is recorded once, never duplicated into
+        the session. Returns the held delegations, the
+        held claims, their news records, the count of
+        evidence held, the screen, and the
+        explanation. Recording spawns no crew, stops
+        no member and runs no git.
+        """
+        from ..core import deadlock_watch
+
+        watch = watch if watch is not None \
+            else deadlock_watch.load_deadlock_watch()
+        fingerprint = (
+            tuple((d.delegator, d.delegatee, d.slice_id)
+                  for d in watch.delegations),
+            tuple((c.member, c.slice_id, c.path)
+                  for c in watch.claims))
+        recorded = getattr(self, "_deadlock_watch_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._deadlock_watch_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this deadlock watch is already recorded for "
+                "the session; a watch is recorded once")
+        registry = self._deadlock_watch_registry()
+        delegations, claims = registry.register_watch(watch)
+        recorded.add(fingerprint)
+        self._deadlock_watch_held = watch
+        records = [
+            deadlock_watch.delegation_record(d) for d in delegations]
+        records += [
+            deadlock_watch.claim_record(c) for c in claims]
+        for record in records:
+            self._publish_deadlock_record(record)
+        return {
+            "delegations": [d.to_record() for d in delegations],
+            "claims": [c.to_record() for c in claims],
+            "records": records,
+            "count": len(delegations) + len(claims),
+            "screen": deadlock_watch.format_deadlock_screen(registry),
+            "explanation": deadlock_watch.PLAIN_EXPLANATION,
+        }
+
+    def report_deadlock(self) -> dict[str, Any]:
+        """Report the watch's findings to the coordinator (M-127).
+
+        The report is derived from what the session
+        holds by :meth:`deadlock_report` - every
+        hazard the evidence holds, in detection
+        order - and published as session news: each
+        finding as its ``finding_record``, then the
+        report itself as ONE ``report_record`` session
+        event holding every finding, never one report
+        per finding. The announcements are deduped:
+        reporting again while the same evidence is
+        held publishes nothing new, and a report grown
+        by newly held evidence announces as the new
+        report it is. Returns the report, its news
+        record, the count of findings, the findings
+        screen, and the plain explanation. Reporting
+        spawns no crew, stops no member and runs no
+        git: the coordinator acts on the findings
+        through later roads.
+        """
+        from ..core import deadlock_watch
+
+        report = self.deadlock_report()
+        for finding in report.findings:
+            self._publish_finding_record(
+                deadlock_watch.finding_record(finding))
+        record = deadlock_watch.report_record(report)
+        self._publish_report_record(record)
+        return {
+            "report": report.to_record(),
+            "record": record,
+            "count": len(report.findings),
+            "screen": deadlock_watch.format_findings(report),
+            "explanation": deadlock_watch.PLAIN_EXPLANATION,
+        }
+
+    def _publish_deadlock_record(self, record: dict[str, Any]) -> None:
+        """Publish one piece of watch evidence as session news (M-127).
+
+        The pure layer's ``delegation_record`` and
+        ``claim_record`` are journaled through the
+        same checkpoint road every sibling slice
+        uses, when a session is attached. Each piece
+        of evidence is announced at most once, under
+        its own id. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") == "crew_delegation":
+            key = ("crew_delegation", record.get("delegation_id"))
+        elif record.get("type") == "crew_claim":
+            key = ("crew_claim", record.get("claim_id"))
+        else:
+            return
+        announced = getattr(self, "_deadlock_announced", None)
+        if announced is None:
+            announced = set()
+            self._deadlock_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_finding_record(self, record: dict[str, Any]) -> None:
+        """Publish one finding as session news (M-127).
+
+        The pure layer's ``finding_record`` is
+        journaled through the same checkpoint road,
+        when a session is attached. Each finding is
+        announced at most once: the announcement is
+        keyed by the finding's whole shape (kind,
+        members, slices, paths, title), so the same
+        hazard derived again from the same evidence
+        is not news twice. A foreign record type is
+        never published on this road.
+        """
+        if record.get("type") != "deadlock_finding":
+            return
+        announced = getattr(self, "_deadlock_finding_announced", None)
+        if announced is None:
+            announced = set()
+            self._deadlock_finding_announced = announced
+        key = (
+            record.get("kind"), tuple(record.get("members", [])),
+            tuple(record.get("slice_ids", [])),
+            tuple(record.get("paths", [])), record.get("title"))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_report_record(self, record: dict[str, Any]) -> None:
+        """Publish one watch report as session news (M-127).
+
+        The pure layer's ``report_record`` is
+        journaled through the same checkpoint road,
+        when a session is attached - ONE event holding
+        every finding, so the coordinator is told
+        once. Each report is announced at most once:
+        the announcement is keyed by the report's
+        findings, so a report grown by newly held
+        evidence announces again as the new report it
+        is. A foreign record type is never published
+        on this road.
+        """
+        if record.get("type") != "deadlock_report":
+            return
+        announced = getattr(self, "_deadlock_report_announced", None)
+        if announced is None:
+            announced = set()
+            self._deadlock_report_announced = announced
+        key = tuple(
+            (f.get("kind"), tuple(f.get("members", [])),
+             tuple(f.get("slice_ids", [])),
+             tuple(f.get("paths", [])), f.get("title"))
+            for f in record.get("findings", []))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
