@@ -251,6 +251,8 @@ class CommandHandler:
                 self._handle_background(args)
             elif cmd == "/keeper":
                 self._handle_keeper(args)
+            elif cmd == "/schedule":
+                self._handle_schedule(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -2549,6 +2551,59 @@ class CommandHandler:
                 status = primary.keeper_status()
                 text = format_watch_target(
                     primary.get_keeper_target(target), status["now"])
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_schedule(self, args: str):
+        """M-105: /schedule - scheduled work.
+
+        /schedule shows the held jobs, each judged in
+        words - not due, due, overdue, waiting for
+        approval, or disabled, against its own
+        recorded last run; show <job> (or a bare job
+        id) shows one job's verdict; check judges
+        every job now and acts on what is owed - an
+        owed due moment is published as session news,
+        a due unattended job is carried out for real
+        as a background job and its run recorded,
+        and a job that needs approval is published
+        as waiting and never run. Judging is the pure
+        layer's work and running is the agent layer's
+        through the M-103 road; nothing here starts
+        a timer.
+        """
+        from ..core.scheduled_work import (
+            format_verdict,
+            parse_schedule_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_schedule_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "show":
+                status = primary.scheduled_work_status()
+                if target is None:
+                    text = status["screen"]
+                else:
+                    text = format_verdict(
+                        primary.get_scheduled_verdict(
+                            target, status["now"]))
+            else:  # check
+                text = primary.scheduled_check()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
