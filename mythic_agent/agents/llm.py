@@ -502,10 +502,20 @@ class Agent:
             # user already gave for this command in this
             # project - and the prompt is never raised.
             if self.remembered_approval_allows_tool(name, arguments):
+                # M-109: a remembered approval is a human
+                # approval already given - it is trailed as
+                # one, through the audit road.
+                self._note_audit_approval(
+                    name, True, "a remembered approval")
                 return True
             settings = runtime_settings(self.config)
             description = self.redactor.text(name + ": " + json.dumps(arguments, ensure_ascii=False))
-            return prompt_approval_sync(description, app, self._cancel, settings["approval_timeout"])
+            decided = prompt_approval_sync(description, app, self._cancel, settings["approval_timeout"])
+            # M-109: the human's answer at the prompt is
+            # trailed as an approval, granted or refused.
+            self._note_audit_approval(
+                name, decided, "the approval prompt")
+            return decided
         self.tool_policy = ToolPolicy(mode, approve)
 
     def change_workspace(self, root: Path | str) -> None:
@@ -6421,20 +6431,43 @@ class Agent:
         name = call["function"]["name"]
         publish_sync("agent_chat_tool", agent_name=self.name,
                      text=f"\n> Executing {name} ...\n")
+        # M-109: every call through this funnel is trailed
+        # exactly once, from the finally block below - the
+        # kind is read from the tool itself (run_command is
+        # a command, write_file / replace_file_content are
+        # edits, every other tool is a tool call) and the
+        # outcome word from what the call actually did.
+        # The note never carries the result's text: a
+        # result may be a whole file, and the trail names
+        # the act, never its contents.
+        parsed: dict[str, Any] = {}
+        outcome = "completed"
         try:
             arguments = json.loads(call["function"]["arguments"])
             if not isinstance(arguments, dict):
+                outcome = "refused: tool arguments must be a JSON object"
                 return "Tool arguments must be a JSON object."
+            parsed = arguments
             result = execute_tool(name, arguments, self.project_root, self.tui_app, agent=self)
-            return result if isinstance(result, str) else json.dumps(result)
+            text = result if isinstance(result, str) else json.dumps(result)
+            if text.startswith("Permission denied"):
+                outcome = "permission denied; no operation was performed"
+            elif text.startswith(("Error:", "Failed")):
+                outcome = "failed"
+            return text
         except KeyboardInterrupt:
             self.cancel()
+            outcome = "interrupted by user"
             return "Tool interrupted by user."
         except TurnCancelled:
+            outcome = "cancelled"
             raise
         except Exception as exc:
             logging.warning("Tool %s failed: %s", name, type(exc).__name__)
+            outcome = "failed"
             return f"Tool {name} failed: {exc}"
+        finally:
+            self._note_audit_tool_call(name, parsed, outcome)
 
     # -- M-090: editor bridges lite against the real editor --
 
@@ -8067,6 +8100,9 @@ class Agent:
         for hook in selected:
             verdict = self._run_one_hook(hook, stdin_text=stdin_text)
             verdicts.append(verdict)
+            # M-109: a hook run is a command by a hook - it
+            # joins the audit trail with that actor.
+            self._note_audit_hook(hook, verdict)
             record = hooks.block_record(verdict)
             if record is not None and self._session_store and self.session_id:
                 self._checkpoint(record)
@@ -8331,6 +8367,10 @@ class Agent:
             with lock:
                 finished = registry.finish(job.job_id, 127)
             self._publish_background_completion(finished)
+            # M-109: a command the OS could not start was
+            # still commanded - the trail names the attempt
+            # and its honest ending.
+            self._note_audit_background_job(job.job_id)
             return finished.to_record()
         processes = getattr(self, "_background_processes", None)
         if processes is None:
@@ -8344,6 +8384,9 @@ class Agent:
             name=f"mythic-background-{job.job_id}")
         reader.start()
         self._keeper_note_background_activity(job.job_id)
+        # M-109: the started command joins the audit trail
+        # here, where the job visibly lives.
+        self._note_audit_background_job(job.job_id)
         with lock:
             return registry.get(job.job_id).to_record()
 
@@ -9758,6 +9801,272 @@ class Agent:
         if record["halt_id"] in announced:
             return
         announced.add(record["halt_id"])
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    # -- M-109: the audit trail --
+
+    def _audit_registry(self):
+        """The held audit registry (M-109).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer audit entries in append
+        order. It is created on first use, so an agent
+        whose ``__init__`` never ran still holds
+        exactly one.
+        """
+        registry = getattr(self, "_audit_trail_registry", None)
+        if registry is None:
+            from ..core.audit_trail import AuditRegistry
+            registry = AuditRegistry()
+            self._audit_trail_registry = registry
+        return registry
+
+    def audit_status(self) -> dict[str, Any]:
+        """The audit trail, in plain data (M-109).
+
+        Every held entry as its plain record, in
+        append order, the whole-trail export rendered
+        from that same registry, the one screen, and
+        the plain explanation. Reading changes
+        nothing: a status read appends nothing and
+        publishes nothing.
+        """
+        from ..core import audit_trail
+
+        registry = self._audit_registry()
+        return {
+            "entries": [e.to_record() for e in registry.list_entries()],
+            "export": registry.export(),
+            "screen": audit_trail.format_audit_screen(registry),
+            "explanation": audit_trail.PLAIN_EXPLANATION,
+        }
+
+    def get_audit_entry(self, entry_id: Any):
+        """The one held entry an id names (M-109).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._audit_registry().get(entry_id)
+
+    def audit_export(self) -> dict[str, Any]:
+        """The whole trail, exported for review (M-109).
+
+        The export as plain data - every held entry,
+        in append order, with the counts by kind and
+        by actor - and as the pure layer's text
+        export, both from that same registry.
+        Exporting changes nothing and publishes
+        nothing: asking reads the trail out, it does
+        not carry it anywhere.
+        """
+        from ..core import audit_trail
+
+        registry = self._audit_registry()
+        return {
+            "export": registry.export(),
+            "text": audit_trail.format_export(registry),
+            "screen": audit_trail.format_audit_screen(registry),
+            "explanation": audit_trail.PLAIN_EXPLANATION,
+        }
+
+    def record_audit_entry(self, spec: Any = None,
+                           **kwargs: Any) -> dict[str, Any]:
+        """Record one entry on the session's trail (M-109).
+
+        *spec* is an AuditEntry, an entry mapping, or
+        entry field words - the pure layer's
+        ``build_entry`` readings. The entry is
+        appended to the held trail (append-only: an
+        id the trail already holds refuses, exactly
+        as the pure registry refuses) and its
+        ``audit_recorded`` record is published as
+        session news through the checkpoint road.
+        This is the explicit road: it records exactly
+        the act its caller names, so callers name
+        real acts only - the session's own acts are
+        fed by the feeding roads below, as they
+        happen. Returns the held entry, its news
+        record, the screen rendered after the entry
+        landed, and the plain explanation.
+        """
+        from ..core import audit_trail
+
+        entry = audit_trail.build_entry(spec, **kwargs)
+        registry = self._audit_registry()
+        held = registry.append(entry)
+        record = registry.record(held.entry_id)
+        self._publish_audit_record(record)
+        return {
+            "entry": held.to_record(),
+            "record": record,
+            "screen": audit_trail.format_audit_screen(registry),
+            "explanation": audit_trail.PLAIN_EXPLANATION,
+        }
+
+    def _record_audit_note(self, kind: str, actor: str,
+                           summary: str, target: str = "",
+                           detail: str = "") -> None:
+        """Feed one real act to the trail (M-109).
+
+        The feeding roads call this as an act happens.
+        Recording never breaks the road it rides on:
+        a note that cannot be recorded is dropped, and
+        the act itself - which already happened, or
+        was already refused - stays the truth owed.
+        The explicit road (:meth:`record_audit_entry`)
+        refuses loudly instead; only these
+        as-it-happens notes are silent.
+        """
+        try:
+            registry = self._audit_registry()
+            held = registry.append({
+                "kind": kind, "actor": actor,
+                "summary": summary, "target": target,
+                "detail": detail})
+            self._publish_audit_record(registry.record(held.entry_id))
+        except Exception:
+            pass  # the act is the truth owed, not the note
+
+    def _note_audit_tool_call(self, name: str,
+                              arguments: dict[str, Any],
+                              outcome: str) -> None:
+        """Trail one executed tool call (M-109).
+
+        Called once per call from
+        :meth:`_execute_call`, the funnel every tool
+        call in a session travels. The kind is the
+        tool's own: ``run_command`` is a command,
+        ``write_file`` and ``replace_file_content``
+        are edits, every other tool is a tool call.
+        The actor is the coder - or the crew, when
+        this agent is a named subagent rather than
+        the Primary: a spawned agent's acts are crew
+        acts, and its trail says so. The target names
+        what the act touched - the command line, the
+        file, or the tool - and the detail is the
+        outcome word alone; a tool result's text is
+        never trailed, because a result may be a
+        whole file's contents. Programmatic
+        ``apply_*`` edit calls under the funnel are
+        the machinery an edit travels, not separate
+        session acts, and are not trailed separately -
+        the tool call that drove them is.
+        """
+        actor = "coder" if self.name == "Primary" else "crew"
+        if name == "run_command":
+            command = arguments.get("command")
+            target = (command.strip()[:200]
+                      if isinstance(command, str) else "")
+            summary = (f"ran command {target}" if target
+                       else "ran a command with run_command")
+            self._record_audit_note(
+                "command", actor, summary, target=target,
+                detail=outcome)
+        elif name in ("write_file", "replace_file_content"):
+            path = arguments.get("path")
+            target = (path.strip()[:200]
+                      if isinstance(path, str) else "")
+            summary = (f"edited {target} with {name}" if target
+                       else f"edited a file with {name}")
+            self._record_audit_note(
+                "edit", actor, summary, target=target,
+                detail=outcome)
+        else:
+            self._record_audit_note(
+                "tool_call", actor, f"ran tool {name}",
+                target=name, detail=outcome)
+
+    def _note_audit_approval(self, name: str, approved: bool,
+                             via: str) -> None:
+        """Trail one human approval decision (M-109).
+
+        Called from the approval callbacks the tree
+        actually builds - the TUI road in
+        :meth:`bind_tui` and the terminal road in
+        ``terminal.configured_agent`` - at the moment
+        the human's answer lands: a remembered
+        approval answering, or the prompt answered
+        granted or refused. The actor is the human.
+        A decision never reached (a prompt cancelled
+        before any answer) is not an approval and is
+        never trailed as one.
+        """
+        word = "approved" if approved else "refused"
+        self._record_audit_note(
+            "approval", "human", f"{word} tool {name}",
+            target=name, detail=f"{word} via {via}")
+
+    def _note_audit_background_job(self, job_id: str) -> None:
+        """Trail one started background command (M-109).
+
+        Called from :meth:`start_background_job` where
+        the job visibly lives - started, or refused
+        by the OS before it could start (its honest
+        127 ending, held as a failed job). The actor
+        is the crew when the job carries a held fleet
+        task's display label - the reading M-108's
+        holdings use to tell running crew work - and
+        the coder otherwise: a fleet command is crew
+        work, and the trail says which it was rather
+        than guessing.
+        """
+        try:
+            job = self._background_jobs().get(job_id)
+        except Exception:
+            return
+        actor = "coder"
+        fleet = getattr(self, "_fleet_mode_registry", None)
+        if fleet is not None:
+            try:
+                labels = {t.display_label
+                          for t in fleet.list_tasks()}
+            except Exception:
+                labels = set()
+            if job.label in labels:
+                actor = "crew"
+        self._record_audit_note(
+            "command", actor,
+            f"started background command {job.label}",
+            target=job.spec.command_text[:200],
+            detail=f"background job {job.job_id} ({job.state})")
+
+    def _note_audit_hook(self, hook: Any, verdict: Any) -> None:
+        """Trail one hook run (M-109).
+
+        Called from :meth:`run_hooks` as each hook's
+        run is judged: a hook run is a command, and
+        its actor is the hook. Hooks fire only
+        through ``run_hooks`` in this tree - there is
+        no other hook firing road - so no hook act is
+        trailed from anywhere else.
+        """
+        self._record_audit_note(
+            "command", "hook",
+            f"ran hook {verdict.hook} for {verdict.event}",
+            target=str(hook.command)[:200],
+            detail=(f"decision {verdict.decision}, "
+                    f"exit {verdict.exit_code}"))
+
+    def _publish_audit_record(self, record: dict[str, Any]) -> None:
+        """Publish one recorded entry as session news (M-109).
+
+        The pure layer's ``audit_recorded`` record is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each entry is announced at most
+        once: the announcement is keyed by the entry
+        id, and every appended entry holds a fresh id.
+        """
+        announced = getattr(self, "_audit_announced", None)
+        if announced is None:
+            announced = set()
+            self._audit_announced = announced
+        if record["entry_id"] in announced:
+            return
+        announced.add(record["entry_id"])
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
