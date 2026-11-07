@@ -11622,6 +11622,262 @@ class Agent:
         except Exception:
             pass
 
+    # -- M-121: agents as files --
+
+    def _crew_registry(self):
+        """The held crew registry (M-121).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer crew members in the
+        order they joined. It is created on first
+        use, so an agent whose ``__init__`` never ran
+        still holds exactly one. The attribute is
+        named ``_crew_store``, never the method's own
+        name (the M-108 lesson).
+        """
+        registry = getattr(self, "_crew_store", None)
+        if registry is None:
+            from ..core.crew_members import CrewRegistry
+            registry = CrewRegistry()
+            self._crew_store = registry
+        return registry
+
+    def crew_status(self) -> dict[str, Any]:
+        """The crew, in plain data (M-121).
+
+        The members held this session as plain
+        records, the shipped casting as plain records
+        (the existing characters, as data), the one
+        screen - rendered from the held registry, or
+        from the shipped casting when nothing is held
+        yet - and the plain explanation. Reading
+        registers, spawns, and publishes nothing.
+        """
+        from ..core import crew_members
+
+        registry = self._crew_registry()
+        held = registry.list_members()
+        casting = crew_members.load_casting()
+        shown = registry if held else casting
+        return {
+            "members": [m.to_record() for m in held],
+            "casting": [m.to_record() for m in casting.members],
+            "screen": crew_members.format_crew_screen(shown),
+            "explanation": crew_members.PLAIN_EXPLANATION,
+        }
+
+    def get_crew_member(self, member_id: Any):
+        """The one held member an id names (M-121).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._crew_registry().get(member_id)
+
+    def find_crew_member(self, member_id: Any):
+        """One member by id: held first, then the casting (M-121).
+
+        The session's held registry answers first; a
+        member the session has not taken up is read
+        from the shipped casting. An id neither holds
+        raises KeyError.
+        """
+        try:
+            return self._crew_registry().get(member_id)
+        except KeyError:
+            from ..core.crew_members import load_casting
+            return load_casting().get(member_id)
+
+    def crew_member_for_office(self, office: Any):
+        """The member holding one office (M-121).
+
+        The held registry answers first; with no held
+        member for the office, the shipped casting
+        answers. An office no member holds raises
+        KeyError; the ``primary`` office raises
+        ValueError, as the pure layer refuses it.
+        """
+        held = self._crew_registry().list_members(office)
+        if held:
+            return held[0]
+        from ..core.crew_members import load_casting
+        return load_casting().by_office(office)
+
+    def register_crew_member(self, member: Any) -> dict[str, Any]:
+        """Hold one crew member for the session (M-121).
+
+        The member is held by the pure registry under
+        its id or a fresh deterministic one - a
+        duplicate id or name refuses, and a refusal
+        holds nothing new and publishes nothing - and
+        a held member is published as its
+        ``casting_record`` session-news record through
+        the checkpoint road, so a member joining is
+        news with its shape attached. Returns the held
+        member, its news record, the screen rendered
+        after it landed, and the plain explanation.
+        """
+        from ..core import crew_members
+
+        registry = self._crew_registry()
+        held = registry.register(member)
+        record = crew_members.casting_record(held)
+        self._publish_crew_record(record)
+        return {
+            "member": held.to_record(),
+            "record": record,
+            "screen": crew_members.format_crew_screen(registry),
+            "explanation": crew_members.PLAIN_EXPLANATION,
+        }
+
+    def load_crew_casting(self, casting: Any = None) -> dict[str, Any]:
+        """Hold a whole casting for the session (M-121).
+
+        With no casting named, the shipped casting is
+        loaded through the pure layer - the existing
+        characters as the first castings. A casting
+        loaded from a file (the pure layer's
+        ``load_casting_file`` road) may be passed
+        instead, so a new member joins from a file,
+        not a code change. Every member is held in
+        file order and published as its
+        ``casting_record`` session news, deduped per
+        member id. The pure registry refuses a
+        duplicate id or name whole - a casting the
+        session already holds cannot be loaded twice.
+        Returns the held members, their news records,
+        the count, the screen, and the explanation.
+        """
+        from ..core import crew_members
+
+        registry = self._crew_registry()
+        casting = casting if casting is not None \
+            else crew_members.load_casting()
+        held = registry.register_casting(casting)
+        records = [crew_members.casting_record(m) for m in held]
+        for record in records:
+            self._publish_crew_record(record)
+        return {
+            "members": [m.to_record() for m in held],
+            "records": records,
+            "count": len(held),
+            "screen": crew_members.format_crew_screen(registry),
+            "explanation": crew_members.PLAIN_EXPLANATION,
+        }
+
+    def spawn_crew_member(self, member_id: Any,
+                          task: Any = None) -> dict[str, Any]:
+        """Spawn one held crew member from its record (M-121).
+
+        The spawn rides the one shipped road -
+        :meth:`AgentManager.spawn_subagent` - fed the
+        member's own name, so the member's prompt is
+        the shipped ``DEFAULT_SUBAGENTS`` entry its
+        record names and its office route is applied
+        by the road itself through the M-029
+        ``office_for_agent_name`` mapping. The policy
+        handed to the road is the member record's own
+        posture, read through the M-095 vocabulary
+        (``policy_mode_for`` of the shipped profile).
+        A member record carrying an explicit model
+        route has that route set on the spawned
+        member's config, in the same assignment the
+        spawn road makes for office routes; a member
+        on the session default is left exactly as the
+        road routed it. A *task*, when named, is
+        queued to the spawned member's inbox in the
+        delegation road's own words.
+
+        The spawn road only spawns names the session
+        config carries: a held member whose name no
+        ``sub_agents`` entry names - a new member
+        that arrived as a file, whose prompt prose no
+        shipped entry carries yet - is refused by the
+        road itself, and this method reports that
+        plainly (``spawned`` False, with the reason)
+        instead of inventing a spawn. A successful
+        spawn publishes the member's ``casting_record``
+        as session news, deduped per member id.
+        """
+        from ..core import crew_members
+        from ..core.permission_profiles import (
+            builtin_profile,
+            policy_mode_for,
+        )
+        from ..core.policy import ToolPolicy
+
+        registry = self._crew_registry()
+        held = registry.get(member_id)
+        record = crew_members.casting_record(held)
+        mode = policy_mode_for(builtin_profile(held.posture))
+        policy = ToolPolicy(mode)
+        spawned = agent_manager.spawn_subagent(
+            held.name, self.project_root, policy=policy,
+            tui_app=self.tui_app)
+        if spawned is None:
+            return {
+                "spawned": False,
+                "member": held.to_record(),
+                "record": record,
+                "policy_mode": mode,
+                "reason": (
+                    f"No sub-agent named {held.name!r} is "
+                    "configured in this session, so the "
+                    "spawn road refused it - a member "
+                    "record alone does not create a "
+                    "spawnable sub-agent; the shipped "
+                    "castings ride the shipped "
+                    "DEFAULT_SUBAGENTS entries, and a new "
+                    "member spawns once its name is "
+                    "carried there."),
+                "screen": crew_members.format_crew_screen(registry),
+                "explanation": crew_members.PLAIN_EXPLANATION,
+            }
+        if held.model_route is not None:
+            spawned.config["model"] = held.model_route.model
+            spawned.config["base_url"] = held.model_route.base_url
+        queued = False
+        if task is not None:
+            spawned.inbox.put(f"Task from {self.name}:\n{task}")
+            queued = True
+        self._publish_crew_record(record)
+        return {
+            "spawned": True,
+            "member": held.to_record(),
+            "record": record,
+            "agent_name": spawned.name,
+            "policy_mode": mode,
+            "route_words": held.route_words,
+            "task_queued": queued,
+            "screen": crew_members.format_crew_screen(registry),
+            "explanation": crew_members.PLAIN_EXPLANATION,
+        }
+
+    def _publish_crew_record(self, record: dict[str, Any]) -> None:
+        """Publish one crew member as session news (M-121).
+
+        The pure layer's ``casting_record`` is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each member is announced at most
+        once: the announcement is keyed by the member
+        record id, and every held member holds an id.
+        """
+        if record.get("type") != "crew_member":
+            return
+        announced = getattr(self, "_crew_announced", None)
+        if announced is None:
+            announced = set()
+            self._crew_announced = announced
+        member_id = record.get("member_id")
+        if member_id is not None:
+            if member_id in announced:
+                return
+            announced.add(member_id)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 
 class AgentManager:
