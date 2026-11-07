@@ -612,3 +612,364 @@ def test_record_carries_every_step_as_data():
         "step": "file_op", "kind": "read", "path": "src/app.py",
         "local_copy": False, "label": ""}
     assert record["steps"][2]["kind"] == "list"
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# The agent holds a RemoteWorkRegistry for the
+# session (session state only, no new setting):
+# targets are registered as setup (publishing
+# nothing), work plans are built and judged whole
+# by the pure judge against the held target and
+# published as remote_work_plan session news, and
+# the real-road tests walk a judged plan against a
+# REAL second on-disk workspace standing as the
+# remote root - its file steps proven under that
+# root and its command steps proven argv data.
+# Honest boundary: the agent layer opens no live
+# SSH connection and runs no remote command - no
+# shipped transport road exists to carry one.
+
+import pathlib as _pathlib
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _remote_events(store, session_id):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == "remote_work_plan"]
+
+
+def _held_plans(agent):
+    return agent._remote_work_registry().list_plans()
+
+
+def _held_targets(agent):
+    return agent._remote_work_registry().list_targets()
+
+
+def _register_mimir(agent):
+    return agent.register_remote_target(
+        target_id="mimir", address="mimir.local", user="volmarr",
+        workspace_root="/home/volmarr/proj")
+
+
+_PLAN_STEPS = [
+    {"argv": ["git", "status", "--short"], "cwd": "src"},
+    {"kind": "read", "path": "src/app.py"},
+    {"kind": "list", "path": "/home/volmarr/proj"},
+]
+
+
+class TestRemoteWorkAgentStatus:
+    def test_status_starts_empty(self, agent):
+        status = agent.remote_work_status()
+        assert status["targets"] == []
+        assert status["plans"] == []
+        assert "no targets held" in status["screen"]
+        assert "no plans held" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+        assert status["screen"] == format_remote_screen(
+            agent._remote_work_registry())
+
+    def test_registry_is_one_per_agent(self, agent):
+        assert agent._remote_work_registry() is agent._remote_work_registry()
+        # The M-108 lesson: the attribute never shares the method name.
+        assert agent._remote_work_store is agent._remote_work_registry()
+
+    def test_unknown_plan_raises_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_remote_work_plan("plan-99")
+
+    def test_unknown_target_refuses_plainly(self, agent):
+        with pytest.raises(ValueError) as excinfo:
+            agent.get_remote_target("nope")
+        assert "unknown target" in str(excinfo.value)
+
+    def test_register_target_publishes_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = _register_mimir(agent)
+        assert outcome["target"]["target_id"] == "mimir"
+        assert outcome["target"]["connection_line"] == "volmarr@mimir.local:22"
+        assert "1 targets held" in outcome["screen"]
+        assert _remote_events(store, session_id) == []
+        with pytest.raises(ValueError):
+            _register_mimir(agent)
+
+    def test_plan_judged_held_and_published_once(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        _register_mimir(agent)
+        outcome = agent.judge_remote_work_plan("mimir", "fix", _PLAN_STEPS)
+        assert outcome["plan"]["plan_id"] == "plan-1"
+        assert outcome["plan"]["target_id"] == "mimir"
+        assert outcome["plan"]["command_count"] == 1
+        assert outcome["plan"]["file_op_count"] == 2
+        assert outcome["record"]["type"] == "remote_work_plan"
+        assert outcome["record"]["news"] is True
+        assert outcome["record"]["headline"].startswith(
+            "Remote work plan 'fix' runs against 'mimir'")
+        assert "stays on that machine" in outcome["record"]["headline"]
+        events = _remote_events(store, session_id)
+        assert len(events) == 1
+        assert events[0]["plan_id"] == "plan-1"
+        agent._publish_remote_work_record(outcome["record"])
+        agent.remote_work_status()
+        agent.get_remote_work_plan("plan-1")
+        assert len(_remote_events(store, session_id)) == 1
+        assert agent.get_remote_work_plan("plan-1").name == "fix"
+        assert agent.get_remote_target("mimir").address == "mimir.local"
+
+    def test_hold_prebuilt_plan_judged_and_published(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        _register_mimir(agent)
+        plan = build_work_plan(name="fix", target_id="mimir",
+                               steps=_PLAN_STEPS)
+        outcome = agent.hold_remote_work_plan(plan)
+        assert outcome["plan"]["plan_id"] == "plan-1"
+        assert outcome["record"]["type"] == "remote_work_plan"
+        assert len(_remote_events(store, session_id)) == 1
+
+    def test_local_copy_refusal_holds_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        _register_mimir(agent)
+        copying = [{"kind": "read", "path": "src/app.py",
+                    "local_copy": True}]
+        with pytest.raises(ValueError) as excinfo:
+            agent.judge_remote_work_plan("mimir", "copy", copying)
+        assert "files stay on" in str(excinfo.value)
+        plan = build_work_plan(name="copy", target_id="mimir",
+                               steps=copying)
+        with pytest.raises(ValueError):
+            agent.hold_remote_work_plan(plan)
+        assert _held_plans(agent) == ()
+        assert _remote_events(store, session_id) == []
+
+    def test_outside_root_refusal_holds_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        _register_mimir(agent)
+        with pytest.raises(ValueError) as excinfo:
+            agent.judge_remote_work_plan("mimir", "escape", [
+                {"kind": "read", "path": "/etc/passwd"}])
+        assert "outside the remote workspace root" in str(excinfo.value)
+        with pytest.raises(ValueError):
+            agent.judge_remote_work_plan("mimir", "escape", [
+                {"argv": ["ls"], "cwd": "/etc"}])
+        with pytest.raises(ValueError):
+            agent.judge_remote_work_plan("ghost", "x", _PLAN_STEPS)
+        assert _held_plans(agent) == ()
+        assert _remote_events(store, session_id) == []
+
+    def test_status_read_publishes_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        _register_mimir(agent)
+        agent.judge_remote_work_plan("mimir", "fix", _PLAN_STEPS)
+        assert len(_remote_events(store, session_id)) == 1
+        agent.remote_work_status()
+        agent.get_remote_work_plan("plan-1")
+        agent.get_remote_target("mimir")
+        agent.remote_work_status()
+        assert len(_remote_events(store, session_id)) == 1
+
+    def test_judge_without_session_holds_quietly(self, agent):
+        _register_mimir(agent)
+        outcome = agent.judge_remote_work_plan("mimir", "fix", _PLAN_STEPS)
+        assert outcome["plan"]["plan_id"] == "plan-1"
+        assert "1 held" in outcome["screen"]
+        assert len(_held_plans(agent)) == 1
+
+
+class TestRemoteWorkRealRoads:
+    """Judged plans walked against a real second workspace.
+
+    Each test stages a REAL second directory on
+    disk standing as the remote root, registers it
+    as the target's workspace root, judges a plan
+    whole against it, and walks the judged plan:
+    every file step resolves under that root (and
+    names a file or directory truly there), and
+    every command step is argv data whose working
+    directory likewise stays under the root. No
+    connection is opened and nothing is run - no
+    shipped transport road exists - so containment
+    and data shape are what is proven, honestly.
+    """
+
+    def _stage_remote(self, root):
+        (root / "src").mkdir(parents=True)
+        (root / "src" / "app.py").write_text("x = 1\n")
+        (root / "notes.txt").write_text("remote notes\n")
+
+    def test_judged_plan_walks_the_second_workspace(
+            self, agent, tmp_path):
+        remote = tmp_path / "remote-machine"
+        self._stage_remote(remote)
+        agent.register_remote_target(
+            target_id="otherbox", address="otherbox.local",
+            user="volmarr", workspace_root=str(remote))
+        outcome = agent.judge_remote_work_plan("otherbox", "inspect", [
+            {"argv": ["git", "status", "--short"], "cwd": "src"},
+            {"argv": ["python3", "-m", "pytest", "-q"]},
+            {"kind": "read", "path": "src/app.py"},
+            {"kind": "list", "path": str(remote)},
+        ])
+        plan = agent.get_remote_work_plan(outcome["plan"]["plan_id"])
+        assert plan.stays_on_remote is True
+        root = remote.resolve()
+        for step in plan.file_steps:
+            raw = step.path
+            resolved = (root / raw).resolve() if not raw.startswith("/") \
+                else _pathlib.Path(raw).resolve()
+            assert resolved == root or root in resolved.parents
+            assert resolved.exists()
+        for step in plan.command_steps:
+            assert isinstance(step.argv, tuple)
+            assert all(isinstance(word, str) and word
+                       for word in step.argv)
+            if step.cwd is not None:
+                cwd = step.cwd
+                resolved = (root / cwd).resolve() \
+                    if not cwd.startswith("/") \
+                    else _pathlib.Path(cwd).resolve()
+                assert resolved == root or root in resolved.parents
+        # The local workspace was never touched by the walk.
+        assert (remote / "src" / "app.py").read_text() == "x = 1\n"
+
+    def test_local_copy_and_outside_root_refuse_whole_on_real_root(
+            self, agent, tmp_path):
+        remote = tmp_path / "remote-machine"
+        self._stage_remote(remote)
+        agent.register_remote_target(
+            target_id="otherbox", address="otherbox.local",
+            user="volmarr", workspace_root=str(remote))
+        with pytest.raises(ValueError):
+            agent.judge_remote_work_plan("otherbox", "copy", [
+                {"kind": "read", "path": "notes.txt",
+                 "local_copy": True}])
+        with pytest.raises(ValueError):
+            agent.judge_remote_work_plan("otherbox", "escape", [
+                {"kind": "read", "path": "/etc/hostname"}])
+        assert _held_plans(agent) == ()
+        assert len(_held_targets(agent)) == 1
+
+
+class TestRemoteTerminalSurface:
+    def test_show_is_the_whole_slice(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/remote")
+        assert text.startswith("Remote and SSH work (M-114) - ")
+        assert "no targets held" in text
+        assert "no plans held" in text
+        assert USAGE in text
+
+    def test_help_line_names_remote(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert "/remote [show|show <plan>|targets]" in text
+
+    def test_targets_via_the_terminal(self, agent):
+        from mythic_agent.terminal import _slash
+        _register_mimir(agent)
+        _, _, text = _slash(agent, "/remote targets")
+        assert text.startswith("Remote work: 1 targets held.")
+        assert "volmarr@mimir.local:22" in text
+        assert _held_plans(agent) == ()
+
+    def test_show_one_via_the_terminal(self, agent):
+        from mythic_agent.terminal import _slash
+        _register_mimir(agent)
+        agent.judge_remote_work_plan("mimir", "fix", _PLAN_STEPS)
+        _, _, text = _slash(agent, "/remote show plan-1")
+        assert text.startswith("plan-1: 'fix' against mimir")
+        assert "files and commands stay on that machine" in text
+        _, _, text = _slash(agent, "/remote plan-1")
+        assert "src/app.py" in text
+
+    def test_unknown_and_bad_grammar_via_the_terminal(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/remote show plan-99")
+        assert "unknown remote work plan" in text
+        _, _, text = _slash(agent, "/remote targets plan-1")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/remote drop plan-1")
+        assert text == USAGE
+
+
+@pytest.fixture()
+def remote_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _remote_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestRemoteCommand:
+    def test_show_is_default(self, remote_handler, agent):
+        remote_handler._handle_remote("")
+        assert "no targets held" in _remote_published_text(remote_handler)
+
+    def test_targets_via_the_handler(self, remote_handler, agent):
+        _register_mimir(agent)
+        remote_handler._handle_remote("targets")
+        assert "Remote work: 1 targets held." in (
+            _remote_published_text(remote_handler))
+        assert _held_plans(agent) == ()
+
+    def test_show_one_via_the_handler(self, remote_handler, agent):
+        _register_mimir(agent)
+        agent.judge_remote_work_plan("mimir", "fix", _PLAN_STEPS)
+        remote_handler._handle_remote("show plan-1")
+        assert "plan-1: 'fix' against mimir" in (
+            _remote_published_text(remote_handler))
+        assert "files and commands stay on that machine" in _remote_published_text(
+            remote_handler)
+
+    def test_bad_grammar_and_unknown_are_published(
+            self, remote_handler, agent):
+        remote_handler._handle_remote("targets plan-1")
+        assert "Usage: /remote" in _remote_published_text(remote_handler)
+        remote_handler._handle_remote("show plan-99")
+        assert "unknown remote work plan" in _remote_published_text(
+            remote_handler)
+
+
+class TestChatScreenRoutingRemote:
+    def test_remote_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/remote targets", _FakeLog())
+        assert calls == [("/remote", "targets")]

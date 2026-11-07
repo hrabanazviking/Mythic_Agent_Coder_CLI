@@ -10720,6 +10720,182 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-114: remote and SSH work --
+
+    def _remote_work_registry(self):
+        """The held remote-work registry (M-114).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer targets and work plans
+        in the order they were registered and built.
+        It is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly
+        one. The attribute is named
+        ``_remote_work_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_remote_work_store", None)
+        if registry is None:
+            from ..core.remote_work import RemoteWorkRegistry
+            registry = RemoteWorkRegistry()
+            self._remote_work_store = registry
+        return registry
+
+    def remote_work_status(self) -> dict[str, Any]:
+        """The held targets and plans, in plain data (M-114).
+
+        Every held target and work plan as its plain
+        record, in the order held, the one screen
+        rendered from that same registry, and the
+        plain explanation. Reading changes nothing:
+        a status read registers, judges, or
+        publishes nothing.
+        """
+        from ..core import remote_work
+
+        registry = self._remote_work_registry()
+        return {
+            "targets": [t.to_record() for t in registry.list_targets()],
+            "plans": [p.to_record() for p in registry.list_plans()],
+            "screen": remote_work.format_remote_screen(registry),
+            "explanation": remote_work.PLAIN_EXPLANATION,
+        }
+
+    def get_remote_target(self, target_id: Any):
+        """The one held target an id names (M-114).
+
+        An id no held target carries refuses plainly,
+        exactly as the pure registry answers.
+        """
+        return self._remote_work_registry().get_target(target_id)
+
+    def get_remote_work_plan(self, plan_id: Any):
+        """The one held work plan an id names (M-114).
+
+        An unknown id raises KeyError, exactly as
+        the pure registry answers.
+        """
+        return self._remote_work_registry().get(plan_id)
+
+    def register_remote_target(self, target: Any = None,
+                               **kwargs: Any) -> dict[str, Any]:
+        """Hold one remote target for the session (M-114).
+
+        The target is validated and held by the pure
+        registry; a duplicate target id refuses.
+        Registering a target publishes nothing: a
+        target joining the session is setup, not
+        news - the news this slice publishes is the
+        judged work plan. Returns the held target,
+        the screen rendered after it landed, and the
+        plain explanation.
+        """
+        from ..core import remote_work
+
+        registry = self._remote_work_registry()
+        held = registry.register_target(target, **kwargs)
+        return {
+            "target": held.to_record(),
+            "screen": remote_work.format_remote_screen(registry),
+            "explanation": remote_work.PLAIN_EXPLANATION,
+        }
+
+    def hold_remote_work_plan(self, plan: Any) -> dict[str, Any]:
+        """Judge one built work plan whole and hold it (M-114).
+
+        The plan is judged whole by the pure judge
+        against the target this session holds under
+        the plan's own target id - an unknown target,
+        a step outside the target's remote workspace
+        root, or a file operation that would copy a
+        file back to this machine refuses, and a
+        refusal holds nothing and publishes nothing.
+        A judged plan is held by the pure registry
+        and published as its ``remote_work_plan``
+        session-news record through the checkpoint
+        road. This layer opens no connection and
+        runs nothing: holding, judging and
+        publishing is the slice's agent work.
+        Returns the held plan, its news record, the
+        screen rendered after it landed, and the
+        plain explanation.
+        """
+        from ..core import remote_work
+
+        registry = self._remote_work_registry()
+        judged = remote_work.judge_work_plan(plan, registry)
+        held = registry.register(judged)
+        record = registry.record(held.plan_id)
+        self._publish_remote_work_record(record)
+        return {
+            "plan": held.to_record(),
+            "record": record,
+            "screen": remote_work.format_remote_screen(registry),
+            "explanation": remote_work.PLAIN_EXPLANATION,
+        }
+
+    def judge_remote_work_plan(self, target: Any, name: Any,
+                               steps: Any) -> dict[str, Any]:
+        """Build one work plan, judge it whole, and hold it (M-114).
+
+        The plan is built naming the ONE target -
+        a held target id or a RemoteTarget - and
+        judged by the pure judge in one move, on the
+        pure registry's ``build_and_register`` road:
+        an unknown target, a shell-string command
+        (the M-103 rule), a step outside the remote
+        workspace root, or a file operation that
+        would copy a file back to this machine
+        refuses, and a refusal holds nothing and
+        publishes nothing. A judged plan is held for
+        the session and published as a
+        ``remote_work_plan`` session event. This
+        layer opens no SSH connection and runs no
+        remote command: no shipped transport road
+        exists to carry one, and none is faked.
+        Returns the held plan, its news record, the
+        screen, and the plain explanation.
+        """
+        from ..core import remote_work
+
+        registry = self._remote_work_registry()
+        held = registry.build_and_register(target, name, steps)
+        record = registry.record(held.plan_id)
+        self._publish_remote_work_record(record)
+        return {
+            "plan": held.to_record(),
+            "record": record,
+            "screen": remote_work.format_remote_screen(registry),
+            "explanation": remote_work.PLAIN_EXPLANATION,
+        }
+
+    def _publish_remote_work_record(self, record: dict[str, Any]) -> None:
+        """Publish one remote work plan as session news (M-114).
+
+        The pure layer's ``remote_work_plan`` record
+        is journaled through the same checkpoint
+        road every sibling slice uses, when a
+        session is attached - for EVERY judged plan,
+        as the pure layer shapes it: remote work is
+        owed in plain words, its headline always
+        stating that every file and command stays on
+        that machine. Each plan is announced at most
+        once: the announcement is keyed by the plan
+        id, and every held plan holds a fresh id.
+        """
+        if record.get("type") != "remote_work_plan":
+            return
+        announced = getattr(self, "_remote_work_announced", None)
+        if announced is None:
+            announced = set()
+            self._remote_work_announced = announced
+        if record["plan_id"] in announced:
+            return
+        announced.add(record["plan_id"])
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):

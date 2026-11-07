@@ -269,6 +269,8 @@ class CommandHandler:
                 self._handle_rollback(args)
             elif cmd == "/multirepo":
                 self._handle_multirepo(args)
+            elif cmd == "/remote":
+                self._handle_remote(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -3034,6 +3036,52 @@ class CommandHandler:
                 text = primary.multi_repo_status()["screen"]
             else:
                 text = format_cross_set(primary.get_cross_repo_set(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_remote(self, args: str):
+        """M-114: /remote - remote and SSH work.
+
+        /remote shows the targets held this session
+        with the one connection each is reached
+        through, and the work plans held with their
+        step counts; show <plan> (or a bare plan id)
+        shows one plan; targets shows the held
+        targets alone. Reading registers, judges and
+        publishes nothing: a plan is held only when
+        remote work is judged through the agent. The
+        registry is session state held by the agent;
+        it is not a stored setting.
+        """
+        from ..core.remote_work import (
+            format_targets,
+            format_work_plan,
+            parse_remote_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_remote_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "targets":
+                text = format_targets(primary._remote_work_registry())
+            elif target is None:
+                text = primary.remote_work_status()["screen"]
+            else:
+                text = format_work_plan(primary.get_remote_work_plan(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
