@@ -379,6 +379,10 @@ class Agent:
         self.tool_policy = ToolPolicy("read-only")
         self._permission_override = None
         self._current_plan = None  # M-100: the held plan (Plan or None)
+        self._background_registry = None  # M-103: held jobs registry
+        self._background_processes: dict[str, Any] = {}
+        self._background_lock = threading.RLock()
+        self._background_announced: set[str] = set()
         self.active_task_start_time = None
         self.rebuild_system_prompt()
         
@@ -8213,6 +8217,254 @@ class Agent:
         return {**change, "changed": True,
                 "session_id": self.session_id,
                 "journaled": journaled}
+
+    # -- M-103: background tasks --
+
+    def _background_jobs(self):
+        """The held background-job registry (M-103).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer Jobs in creation order.
+        It is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        """
+        registry = getattr(self, "_background_registry", None)
+        if registry is None:
+            from ..core.background_tasks import BackgroundJobRegistry
+            registry = BackgroundJobRegistry()
+            self._background_registry = registry
+        return registry
+
+    def _background_lock_for(self):
+        lock = getattr(self, "_background_lock", None)
+        if lock is None:
+            lock = threading.RLock()
+            self._background_lock = lock
+        return lock
+
+    def background_jobs_status(self) -> dict[str, Any]:
+        """Background jobs, in plain data (M-103).
+
+        Every held job as its plain record, in creation
+        order, the one screen rendered from that same
+        registry, and the plain explanation.
+        """
+        from ..core import background_tasks
+
+        registry = self._background_jobs()
+        return {
+            "jobs": [j.to_record() for j in registry.list_jobs()],
+            "screen": background_tasks.format_background(registry),
+            "explanation": background_tasks.PLAIN_EXPLANATION,
+        }
+
+    def get_background_job(self, job_id: Any):
+        """The one held job an id names (M-103).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._background_jobs().get(job_id)
+
+    def background_job_tail(self, job_id: Any = None,
+                            count: int = 10) -> str:
+        """One job's live tail, in plain words (M-103).
+
+        With no id the newest held job is tailed; with
+        no jobs held at all the call refuses plainly.
+        An unknown id raises KeyError.
+        """
+        from ..core import background_tasks
+
+        registry = self._background_jobs()
+        if job_id is None:
+            jobs = registry.list_jobs()
+            if not jobs:
+                raise ValueError(
+                    "there are no background jobs to tail yet")
+            job = jobs[-1]
+        else:
+            job = registry.get(job_id)
+        return background_tasks.format_tail(job, count)
+
+    def start_background_job(self, spec: Any) -> dict[str, Any]:
+        """Start one background job for real (M-103).
+
+        *spec* is a JobSpec, a spec mapping, a bare argv
+        list, or a command string (split the way a shell
+        splits it, then run with no shell at all). The
+        job is created and moved to running in the held
+        registry first; the command then runs as a real
+        subprocess (``shell=False``, stderr folded into
+        stdout) in the spec's cwd or this agent's
+        workspace. A reader thread feeds each output
+        line into the job's bounded tail as it arrives;
+        when the process exits the reader judges it
+        through the pure layer's ``finish_job`` and
+        publishes the completion as session news. A
+        command the OS cannot start at all is judged
+        failed with exit code 127, the house error
+        verdict. Returns the job's plain record as it
+        stands when the call returns - a fast job may
+        already be finished in it.
+        """
+        import shlex
+        import subprocess
+
+        from ..core import background_tasks
+
+        if isinstance(spec, str):
+            spec = shlex.split(spec)
+        registry = self._background_jobs()
+        lock = self._background_lock_for()
+        with lock:
+            job = registry.create(spec)
+            job = registry.start(job.job_id)
+        cwd = job.spec.cwd or str(self.project_root)
+        try:
+            proc = subprocess.Popen(
+                list(job.spec.argv), shell=False, cwd=cwd,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1)
+        except OSError:
+            with lock:
+                finished = registry.finish(job.job_id, 127)
+            self._publish_background_completion(finished)
+            return finished.to_record()
+        processes = getattr(self, "_background_processes", None)
+        if processes is None:
+            processes = {}
+            self._background_processes = processes
+        with lock:
+            processes[job.job_id] = proc
+        reader = threading.Thread(
+            target=self._background_reader,
+            args=(job.job_id, proc), daemon=True,
+            name=f"mythic-background-{job.job_id}")
+        reader.start()
+        with lock:
+            return registry.get(job.job_id).to_record()
+
+    def _background_reader(self, job_id: str, proc: Any) -> None:
+        """Feed one job's tail, then land its ending (M-103).
+
+        Runs on the job's reader thread. Output lines
+        land in the bounded tail while the job runs.
+        At exit: a job whose kill was requested is
+        cancelled through ``apply_kill``; any other job
+        is judged by its exit code through the pure
+        registry's finish. Either ending is published
+        as session news exactly once.
+        """
+        registry = self._background_jobs()
+        lock = self._background_lock_for()
+        try:
+            if proc.stdout is not None:
+                for line in proc.stdout:
+                    with lock:
+                        try:
+                            registry.append_output(job_id, line)
+                        except (KeyError, ValueError):
+                            pass  # the job already ended; drop the line
+            exit_code = proc.wait()
+        except Exception:
+            exit_code = proc.poll()
+            if not isinstance(exit_code, int):
+                exit_code = 1
+        landed = None
+        with lock:
+            try:
+                current = registry.get(job_id)
+            except KeyError:
+                return
+            processes = getattr(self, "_background_processes", {})
+            processes.pop(job_id, None)
+            if current.state == "running":
+                if current.kill.requested:
+                    landed = registry.apply_kill(job_id)
+                else:
+                    landed = registry.finish(job_id, exit_code)
+            else:
+                landed = current
+        if landed is not None and landed.is_terminal:
+            self._publish_background_completion(landed)
+
+    def _publish_background_completion(self, job: Any) -> None:
+        """Publish one finished job as session news (M-103).
+
+        The pure layer's completion record - the
+        ``background_job_completed`` session event -
+        is journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each job is announced at most once,
+        however many roads land its ending.
+        """
+        from ..core import background_tasks
+
+        record = background_tasks.completion_record(job)
+        if record is None:
+            return
+        lock = self._background_lock_for()
+        announced = getattr(self, "_background_announced", None)
+        if announced is None:
+            announced = set()
+            self._background_announced = announced
+        with lock:
+            if job.job_id in announced:
+                return
+            announced.add(job.job_id)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def kill_background_job(self, job_id: Any,
+                            reason: str = "") -> dict[str, Any]:
+        """Kill one background job for real (M-103).
+
+        The kill is first a request, recorded on the
+        job in the held registry with its reason - the
+        job's state does not change yet. The real
+        process is then terminated (``terminate()``,
+        escalating to ``kill()`` if it ignores the
+        request), and the recorded kill lands through
+        the pure layer's ``apply_kill``: the job is
+        cancelled, and its completion is published as
+        session news. The reader thread may land the
+        same ending first; the job is cancelled exactly
+        once either way. A finished job refuses, as the
+        pure layer refuses, and an unknown id raises
+        KeyError. Returns the job's plain record.
+        """
+        import subprocess
+
+        registry = self._background_jobs()
+        lock = self._background_lock_for()
+        with lock:
+            registry.request_kill(job_id, reason)
+            processes = getattr(self, "_background_processes", {})
+            proc = processes.get(registry.get(job_id).job_id)
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    pass
+        landed = None
+        with lock:
+            current = registry.get(job_id)
+            if current.kill.requested and current.state in (
+                    "queued", "running"):
+                landed = registry.apply_kill(current.job_id)
+            else:
+                landed = current
+        if landed is not None and landed.is_terminal:
+            self._publish_background_completion(landed)
+        with lock:
+            return registry.get(job_id).to_record()
 
 
 class AgentManager:
