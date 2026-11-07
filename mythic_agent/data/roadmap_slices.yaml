@@ -751,7 +751,7 @@ slices:
   part: 5
   title: Safety regression suite
   summary: every doctrine rule above as a test; the suite is a release gate, not documentation.
-  status: queued
+  status: done
 - id: M-118
   part: 5
   title: Third-party red-team pack

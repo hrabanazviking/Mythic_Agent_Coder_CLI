@@ -142,3 +142,5 @@ mythic_agent/agents/llm.py:10804:hold_remote_work_plan:method
 mythic_agent/agents/llm.py:10838:judge_remote_work_plan:method
 mythic_agent/agents/llm.py:10948:register_grace_assessment:method
 mythic_agent/agents/llm.py:11089:register_approval_moment:method
+mythic_agent/core/safety_regression.py:192:rule_ids:method
+mythic_agent/core/safety_regression.py:203:rules_for:method
