@@ -668,7 +668,7 @@ slices:
   title: Background tasks
   summary: long commands (builds, suites, servers) run as managed background jobs with live output tails,
     kill, and completion events into the session.
-  status: queued
+  status: done
 - id: M-104
   part: 5
   title: The Keeper pattern built in
