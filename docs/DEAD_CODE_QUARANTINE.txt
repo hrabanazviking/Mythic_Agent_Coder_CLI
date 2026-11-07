@@ -168,3 +168,8 @@ mythic_agent/agents/llm.py:12370:register_worktree_assignment:method
 mythic_agent/agents/llm.py:12404:load_worktrees_plan:method
 mythic_agent/core/worktrees.py:548:merge_plan:method
 mythic_agent/core/worktrees.py:864:by_branch:method
+mythic_agent/agents/llm.py:12524:get_dealt_assignment:method
+mythic_agent/agents/llm.py:12533:find_dealt_assignment:method
+mythic_agent/agents/llm.py:12613:register_dealt_assignment:method
+mythic_agent/agents/llm.py:12644:deal_task_dealing_plan:method
+mythic_agent/agents/llm.py:12693:redeal_task_assignment:method
