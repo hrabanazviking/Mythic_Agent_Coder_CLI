@@ -249,6 +249,8 @@ class CommandHandler:
                 self._handle_hookpacks(args)
             elif cmd == "/background":
                 self._handle_background(args)
+            elif cmd == "/keeper":
+                self._handle_keeper(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -2497,6 +2499,57 @@ class CommandHandler:
                 job = primary.get_background_job(record["job_id"])
                 text = f"Background job started: {format_job(job)}"
         except (KeyError, ValueError, OSError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_keeper(self, args: str):
+        """M-104: /keeper - the keeper pattern.
+
+        /keeper shows the held watches, each judged in
+        words - active, quiet, or stalled, from its last
+        sign of life alone; show <target> (or a bare
+        target id) shows one watch; check judges every
+        watch now and acts on what is owed - an owed
+        intervention is published as session news, and
+        a stalled background job is restarted for real
+        while its restarts remain; heartbeat <target>
+        records a sign of life on one watch. Judging is
+        the pure layer's work and restarting is the
+        agent layer's; nothing here starts a timer.
+        """
+        from ..core.keeper import format_watch_target, parse_keeper_args
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_keeper_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "show":
+                status = primary.keeper_status()
+                if target is None:
+                    text = status["screen"]
+                else:
+                    text = format_watch_target(
+                        primary.get_keeper_target(target), status["now"])
+            elif action == "check":
+                text = primary.keeper_check()["screen"]
+            else:  # heartbeat
+                primary.keeper_heartbeat(target)
+                status = primary.keeper_status()
+                text = format_watch_target(
+                    primary.get_keeper_target(target), status["now"])
+        except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
             return
