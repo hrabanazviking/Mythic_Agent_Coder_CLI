@@ -704,7 +704,7 @@ slices:
   title: Audit trail
   summary: every tool call, approval, edit, and command in the journal with actor (human/coder/crew/hook)
     — exportable for review; the trail is append-only.
-  status: queued
+  status: done
 - id: M-110
   part: 5
   title: Secret hygiene in action
