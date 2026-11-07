@@ -3841,6 +3841,33 @@ class Agent:
         message = auto_commit.build_message(summary, files)
         plan = auto_commit.plan_commit(
             self.config, branch, files, message)
+        # M-110: every file in the plan is screened for
+        # commit by secret shape before anything is
+        # staged, switched or committed - a file whose
+        # name or text matches a secret pattern refuses
+        # the whole commit, its refusal is published as
+        # a secret_refusal session event, and nothing is
+        # committed. A file the plan names but the disk
+        # no longer holds (an accepted deletion) is
+        # screened by its name alone.
+        refused = []
+        for name in plan.files:
+            try:
+                body = (self.project_root / name).read_bytes().decode(
+                    "utf-8", errors="replace")
+            except OSError:
+                body = ""
+            outcome = self.screen_file(name, body)
+            if outcome["record"] is not None:
+                refused.append(outcome["screening"])
+        if refused:
+            named = "; ".join(
+                f"{item['filename']} ({', '.join(item['kinds'])})"
+                for item in refused)
+            raise ValueError(
+                "auto-commit refused by secret hygiene: "
+                f"{named} - the files are named, their "
+                "content is never shown; nothing was committed")
         switched = False
         if plan.switch_needed:
             code, _, _ = self._auto_commit_git(
@@ -6454,7 +6481,14 @@ class Agent:
                 outcome = "permission denied; no operation was performed"
             elif text.startswith(("Error:", "Failed")):
                 outcome = "failed"
-            return text
+            # M-110: a tool result is an output, and outputs
+            # are fed through the hygiene redaction before
+            # they travel anywhere - the caller stores this
+            # text in the transcript as the tool message and
+            # checkpoints it to the session journal, so this
+            # one feeding covers the tool-result road and
+            # the transcript road for tool content together.
+            return self._hygiene_redact(text)
         except KeyboardInterrupt:
             self.cancel()
             outcome = "interrupted by user"
@@ -6465,7 +6499,7 @@ class Agent:
         except Exception as exc:
             logging.warning("Tool %s failed: %s", name, type(exc).__name__)
             outcome = "failed"
-            return f"Tool {name} failed: {exc}"
+            return self._hygiene_redact(f"Tool {name} failed: {exc}")
         finally:
             self._note_audit_tool_call(name, parsed, outcome)
 
@@ -10067,6 +10101,179 @@ class Agent:
         if record["entry_id"] in announced:
             return
         announced.add(record["entry_id"])
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
+    # -- M-110: secret hygiene in action --
+
+    def _hygiene_registry(self):
+        """The held secret-hygiene registry (M-110).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer file screenings in the
+        order judged. It is created on first use, so
+        an agent whose ``__init__`` never ran still
+        holds exactly one.
+        """
+        registry = getattr(self, "_secret_hygiene_registry", None)
+        if registry is None:
+            from ..core.secret_hygiene import HygieneRegistry
+            registry = HygieneRegistry()
+            self._secret_hygiene_registry = registry
+        return registry
+
+    def secret_hygiene_status(self) -> dict[str, Any]:
+        """Secret hygiene, in plain data (M-110).
+
+        Every held screening as its plain record, in
+        the order judged, the one screen rendered
+        from that same registry, and the plain
+        explanation. Reading changes nothing: a
+        status read screens, registers, or publishes
+        nothing.
+        """
+        from ..core import secret_hygiene
+
+        registry = self._hygiene_registry()
+        return {
+            "screenings": [s.to_record() for s in registry.list_screenings()],
+            "screen": secret_hygiene.format_secrets_screen(registry),
+            "explanation": secret_hygiene.PLAIN_EXPLANATION,
+        }
+
+    def get_screening(self, screening_id: Any):
+        """The one held screening an id names (M-110).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._hygiene_registry().get(screening_id)
+
+    def screen_file(self, filename: Any, text: Any = "") -> dict[str, Any]:
+        """Screen one file for commit, and hold the verdict (M-110).
+
+        The file's name and text are judged by the
+        pure layer and the verdict is held for the
+        session. A refused verdict is published as a
+        ``secret_refusal`` session event through the
+        checkpoint road - a refusal is always news,
+        never lost as a log line. The screened text is
+        read only to locate secret shapes in it: the
+        held verdict names the file and the pattern
+        kinds only, and the content is never stored,
+        logged or shown. Returns the held screening,
+        its refusal record (None when clean), the
+        screen rendered after the verdict landed, and
+        the plain explanation.
+        """
+        from ..core import secret_hygiene
+
+        registry = self._hygiene_registry()
+        held = registry.screen(filename, text)
+        record = registry.record(held.screening_id)
+        self._publish_secret_refusal(record)
+        return {
+            "screening": held.to_record(),
+            "record": record,
+            "screen": secret_hygiene.format_secrets_screen(registry),
+            "explanation": secret_hygiene.PLAIN_EXPLANATION,
+        }
+
+    def screen_project_file(self, filename: Any) -> dict[str, Any]:
+        """Screen one real file in the project (M-110).
+
+        The named file is read from the project root
+        and screened through :meth:`screen_file`. A
+        name that escapes the project, or a file the
+        project does not hold, refuses plainly and
+        screens nothing - a file that cannot be read
+        cannot honestly be screened for content.
+        """
+        from pathlib import Path
+
+        name = str(filename).strip()
+        root = Path(self.project_root).resolve()
+        candidate = (root / name).resolve()
+        if candidate != root and root not in candidate.parents:
+            raise ValueError(
+                f"secret hygiene can only screen files inside "
+                f"the project, got {filename!r}")
+        if not candidate.is_file():
+            raise ValueError(
+                f"no such file in the project to screen: {name}")
+        body = candidate.read_bytes().decode("utf-8", errors="replace")
+        return self.screen_file(name, body)
+
+    def redact_output(self, text: Any) -> str:
+        """One output text, hygiene-redacted (M-110).
+
+        The pure layer's redaction: every secret-shaped
+        span replaced with the one fixed marker, so the
+        returned text can never echo a secret the shapes
+        know. Ordinary text is returned untouched.
+        """
+        from ..core.secret_hygiene import redact_secrets
+
+        return redact_secrets(text)
+
+    def _hygiene_redact(self, text: str) -> str:
+        """Feed one real output through the hygiene redaction (M-110).
+
+        The feeding roads call this as an output is
+        produced. It composes with the shipped
+        redaction layer rather than replacing it: the
+        shipped layer (``core/redaction.py``) already
+        guards the logging road through
+        ``protect_logging``, session exports and
+        listings through ``SessionStore``'s sanitizer,
+        and terminal display through the agent's
+        redactor - all on the shipped scanner's shapes
+        plus configured and environment secrets. This
+        feeding adds the pure layer's wider reading
+        (the scanner's shapes plus the .env-style
+        assignment shape) on the road the shipped
+        layer does not itself pass through: a tool
+        result, at the funnel, before it enters the
+        transcript. Redaction here never breaks the
+        road it rides on: a text the pure layer
+        refuses (a non-text) is passed through the
+        shipped redactor instead, so an output is
+        never lost to a hygiene note.
+        """
+        try:
+            from ..core.secret_hygiene import redact_secrets
+
+            return redact_secrets(text)
+        except Exception:
+            try:
+                return self.redactor.text(text)
+            except Exception:
+                return text
+
+    def _publish_secret_refusal(self, record: Any) -> None:
+        """Publish one refused screening as session news (M-110).
+
+        The pure layer's ``secret_refusal`` record is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each screening's refusal is
+        announced at most once: the announcement is
+        keyed by the screening id, and every held
+        screening holds a fresh id. A clean screening
+        owes no news - its record is None and nothing
+        is published.
+        """
+        if record is None:
+            return
+        announced = getattr(self, "_secret_hygiene_announced", None)
+        if announced is None:
+            announced = set()
+            self._secret_hygiene_announced = announced
+        if record["screening_id"] in announced:
+            return
+        announced.add(record["screening_id"])
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
