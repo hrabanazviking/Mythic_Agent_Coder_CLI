@@ -146,3 +146,7 @@ mythic_agent/core/safety_regression.py:192:rule_ids:method
 mythic_agent/core/safety_regression.py:203:rules_for:method
 mythic_agent/agents/llm.py:11304:get_project_policy:method
 mythic_agent/core/policy_file.py:537:list_policies:method
+mythic_agent/agents/llm.py:11670:get_crew_member:method
+mythic_agent/agents/llm.py:11707:register_crew_member:method
+mythic_agent/agents/llm.py:11734:load_crew_casting:method
+mythic_agent/agents/llm.py:11769:spawn_crew_member:method
