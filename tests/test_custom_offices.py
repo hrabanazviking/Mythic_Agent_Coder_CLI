@@ -480,3 +480,289 @@ def test_module_purity():
     for banned in ("agents.llm", "terminal", "command_handler"):
         assert banned not in source
     assert "from .offices import" in source
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-123 agent layer: the agent holds a
+# CustomOfficeRegistry for the session (session
+# state only, no new setting), a custom office is
+# held by being registered or by a book being
+# loaded - published as its custom_office_record
+# session news through the checkpoint road, deduped
+# per office id - and the /offices custom surface
+# rides both roads on the pure parser + formatters.
+# Status, hand-off and contract reads register and
+# publish nothing. A custom office is a user-defined
+# role, not a formalised office and not a cast
+# member, so no spawn road is owed or built.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _custom_events(store, session_id):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == "custom_office"]
+
+
+class TestCustomOfficesAgentStatus:
+    def test_status_starts_unheld_but_shows_the_book(self, agent):
+        status = agent.custom_offices_status()
+        assert status["offices"] == []
+        assert [d["office"] for d in status["book"]] == list(
+            EXAMPLE_CUSTOM_OFFICES)
+        assert "Custom offices: 2 defined." in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+        for record in status["book"]:
+            assert record["formal"] is False
+            assert record["custom"] is True
+
+    def test_registry_is_one_per_agent(self, agent):
+        assert agent._custom_offices_registry() is             agent._custom_offices_registry()
+        assert agent._custom_offices_store is             agent._custom_offices_registry()
+
+    def test_reads_register_and_publish_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.custom_offices_status()
+        agent.custom_office_handoffs("gatekeeper")
+        agent.custom_office_contract("gatekeeper", "auditor")
+        assert agent._custom_offices_registry().list_definitions() == ()
+        assert _custom_events(store, session_id) == []
+        agent.close()
+
+    def test_unheld_office_raises_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_custom_office_definition("gatekeeper")
+
+    def test_shipped_office_raises_valueerror(self, agent):
+        with pytest.raises(ValueError):
+            agent.get_custom_office_definition("auditor")
+        with pytest.raises(ValueError):
+            agent.find_custom_office_definition("polymath")
+        with pytest.raises(ValueError):
+            agent.find_custom_office_definition("primary")
+
+    def test_status_after_register_shows_the_held_office(self, agent):
+        agent.register_custom_office(_office())
+        status = agent.custom_offices_status()
+        assert [d["office"] for d in status["offices"]] == ["gatekeeper"]
+        assert "Custom offices: 1 defined." in status["screen"]
+        assert len(status["book"]) == 2
+
+
+class TestCustomOfficesAgentRegister:
+    def test_register_holds_and_publishes_once(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_custom_office(_office())
+        assert outcome["office"]["office"] == "gatekeeper"
+        assert outcome["record"]["type"] == "custom_office"
+        assert outcome["record"]["news"] is True
+        assert outcome["record"]["formal"] is False
+        assert outcome["record"]["custom"] is True
+        assert agent.get_custom_office_definition(
+            "gatekeeper").title == "Gatekeeper"
+        events = _custom_events(store, session_id)
+        assert len(events) == 1
+        assert events[0]["office"] == "gatekeeper"
+        # Deduped per record id: a second publish is no second event.
+        agent._publish_custom_office_record(outcome["record"])
+        assert len(_custom_events(store, session_id)) == 1
+        # Foreign record types are never published on this road.
+        agent._publish_custom_office_record(
+            {"type": "office", "office": "scribe"})
+        agent._publish_custom_office_record(
+            {"type": "crew_member", "office": "gatekeeper"})
+        assert len(_custom_events(store, session_id)) == 1
+        agent.close()
+
+    def test_register_duplicate_refuses_and_holds_nothing_new(
+            self, agent):
+        agent.register_custom_office(_office())
+        with pytest.raises(ValueError):
+            agent.register_custom_office(_office())
+        assert len(agent._custom_offices_registry().list_definitions()) == 1
+
+    def test_register_formalised_office_refuses(self, agent):
+        formal = build_office({
+            "id": "auditor", "title": "Auditor", "focus": "verify",
+            "purpose": get_office("auditor").purpose,
+            "duties": ["Check."], "tools": ["read_file"],
+            "inputs": ["a change"], "outputs": ["a verdict"],
+            "handoffs": []})
+        with pytest.raises(ValueError):
+            agent.register_custom_office(formal)
+        assert agent._custom_offices_registry().list_definitions() == ()
+
+    def test_load_book_holds_and_publishes_the_examples(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.load_custom_offices_book()
+        assert outcome["count"] == 2
+        assert [d["office"] for d in outcome["offices"]] == list(
+            EXAMPLE_CUSTOM_OFFICES)
+        assert agent.get_custom_office_definition(
+            "benchmarker").title == "Benchmarker"
+        status = agent.custom_offices_status()
+        assert len(status["offices"]) == 2
+        assert "Custom offices: 2 defined." in status["screen"]
+        events = _custom_events(store, session_id)
+        assert len(events) == 2
+        assert {e["office"] for e in events} == set(EXAMPLE_CUSTOM_OFFICES)
+        with pytest.raises(ValueError):
+            agent.load_custom_offices_book()
+        agent.close()
+
+    def test_book_from_a_file_is_held_at_the_agent_layer(
+            self, agent, tmp_path):
+        outcome = agent.load_custom_offices_book(
+            load_custom_offices_file(_write_book(tmp_path, _book_data())))
+        assert outcome["count"] == 2
+        assert agent.get_custom_office_definition(
+            "benchmarker").office == "benchmarker"
+
+    def test_find_handoffs_and_contract_roads(self, agent):
+        found = agent.find_custom_office_definition("Gatekeeper")
+        assert found.office == "gatekeeper"
+        contracts = agent.custom_office_handoffs("gatekeeper")
+        assert [c.to_office for c in contracts] == [
+            "auditor", "forge_worker"]
+        contract = agent.custom_office_contract("benchmarker", "gatekeeper")
+        assert contract.artifact
+        formal = agent.custom_office_contract("gatekeeper", "auditor")
+        assert formal.artifact
+        with pytest.raises(KeyError):
+            agent.custom_office_contract("gatekeeper", "benchmarker")
+        # A held definition answers before the book does.
+        agent.register_custom_office(_office())
+        assert agent.find_custom_office_definition(
+            "gatekeeper").duties[0] == "Review the change."
+        assert [c.to_office for c in agent.custom_office_handoffs(
+            "gatekeeper")] == ["auditor"]
+
+    def test_no_spawn_road_for_custom_offices(self, agent):
+        # A custom office is a user-defined role, not a
+        # formalised office and not a cast member:
+        # spawning stays the M-121 crew road, and this
+        # layer builds no spawn road of its own.
+        assert not hasattr(agent, "spawn_custom_office")
+        assert not hasattr(agent, "spawn_custom_offices")
+
+
+class TestCustomOfficesTerminalSurface:
+    def test_show_one_handoffs_and_contract(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/offices custom")
+        assert "Custom offices: 2 defined." in text
+        _, _, text = _slash(agent, "/offices custom show gatekeeper")
+        assert "gatekeeper:" in text
+        _, _, text = _slash(agent, "/offices custom handoffs gatekeeper")
+        assert "-> auditor" in text and "-> forge_worker" in text
+        _, _, text = _slash(
+            agent, "/offices custom contract gatekeeper auditor")
+        assert "gatekeeper -> auditor" in text
+        _, _, text = _slash(
+            agent, "/offices custom contract gatekeeper benchmarker")
+        assert "no hand-off" in text
+
+    def test_formal_offices_road_is_untouched(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/offices")
+        assert "Offices: 6 formalised." in text
+        _, _, text = _slash(agent, "/offices show auditor")
+        assert "auditor:" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/offices custom [show|show <office>|handoffs <office>|"
+                "contract <from> <to>]") in text
+        _, _, text = _slash(agent, "/offices custom add x")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/offices custom show auditor")
+        assert text == USAGE
+
+    def test_bare_custom_id_shows_one(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/offices custom benchmarker")
+        assert "benchmarker:" in text
+
+
+@pytest.fixture()
+def custom_offices_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _custom_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestCustomOfficesCommand:
+    def test_show_is_default(self, custom_offices_handler, agent):
+        custom_offices_handler._handle_offices("custom")
+        assert "Custom offices: 2 defined." in _custom_published_text(
+            custom_offices_handler)
+
+    def test_show_one_handoffs_and_contract(
+            self, custom_offices_handler, agent):
+        custom_offices_handler._handle_offices("custom show gatekeeper")
+        assert "gatekeeper:" in _custom_published_text(custom_offices_handler)
+        custom_offices_handler._handle_offices("custom handoffs benchmarker")
+        assert "-> gatekeeper" in _custom_published_text(custom_offices_handler)
+        custom_offices_handler._handle_offices(
+            "custom contract benchmarker gatekeeper")
+        assert "benchmarker -> gatekeeper" in _custom_published_text(
+            custom_offices_handler)
+
+    def test_bad_grammar_is_published(self, custom_offices_handler, agent):
+        custom_offices_handler._handle_offices("custom add x")
+        assert "Usage: /offices custom" in _custom_published_text(
+            custom_offices_handler)
+
+    def test_missing_contract_is_published(
+            self, custom_offices_handler, agent):
+        custom_offices_handler._handle_offices(
+            "custom contract gatekeeper benchmarker")
+        assert "no hand-off" in _custom_published_text(custom_offices_handler)
+
+    def test_formal_road_still_shows_the_six(
+            self, custom_offices_handler, agent):
+        custom_offices_handler._handle_offices("")
+        assert "Offices: 6 formalised." in _custom_published_text(
+            custom_offices_handler)
+
+
+class TestChatScreenRoutingCustomOffices:
+    def test_custom_offices_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/offices custom handoffs gatekeeper", _FakeLog())
+        assert calls == [("/offices", "custom handoffs gatekeeper")]

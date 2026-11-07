@@ -12057,6 +12057,202 @@ class Agent:
             self._checkpoint(record)
 
 
+    # -- M-123: custom offices --
+
+    def _custom_offices_registry(self):
+        """The held custom offices registry (M-123).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer custom office definitions
+        in the order they were taken up, beside the
+        session OfficeRegistry (M-122) and never in
+        it: a custom office is a user-defined role,
+        not a formalised office. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named ``_custom_offices_store``,
+        never the method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_custom_offices_store", None)
+        if registry is None:
+            from ..core.custom_offices import CustomOfficeRegistry
+            registry = CustomOfficeRegistry()
+            self._custom_offices_store = registry
+        return registry
+
+    def custom_offices_status(self) -> dict[str, Any]:
+        """The custom offices, in plain data (M-123).
+
+        The definitions held this session as plain
+        records, the shipped custom book as plain
+        records (the roadmap's example custom offices,
+        as data), the one screen - rendered from the
+        held registry, or from the shipped book when
+        nothing is held yet - and the plain
+        explanation. A custom office is user-defined,
+        not formalised: its records state that
+        plainly (``formal`` false, ``custom`` true).
+        Reading registers and publishes nothing.
+        """
+        from ..core import custom_offices
+
+        registry = self._custom_offices_registry()
+        held = registry.list_definitions()
+        book = custom_offices.load_custom_offices()
+        shown = registry if held else book
+        return {
+            "offices": [d.to_record() for d in held],
+            "book": [d.to_record() for d in book.definitions],
+            "screen": custom_offices.format_custom_offices_screen(shown),
+            "explanation": custom_offices.PLAIN_EXPLANATION,
+        }
+
+    def get_custom_office_definition(self, office: Any):
+        """The one held custom definition an office names (M-123).
+
+        An office the session does not hold raises
+        KeyError, exactly as the pure registry
+        answers; a shipped office id raises ValueError,
+        as the pure layer refuses it - a custom office
+        never names a shipped office.
+        """
+        return self._custom_offices_registry().get(office)
+
+    def find_custom_office_definition(self, office: Any):
+        """One custom office definition: held first, then the book (M-123).
+
+        The session's held registry answers first; an
+        office the session has not taken up is read
+        from the shipped custom book. An office
+        neither holds raises KeyError; a shipped
+        office id raises ValueError.
+        """
+        try:
+            return self._custom_offices_registry().get(office)
+        except KeyError:
+            from ..core.custom_offices import load_custom_offices
+            return load_custom_offices().get(office)
+
+    def custom_office_handoffs(self, office: Any):
+        """Every hand-off contract one custom office hands out (M-123).
+
+        Read from the held definition when the
+        session holds the office, and from the
+        shipped book otherwise. Reading registers
+        and publishes nothing.
+        """
+        return self.find_custom_office_definition(office).handoffs
+
+    def custom_office_contract(self, from_office: Any, to_office: Any):
+        """The hand-off contract between two offices (M-123).
+
+        The from-office is a custom office; the target
+        may be a formalised office or a custom office.
+        Read from the held definition when the session
+        holds the from-office, and from the shipped
+        book otherwise; no contract between the two
+        raises KeyError. Reading registers and
+        publishes nothing.
+        """
+        return self.find_custom_office_definition(from_office).contract_to(to_office)
+
+    def register_custom_office(self, definition: Any) -> dict[str, Any]:
+        """Hold one custom office for the session (M-123).
+
+        The definition is held by the pure registry
+        under its custom office id - a duplicate
+        office refuses, a definition naming a shipped
+        office refuses, and a refusal holds nothing
+        new and publishes nothing - and a held office
+        is published as its ``custom_office_record``
+        session-news record through the checkpoint
+        road, so a custom office taken up is news with
+        its shape attached. Returns the held
+        definition, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a custom office casts no
+        member and spawns nothing: a custom office is
+        a user-defined role, not a formalised office
+        and not a cast member, and no spawn road is
+        owed or built for it - spawning stays the
+        M-121 crew road's.
+        """
+        from ..core import custom_offices
+
+        registry = self._custom_offices_registry()
+        held = registry.register(definition)
+        record = custom_offices.custom_office_record(held)
+        self._publish_custom_office_record(record)
+        return {
+            "office": held.to_record(),
+            "record": record,
+            "screen": custom_offices.format_custom_offices_screen(registry),
+            "explanation": custom_offices.PLAIN_EXPLANATION,
+        }
+
+    def load_custom_offices_book(self, book: Any = None) -> dict[str, Any]:
+        """Hold a whole custom offices book for the session (M-123).
+
+        With no book named, the shipped book is
+        loaded through the pure layer - the roadmap's
+        example custom offices. A book loaded from a
+        file (the pure layer's
+        ``load_custom_offices_file`` road) may be
+        passed instead, so a custom offices file
+        defining new offices is held as it stands.
+        Every definition is held in file order and
+        published as its ``custom_office_record``
+        session news, deduped per office id. The pure
+        registry refuses a duplicate office - a book
+        the session already holds cannot be loaded
+        twice. Returns the held definitions, their
+        news records, the count, the screen, and the
+        explanation.
+        """
+        from ..core import custom_offices
+
+        registry = self._custom_offices_registry()
+        book = book if book is not None else custom_offices.load_custom_offices()
+        held = registry.register_book(book)
+        records = [custom_offices.custom_office_record(d) for d in held]
+        for record in records:
+            self._publish_custom_office_record(record)
+        return {
+            "offices": [d.to_record() for d in held],
+            "records": records,
+            "count": len(held),
+            "screen": custom_offices.format_custom_offices_screen(registry),
+            "explanation": custom_offices.PLAIN_EXPLANATION,
+        }
+
+    def _publish_custom_office_record(self, record: dict[str, Any]) -> None:
+        """Publish one custom office as session news (M-123).
+
+        The pure layer's ``custom_office_record`` is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each office is announced at most
+        once: the announcement is keyed by the
+        record's office id, and every custom office
+        record carries one. A foreign record type is
+        never published on this road.
+        """
+        if record.get("type") != "custom_office":
+            return
+        announced = getattr(self, "_custom_offices_announced", None)
+        if announced is None:
+            announced = set()
+            self._custom_offices_announced = announced
+        office_id = record.get("office")
+        if office_id is not None:
+            if office_id in announced:
+                return
+            announced.add(office_id)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
