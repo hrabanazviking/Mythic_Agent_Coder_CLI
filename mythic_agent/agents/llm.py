@@ -8008,6 +8008,105 @@ class Agent:
                 self._checkpoint(record)
         return allowed
 
+    # -- M-101: hooks --
+
+    def hooks_status(self) -> dict[str, Any]:
+        """The configured hooks, in plain data (M-101).
+
+        The hooks exactly as stored (validated whole -
+        one malformed stored hook raises, never silently
+        narrows what was configured), as their plain
+        records, the one screen rendered from that same
+        list, and the plain explanation. Hooks carry no
+        gate of their own: the list itself is the setting.
+        """
+        from ..core import hooks
+
+        configured = hooks.hooks_from_config(self.config)
+        return {
+            "hooks": [h.to_record() for h in configured],
+            "screen": hooks.format_hooks(configured),
+            "explanation": hooks.PLAIN_EXPLANATION,
+        }
+
+    def configured_hooks(self):
+        """The configured hooks themselves (M-101)."""
+        from ..core import hooks
+
+        return hooks.hooks_from_config(self.config)
+
+    def run_hooks(self, event: Any, stdin_text: str = "") -> list:
+        """Run the hooks for one lifecycle event (M-101).
+
+        The enabled hooks for *event* run in listed
+        order, each through a real subprocess bounded by
+        its own timeout, in this agent's workspace, with
+        *stdin_text* as its standard input. Each finished
+        run is judged by the pure layer alone. A verdict
+        that blocks is news: its block record is published
+        as a session event when a session is attached, so
+        the reason the coder must answer can never be
+        lost as a mere log line. An error after the act
+        (post_tool, post_edit, on_session) blocks nothing
+        in the pure layer's own judgement and so publishes
+        nothing - it rides back in the returned verdicts.
+        An unknown event and a malformed stored hook list
+        both raise before anything runs. Returns the
+        verdicts, in run order.
+        """
+        from ..core import hooks
+
+        canonical = hooks.normalize_event(event)
+        configured = hooks.hooks_from_config(self.config)
+        selected = hooks.select_hooks(configured, canonical)
+        verdicts = []
+        for hook in selected:
+            verdict = self._run_one_hook(hook, stdin_text=stdin_text)
+            verdicts.append(verdict)
+            record = hooks.block_record(verdict)
+            if record is not None and self._session_store and self.session_id:
+                self._checkpoint(record)
+        return verdicts
+
+    def _run_one_hook(self, hook: Any, stdin_text: str = ""):
+        """Run one hook's command and judge it (M-101).
+
+        The command runs through the shell it was written
+        for, exactly as the elder sandbox road runs
+        commands. A run that outlives its timeout is
+        judged as an error with exit code 124 (the shell's
+        own timeout verdict) and the timeout named in its
+        reason; a command the OS cannot start at all is
+        judged as an error with exit code 127. Neither is
+        dressed up as an allow.
+        """
+        import subprocess
+
+        from ..core import hooks
+
+        try:
+            completed = subprocess.run(
+                hook.command, shell=True,
+                cwd=str(self.project_root), input=stdin_text,
+                capture_output=True, text=True,
+                timeout=hook.timeout_seconds)
+            return hooks.evaluate_result(
+                hook.event, hook, completed.returncode,
+                stdout=completed.stdout or "",
+                stderr=completed.stderr or "")
+        except subprocess.TimeoutExpired as exc:
+            out = exc.stdout if isinstance(exc.stdout, str) else ""
+            err = exc.stderr if isinstance(exc.stderr, str) else ""
+            reason = ((err.strip() + " ") if err.strip() else "") + (
+                f"the hook timed out after "
+                f"{hook.timeout_seconds}s")
+            return hooks.evaluate_result(
+                hook.event, hook, 124, stdout=out, stderr=reason)
+        except OSError as exc:
+            return hooks.evaluate_result(
+                hook.event, hook, 127, stdout="",
+                stderr=f"the hook could not be run: {exc}")
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
