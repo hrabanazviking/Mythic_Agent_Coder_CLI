@@ -265,6 +265,8 @@ class CommandHandler:
                 self._handle_secrets(args)
             elif cmd == "/doctrine":
                 self._handle_doctrine(args)
+            elif cmd == "/rollback":
+                self._handle_rollback(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -2934,6 +2936,56 @@ class CommandHandler:
                 text = primary.doctrine_status()["screen"]
             else:
                 text = format_judgement(primary.get_judgement(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_rollback(self, args: str):
+        """M-112: /rollback - the rollback drills.
+
+        /rollback shows the drill results held this
+        session with each outcome stated in words;
+        show <run> (or a bare run id) shows one run;
+        drills shows the drill book alone; run
+        <drill> names the one held drill a run would
+        exercise, with its recovery road. Reading
+        judges and publishes nothing: a result is
+        held only when a drill run's reported step
+        count is judged through the agent. The
+        registry is session state held by the agent;
+        it is not a stored setting.
+        """
+        from ..core.rollback_drills import (
+            format_drill,
+            format_drills,
+            format_result,
+            parse_rollback_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_rollback_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "drills":
+                text = format_drills()
+            elif action == "run":
+                text = format_drill(target)
+            elif target is None:
+                text = primary.rollback_status()["screen"]
+            else:
+                text = format_result(primary.get_drill_run(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
