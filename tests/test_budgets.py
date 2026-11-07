@@ -412,3 +412,314 @@ def test_format_budgets_screen():
     assert PLAIN_EXPLANATION in screen
     assert "Budgets: 1 held." in screen
     assert screen.rstrip().endswith(USAGE)
+
+# -- agent layer: budgets held for a session (M-107) -------------------
+
+import copy as _copy
+
+from mythic_agent.core.sessions import SessionStore
+
+
+class _OfflineMemoryBudgets:
+    def __init__(self):
+        self.archived = []
+
+    def search(self, query, top_k=2):
+        return []
+
+    def insert(self, text, metadata=None):
+        self.archived.append(text)
+
+
+@pytest.fixture()
+def budget_agent(tmp_path, monkeypatch):
+    from mythic_agent.agents import llm
+    from mythic_agent.core.secure_api import unsubscribe
+
+    config = {"model": "test-model", "base_url": "http://localhost:1/v1",
+              "api_keys": {}}
+    monkeypatch.setattr(llm.config_manager, "MYTHIC_DIR", tmp_path / "state")
+    monkeypatch.setattr(llm.config_manager, "load_config",
+                        lambda: _copy.deepcopy(config))
+    monkeypatch.setattr(llm.config_manager, "save_config",
+                        lambda config: True)
+    monkeypatch.setattr(llm, "get_vector_provider",
+                        lambda *args: _OfflineMemoryBudgets())
+    instance = llm.Agent(project_root=tmp_path)
+    from mythic_agent.core.policy import ToolPolicy
+    instance.tool_policy = ToolPolicy("trusted")
+    yield instance
+    unsubscribe("agent_clear_history", instance._handle_clear_history)
+    unsubscribe("agent_compact_history", instance._handle_compact_history)
+
+
+def _budget_events(store, session_id, type_name):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == type_name]
+
+
+def _drafting_budget(agent, **overrides):
+    spec = {"label": "drafting budget", "token_limit": 1000}
+    spec.update(overrides)
+    return agent.register_budget(spec)
+
+
+class TestBudgetAgentBudgets:
+    def test_status_starts_empty(self, budget_agent):
+        status = budget_agent.budget_status()
+        assert status["budgets"] == []
+        assert status["usage"] == {}
+        assert status["verdicts"] == []
+        assert "Budgets: none." in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+        assert status["screen"] == format_budgets_screen(
+            budget_agent._budget_registry())
+
+    def test_register_holds_the_budget_and_pauses_nothing(
+            self, budget_agent, tmp_path):
+        store = SessionStore(tmp_path, tmp_path / "state")
+        session_id = budget_agent.attach_session(store)
+        record = _drafting_budget(budget_agent)
+        assert record["type"] == "budget"
+        assert record["budget_id"] == "budget-1"
+        assert record["token_limit"] == 1000
+        status = budget_agent.budget_status()
+        assert [b["budget_id"] for b in status["budgets"]] == ["budget-1"]
+        assert status["usage"] == {"budget-1": None}
+        assert status["verdicts"][0]["status"] == "within"
+        assert budget_agent.get_budget_verdict("budget-1").status == "within"
+        assert "Budgets: 1 held." in status["screen"]
+        # Registering spends nothing and pauses nothing:
+        # no usage is held and no session news was published.
+        assert budget_agent.get_budget_usage("budget-1") is None
+        assert _budget_events(store, session_id, "budget_paused") == []
+
+    def test_register_by_field_words(self, budget_agent):
+        record = budget_agent.register_budget(
+            label="session cap", scope="session", cost_limit=2.5)
+        assert record["budget_id"] == "budget-1"
+        assert record["scope"] == "session"
+        assert record["cost_limit"] == 2.5
+        budget = budget_agent.get_budget("budget-1")
+        assert budget.display_label == "session cap"
+
+    def test_unknown_budget_raises_keyerror(self, budget_agent):
+        with pytest.raises(KeyError):
+            budget_agent.get_budget("budget-99")
+        with pytest.raises(KeyError):
+            budget_agent.get_budget_usage("budget-99")
+        with pytest.raises(KeyError):
+            budget_agent.get_budget_verdict("budget-99")
+        with pytest.raises(KeyError):
+            budget_agent.record_budget_usage(
+                "budget-99", {"tokens_used": 1})
+        with pytest.raises(KeyError):
+            budget_agent.refresh_budget_usage("budget-99")
+        with pytest.raises(KeyError):
+            budget_agent.budget_check("budget-99")
+
+    def test_recording_usage_moves_the_verdict(self, budget_agent):
+        _drafting_budget(budget_agent)
+        record = budget_agent.record_budget_usage(
+            "budget-1", {"tokens_used": 850})
+        assert record["type"] == "budget_usage"
+        assert record["tokens_used"] == 850
+        assert budget_agent.get_budget_verdict("budget-1").status == "warning"
+        status = budget_agent.budget_status()
+        assert status["usage"]["budget-1"]["tokens_used"] == 850
+        assert status["verdicts"][0]["status"] == "warning"
+        # A newer reading replaces the older one.
+        budget_agent.record_budget_usage("budget-1", tokens_used=10)
+        assert budget_agent.get_budget_verdict("budget-1").status == "within"
+        assert budget_agent.get_budget_usage("budget-1").tokens_used == 10
+
+    def test_live_usage_reads_the_real_roads(self, budget_agent, tmp_path):
+        from mythic_agent.core.costs import CostTracker
+        tracker = CostTracker(tmp_path)
+        tracker.record("gpt-4o", input_tokens=1000, output_tokens=500)
+        reading = budget_agent.budget_live_usage()
+        # Tokens and cost are the costs road's own readings:
+        # 1500 tokens at the gpt-4o table price.
+        assert reading.tokens_used == 1500
+        expected = round(1000 / 1_000_000 * 2.50
+                         + 500 / 1_000_000 * 10.0, 6)
+        assert reading.cost_used == expected
+        # Elapsed time is a real, small clock reading, and
+        # no background jobs are held, so no commands.
+        assert 0.0 <= reading.time_used_seconds < 60.0
+        assert reading.commands_used == 0
+        # Reading alone records nothing on any budget.
+        _drafting_budget(budget_agent)
+        budget_agent.budget_live_usage()
+        assert budget_agent.get_budget_usage("budget-1") is None
+
+    def test_refresh_feeds_the_live_reading(self, budget_agent, tmp_path):
+        from mythic_agent.core.costs import CostTracker
+        CostTracker(tmp_path).record(
+            "gpt-4o", input_tokens=2000, output_tokens=0)
+        _drafting_budget(budget_agent)
+        record = budget_agent.refresh_budget_usage("budget-1")
+        assert record["tokens_used"] == 2000
+        assert budget_agent.get_budget_usage("budget-1").tokens_used == 2000
+        assert budget_agent.get_budget_verdict("budget-1").status == "exceeded"
+
+
+class TestBudgetCheckPauses:
+    def test_exceeded_budget_publishes_paused_exactly_once(
+            self, budget_agent, tmp_path):
+        store = SessionStore(tmp_path, tmp_path / "state")
+        session_id = budget_agent.attach_session(store)
+        _drafting_budget(budget_agent)
+        budget_agent.record_budget_usage("budget-1", {"tokens_used": 1000})
+        result = budget_agent.budget_check()
+        assert result["paused_ids"] == ["budget-1"]
+        assert result["verdicts"][0]["status"] == "exceeded"
+        assert len(result["paused"]) == 1
+        paused = result["paused"][0]
+        assert paused["type"] == "budget_paused"
+        assert paused["graceful"] is True
+        assert "graceful pause" in paused["headline"]
+        events = _budget_events(store, session_id, "budget_paused")
+        assert len(events) == 1
+        assert events[0]["budget_id"] == "budget-1"
+        assert events[0]["status"] == "exceeded"
+        # A repeated check of the same reading is not new news.
+        again = budget_agent.budget_check()
+        assert again["paused_ids"] == ["budget-1"]
+        assert len(_budget_events(store, session_id, "budget_paused")) == 1
+        # Spending further past the limit is a new exceeded moment.
+        budget_agent.record_budget_usage("budget-1", {"tokens_used": 1250})
+        budget_agent.budget_check()
+        assert len(_budget_events(store, session_id, "budget_paused")) == 2
+
+    def test_check_within_and_warning_pause_nothing(
+            self, budget_agent, tmp_path):
+        store = SessionStore(tmp_path, tmp_path / "state")
+        session_id = budget_agent.attach_session(store)
+        _drafting_budget(budget_agent)
+        budget_agent.record_budget_usage("budget-1", {"tokens_used": 100})
+        result = budget_agent.budget_check()
+        assert result["paused"] == [] and result["paused_ids"] == []
+        assert result["reports"] == []
+        budget_agent.record_budget_usage("budget-1", {"tokens_used": 900})
+        warned = budget_agent.budget_check()
+        assert warned["paused"] == []
+        assert len(warned["reports"]) == 1
+        assert warned["reports"][0]["type"] == "budget_report"
+        assert warned["reports"][0]["status"] == "warning"
+        assert _budget_events(store, session_id, "budget_paused") == []
+
+    def test_check_one_budget_by_id(self, budget_agent):
+        _drafting_budget(budget_agent)
+        budget_agent.register_budget({"label": "open", "token_limit": 5})
+        budget_agent.record_budget_usage("budget-1", {"tokens_used": 1000})
+        budget_agent.record_budget_usage("budget-2", {"tokens_used": 5})
+        one = budget_agent.budget_check("budget-2")
+        assert [v["budget_id"] for v in one["verdicts"]] == ["budget-2"]
+        assert one["paused_ids"] == ["budget-2"]
+        both = budget_agent.budget_check()
+        assert both["paused_ids"] == ["budget-1", "budget-2"]
+
+    def test_check_without_a_session_still_pauses_in_its_return(
+            self, budget_agent):
+        _drafting_budget(budget_agent)
+        budget_agent.record_budget_usage("budget-1", {"tokens_used": 1000})
+        result = budget_agent.budget_check()
+        assert result["paused_ids"] == ["budget-1"]
+        assert result["paused"][0]["type"] == "budget_paused"
+
+class TestBudgetsTerminalSurface:
+    def test_show_is_the_whole_slice(self, budget_agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(budget_agent, "/budgets")
+        assert text.startswith("Budgets (M-107) - ")
+        assert "Budgets: none." in text
+        assert USAGE in text
+
+    def test_show_one_and_check_via_the_terminal(self, budget_agent):
+        from mythic_agent.terminal import _slash
+        _drafting_budget(budget_agent)
+        _, _, text = _slash(budget_agent, "/budgets show budget-1")
+        assert text.startswith("budget-1: ")
+        assert "Verdict: within." in text
+        budget_agent.record_budget_usage(
+            "budget-1", {"tokens_used": 1000})
+        _, _, text = _slash(budget_agent, "/budgets check budget-1")
+        assert "Verdict: exceeded." in text
+        _, _, text = _slash(budget_agent, "/budgets show budget-99")
+        assert "unknown budget" in text
+
+    def test_bad_grammar_is_the_usage(self, budget_agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(budget_agent, "/budgets frobnicate x")
+        assert text == USAGE
+        _, _, text = _slash(budget_agent, "/budgets check a b")
+        assert text == USAGE
+
+
+@pytest.fixture()
+def budget_handler(budget_agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = budget_agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _budget_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestBudgetsCommand:
+    def test_show_is_default(self, budget_handler, budget_agent):
+        budget_handler._handle_budgets("")
+        assert "Budgets: none." in _budget_published_text(budget_handler)
+
+    def test_show_one_via_the_handler(self, budget_handler, budget_agent):
+        _drafting_budget(budget_agent)
+        budget_handler._handle_budgets("show budget-1")
+        assert "budget-1: " in _budget_published_text(budget_handler)
+
+    def test_check_via_the_handler(self, budget_handler, budget_agent):
+        _drafting_budget(budget_agent)
+        budget_agent.record_budget_usage(
+            "budget-1", {"tokens_used": 1000})
+        budget_handler._handle_budgets("check")
+        assert "Verdict: exceeded." in _budget_published_text(budget_handler)
+
+    def test_bad_grammar_is_published(self, budget_handler, budget_agent):
+        budget_handler._handle_budgets("check a b")
+        assert "Usage: /budgets" in _budget_published_text(budget_handler)
+        budget_handler._handle_budgets("show budget-99")
+        assert "unknown budget" in _budget_published_text(budget_handler)
+
+
+class TestChatScreenRoutingBudgets:
+    def test_budgets_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/budgets check", _FakeLog())
+        assert calls == [("/budgets", "check")]
