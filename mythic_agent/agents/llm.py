@@ -8935,6 +8935,316 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-106: headless fleet mode --
+
+    def _fleet_registry(self):
+        """The held fleet registry (M-106).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer fleet tasks in
+        registration order, with each task's recorded
+        verdict and artefact bundle alongside it. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        """
+        registry = getattr(self, "_fleet_mode_registry", None)
+        if registry is None:
+            from ..core.fleet_mode import FleetRegistry
+            registry = FleetRegistry()
+            self._fleet_mode_registry = registry
+        return registry
+
+    def fleet_status(self) -> dict[str, Any]:
+        """The held fleet, in plain data (M-106).
+
+        Every held task as its plain record, in
+        registration order, every recorded verdict,
+        every recorded artefact bundle, the fleet
+        verdict judged mechanically from those
+        verdicts, its honest exit code, the one screen
+        rendered from that same registry, and the
+        plain explanation. Reading changes nothing: a
+        status read never runs, records, or publishes.
+        """
+        from ..core import fleet_mode
+
+        registry = self._fleet_registry()
+        verdict = registry.fleet_verdict()
+        return {
+            "tasks": [t.to_record() for t in registry.list_tasks()],
+            "verdicts": [v.to_record() for v in registry.list_verdicts()],
+            "bundles": [b.to_record() for b in registry.list_bundles()],
+            "fleet_verdict": verdict.to_record(),
+            "exit_code": verdict.exit_code,
+            "verdict_screen": fleet_mode.format_fleet_verdict(registry),
+            "screen": fleet_mode.format_fleet_mode(registry),
+            "explanation": fleet_mode.PLAIN_EXPLANATION,
+        }
+
+    def get_fleet_task(self, task_id: Any):
+        """The one held task an id names (M-106).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._fleet_registry().get(task_id)
+
+    def get_fleet_verdict(self, task_id: Any):
+        """One held task's recorded verdict, or None (M-106).
+
+        The verdict is the one the fleet check
+        recorded from the task's real run; a task that
+        has not been run yet holds none. An unknown id
+        raises KeyError.
+        """
+        return self._fleet_registry().get_verdict(task_id)
+
+    def register_fleet_task(self, spec: Any = None,
+                            **kwargs: Any) -> dict[str, Any]:
+        """Register one fleet task for the session (M-106).
+
+        *spec* is a FleetTask, a task mapping, or field
+        words given as keyword arguments - the pure
+        layer's ``build_fleet_task`` readings. The task
+        is held as data only: registering runs nothing
+        and starts no process. A task names what to run
+        as an argv list - never a shell string - so a
+        prompt with no argv refuses plainly at this
+        boundary rather than being held as a run that
+        could ever be reported passed. Returns the
+        held task's plain record.
+        """
+        from ..core import fleet_mode
+
+        task = fleet_mode.build_fleet_task(spec, **kwargs)
+        return self._fleet_registry().register(task).to_record()
+
+    def record_fleet_bundle(self, spec: Any = None,
+                            **kwargs: Any) -> dict[str, Any]:
+        """Record one held task's artefact bundle (M-106).
+
+        The bundle names the task's artefacts, as data
+        only - no file is read or written. A task the
+        registry does not hold raises KeyError.
+        Returns the held bundle's plain record.
+        """
+        registry = self._fleet_registry()
+        return registry.record_bundle(spec, **kwargs).to_record()
+
+    def fleet_resume_plan(self,
+                          retry_failures: Any = False) -> dict[str, Any]:
+        """What remains to run, in plain data (M-106).
+
+        The plan is computed by the pure layer from the
+        recorded verdicts alone: a passed task is never
+        remaining; failed and error tasks remain only
+        when ``retry_failures`` is exactly True and are
+        otherwise held back and named. The resume news
+        record rides along - the pure layer's
+        ``fleet_resume`` record when something remains,
+        else None. Asking changes nothing: a plan read
+        never runs, records, or publishes.
+        """
+        from ..core import fleet_mode
+
+        registry = self._fleet_registry()
+        plan = registry.resume_plan(retry_failures)
+        return {
+            "plan": plan.to_record(),
+            "remaining": list(plan.remaining_ids),
+            "passed": list(plan.passed_ids),
+            "held_back": list(plan.held_back_ids),
+            "retry_failures": plan.retry_failures,
+            "news_record": registry.resume_record(retry_failures),
+            "screen": fleet_mode.format_resume_plan(plan),
+            "explanation": fleet_mode.PLAIN_EXPLANATION,
+        }
+
+    def fleet_check(self, retry_failures: Any = False,
+                    timeout: Any = None) -> dict[str, Any]:
+        """Carry the held fleet out in the world (M-106).
+
+        The pure layer's resume plan governs what runs:
+        a passed task is never run again, and failed or
+        error tasks run again only when
+        ``retry_failures`` is exactly True. Every
+        remaining task is started first - as a REAL
+        background job through the M-103 road, its argv
+        exec'd directly, never through a shell, in its
+        repo when it names one - so the fleet runs in
+        parallel; this call then waits for each job's
+        real ending and judges the task from that ending
+        alone (see :meth:`_judge_fleet_job`). A verdict
+        is never invented: a completed job passes its
+        task, a failed job fails it with the job's own
+        exit code, and a cancelled job - or one still
+        unfinished when a named ``timeout`` (in seconds)
+        runs out - is an error, with the reason stated
+        in words. Every verdict is recorded on the held
+        registry, every task completion is published as
+        a ``fleet_task_completed`` session event, and a
+        fleet verdict this check changed is published
+        as a ``fleet_verdict`` session event. Returns
+        the verdicts recorded by this check, the
+        background jobs started, the fleet verdict, its
+        honest exit code, and the screen rendered after
+        the runs landed.
+        """
+        from ..core import fleet_mode
+
+        registry = self._fleet_registry()
+        before = registry.fleet_verdict().to_record()
+        plan = registry.resume_plan(retry_failures)
+        started: list[dict[str, Any]] = []
+        job_ids: dict[str, str] = {}
+        for task_id in plan.remaining_ids:
+            task = registry.get(task_id)
+            record = self.start_background_job({
+                "argv": list(task.argv),
+                "cwd": task.cwd,
+                "label": task.display_label,
+            })
+            started.append(record)
+            job_ids[task_id] = record["job_id"]
+        deadline = None
+        if timeout is not None:
+            import time
+            deadline = time.monotonic() + float(timeout)
+        verdicts: list[dict[str, Any]] = []
+        for task_id in plan.remaining_ids:
+            task = registry.get(task_id)
+            job = self._wait_fleet_job(job_ids[task_id], deadline)
+            verdict = self._judge_fleet_job(task, job)
+            recorded = registry.record_verdict(verdict)
+            verdicts.append(recorded.to_record())
+            self._publish_fleet_completion(recorded, job_ids[task_id])
+        after = registry.fleet_verdict()
+        if after.to_record() != before:
+            self._publish_fleet_verdict(after)
+        return {
+            "tasks": [t.to_record() for t in registry.list_tasks()],
+            "verdicts": verdicts,
+            "started": started,
+            "fleet_verdict": after.to_record(),
+            "exit_code": after.exit_code,
+            "screen": fleet_mode.format_fleet_mode(registry),
+            "explanation": fleet_mode.PLAIN_EXPLANATION,
+        }
+
+    def _wait_fleet_job(self, job_id: str, deadline: Any):
+        """Wait for one background job's real ending (M-106).
+
+        Polls the held M-103 registry until the job
+        reaches a terminal state and returns the job;
+        when a deadline is named and passes first,
+        returns None - the caller judges that an error
+        in words rather than inventing an outcome. With
+        no deadline the wait is for the job's own
+        ending, however long it takes.
+        """
+        import time
+
+        while True:
+            job = self.get_background_job(job_id)
+            if job.is_terminal:
+                return job
+            if deadline is not None and time.monotonic() >= deadline:
+                return None
+            time.sleep(0.02)
+
+    def _judge_fleet_job(self, task: Any, job: Any):
+        """Judge one fleet task from its job's ending (M-106).
+
+        The verdict is the background job's own outcome,
+        read mechanically: completed is passed with the
+        job's exit code (0, as the pure layer requires
+        of a completed job), failed is failed with the
+        job's own exit code, and cancelled - or no
+        ending at all before the wait ran out - is an
+        error, with the reason stated in the verdict's
+        own words. Nothing here passes a task the world
+        did not pass.
+        """
+        from ..core.fleet_mode import build_task_verdict
+
+        if job is None:
+            return build_task_verdict({
+                "task_id": task.task_id, "status": "error",
+                "detail": "the background job did not finish "
+                          "before the fleet wait ran out; no "
+                          "outcome was invented for it"})
+        if job.state == "completed":
+            return build_task_verdict({
+                "task_id": task.task_id, "status": "passed",
+                "exit_code": job.exit_code})
+        if job.state == "failed":
+            return build_task_verdict({
+                "task_id": task.task_id, "status": "failed",
+                "exit_code": job.exit_code,
+                "detail": f"the command ended failed with "
+                          f"exit code {job.exit_code}"})
+        return build_task_verdict({
+            "task_id": task.task_id, "status": "error",
+            "exit_code": job.exit_code,
+            "detail": f"the background job ended {job.state} "
+                      "before the command finished"})
+
+    def _publish_fleet_completion(self, verdict: Any,
+                                  job_id: str) -> None:
+        """Publish one task's completion as session news (M-106).
+
+        The ``fleet_task_completed`` session event is
+        journaled through the same checkpoint road every
+        sibling slice uses, when a session is attached.
+        Each run is announced at most once: the
+        announcement is keyed by the background job that
+        carried the task out, so a retried task's new run
+        is new news while the same run's ending can never
+        be announced twice.
+        """
+        from ..core import fleet_mode
+
+        announced = getattr(self, "_fleet_announced", None)
+        if announced is None:
+            announced = set()
+            self._fleet_announced = announced
+        if job_id in announced:
+            return
+        announced.add(job_id)
+        if self._session_store and self.session_id:
+            task = self._fleet_registry().get(verdict.task_id)
+            self._checkpoint({
+                "type": "fleet_task_completed",
+                "news": True,
+                "surface": "session_event",
+                "slice": fleet_mode.FLEET_MODE_SLICE,
+                "task_id": verdict.task_id,
+                "label": verdict.label,
+                "status": verdict.status,
+                "exit_code": verdict.exit_code,
+                "headline": fleet_mode.format_fleet_task(task, verdict),
+            })
+
+    def _publish_fleet_verdict(self, verdict: Any) -> None:
+        """Publish a changed fleet verdict as session news (M-106).
+
+        The ``fleet_verdict`` session event - the pure
+        layer's own verdict record, with its news words
+        added - is journaled through the same checkpoint
+        road every sibling slice uses, when a session is
+        attached. It is published only by a check that
+        changed the verdict, so an unchanged fleet is
+        never announced again.
+        """
+        from ..core import fleet_mode
+
+        if self._session_store and self.session_id:
+            record = verdict.to_record()
+            record["news"] = True
+            record["surface"] = "session_event"
+            record["headline"] = fleet_mode.format_fleet_verdict(verdict)
+            self._checkpoint(record)
 
 
 class AgentManager:
