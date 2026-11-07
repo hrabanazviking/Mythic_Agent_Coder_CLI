@@ -509,3 +509,266 @@ def test_module_purity():
     assert "from .crew_members import" in source
     assert "normalize_member_id" in source
     assert "normalize_office" in source
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-124 agent layer: the agent holds a
+# WorktreeRegistry for the session (session state
+# only, no new setting), an assignment is held by
+# being registered or by a plan being loaded -
+# published as its worktree_record session news
+# through the checkpoint road, deduped per member -
+# and the /worktrees surface rides both roads on
+# the pure parser + formatters. Status, find,
+# plan and merge-plan reads register and publish
+# nothing. This layer runs no git command and
+# creates no worktree, and builds no spawn road:
+# the registry holds the plan as data.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _worktree_events(store, session_id):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == "worktree_assignment"]
+
+
+def _casting_members():
+    return [m.member_id for m in load_casting().members]
+
+
+class TestWorktreesAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example_plan(self, agent):
+        status = agent.worktrees_status()
+        assert status["assignments"] == []
+        assert [a["member"] for a in status["plan"]] == _casting_members()
+        assert "Worktree assignments: 8 held." in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        assert agent._worktrees_registry() is \
+            agent._worktrees_registry()
+        assert agent._worktrees_store is \
+            agent._worktrees_registry()
+
+    def test_reads_register_and_publish_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.worktrees_status()
+        found = agent.find_worktree_assignment("architect")
+        assert found.slice_id == "M-125"
+        plan = agent.worktree_plan()
+        assert plan.coordinator == "coordinator"
+        steps = agent.worktree_merge_plan()
+        assert [s.slice_id for s in steps] == \
+            [f"M-{n:03d}" for n in range(124, 132)]
+        assert agent._worktrees_registry().list_assignments() == ()
+        assert _worktree_events(store, session_id) == []
+        agent.close()
+
+    def test_unheld_assignment_raises_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_worktree_assignment("architect")
+
+    def test_find_unknown_member_raises_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.find_worktree_assignment("nobody")
+
+    def test_status_after_register_shows_the_held_assignment(self, agent):
+        agent.register_worktree_assignment(_assignment())
+        status = agent.worktrees_status()
+        assert [a["member"] for a in status["assignments"]] == ["architect"]
+        assert "Worktree assignments: 1 held." in status["screen"]
+        assert len(status["plan"]) == 8
+
+
+class TestWorktreesAgentRegister:
+    def test_register_holds_and_publishes_once(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_worktree_assignment(_assignment())
+        assert outcome["assignment"]["member"] == "architect"
+        assert outcome["record"]["type"] == "worktree_assignment"
+        assert outcome["record"]["news"] is True
+        assert agent.get_worktree_assignment(
+            "architect").slice_id == "M-125"
+        events = _worktree_events(store, session_id)
+        assert len(events) == 1
+        assert events[0]["member"] == "architect"
+        # Deduped per member: a second publish is no second event.
+        agent._publish_worktree_record(outcome["record"])
+        assert len(_worktree_events(store, session_id)) == 1
+        # Foreign record types are never published on this road.
+        agent._publish_worktree_record(
+            {"type": "office", "member": "scribe"})
+        agent._publish_worktree_record(
+            {"type": "crew_member", "member": "architect"})
+        agent._publish_worktree_record(
+            {"type": "custom_office", "member": "architect"})
+        assert len(_worktree_events(store, session_id)) == 1
+        agent.close()
+
+    def test_register_duplicate_member_refuses(self, agent):
+        agent.register_worktree_assignment(_assignment())
+        with pytest.raises(ValueError):
+            agent.register_worktree_assignment(_assignment(
+                slice_id="M-126", branch="crew/architect/m-126",
+                path="worktrees/architect-2"))
+        assert len(agent._worktrees_registry().list_assignments()) == 1
+
+    def test_load_plan_holds_and_publishes_the_example(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.load_worktrees_plan()
+        assert outcome["count"] == 8
+        assert [a["member"] for a in outcome["assignments"]] == \
+            _casting_members()
+        assert agent.get_worktree_assignment(
+            "scribe").slice_id == "M-129"
+        status = agent.worktrees_status()
+        assert len(status["assignments"]) == 8
+        assert "Worktree assignments: 8 held." in status["screen"]
+        events = _worktree_events(store, session_id)
+        assert len(events) == 8
+        assert {e["member"] for e in events} == set(_casting_members())
+        with pytest.raises(ValueError):
+            agent.load_worktrees_plan()
+        agent.close()
+
+    def test_plan_from_a_file_is_held_at_the_agent_layer(
+            self, agent, tmp_path):
+        outcome = agent.load_worktrees_plan(
+            load_worktree_plan_file(_write_plan(tmp_path, _plan_data())))
+        assert outcome["count"] == 2
+        assert agent.get_worktree_assignment(
+            "forge_worker").slice_id == "M-128"
+        steps = agent.worktree_merge_plan()
+        assert [s.slice_id for s in steps] == ["M-125", "M-128"]
+        assert all(s.merger == "coordinator" for s in steps)
+
+    def test_merge_plan_prefers_the_held_assignments(self, agent):
+        agent.register_worktree_assignment(_assignment(
+            slice_id="M-140", branch="crew/architect/m-140",
+            path="worktrees/architect-2"))
+        steps = agent.worktree_merge_plan()
+        assert [s.slice_id for s in steps] == ["M-140"]
+        assert steps[0].merger == "coordinator"
+        plan = agent.worktree_plan()
+        assert [a.member for a in plan.assignments] == ["architect"]
+
+    def test_find_prefers_the_held_assignment(self, agent):
+        agent.register_worktree_assignment(_assignment(
+            slice_id="M-140", branch="crew/architect/m-140",
+            path="worktrees/architect-2"))
+        assert agent.find_worktree_assignment(
+            "architect").slice_id == "M-140"
+        # A member not held still reads from the example plan.
+        assert agent.find_worktree_assignment(
+            "scribe").slice_id == "M-129"
+
+    def test_no_git_or_spawn_road_for_worktrees(self, agent):
+        # This layer holds the plan as data: it runs
+        # no git, creates no worktree and spawns
+        # nothing - spawning stays the M-121 crew
+        # road, and merges stay the coordinator's
+        # git roads.
+        assert not hasattr(agent, "spawn_worktree")
+        assert not hasattr(agent, "create_worktree")
+        assert not hasattr(agent, "merge_worktree")
+
+
+class TestWorktreesTerminalSurface:
+    def test_show_plan_and_merges(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/worktrees")
+        assert "Worktree assignments: 8 held." in text
+        _, _, text = _slash(agent, "/worktrees show architect")
+        assert "architect:" in text and "M-125" in text
+        _, _, text = _slash(agent, "/worktrees plan")
+        assert "Worktree assignments: 8 held." in text
+        assert "Coordinator: coordinator" in text
+        _, _, text = _slash(agent, "/worktrees merges")
+        assert "Merge plan: 8 branches" in text
+        assert "coordinator (coordinator) only" in text
+        assert text.index("M-124") < text.index("M-131")
+
+    def test_bare_member_shows_one(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/worktrees scribe")
+        assert "scribe:" in text and "M-129" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert "/worktrees [show|show <member>|plan|merges]" in text
+        _, _, text = _slash(agent, "/worktrees dance")
+        assert "no assignment holds the member" in text
+        _, _, text = _slash(agent, "/worktrees dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/worktrees show nobody")
+        assert "no assignment holds the member" in text
+
+
+@pytest.fixture()
+def worktrees_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _worktrees_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestWorktreesCommand:
+    def test_show_is_default(self, worktrees_handler, agent):
+        worktrees_handler._handle_worktrees("")
+        assert "Worktree assignments: 8 held." in \
+            _worktrees_published_text(worktrees_handler)
+
+    def test_show_one_plan_and_merges(self, worktrees_handler, agent):
+        worktrees_handler._handle_worktrees("show architect")
+        assert "architect:" in _worktrees_published_text(worktrees_handler)
+        worktrees_handler._handle_worktrees("plan")
+        assert "Coordinator: coordinator" in \
+            _worktrees_published_text(worktrees_handler)
+        worktrees_handler._handle_worktrees("merges")
+        assert "Merge plan: 8 branches" in \
+            _worktrees_published_text(worktrees_handler)
+
+    def test_bad_grammar_is_published(self, worktrees_handler, agent):
+        worktrees_handler._handle_worktrees("dance party")
+        assert USAGE in _worktrees_published_text(worktrees_handler)
+
+
+class TestChatScreenRoutingWorktrees:
+    def test_worktrees_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/worktrees merges", _FakeLog())
+        assert calls == [("/worktrees", "merges")]

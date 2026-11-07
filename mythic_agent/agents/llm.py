@@ -12252,6 +12252,221 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-124: parallel worktrees --
+
+    def _worktrees_registry(self):
+        """The held worktrees registry (M-124).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer worktree assignments in
+        the order they were taken up, beside the
+        session crew registry (M-121) and never in
+        it: a worktree assignment is the plan's
+        record of who writes in which tree, not a
+        cast member. It is created on first use, so
+        an agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_worktrees_store``, never the method's own
+        name (the M-108 lesson).
+        """
+        registry = getattr(self, "_worktrees_store", None)
+        if registry is None:
+            from ..core.worktrees import WorktreeRegistry
+            registry = WorktreeRegistry()
+            self._worktrees_store = registry
+        return registry
+
+    def worktrees_status(self) -> dict[str, Any]:
+        """The worktrees, in plain data (M-124).
+
+        The assignments held this session as plain
+        records, the shipped example plan as plain
+        records (the M-121 casting dealt one
+        worktree each, as data), the one screen -
+        rendered from the held registry, or from
+        the shipped example plan when nothing is
+        held yet - and the plain explanation.
+        Reading registers and publishes nothing,
+        runs no git command and creates no
+        worktree: this layer holds the plan as
+        data only.
+        """
+        from ..core import worktrees
+
+        registry = self._worktrees_registry()
+        held = registry.list_assignments()
+        plan = worktrees.load_worktree_plan()
+        shown = registry if held else plan
+        return {
+            "assignments": [a.to_record() for a in held],
+            "plan": [a.to_record() for a in plan.assignments],
+            "screen": worktrees.format_worktrees_screen(shown),
+            "explanation": worktrees.PLAIN_EXPLANATION,
+        }
+
+    def get_worktree_assignment(self, member: Any):
+        """The one held assignment a member holds (M-124).
+
+        A member the session does not hold raises
+        KeyError, exactly as the pure registry
+        answers.
+        """
+        return self._worktrees_registry().by_member(member)
+
+    def find_worktree_assignment(self, member: Any):
+        """One assignment: held first, then the example plan (M-124).
+
+        The session's held registry answers first;
+        a member the session has not taken up is
+        read from the shipped example plan. A
+        member neither holds raises KeyError.
+        Reading registers and publishes nothing.
+        """
+        try:
+            return self._worktrees_registry().by_member(member)
+        except KeyError:
+            from ..core.worktrees import load_worktree_plan
+            return load_worktree_plan().get(member)
+
+    def worktree_plan(self):
+        """The session's worktree plan, as data (M-124).
+
+        When the session holds assignments, the
+        plan is those assignments under the
+        coordinator the session's loaded plan
+        named - the house coordinator word until
+        a plan names another - so the merge plan
+        is derived from what the session actually
+        holds. With nothing held, the shipped
+        example plan answers. Reading registers
+        and publishes nothing.
+        """
+        from ..core.worktrees import WorktreePlan, load_worktree_plan
+
+        held = self._worktrees_registry().list_assignments()
+        if not held:
+            return load_worktree_plan()
+        coordinator = getattr(
+            self, "_worktrees_coordinator", None) or "coordinator"
+        return WorktreePlan(assignments=held, coordinator=coordinator)
+
+    def worktree_merge_plan(self):
+        """The coordinator merge plan, in slice order (M-124).
+
+        Derived from the session's plan - the held
+        assignments when the session holds any,
+        the shipped example plan otherwise - every
+        step merged by the coordinator only. The
+        plan is derived, never stored, and reading
+        it carries out no merge and runs no git:
+        merges are carried out by the coordinator
+        through the git roads, never by this layer.
+        """
+        from ..core.worktrees import merge_plan_for
+
+        return merge_plan_for(self.worktree_plan())
+
+    def register_worktree_assignment(self, assignment: Any) -> dict[str, Any]:
+        """Hold one worktree assignment for the session (M-124).
+
+        The assignment is held by the pure registry
+        under its id or a fresh deterministic one -
+        a member, branch or path already held
+        refuses (never two writers in one tree),
+        and a refusal holds nothing new and
+        publishes nothing - and a held assignment
+        is published as its ``worktree_record``
+        session-news record through the checkpoint
+        road, so an assignment taken up is news
+        with its shape attached. Returns the held
+        assignment, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding an assignment creates
+        no worktree and runs no git command, and
+        no spawn road is owed or built for it: the
+        registry holds the plan as data, and
+        spawning stays the M-121 crew road's.
+        """
+        from ..core import worktrees
+
+        registry = self._worktrees_registry()
+        held = registry.register(assignment)
+        record = worktrees.worktree_record(held)
+        self._publish_worktree_record(record)
+        return {
+            "assignment": held.to_record(),
+            "record": record,
+            "screen": worktrees.format_worktrees_screen(registry),
+            "explanation": worktrees.PLAIN_EXPLANATION,
+        }
+
+    def load_worktrees_plan(self, plan: Any = None) -> dict[str, Any]:
+        """Hold a whole worktree plan for the session (M-124).
+
+        With no plan named, the shipped example
+        plan is loaded through the pure layer - the
+        M-121 casting dealt one worktree each. A
+        plan loaded from a file (the pure layer's
+        ``load_worktree_plan_file`` road) may be
+        passed instead, so a real wave's plan is
+        held as it stands. Every assignment is
+        held in file order and published as its
+        ``worktree_record`` session news, deduped
+        per member, and the plan's coordinator is
+        remembered as session state so the merge
+        plan is derived under the coordinator the
+        plan named. The pure registry refuses a
+        member, branch or path already held - a
+        plan the session already holds cannot be
+        loaded twice. Returns the held assignments,
+        their news records, the count, the screen,
+        and the explanation. Holding a plan creates
+        no worktree and runs no git command.
+        """
+        from ..core import worktrees
+
+        registry = self._worktrees_registry()
+        plan = plan if plan is not None else worktrees.load_worktree_plan()
+        held = registry.register_plan(plan)
+        self._worktrees_coordinator = plan.coordinator
+        records = [worktrees.worktree_record(a) for a in held]
+        for record in records:
+            self._publish_worktree_record(record)
+        return {
+            "assignments": [a.to_record() for a in held],
+            "records": records,
+            "count": len(held),
+            "screen": worktrees.format_worktrees_screen(registry),
+            "explanation": worktrees.PLAIN_EXPLANATION,
+        }
+
+    def _publish_worktree_record(self, record: dict[str, Any]) -> None:
+        """Publish one worktree assignment as session news (M-124).
+
+        The pure layer's ``worktree_record`` is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each member is announced at most
+        once: the announcement is keyed by the
+        record's member id, and every worktree
+        record carries one. A foreign record type
+        is never published on this road.
+        """
+        if record.get("type") != "worktree_assignment":
+            return
+        announced = getattr(self, "_worktrees_announced", None)
+        if announced is None:
+            announced = set()
+            self._worktrees_announced = announced
+        member_id = record.get("member")
+        if member_id is not None:
+            if member_id in announced:
+                return
+            announced.add(member_id)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
