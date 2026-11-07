@@ -9511,6 +9511,257 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-108: the kill switch everywhere --
+
+    def _kill_switch_registry(self):
+        """The held kill-switch registry (M-108).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer halts in the order
+        pulled, with the verdict each pull earned
+        alongside it. It is created on first use, so
+        an agent whose ``__init__`` never ran still
+        holds exactly one.
+        """
+        registry = getattr(self, "_kill_switch_halts_registry", None)
+        if registry is None:
+            from ..core.kill_switch import HaltRegistry
+            registry = HaltRegistry()
+            self._kill_switch_halts_registry = registry
+        return registry
+
+    def kill_switch_status(self) -> dict[str, Any]:
+        """The pulled halts, in plain data (M-108).
+
+        Every held halt as its plain record, in the
+        order pulled, every judged verdict held
+        alongside its halt, the one screen rendered
+        from that same registry, and the plain
+        explanation. Reading changes nothing: a
+        status read registers, judges, halts, or
+        publishes nothing.
+        """
+        from ..core import kill_switch
+
+        registry = self._kill_switch_registry()
+        return {
+            "halts": [h.to_record() for h in registry.list_halts()],
+            "verdicts": [v.to_record() for v in registry.list_verdicts()],
+            "screen": kill_switch.format_halts_screen(registry),
+            "explanation": kill_switch.PLAIN_EXPLANATION,
+        }
+
+    def get_halt(self, halt_id: Any):
+        """The one held halt an id names (M-108).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._kill_switch_registry().get(halt_id)
+
+    def get_halt_verdict(self, halt_id: Any):
+        """One held halt's judged verdict, or None (M-108).
+
+        The verdict is the historical reading judged
+        at the halt's pull, against that moment's
+        holdings - it is never re-judged from later
+        holdings. A halt that has not been pulled
+        through :meth:`pull_kill_switch` holds no
+        verdict. An unknown id raises KeyError.
+        """
+        return self._kill_switch_registry().get_verdict(halt_id)
+
+    def _kill_switch_holdings(self):
+        """The session's real holdings, from the real roads (M-108).
+
+        Every reading comes from a road that really
+        holds it - nothing here is invented:
+
+        * the coder is active when its turn lock is
+          held - a turn in flight holds it;
+        * background jobs are the held M-103 jobs,
+          each with its real lifecycle state;
+        * crew tasks are the held M-106 tasks: a task
+          with a finished verdict is finished, a task
+          backed by a live background job (the road a
+          fleet check runs a task through, the job
+          carrying the task's display label) is
+          running, and any other task is merely
+          queued - a plan, not running work;
+        * pending approvals are read from the
+          approval road itself: approvals are asked
+          one at a time under the tools layer's
+          approval lock, so a pending approval exists
+          exactly while that lock is held, and there
+          is never more than one.
+
+        Reading changes nothing.
+        """
+        from ..core.kill_switch import build_holdings
+
+        turn_lock = getattr(self, "_turn_lock", None)
+        coder_active = bool(
+            turn_lock is not None and turn_lock.locked())
+        jobs: list = []
+        background = getattr(self, "_background_registry", None)
+        if background is not None:
+            jobs = [
+                (job.job_id, job.state)
+                for job in background.list_jobs()]
+        crew: list = []
+        fleet = getattr(self, "_fleet_mode_registry", None)
+        if fleet is not None:
+            active_labels = set()
+            if background is not None:
+                for job in background.list_jobs():
+                    if job.state in ("queued", "running"):
+                        active_labels.add(job.label)
+            for task in fleet.list_tasks():
+                verdict = fleet.get_verdict(task.task_id)
+                status = verdict.status if verdict is not None else None
+                if status in ("passed", "failed", "error", "skipped"):
+                    crew.append((task.task_id, status))
+                elif task.display_label in active_labels:
+                    crew.append((task.task_id, "running"))
+                else:
+                    crew.append((task.task_id, "queued"))
+        pending = 0
+        try:
+            from . import tools as _agent_tools
+
+            if _agent_tools._approval_lock.locked():
+                pending = 1
+        except Exception:
+            pending = 0
+        return build_holdings({
+            "coder_active": coder_active,
+            "background_jobs": jobs,
+            "crew_tasks": crew,
+            "pending_approvals": pending})
+
+    def pull_kill_switch(self, spec: Any = None,
+                         **kwargs: Any) -> dict[str, Any]:
+        """Pull the kill switch, and carry the halt out (M-108).
+
+        *spec* is a Halt, a halt mapping, or field
+        words - the pure layer's ``build_halt``
+        readings; with nothing named, the halt names
+        all four targets. The halt is registered,
+        the session's holdings are read from the real
+        roads (see :meth:`_kill_switch_holdings`),
+        and the pure layer judges the pull against
+        that moment's holdings. The halt is then
+        carried out in the world through the real
+        roads, for the targets named:
+
+        * background jobs - every held job the
+          holdings showed live is killed through the
+          M-103 road (:meth:`kill_background_job`:
+          the kill is recorded as a request, the real
+          process is terminated, the kill is applied
+          and the job's completion is published);
+        * the crew - a running crew task is carried
+          by a background job, so its job is killed
+          through that same road; a crew with no live
+          backing job has nothing running to kill,
+          and the verdict says so (nothing held, or
+          already stopped) rather than claiming a
+          halt that never happened;
+        * the coder and pending approvals - the
+          coder's own cancellation event is set
+          (:meth:`cancel`): in-flight work stops at
+          the next runtime boundary, and a pending
+          approval, which waits on that same event,
+          is refused - it raises its cancellation and
+          is never answered as approved. There is no
+          separate approval road to fake: refusing an
+          approval rides the coder's cancellation
+          event because that is the road approvals
+          are bound to.
+
+        The pure layer's ``kill_switch_pulled`` record
+        is published as session news through the
+        checkpoint road, and the return names the
+        jobs actually killed and any kill that
+        refused, in words. Returns the halt, its
+        verdict, the news record, the killed job ids,
+        the kill refusals, whether the cancellation
+        event was set, the screen rendered after the
+        pull landed, and the plain explanation.
+        """
+        from ..core import kill_switch
+
+        halt = kill_switch.build_halt(spec, **kwargs)
+        registry = self._kill_switch_registry()
+        held = registry.register(halt)
+        holdings = self._kill_switch_holdings()
+        verdict = registry.judge(held.halt_id, holdings)
+        record = registry.record(held.halt_id)
+        targets = set(held.targets)
+        killed: list[str] = []
+        kill_errors: list[str] = []
+        if targets & {"background_jobs", "crew"}:
+            background = getattr(self, "_background_registry", None)
+            if background is not None:
+                if "background_jobs" in targets:
+                    wanted = list(holdings.background_active_ids)
+                else:
+                    running = set(holdings.crew_running_ids)
+                    labels = set()
+                    fleet = getattr(self, "_fleet_mode_registry", None)
+                    if fleet is not None:
+                        for task in fleet.list_tasks():
+                            if task.task_id in running:
+                                labels.add(task.display_label)
+                    wanted = [
+                        job.job_id for job in background.list_jobs()
+                        if job.state in ("queued", "running")
+                        and job.label in labels]
+                for job_id in wanted:
+                    try:
+                        self.kill_background_job(
+                            job_id, held.reason or "kill switch pulled")
+                        killed.append(job_id)
+                    except Exception as exc:
+                        kill_errors.append(f"{job_id}: {exc}")
+        cancel_set = False
+        if targets & {"coder", "approvals"}:
+            self.cancel()
+            cancel_set = True
+        self._publish_kill_switch_pulled(record)
+        return {
+            "halt": held.to_record(),
+            "verdict": verdict.to_record(),
+            "record": record,
+            "killed_job_ids": killed,
+            "kill_errors": kill_errors,
+            "cancel_set": cancel_set,
+            "screen": kill_switch.format_halts_screen(registry),
+            "explanation": kill_switch.PLAIN_EXPLANATION,
+        }
+
+    def _publish_kill_switch_pulled(self, record: dict[str, Any]) -> None:
+        """Publish one pulled switch as session news (M-108).
+
+        The pure layer's ``kill_switch_pulled`` record
+        is journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each pull is announced at most
+        once: the announcement is keyed by the halt
+        id, and every pull holds a fresh id.
+        """
+        announced = getattr(self, "_kill_switch_announced", None)
+        if announced is None:
+            announced = set()
+            self._kill_switch_announced = announced
+        if record["halt_id"] in announced:
+            return
+        announced.add(record["halt_id"])
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
