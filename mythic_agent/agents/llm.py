@@ -378,6 +378,11 @@ class Agent:
         self.tui_app = None
         self.tool_policy = ToolPolicy("read-only")
         self._permission_override = None
+        self._current_plan = None  # M-100: the held plan (Plan or None)
+        self._background_registry = None  # M-103: held jobs registry
+        self._background_processes: dict[str, Any] = {}
+        self._background_lock = threading.RLock()
+        self._background_announced: set[str] = set()
         self.active_task_start_time = None
         self.rebuild_system_prompt()
         
@@ -492,9 +497,25 @@ class Agent:
         self.tui_app = app
         mode = mode or policy_mode(self.config, override=self._permission_override)
         def approve(name, arguments):
+            # M-096: a remembered approval with the exact
+            # scope answers first - the standing answer the
+            # user already gave for this command in this
+            # project - and the prompt is never raised.
+            if self.remembered_approval_allows_tool(name, arguments):
+                # M-109: a remembered approval is a human
+                # approval already given - it is trailed as
+                # one, through the audit road.
+                self._note_audit_approval(
+                    name, True, "a remembered approval")
+                return True
             settings = runtime_settings(self.config)
             description = self.redactor.text(name + ": " + json.dumps(arguments, ensure_ascii=False))
-            return prompt_approval_sync(description, app, self._cancel, settings["approval_timeout"])
+            decided = prompt_approval_sync(description, app, self._cancel, settings["approval_timeout"])
+            # M-109: the human's answer at the prompt is
+            # trailed as an approval, granted or refused.
+            self._note_audit_approval(
+                name, decided, "the approval prompt")
+            return decided
         self.tool_policy = ToolPolicy(mode, approve)
 
     def change_workspace(self, root: Path | str) -> None:
@@ -1215,9 +1236,38 @@ class Agent:
         from ..core.workspace import resolve_file
 
         target = resolve_file(self.project_root, path, write=True)
+        # M-087: large-file and binary care judges the
+        # file from its true bytes before any edit road
+        # runs - a binary refuses outright, whatever the
+        # gate says, and a large file whose care gate is
+        # off refuses with the guard's own explanation.
+        # The assessment rides along below: a large file
+        # on the chunk road warns before saving, exactly
+        # as a generated file does (M-086).
+        care_assessment = None
+        if target.exists():
+            from ..core import large_file_care as _lfc
+            care_assessment = _lfc.assess_edit(
+                _lfc.classify_bytes(path, target.read_bytes()),
+                config=self.config)
+            if not care_assessment.allowed:
+                raise ValueError(care_assessment.warning)
+        target = resolve_file(self.project_root, path, write=True)
         current = (target.read_text(encoding="utf-8")
                    if target.exists() else None)
         new_text, units = apply_edit(format_id, current, payload)
+        # M-086: a hand-edit to a generated file warns
+        # before saving - the assessment is computed from
+        # the file's true current text, before any write,
+        # and the warning rides the returned record (and
+        # the session, when one is attached). The edit
+        # itself still applies: the warning is honesty,
+        # not a refusal.
+        gen_assessment = None
+        if current is not None:
+            from ..core import generated_code as _gc
+            gen_assessment = _gc.assess_edit(
+                _gc.classify_text(path, current), config=self.config)
         # M-079: the guardians judge the apply by the
         # operation it truly is — a whole-file format is an
         # overwrite, a diff or a search block is in-place,
@@ -1231,7 +1281,19 @@ class Agent:
                     ).write(path, new_text, operation=operation)
         record: dict[str, Any] = {
             "path": path, "format": format_id, "units": units,
-            "changed": current != new_text, "journaled": False}
+            "changed": current != new_text, "journaled": False,
+            "generated_warning": (gen_assessment.warning
+                                  if gen_assessment is not None
+                                  and gen_assessment.warns else None),
+            "large_file_warning": (care_assessment.warning
+                                   if care_assessment is not None
+                                   and care_assessment.warns else None)}
+        if (gen_assessment is not None and gen_assessment.warns
+                and self._session_store and self.session_id):
+            self._checkpoint(gen_assessment.record())
+        if (care_assessment is not None and care_assessment.warns
+                and self._session_store and self.session_id):
+            self._checkpoint(care_assessment.record())
         if self._session_store and self.session_id:
             self._checkpoint({"type": "edit_format_applied",
                               "path": path, "format": format_id,
@@ -1625,6 +1687,1215 @@ class Agent:
             event["path"] = path
             event["applied"] = outcome.applied
             event["changed"] = outcome.changed
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
+    def change_set_status(self) -> dict[str, Any]:
+        """The change-set gate, in plain data (M-084).
+
+        The setting exactly as stored (validated — a malformed
+        stored value raises, never vanishes) and the plain
+        explanation. This is the answer ``/changeset`` shows.
+        """
+        from ..core import change_sets
+
+        return {
+            "enabled": change_sets.enabled_from_config(self.config),
+            "explanation": change_sets.PLAIN_EXPLANATION,
+        }
+
+    def set_change_sets(self, enabled: bool) -> dict[str, Any]:
+        """Turn multi-file change sets on or off (M-084).
+
+        Validated by :mod:`mythic_agent.core.change_sets`
+        before anything mutates; journaled first as a
+        ``change_set_setting_changed`` event when a session
+        is attached; a failed save restores the previous
+        value exactly and journals a compensating
+        ``change_set_setting_reverted``.
+        """
+        import copy
+
+        from ..core import change_sets
+
+        new_value, change = change_sets.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[change_sets.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "change_set_setting_reverted",
+                        "reason": "The change-set change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Change-set change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def preview_change_set(
+            self, name: str, edits: Any,
+            evidence: Any = None) -> dict[str, Any]:
+        """Show a change set as a reviewable unit (M-084).
+
+        Purely a read: the set is built and validated (its
+        name, one edit per file, each format concrete) and
+        returned as data — each file with its format, plus
+        the attached evidence's record when *evidence* (a
+        mapping with command / passed / failed / skipped /
+        log_ref) is given. Nothing is read from disk and
+        nothing is written.
+        """
+        from ..core import change_sets
+
+        change_set = change_sets.start_change_set(
+            name, [change_sets.make_edit(*edit) for edit in edits])
+        if evidence is not None:
+            change_set = change_sets.attach_evidence(
+                change_set, change_sets.make_evidence(**evidence))
+        return {"name": change_set.name,
+                "files": [edit.record()
+                          for edit in change_set.edits],
+                "evidence": (change_set.evidence.record()
+                             if change_set.evidence is not None
+                             else None)}
+
+    def apply_change_set(
+            self, name: str, edits: Any, decisions: Any,
+            evidence: Any = None) -> dict[str, Any]:
+        """Apply a named multi-file change set (M-084).
+
+        *edits* is a list of ``(path, format_id, payload)``
+        triples — one edit per file, each in an M-071
+        concrete format; *decisions* names every file:
+        ``(index, "accept")`` or ``(index, "reject")``.
+        Rejecting one file never kills the rest: the
+        accepted files are planned in memory through
+        M-071's strict appliers against the files' true
+        current text — one stale file refuses the whole
+        set and writes nothing — and only a clean plan is
+        written, through the EditJournal road, one
+        journaled write per file. An undecided file and
+        the gate being off also refuse and write nothing.
+        *evidence*, when given, is a mapping with the test
+        command and its passed / failed / skipped counts
+        (plus a log reference); it is validated, attached
+        to the set, and carried in the session record —
+        a set applied without evidence records exactly
+        that. The whole set is recorded on the session as
+        a ``change_set_applied`` event under its name when
+        a session is attached — including an all-rejected
+        set, which is an honest no-change outcome.
+        """
+        from ..core import change_sets
+        from ..core.edits import EditJournal
+        from ..core.workspace import resolve_file
+
+        if not change_sets.enabled_from_config(self.config):
+            raise ValueError(
+                "change sets are off — turn them on with "
+                "/changeset on; nothing was changed")
+        change_set = change_sets.start_change_set(
+            name, [change_sets.make_edit(*edit) for edit in edits])
+        for item in decisions:
+            if len(item) != 2:
+                raise ValueError(
+                    "each decision is (index, 'accept') or "
+                    f"(index, 'reject'); got {item!r}")
+            change_set = change_sets.decide(
+                change_set, item[0], item[1])
+        if evidence is not None:
+            change_set = change_sets.attach_evidence(
+                change_set, change_sets.make_evidence(**evidence))
+        currents: dict[str, Any] = {}
+        for edit in change_set.edits:
+            target = resolve_file(
+                self.project_root, edit.path, write=True)
+            currents[edit.path] = (
+                target.read_text(encoding="utf-8")
+                if target.exists() else None)
+        new_texts, outcome = change_sets.apply_change_set(
+            change_set, currents)
+        journal = EditJournal(self.project_root)
+        for path, new_text in new_texts.items():
+            journal.write(path, new_text)
+        record: dict[str, Any] = {
+            "name": change_set.name,
+            "applied": outcome.applied,
+            "rejected": outcome.rejected,
+            "units": outcome.units,
+            "changed_files": outcome.changed_files,
+            "changed": outcome.changed,
+            "evidence": (change_set.evidence.record()
+                         if change_set.evidence is not None
+                         else None),
+            "journaled": False}
+        if self._session_store and self.session_id:
+            event = change_set.event()
+            event["applied"] = outcome.applied
+            event["units"] = outcome.units
+            event["changed_files"] = outcome.changed_files
+            event["changed"] = outcome.changed
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
+    def rename_move_status(self) -> dict[str, Any]:
+        """The rename/move gate, in plain data (M-085).
+
+        The setting exactly as stored (validated — a
+        malformed stored value raises, never vanishes) and
+        the plain explanation. This is the answer
+        ``/rename`` shows.
+        """
+        from ..core import rename_move
+
+        return {
+            "enabled": rename_move.enabled_from_config(self.config),
+            "explanation": rename_move.PLAIN_EXPLANATION,
+        }
+
+    def set_rename_move(self, enabled: bool) -> dict[str, Any]:
+        """Turn rename/move on or off (M-085).
+
+        Validated by :mod:`mythic_agent.core.rename_move`
+        before anything mutates; journaled first as a
+        ``rename_move_setting_changed`` event when a session
+        is attached; a failed save restores the previous
+        value exactly and journals a compensating
+        ``rename_move_setting_reverted``.
+        """
+        import copy
+
+        from ..core import rename_move
+
+        new_value, change = rename_move.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[rename_move.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "rename_move_setting_reverted",
+                        "reason": "The rename/move change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Rename/move change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def _rename_move_plan(self, source: Any, destination: Any):
+        """Plan a move against the real workspace (M-085).
+
+        Existing paths and directory-ness come from disk;
+        referencing files come from Part III's symbol graph
+        (its file edges inverted: whose edges name the
+        source), their true current text read from disk.
+        A graph that cannot be built is reported, never
+        hidden: the plan then carries no computed reference
+        updates and the warning rides the returned record.
+        """
+        import os
+
+        from ..core import rename_move
+        from ..core.workspace import resolve_file
+
+        root = self.project_root
+        existing: list[str] = []
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = sorted(
+                d for d in dirnames if not d.startswith("."))
+            rel_dir = os.path.relpath(dirpath, root)
+            for name in dirnames:
+                existing.append(
+                    name if rel_dir == "."
+                    else f"{rel_dir}/{name}")
+            for name in sorted(filenames):
+                existing.append(
+                    name if rel_dir == "."
+                    else f"{rel_dir}/{name}")
+        referencing: list[str] = []
+        graph_warning = None
+        try:
+            from ..context.symbol_graph import build_symbol_graph
+
+            graph = build_symbol_graph(root)
+            edges = graph.file_edges()
+            referencing = sorted(
+                path for path, targets in edges.items()
+                if source in targets and path != source)
+        except Exception as exc:
+            graph_warning = (
+                f"symbol graph unavailable ({exc}); reference "
+                "updates were not computed")
+        texts: dict[str, str] = {}
+        for path in referencing:
+            target = resolve_file(root, path)
+            if target.exists():
+                texts[path] = target.read_text(encoding="utf-8")
+        plan = rename_move.plan_move(
+            source, destination, existing=existing,
+            referencing=referencing, texts=texts,
+            is_directory=(root / source).is_dir()
+            if isinstance(source, str) else False)
+        return plan, graph_warning
+
+    def preview_rename_move(
+            self, source: str, destination: str) -> dict[str, Any]:
+        """Show a rename/move as a planned edit (M-085).
+
+        Purely a read: the plan is computed whole against
+        the real workspace - the git mv command, the graph
+        reference updates with their counts, and every
+        warning - and returned as data. Nothing moves and
+        nothing is written.
+        """
+        plan, graph_warning = self._rename_move_plan(
+            source, destination)
+        record = plan.record()
+        record["graph_warning"] = graph_warning
+        record["journaled"] = False
+        return record
+
+    def rename_move_file(
+            self, source: str, destination: str) -> dict[str, Any]:
+        """Execute one rename/move as a first-class edit (M-085).
+
+        The plan is computed whole first (one refusal —
+        a missing source, an existing destination, a move
+        onto itself - and nothing moves). The file itself
+        moves only by ``git mv``, so its history is
+        preserved; a source git does not track refuses in
+        git's own words and nothing else is written. The
+        reference updates the plan computed from Part
+        III's graph are then written through the
+        EditJournal road, and the move is recorded on the
+        session as a ``file_moved`` event when a session
+        is attached. The gate being off refuses and moves
+        nothing.
+        """
+        import subprocess
+
+        from ..core import rename_move
+        from ..core.edits import EditJournal
+
+        if not rename_move.enabled_from_config(self.config):
+            raise ValueError(
+                "rename/move is off — turn it on with "
+                "/rename on; nothing was changed")
+        plan, graph_warning = self._rename_move_plan(
+            source, destination)
+        destination_path = self.project_root / plan.destination
+        if destination_path.parent != self.project_root:
+            destination_path.parent.mkdir(
+                parents=True, exist_ok=True)
+        result = subprocess.run(
+            ["git", "-C", str(self.project_root), "mv",
+             plan.source, plan.destination],
+            capture_output=True, text=True, timeout=30)
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "").strip()
+            raise RuntimeError(
+                f"git mv refused the move ({plan.source} -> "
+                f"{plan.destination}): "
+                f"{detail or 'no reason given'}; "
+                "the file was not moved")
+        journal = EditJournal(self.project_root)
+        for update in plan.updates:
+            journal.write(update.path, update.new_text)
+        record = plan.record()
+        record["graph_warning"] = graph_warning
+        record["journaled"] = False
+        if self._session_store and self.session_id:
+            event = plan.record()
+            if graph_warning:
+                event["graph_warning"] = graph_warning
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
+    def generated_code_status(self) -> dict[str, Any]:
+        """The generated-code gate, in plain data (M-086).
+
+        The setting exactly as stored (validated - a
+        malformed stored value raises, never vanishes) and
+        the plain explanation. This is the answer
+        ``/generated`` shows.
+        """
+        from ..core import generated_code
+
+        return {
+            "enabled": generated_code.enabled_from_config(self.config),
+            "explanation": generated_code.PLAIN_EXPLANATION,
+        }
+
+    def set_generated_code(self, enabled: bool) -> dict[str, Any]:
+        """Turn generated-code honesty on or off (M-086).
+
+        Validated by :mod:`mythic_agent.core.generated_code`
+        before anything mutates; journaled first as a
+        ``generated_code_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``generated_code_setting_reverted``.
+        """
+        import copy
+
+        from ..core import generated_code
+
+        new_value, change = generated_code.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[generated_code.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "generated_code_setting_reverted",
+                        "reason": "The generated-code change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Generated-code change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def check_generated_code(self, path: str) -> dict[str, Any]:
+        """Classify one real file from its own face (M-086).
+
+        A pure read: the file's true current text is
+        classified by its head marker, the generator the
+        marker names is recorded exactly (or honestly as
+        unknown), and a hand-edit to it is assessed under
+        this config - the warning computed before any
+        save. A missing file refuses; nothing is written.
+        """
+        from ..core import generated_code
+        from ..core.workspace import resolve_file
+
+        target = resolve_file(self.project_root, path)
+        if not target.exists():
+            raise ValueError(f"{path} does not exist; nothing was checked")
+        record = generated_code.classify_text(
+            path, target.read_text(encoding="utf-8"))
+        assessment = generated_code.assess_edit(record, config=self.config)
+        data = record.record()
+        data["assessment"] = assessment.record()
+        data["journaled"] = False
+        return data
+
+    def mark_generated_file(
+            self, path: str, generator: str) -> dict[str, Any]:
+        """Mark one real file as generated by *generator* (M-086).
+
+        The registration is judged against the file's own
+        face first: a marker already present governs, and
+        a conflicting generator name refuses and writes
+        nothing. An unmarked file gains the one header
+        line in its own comment style, written through
+        the EditJournal road; an already-marked file is
+        left byte-identical. The mark is recorded on the
+        session as a ``generated_file`` event when one is
+        attached. The gate being off refuses and marks
+        nothing.
+        """
+        from ..core import generated_code
+        from ..core.edits import EditJournal
+        from ..core.workspace import resolve_file
+
+        if not generated_code.enabled_from_config(self.config):
+            raise ValueError(
+                "generated-code honesty is off - turn it on with "
+                "/generated on; nothing was changed")
+        target = resolve_file(self.project_root, path, write=True)
+        if not target.exists():
+            raise ValueError(f"{path} does not exist; nothing was marked")
+        text = target.read_text(encoding="utf-8")
+        record = generated_code.register_generated(
+            path, generator, text=text)
+        marked = record.marker is None
+        if marked:
+            header = generated_code.marker_header(path, record.generator)
+            EditJournal(self.project_root).write(path, header + "\n" + text)
+        data = record.record()
+        if marked:
+            data["marker"] = {"line": 1, "form": "generated_by",
+                               "generator": record.generator,
+                               "text": generated_code.marker_header(
+                                   path, record.generator)}
+        data["marked"] = marked
+        data["journaled"] = False
+        if self._session_store and self.session_id:
+            event = record.record()
+            event["marked"] = marked
+            self._checkpoint(event)
+            data["journaled"] = True
+        return data
+
+    def large_file_care_status(self) -> dict[str, Any]:
+        """The large-file care gate, in plain data (M-087).
+
+        The setting exactly as stored (validated - a
+        malformed stored value raises, never vanishes) and
+        the plain explanation. This is the answer
+        ``/largefile`` shows.
+        """
+        from ..core import large_file_care
+
+        return {
+            "enabled": large_file_care.enabled_from_config(self.config),
+            "explanation": large_file_care.PLAIN_EXPLANATION,
+        }
+
+    def set_large_file_care(self, enabled: bool) -> dict[str, Any]:
+        """Turn large-file and binary care on or off (M-087).
+
+        Validated by :mod:`mythic_agent.core.large_file_care`
+        before anything mutates; journaled first as a
+        ``large_file_care_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``large_file_care_setting_reverted``.
+        """
+        import copy
+
+        from ..core import large_file_care
+
+        new_value, change = large_file_care.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[large_file_care.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "large_file_care_setting_reverted",
+                        "reason": "The large-file care change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Large-file care change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def check_large_file(self, path: str) -> dict[str, Any]:
+        """Classify one real file from its true bytes (M-087).
+
+        A pure read: the file's bytes are classified once -
+        binary or text, small or large - with the guard's
+        own explanation, a text edit is assessed under
+        this config, and a large text file also returns
+        its anchored chunk plan. A missing file refuses;
+        nothing is written.
+        """
+        from ..core import large_file_care
+        from ..core.workspace import resolve_file
+
+        target = resolve_file(self.project_root, path)
+        if not target.exists():
+            raise ValueError(f"{path} does not exist; nothing was checked")
+        record = large_file_care.classify_bytes(path, target.read_bytes())
+        assessment = large_file_care.assess_edit(record, config=self.config)
+        data = record.record()
+        data["assessment"] = assessment.record()
+        data["chunks"] = []
+        data["chunk_plan"] = None
+        if record.edit_mode == "anchored_chunks":
+            chunks = large_file_care.split_chunks(
+                target.read_text(encoding="utf-8"))
+            data["chunks"] = [c.record() for c in chunks]
+            data["chunk_plan"] = large_file_care.format_chunk_plan(chunks)
+        data["journaled"] = False
+        return data
+
+    def apply_large_file_chunk_edit(
+            self, path: str, chunk_index: int, anchor: str,
+            replacement: str) -> dict[str, Any]:
+        """Edit one anchored chunk of a large file (M-087).
+
+        The gate being off refuses and edits nothing. The
+        file is judged from its true bytes first: a binary
+        refuses in the guard's own words, and a file on
+        the whole-file road refuses here - the ordinary
+        edit roads are its road. The pure layer applies
+        the replacement only when the anchor still
+        matches the chunk the file holds now; a mismatch
+        names both anchors and writes nothing. A clean
+        edit is written through the EditJournal road and
+        recorded on the session as a
+        ``large_file_chunk_edited`` event when one is
+        attached.
+        """
+        from ..core import large_file_care
+        from ..core.edits import EditJournal
+        from ..core.workspace import resolve_file
+
+        if not large_file_care.enabled_from_config(self.config):
+            raise ValueError(
+                "large-file care is off - turn it on with "
+                "/largefile on; nothing was changed")
+        target = resolve_file(self.project_root, path, write=True)
+        if not target.exists():
+            raise ValueError(f"{path} does not exist; nothing was edited")
+        record = large_file_care.classify_bytes(path, target.read_bytes())
+        if record.is_binary:
+            raise ValueError(record.explanation)
+        if record.edit_mode != "anchored_chunks":
+            raise ValueError(
+                f"{path} is on the whole-file road; chunk edits "
+                "are for large files - use the ordinary edit roads")
+        text = target.read_text(encoding="utf-8")
+        new_text = large_file_care.apply_chunk_edit(
+            text, chunk_index, anchor, replacement)
+        EditJournal(self.project_root).write(path, new_text)
+        data = record.record()
+        data["chunk_index"] = chunk_index
+        data["anchor"] = anchor
+        data["journaled"] = False
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "large_file_chunk_edited",
+                "path": path, "chunk_index": chunk_index,
+                "anchor": anchor})
+            data["journaled"] = True
+        return data
+
+
+    # -- M-088: the stash shelf against the real tree --
+
+    def _stash_shelf_dir(self):
+        """The shelf's home for this workspace, on disk."""
+        from ..core.config_manager import config_manager
+        from ..core.workspace import workspace_id
+
+        directory = (config_manager.MYTHIC_DIR / "stash-shelf"
+                     / workspace_id(self.project_root))
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        return directory
+
+    def _stash_tree(self) -> dict[str, Any]:
+        """The real working tree as path -> text (M-088).
+
+        Text work-in-progress only: symlinks, files that
+        do not decode as UTF-8 (binaries), the checkpoint
+        store's skipped directories, and the agent's own
+        state directory when it lives inside the tree
+        are left out of the shelf's judgement.
+        """
+        import os
+        from pathlib import Path
+
+        from ..core import checkpoints
+        from ..core.config_manager import config_manager
+
+        root = Path(self.project_root).resolve()
+        state_rel = None
+        try:
+            state_rel = config_manager.MYTHIC_DIR.resolve().relative_to(root)
+        except (ValueError, OSError):
+            state_rel = None
+        tree: dict[str, Any] = {}
+        for dirpath, dirnames, filenames in os.walk(root):
+            here = Path(dirpath)
+            kept = []
+            for dirname in sorted(dirnames):
+                if dirname in checkpoints.SKIP_DIRS:
+                    continue
+                candidate = here / dirname
+                if candidate.is_symlink():
+                    continue
+                if state_rel is not None:
+                    rel = candidate.relative_to(root)
+                    if rel == state_rel or state_rel in rel.parents:
+                        continue
+                    if rel in state_rel.parents:
+                        kept.append(dirname)
+                        continue
+                kept.append(dirname)
+            dirnames[:] = kept
+            for filename in sorted(filenames):
+                candidate = here / filename
+                if candidate.is_symlink():
+                    continue
+                try:
+                    data = candidate.read_bytes()
+                except OSError:
+                    continue
+                try:
+                    text = data.decode("utf-8")
+                except UnicodeDecodeError:
+                    continue
+                tree[str(candidate.relative_to(root))] = text
+        return tree
+
+    def _stash_base(self, establish: bool = False):
+        """The shelf's base: the last clean tree state.
+
+        Stored as one JSON file beside the journal. When
+        no base has been recorded yet and *establish* is
+        true, the tree as it stands now becomes the base
+        - the first clean state the shelf has seen - and
+        is written to disk before anything is judged.
+        """
+        import json
+
+        from ..core.edits import atomic_write
+
+        base_file = self._stash_shelf_dir() / "base.json"
+        if base_file.exists():
+            return json.loads(base_file.read_text(encoding="utf-8"))
+        if not establish:
+            return None
+        base = self._stash_tree()
+        atomic_write(base_file,
+                     json.dumps(base, sort_keys=True).encode("utf-8"),
+                     0o600)
+        return base
+
+    def _stash_load(self):
+        """The shelf rebuilt from its journal file."""
+        from ..core import stash_shelf
+
+        journal = self._stash_shelf_dir() / "shelf.journal"
+        if not journal.exists():
+            return stash_shelf.Shelf(), 0
+        return stash_shelf.Shelf.from_journal_text(
+            journal.read_text(encoding="utf-8"))
+
+    def _stash_save(self, shelf) -> None:
+        """Write the shelf's journal whole, atomically."""
+        from ..core.edits import atomic_write
+
+        journal = self._stash_shelf_dir() / "shelf.journal"
+        atomic_write(journal,
+                     shelf.to_journal_text().encode("utf-8"), 0o600)
+
+    def _stash_apply_tree(self, before, after) -> None:
+        """Move the real tree from *before* to *after*.
+
+        Only paths that differ are touched: changed or
+        new paths are written, vanished paths removed.
+        """
+        for path in sorted(set(before) | set(after)):
+            if before.get(path) == after.get(path):
+                continue
+            target = self.project_root / path
+            if path in after:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if target.is_symlink():
+                    target.unlink()
+                target.write_text(after[path], encoding="utf-8")
+            elif target.is_symlink() or target.exists():
+                target.unlink()
+
+    def stash_shelf_status(self) -> dict[str, Any]:
+        """The stash shelf gate and contents (M-088).
+
+        The setting exactly as stored (validated - a
+        malformed stored value raises, never vanishes),
+        the plain explanation, every shelved entry as a
+        record, and the journal's corrupt-line count,
+        reported rather than hidden. The first status
+        read establishes the base from the tree as it
+        stands. This is the answer ``/stash`` shows.
+        """
+        from ..core import stash_shelf
+
+        shelf, corrupt = self._stash_load()
+        base = self._stash_base(establish=True)
+        return {
+            "enabled": stash_shelf.enabled_from_config(self.config),
+            "explanation": stash_shelf.PLAIN_EXPLANATION,
+            "count": len(shelf),
+            "names": shelf.names(),
+            "entries": [entry.record() for entry in shelf.entries()],
+            "corrupt_lines": corrupt,
+            "base_files": len(base),
+        }
+
+    def set_stash_shelf(self, enabled: bool) -> dict[str, Any]:
+        """Turn the stash shelf on or off (M-088).
+
+        Validated by :mod:`mythic_agent.core.stash_shelf`
+        before anything mutates; journaled first as a
+        ``stash_shelf_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``stash_shelf_setting_reverted``.
+        """
+        import copy
+
+        from ..core import stash_shelf
+
+        new_value, change = stash_shelf.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[stash_shelf.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "stash_shelf_setting_reverted",
+                        "reason": "The stash shelf change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Stash shelf change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def shelve_stash(self, name: str) -> dict[str, Any]:
+        """Shelve the tree's work-in-progress by name (M-088).
+
+        The difference between the working tree and its
+        base is captured under *name* in the journal on
+        disk first - the entry is durable before the
+        tree moves - and the tree then goes back to its
+        base exactly. Shelving nothing, or a name already
+        on the shelf, refuses and changes nothing. With
+        the gate off this refuses and shelves nothing.
+        The shelve is recorded on the session as a
+        ``stash_shelved`` event when one is attached.
+        """
+        from ..core import stash_shelf
+
+        if not stash_shelf.enabled_from_config(self.config):
+            raise ValueError(
+                "the stash shelf is off - turn it on with "
+                "/stash on; nothing was shelved")
+        base = self._stash_base(establish=True)
+        working = self._stash_tree()
+        entry = stash_shelf.build_entry(
+            name, base, working, session_id=self.session_id)
+        shelf, _corrupt = self._stash_load()
+        shelf.shelve(entry)
+        self._stash_save(shelf)
+        cleaned = stash_shelf.clean_tree(base, entry)
+        self._stash_apply_tree(working, cleaned)
+        record: dict[str, Any] = {
+            "type": "stash_shelved", "name": entry.name,
+            "files": entry.file_count, "bytes": entry.total_bytes,
+            "entry": entry.record(), "journaled": False}
+        if self._session_store and self.session_id:
+            event = {key: value for key, value in record.items()
+                     if key not in ("journaled", "entry")}
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
+    def restore_stash(self, name: str,
+                      discard: bool = False) -> dict[str, Any]:
+        """Restore one shelved entry into the tree (M-088).
+
+        Judged against the tree as it stands now: a path
+        that moved since the shelve is a conflict - the
+        restore refuses, names every conflicted path,
+        and changes nothing - unless *discard* throws
+        those changes away on purpose, counted in the
+        record. A restored entry leaves the shelf. With
+        the gate off this refuses and restores nothing.
+        The restore is recorded on the session as a
+        ``stash_restored`` event when one is attached.
+        """
+        from ..core import stash_shelf
+
+        if not stash_shelf.enabled_from_config(self.config):
+            raise ValueError(
+                "the stash shelf is off - turn it on with "
+                "/stash on; nothing was restored")
+        base = self._stash_base(establish=True)
+        working = self._stash_tree()
+        shelf, _corrupt = self._stash_load()
+        entry = shelf.get(name)
+        conflicts = stash_shelf.restore_conflicts(entry, base, working)
+        restored = shelf.restore(name, base, working, discard=discard)
+        self._stash_save(shelf)
+        self._stash_apply_tree(working, restored)
+        record: dict[str, Any] = {
+            "type": "stash_restored", "name": entry.name,
+            "files": entry.file_count, "conflicts": conflicts,
+            "discarded": len(conflicts) if discard else 0,
+            "entry": entry.record(), "journaled": False}
+        if self._session_store and self.session_id:
+            event = {key: value for key, value in record.items()
+                     if key not in ("journaled", "entry")}
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
+    def drop_stash(self, name: str) -> dict[str, Any]:
+        """Drop one shelved entry; the tree is untouched (M-088).
+
+        The entry leaves the journal on disk and the
+        drop is recorded on the session as a
+        ``stash_dropped`` event when one is attached.
+        A name that is not on the shelf refuses.
+        """
+        shelf, _corrupt = self._stash_load()
+        entry = shelf.drop(name)
+        self._stash_save(shelf)
+        record: dict[str, Any] = {
+            "type": "stash_dropped", "name": entry.name,
+            "files": entry.file_count,
+            "entry": entry.record(), "journaled": False}
+        if self._session_store and self.session_id:
+            event = {key: value for key, value in record.items()
+                     if key not in ("journaled", "entry")}
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
+    # -- M-089: patch export/import against real files --
+
+    def patch_exchange_status(self) -> dict[str, Any]:
+        """The patch-exchange gate, in plain data (M-089).
+
+        The setting exactly as stored (validated - a
+        malformed stored value raises, never vanishes) and
+        the plain explanation. This is the answer ``/patch``
+        shows. The agent holds no persistent named change
+        sets (M-084 sets are transient values the layer
+        builds), so the status names the gate only.
+        """
+        from ..core import patch_exchange
+
+        return {
+            "enabled": patch_exchange.enabled_from_config(self.config),
+            "explanation": patch_exchange.PLAIN_EXPLANATION,
+        }
+
+    def set_patch_exchange(self, enabled: bool) -> dict[str, Any]:
+        """Turn patch export/import on or off (M-089).
+
+        Validated by :mod:`mythic_agent.core.patch_exchange`
+        before anything mutates; journaled first as a
+        ``patch_exchange_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``patch_exchange_setting_reverted``.
+        """
+        import copy
+
+        from ..core import patch_exchange
+
+        new_value, change = patch_exchange.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[patch_exchange.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "patch_exchange_setting_reverted",
+                        "reason": "The patch exchange change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Patch exchange change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def export_patch_to_file(self, change_set: Any,
+                             destination: Any) -> dict[str, Any]:
+        """Export a decided change set to a patch file (M-089).
+
+        The agent layer holds no persistent named change
+        sets - an M-084 change set is a value the layer
+        builds (``preview_change_set`` / ``apply_change_set``),
+        never a stored shelf - so export takes the set
+        itself plus the destination path. The set is
+        judged by the pure layer unchanged: an undecided
+        file refuses and is named, an all-rejected set
+        refuses, and with the gate off this refuses and
+        writes nothing. The patch text is written to the
+        real file at *destination* (workspace-relative
+        paths resolve against the project root), and the
+        export is recorded on the session as a
+        ``patch_exported`` event when one is attached.
+        """
+        from pathlib import Path
+
+        from ..core import patch_exchange
+        from ..core.edits import atomic_write
+
+        if not patch_exchange.enabled_from_config(self.config):
+            raise ValueError(
+                "patch exchange is off - turn it on with "
+                "/patch on; nothing was exported")
+        text = patch_exchange.export_patch(change_set)
+        dest = Path(destination)
+        if not dest.is_absolute():
+            dest = Path(self.project_root) / dest
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write(dest, text.encode("utf-8"), 0o644)
+        patch = patch_exchange.parse_patch(text)
+        record: dict[str, Any] = {
+            "type": "patch_exported", "name": patch.name,
+            "path": str(dest),
+            "files": [edit.path for edit in patch.edits],
+            "rejected_files": list(patch.rejected),
+            "evidence": patch.evidence, "journaled": False}
+        if self._session_store and self.session_id:
+            event = {key: value for key, value in record.items()
+                     if key != "journaled"}
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
+    def import_patch_from_file(self, source: Any) -> dict[str, Any]:
+        """Import a patch file into the real tree (M-089).
+
+        The file at *source* (workspace-relative paths
+        resolve against the project root) is read, proven
+        by the pure layer (magic, header checksum, every
+        payload anchor), rebuilt through M-084, and planned
+        against the real working tree's current file texts:
+        one stale file refuses the whole import and writes
+        nothing. A clean plan is written through the
+        EditJournal road, one journaled write per file,
+        and the import is recorded on the session as a
+        ``patch_imported`` event when one is attached.
+        With the gate off this refuses and imports nothing;
+        a missing file refuses plainly.
+        """
+        from pathlib import Path
+
+        from ..core import patch_exchange
+        from ..core.edits import EditJournal
+        from ..core.workspace import resolve_file
+
+        if not patch_exchange.enabled_from_config(self.config):
+            raise ValueError(
+                "patch exchange is off - turn it on with "
+                "/patch on; nothing was imported")
+        src = Path(source)
+        if not src.is_absolute():
+            src = Path(self.project_root) / src
+        if not src.exists():
+            raise ValueError(
+                f"no patch file at {source} - nothing was imported")
+        text = src.read_text(encoding="utf-8")
+        patch = patch_exchange.parse_patch(text)
+        currents: dict[str, Any] = {}
+        for edit in patch.edits:
+            target = resolve_file(
+                self.project_root, edit.path, write=True)
+            currents[edit.path] = (
+                target.read_text(encoding="utf-8")
+                if target.exists() else None)
+        new_texts, outcome = patch_exchange.import_patch(text, currents)
+        journal = EditJournal(self.project_root)
+        for path, new_text in new_texts.items():
+            journal.write(path, new_text)
+        record: dict[str, Any] = {
+            "type": "patch_imported", "name": patch.name,
+            "source": str(src), "applied": outcome.applied,
+            "units": outcome.units,
+            "changed_files": outcome.changed_files,
+            "changed": outcome.changed,
+            "files": [edit.path for edit in patch.edits],
+            "rejected_files": list(patch.rejected),
+            "evidence": patch.evidence, "journaled": False}
+        if self._session_store and self.session_id:
+            event = {key: value for key, value in record.items()
+                     if key != "journaled"}
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
+    def conflict_workbench_status(self) -> dict[str, Any]:
+        """The conflict-workbench gate, in plain data (M-081)."""
+        from ..core import conflict_workbench
+
+        return {
+            "enabled": conflict_workbench.enabled_from_config(self.config),
+            "explanation": conflict_workbench.PLAIN_EXPLANATION,
+        }
+
+    def set_conflict_workbench(self, enabled: bool) -> dict[str, Any]:
+        """Turn the conflict workbench on or off (M-081).
+
+        Validated before anything mutates; journaled first
+        as a ``conflict_workbench_setting_changed`` event
+        when a session is attached; a failed save restores
+        the previous value and journals the revert.
+        """
+        import copy
+
+        from ..core import conflict_workbench
+
+        new_value, change = conflict_workbench.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[conflict_workbench.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "conflict_workbench_setting_reverted",
+                        "reason": "The conflict-workbench change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass
+            raise RuntimeError(
+                "Conflict-workbench change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def conflict_workbench_view(self) -> dict[str, Any]:
+        """The live conflict workbench for this workspace (M-081).
+
+        Purely a read of the real repository state: the
+        operation in progress, each conflicted file with
+        its regions and both sides' derived intent
+        summaries.
+        """
+        from ..core import conflict_workbench
+
+        workbench = conflict_workbench.detect_workbench(self.project_root)
+        return {"operation": workbench.operation,
+                "conflicted": workbench.conflicted,
+                "files": [
+                    {"path": f.path, "regions": f.region_count,
+                     "ours_intent": f.ours_intent,
+                     "theirs_intent": f.theirs_intent,
+                     "places": [
+                         {"index": r.index, "ours_label": r.ours_label,
+                          "theirs_label": r.theirs_label,
+                          "ours": list(r.ours),
+                          "theirs": list(r.theirs)}
+                         for r in f.regions]}
+                    for f in workbench.files]}
+
+    def resolve_conflict(self, path: str,
+                         decisions: Any) -> dict[str, Any]:
+        """Resolve one conflicted file, as a decision list (M-081).
+
+        *decisions* names every conflicted place:
+        ``(index, "ours")``, ``(index, "theirs")``,
+        ``(index, "both")``, or ``(index, "edit", text)``.
+        The resolved text is proven marker-free by the pure
+        layer, written through the EditJournal road, staged
+        so git records the file resolved, and then tested
+        by re-reading the real index — the file must no
+        longer be unmerged. The resolution is journaled as
+        a ``conflict_resolution_applied`` event when a
+        session is attached. A pending place, surviving
+        markers, the gate being off, or a file that is not
+        conflicted all refuse and write nothing.
+        """
+        import subprocess
+
+        from ..core import conflict_workbench
+        from ..core.edits import EditJournal
+        from ..core.workspace import resolve_file
+
+        if not conflict_workbench.enabled_from_config(self.config):
+            raise ValueError(
+                "conflict workbench is off — turn it on with "
+                "/conflicts on; nothing was changed")
+        workbench = conflict_workbench.detect_workbench(self.project_root)
+        match = [f for f in workbench.files if f.path == path]
+        if not match:
+            raise ValueError(
+                f"{path} is not a conflicted file in this "
+                "repository — nothing was changed")
+        conflict_file = match[0]
+        target = resolve_file(self.project_root, path, write=True)
+        current = target.read_text(encoding="utf-8")
+        resolution = conflict_workbench.start_resolution(conflict_file)
+        for item in decisions:
+            if len(item) == 3 and item[1] == "edit":
+                resolution = conflict_workbench.edit_resolution(
+                    resolution, item[0], item[2])
+            elif len(item) == 2:
+                resolution = conflict_workbench.decide_resolution(
+                    resolution, item[0], item[1])
+            else:
+                raise ValueError(
+                    "each decision is (index, 'ours'), "
+                    "(index, 'theirs'), (index, 'both'), or "
+                    f"(index, 'edit', text); got {item!r}")
+        new_text, outcome = conflict_workbench.apply_resolution(
+            current, resolution)
+        EditJournal(self.project_root).write(path, new_text)
+        subprocess.run(["git", "-C", str(self.project_root),
+                        "add", "--", path],
+                       capture_output=True, timeout=15, check=True)
+        after = conflict_workbench.detect_workbench(self.project_root)
+        verified = all(f.path != path for f in after.files)
+        if not verified:
+            raise RuntimeError(
+                f"resolution of {path} was written and staged but "
+                "the file is still unmerged in the index; the "
+                "resolution was not proven")
+        record: dict[str, Any] = {
+            "path": path, "applied": outcome.applied,
+            "changed": outcome.changed, "verified": verified,
+            "journaled": False}
+        if self._session_store and self.session_id:
+            event = resolution.event()
+            event["verified"] = verified
             self._checkpoint(event)
             record["journaled"] = True
         return record
@@ -2570,6 +3841,33 @@ class Agent:
         message = auto_commit.build_message(summary, files)
         plan = auto_commit.plan_commit(
             self.config, branch, files, message)
+        # M-110: every file in the plan is screened for
+        # commit by secret shape before anything is
+        # staged, switched or committed - a file whose
+        # name or text matches a secret pattern refuses
+        # the whole commit, its refusal is published as
+        # a secret_refusal session event, and nothing is
+        # committed. A file the plan names but the disk
+        # no longer holds (an accepted deletion) is
+        # screened by its name alone.
+        refused = []
+        for name in plan.files:
+            try:
+                body = (self.project_root / name).read_bytes().decode(
+                    "utf-8", errors="replace")
+            except OSError:
+                body = ""
+            outcome = self.screen_file(name, body)
+            if outcome["record"] is not None:
+                refused.append(outcome["screening"])
+        if refused:
+            named = "; ".join(
+                f"{item['filename']} ({', '.join(item['kinds'])})"
+                for item in refused)
+            raise ValueError(
+                "auto-commit refused by secret hygiene: "
+                f"{named} - the files are named, their "
+                "content is never shown; nothing was committed")
         switched = False
         if plan.switch_needed:
             code, _, _ = self._auto_commit_git(
@@ -2623,6 +3921,388 @@ class Agent:
             self._checkpoint(outcome.event())
             journaled = True
         return outcome.record(self.session_id, journaled)
+
+    def pr_craft_status(self) -> dict[str, Any]:
+        """The PR-craft gate, in plain data (M-082).
+
+        The setting exactly as stored (validated — a
+        malformed stored value raises, never vanishes) and
+        the plain explanation. This is the answer
+        ``/prcraft`` shows.
+        """
+        from ..core import pr_craft
+
+        return {
+            "enabled": pr_craft.enabled_from_config(self.config),
+            "explanation": pr_craft.PLAIN_EXPLANATION,
+        }
+
+    def set_pr_craft(self, enabled: bool) -> dict[str, Any]:
+        """Turn PR craft on or off (M-082).
+
+        Validated by :mod:`mythic_agent.core.pr_craft`
+        before anything mutates; journaled first as a
+        ``pr_craft_setting_changed`` event when a session
+        is attached; a failed save restores the previous
+        value exactly and journals a compensating
+        ``pr_craft_setting_reverted``.
+        """
+        import copy
+
+        from ..core import pr_craft
+
+        new_value, change = pr_craft.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[pr_craft.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "pr_craft_setting_reverted",
+                        "reason": "The PR-craft change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "PR-craft change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def _pr_craft_runner(self, runner: Any) -> Any:
+        """The GitHub runner for M-082: injected, or the real gh road."""
+        if runner is not None:
+            return runner
+        from ..integrations.github import _run_gh
+
+        return lambda args: _run_gh(*args)
+
+    def _require_pr_craft(self) -> None:
+        from ..core import pr_craft
+
+        if not pr_craft.enabled_from_config(self.config):
+            raise ValueError(
+                "PR craft is off — turn it on with /prcraft "
+                "on; nothing was fetched or sent")
+
+    def fetch_pull_request(self, number: int,
+                           runner: Any = None) -> dict[str, Any]:
+        """Fetch a pull request as data (M-082).
+
+        A read through the user's own gh road; the fetch is
+        recorded on the session as a ``pr_fetched`` event
+        when a session is attached. With the gate off this
+        refuses and fetches nothing.
+        """
+        from ..core import pr_craft
+
+        self._require_pr_craft()
+        pr = pr_craft.fetch_pull_request(
+            self._pr_craft_runner(runner), number)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "pr_fetched", "number": pr.number,
+                "title": pr.title, "state": pr.state})
+            journaled = True
+        return pr.record(self.session_id, journaled)
+
+    def fetch_review_tasks(self, number: int,
+                           runner: Any = None) -> dict[str, Any]:
+        """Fetch a PR's review comments, as tasks (M-082).
+
+        One task per comment, carrying its author, words,
+        and place; the fetch is recorded on the session as
+        a ``pr_review_tasks_fetched`` event with its count
+        when a session is attached. With the gate off this
+        refuses and fetches nothing.
+        """
+        from ..core import pr_craft
+
+        self._require_pr_craft()
+        comments = pr_craft.fetch_review_comments(
+            self._pr_craft_runner(runner), number)
+        tasks = pr_craft.comments_to_tasks(comments)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "pr_review_tasks_fetched",
+                "pr_number": number, "comments": len(tasks)})
+            journaled = True
+        return {"pr_number": number, "count": len(tasks),
+                "tasks": tasks, "journaled": journaled}
+
+    def prepare_pr_draft(self, title: str, body: str, base: str,
+                         head: str,
+                         draft: bool = False) -> dict[str, Any]:
+        """Prepare a PR draft (M-082). Sends nothing.
+
+        The draft is recorded on the session as a
+        ``pr_draft_prepared`` event when a session is
+        attached. Creating the PR is a separate road —
+        :meth:`post_pr_draft` — and posts only at the
+        user's word.
+        """
+        from ..core import pr_craft
+
+        prepared = pr_craft.prepare_pr(title, body, base, head,
+                                       draft=draft)
+        journaled = False
+        if self._session_store and self.session_id:
+            event = {k: v for k, v in
+                     prepared.record(None, False).items()
+                     if k not in ("session_id", "journaled")}
+            self._checkpoint(event)
+            journaled = True
+        return prepared.record(self.session_id, journaled)
+
+    def post_pr_draft(self, title: str, body: str, base: str,
+                      head: str, draft: bool = False,
+                      word: str = "",
+                      runner: Any = None) -> dict[str, Any]:
+        """Create a PR — only at the user's word (M-082).
+
+        *word* is the user's own word authorising this
+        post. With no word, the draft is unarmed and the
+        post refuses before the GitHub runner is touched:
+        nothing is sent. The word is never journaled; the
+        ``pr_posted`` event carries only that a word was
+        recorded.
+        """
+        from ..core import pr_craft
+
+        self._require_pr_craft()
+        prepared = pr_craft.arm_pr_draft(
+            pr_craft.prepare_pr(title, body, base, head,
+                                draft=draft), word)
+        posted = pr_craft.post_pr(
+            self._pr_craft_runner(runner), prepared)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "pr_posted",
+                "number": posted.get("number"),
+                "url": posted.get("url"), "armed": True})
+            journaled = True
+        return prepared.post_record(self.session_id, journaled,
+                                    posted)
+
+    def prepare_review_draft(self, pr_number: int, verdict: str,
+                             body: str,
+                             notes: Any = ()) -> dict[str, Any]:
+        """Prepare a review draft (M-082). Sends nothing.
+
+        *notes* are ``(path, line, body)`` line notes; they
+        ride in the review's body when it posts. The draft
+        is recorded as a ``pr_review_draft_prepared``
+        event when a session is attached.
+        """
+        from ..core import pr_craft
+
+        prepared = pr_craft.prepare_review(pr_number, verdict,
+                                           body, notes=notes)
+        journaled = False
+        if self._session_store and self.session_id:
+            event = {k: v for k, v in
+                     prepared.record(None, False).items()
+                     if k not in ("session_id", "journaled")}
+            self._checkpoint(event)
+            journaled = True
+        return prepared.record(self.session_id, journaled)
+
+    def post_review_draft(self, pr_number: int, verdict: str,
+                          body: str, notes: Any = (),
+                          word: str = "",
+                          runner: Any = None) -> dict[str, Any]:
+        """Post a review — only at the user's word (M-082).
+
+        With no word recorded, the post refuses before the
+        GitHub runner is touched: nothing is sent. A
+        posted review is recorded as a ``pr_review_posted``
+        event (the word itself is never journaled).
+        """
+        from ..core import pr_craft
+
+        self._require_pr_craft()
+        prepared = pr_craft.arm_review_draft(
+            pr_craft.prepare_review(pr_number, verdict, body,
+                                    notes=notes), word)
+        pr_craft.post_review(self._pr_craft_runner(runner),
+                             prepared)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "pr_review_posted",
+                "pr_number": pr_number, "verdict": verdict,
+                "armed": True})
+            journaled = True
+        return prepared.post_record(self.session_id, journaled)
+
+    def prepare_reply_draft(self, pr_number: int, comment_id: Any,
+                            body: str) -> dict[str, Any]:
+        """Prepare a reply draft (M-082). Sends nothing."""
+        from ..core import pr_craft
+
+        prepared = pr_craft.prepare_reply(pr_number, comment_id,
+                                          body)
+        journaled = False
+        if self._session_store and self.session_id:
+            event = {k: v for k, v in
+                     prepared.record(None, False).items()
+                     if k not in ("session_id", "journaled")}
+            self._checkpoint(event)
+            journaled = True
+        return prepared.record(self.session_id, journaled)
+
+    def post_reply_draft(self, pr_number: int, comment_id: Any,
+                         body: str, word: str = "",
+                         runner: Any = None) -> dict[str, Any]:
+        """Post a reply — only at the user's word (M-082).
+
+        With no word recorded, the post refuses before the
+        GitHub runner is touched: nothing is sent. A
+        posted reply is recorded as a ``pr_reply_posted``
+        event (the word itself is never journaled).
+        """
+        from ..core import pr_craft
+
+        self._require_pr_craft()
+        prepared = pr_craft.arm_reply_draft(
+            pr_craft.prepare_reply(pr_number, comment_id, body),
+            word)
+        pr_craft.post_reply(self._pr_craft_runner(runner),
+                            prepared)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "pr_reply_posted",
+                "pr_number": pr_number,
+                "comment_id": prepared.comment_id,
+                "armed": True})
+            journaled = True
+        return prepared.post_record(self.session_id, journaled)
+
+
+    def issue_slice_status(self) -> dict[str, Any]:
+        """The issue-to-slice gate, in plain data (M-083).
+
+        The setting exactly as stored (validated — a malformed
+        stored value raises, never vanishes) and the plain
+        explanation. This is the answer ``/issueslice`` shows.
+        """
+        from ..core import issue_slice
+
+        return {
+            "enabled": issue_slice.enabled_from_config(self.config),
+            "explanation": issue_slice.PLAIN_EXPLANATION,
+        }
+
+    def set_issue_slice(self, enabled: bool) -> dict[str, Any]:
+        """Turn issue-to-slice on or off (M-083).
+
+        Validated by :mod:`mythic_agent.core.issue_slice`
+        before anything mutates; journaled first as a
+        ``issue_slice_setting_changed`` event when a session
+        is attached; a failed save restores the previous
+        value exactly and journals a compensating
+        ``issue_slice_setting_reverted``.
+        """
+        import copy
+
+        from ..core import issue_slice
+
+        new_value, change = issue_slice.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[issue_slice.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "issue_slice_setting_reverted",
+                        "reason": "The issue-to-slice change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Issue-to-slice change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def plan_issue_slice(
+            self, source: str, number: int,
+            fetcher: Any = None) -> dict[str, Any]:
+        """Fetch an issue through the seam and plan it (M-083).
+
+        The issue comes from *source* — ``github`` today,
+        through the existing gh road; ``samverk`` is the
+        seam's named Part X source (M-242) and refuses
+        honestly until that road provides the surfaces.
+        *fetcher* is the seam's test door, forwarded to
+        :func:`mythic_agent.core.issue_slice.fetch_issue`;
+        no caller in the app passes one. The planned slice
+        — the roadmap slice's shape, status ``planned``,
+        with acceptance checks drafted from the issue's own
+        words, each keeping the verbatim excerpt it came
+        from — is recorded on the session as an
+        ``issue_slice_planned`` event when a session is
+        attached, and returned as a plain record. Planning
+        files nothing: the record is product output data,
+        never an edit to the campaign's roadmap file. The
+        gate off refuses and says so.
+        """
+        from ..core import issue_slice
+
+        if not issue_slice.enabled_from_config(self.config):
+            raise ValueError(
+                "issue-to-slice is off — turn it on with "
+                "/issueslice on; nothing was planned")
+        issue = issue_slice.fetch_issue(source, number,
+                                        fetcher=fetcher)
+        return self._record_planned_slice(issue_slice.plan_slice(issue))
+
+    def draft_slice_from_issue(
+            self, record: dict[str, Any],
+            source: str = "github") -> dict[str, Any]:
+        """Plan a slice from an already-fetched issue record (M-083).
+
+        The offline twin of :meth:`plan_issue_slice`: the
+        record is the shape a fetcher returns (``number``,
+        ``title``, ``body``, ``state``, ``labels``, ``url``),
+        for callers that already hold the issue — a webhook
+        door (Part X) or a test. Same gate, same journal,
+        same planned-slice record.
+        """
+        from ..core import issue_slice
+
+        if not issue_slice.enabled_from_config(self.config):
+            raise ValueError(
+                "issue-to-slice is off — turn it on with "
+                "/issueslice on; nothing was planned")
+        issue = issue_slice.issue_from_record(record, source=source)
+        return self._record_planned_slice(issue_slice.plan_slice(issue))
+
+    def _record_planned_slice(self, plan: Any) -> dict[str, Any]:
+        """Journal a planned slice and shape its record (M-083)."""
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(plan.event())
+            journaled = True
+        return plan.record(self.session_id, journaled)
 
     def _repair_offered(self, path: str,
                         packet: Any) -> dict[str, Any]:
@@ -4778,20 +6458,4091 @@ class Agent:
         name = call["function"]["name"]
         publish_sync("agent_chat_tool", agent_name=self.name,
                      text=f"\n> Executing {name} ...\n")
+        # M-109: every call through this funnel is trailed
+        # exactly once, from the finally block below - the
+        # kind is read from the tool itself (run_command is
+        # a command, write_file / replace_file_content are
+        # edits, every other tool is a tool call) and the
+        # outcome word from what the call actually did.
+        # The note never carries the result's text: a
+        # result may be a whole file, and the trail names
+        # the act, never its contents.
+        parsed: dict[str, Any] = {}
+        outcome = "completed"
         try:
             arguments = json.loads(call["function"]["arguments"])
             if not isinstance(arguments, dict):
+                outcome = "refused: tool arguments must be a JSON object"
                 return "Tool arguments must be a JSON object."
+            parsed = arguments
             result = execute_tool(name, arguments, self.project_root, self.tui_app, agent=self)
-            return result if isinstance(result, str) else json.dumps(result)
+            text = result if isinstance(result, str) else json.dumps(result)
+            if text.startswith("Permission denied"):
+                outcome = "permission denied; no operation was performed"
+            elif text.startswith(("Error:", "Failed")):
+                outcome = "failed"
+            # M-110: a tool result is an output, and outputs
+            # are fed through the hygiene redaction before
+            # they travel anywhere - the caller stores this
+            # text in the transcript as the tool message and
+            # checkpoints it to the session journal, so this
+            # one feeding covers the tool-result road and
+            # the transcript road for tool content together.
+            return self._hygiene_redact(text)
         except KeyboardInterrupt:
             self.cancel()
+            outcome = "interrupted by user"
             return "Tool interrupted by user."
         except TurnCancelled:
+            outcome = "cancelled"
             raise
         except Exception as exc:
             logging.warning("Tool %s failed: %s", name, type(exc).__name__)
-            return f"Tool {name} failed: {exc}"
+            outcome = "failed"
+            return self._hygiene_redact(f"Tool {name} failed: {exc}")
+        finally:
+            self._note_audit_tool_call(name, parsed, outcome)
+            self._note_doctrine_command(name, parsed)
+
+    # -- M-090: editor bridges lite against the real editor --
+
+    def _editor_bridge_dir(self):
+        """The editor-bridge scratch home for this workspace."""
+        from ..core.config_manager import config_manager
+        from ..core.workspace import workspace_id
+
+        directory = (config_manager.MYTHIC_DIR / "editor-bridge"
+                     / workspace_id(self.project_root))
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        return directory
+
+    def editor_bridge_status(self) -> dict[str, Any]:
+        """The editor-bridge gate and editor, in plain data (M-090).
+
+        The setting exactly as stored (validated - a
+        malformed stored value raises, never vanishes), the
+        plain explanation, and the editor resolved honestly
+        from the process environment: no editor configured
+        is reported as None plus the remedy, never raised
+        here and never guessed.
+        """
+        import os
+
+        from ..core import editor_bridge
+
+        editor = None
+        editor_error = None
+        try:
+            choice = editor_bridge.resolve_editor(dict(os.environ))
+        except ValueError as exc:
+            editor_error = str(exc)
+        else:
+            editor = {"source": choice.source, "raw": choice.raw,
+                      "name": choice.name,
+                      "argv": list(choice.argv)}
+        return {
+            "enabled": editor_bridge.enabled_from_config(self.config),
+            "explanation": editor_bridge.PLAIN_EXPLANATION,
+            "editor": editor,
+            "editor_error": editor_error,
+        }
+
+    def set_editor_bridge(self, enabled: bool) -> dict[str, Any]:
+        """Turn editor bridges on or off (M-090).
+
+        Validated by :mod:`mythic_agent.core.editor_bridge`
+        before anything mutates; journaled first as an
+        ``editor_bridge_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``editor_bridge_setting_reverted``.
+        """
+        import copy
+
+        from ..core import editor_bridge
+
+        new_value, change = editor_bridge.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[editor_bridge.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "editor_bridge_setting_reverted",
+                        "reason": "The editor bridge change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Editor bridge change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def _run_editor_round_trip(self, kind: str, label: str,
+                               original: str,
+                               environ=None) -> dict[str, Any]:
+        """Run one prepared round-trip through the real editor.
+
+        Gate first, then the editor resolved from *environ*
+        (the process environment when it is None), a real
+        scratch file under the agent state dir, the real
+        editor process, and the pure layer's judgement. A
+        changed file is written to the real file through
+        the EditJournal; a prompt writes no file and its
+        judged text rides the returned record.
+        """
+        import os
+        import subprocess
+
+        from ..core import editor_bridge
+        from ..core.edits import EditJournal
+        from ..core.workspace import resolve_file
+
+        if not editor_bridge.enabled_from_config(self.config):
+            raise ValueError(
+                "editor bridge is off - turn it on with "
+                "/editor on; nothing was edited")
+        env = dict(os.environ) if environ is None else dict(environ)
+        choice = editor_bridge.resolve_editor(env)
+        if kind == "file":
+            trip = editor_bridge.prepare_file_round_trip(label, original)
+        else:
+            trip = editor_bridge.prepare_prompt_round_trip(label, original)
+        scratch = self._editor_bridge_dir() / trip.scratch_name
+        scratch.write_text(trip.original, encoding="utf-8")
+        try:
+            completed = subprocess.run(
+                editor_bridge.editor_command(env, str(scratch)))
+            if completed.returncode != 0:
+                raise ValueError(
+                    f"editor {choice.name} exited with code "
+                    f"{completed.returncode}; nothing was written")
+            returned = scratch.read_text(encoding="utf-8")
+        finally:
+            try:
+                scratch.unlink()
+            except OSError:
+                pass
+        outcome = editor_bridge.judge_round_trip(trip, returned)
+        if kind == "file" and outcome.status == "changed":
+            journal = EditJournal(self.project_root)
+            journal.write(trip.label, outcome.text)
+        record: dict[str, Any] = outcome.record(trip)
+        record["text"] = outcome.text
+        record["editor"] = choice.name
+        record["editor_source"] = choice.source
+        record["journaled"] = False
+        if self._session_store and self.session_id:
+            event = outcome.record(trip)
+            event["editor"] = choice.name
+            event["editor_source"] = choice.source
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
+    def edit_file_in_editor(self, path, environ=None) -> dict[str, Any]:
+        """Round-trip a real file through the user's editor (M-090).
+
+        The file's true current text travels; a changed
+        result lands through the EditJournal, an unchanged
+        result writes nothing, and an emptied file refuses
+        so the original stands. A missing file refuses
+        plainly. With the gate off this refuses and
+        launches nothing.
+        """
+        from ..core.workspace import resolve_file
+
+        target = resolve_file(self.project_root, str(path), write=True)
+        if not target.exists():
+            raise ValueError(
+                f"no file at {path} - nothing was edited")
+        current = target.read_text(encoding="utf-8")
+        return self._run_editor_round_trip(
+            "file", str(path), current, environ=environ)
+
+    def edit_prompt_in_editor(self, draft, label: str = "chat draft",
+                              environ=None) -> dict[str, Any]:
+        """Round-trip a prompt draft through the editor (M-090).
+
+        No file is written: a changed draft returns as the
+        record's text, an unchanged draft returns as it
+        stood, and an emptied draft is a cancellation.
+        With the gate off this refuses and launches
+        nothing.
+        """
+        return self._run_editor_round_trip(
+            "prompt", label, draft, environ=environ)
+
+
+    # -- M-091: diff theatre in the TUI --
+
+    def diff_theatre_status(self) -> dict[str, Any]:
+        """The diff-theatre gate, in plain data (M-091).
+
+        The setting exactly as stored (validated - a
+        malformed stored value raises, never vanishes)
+        and the plain explanation.
+        """
+        from ..core import diff_theatre
+
+        return {
+            "enabled": diff_theatre.enabled_from_config(self.config),
+            "explanation": diff_theatre.PLAIN_EXPLANATION,
+        }
+
+    def set_diff_theatre(self, enabled: bool) -> dict[str, Any]:
+        """Turn diff theatre on or off (M-091).
+
+        Validated by :mod:`mythic_agent.core.diff_theatre`
+        before anything mutates; journaled first as a
+        ``diff_theatre_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``diff_theatre_setting_reverted``.
+        """
+        import copy
+
+        from ..core import diff_theatre
+
+        new_value, change = diff_theatre.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[diff_theatre.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "diff_theatre_setting_reverted",
+                        "reason": "The diff theatre change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Diff theatre change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def show_diff_theatre(self, before: str, after: str,
+                          view: str = "unified",
+                          ignore_whitespace: bool = False,
+                          before_label: str = "before",
+                          after_label: str = "after",
+                          ) -> dict[str, Any]:
+        """Stage one change in the diff theatre (M-091).
+
+        Gate first: with diff theatre off this refuses and
+        stages nothing. The change is staged once by the
+        pure layer from the true before/after texts and
+        rendered in the staged view; the staged record is
+        journaled as a ``diff_theatre`` session event when
+        a session is attached, and the rendered text rides
+        the returned record.
+        """
+        from ..core import diff_theatre
+
+        if not diff_theatre.enabled_from_config(self.config):
+            raise ValueError(
+                "diff theatre is off - turn it on with "
+                "/diff on; nothing was staged")
+        theatre = diff_theatre.build_theatre(
+            before, after, view=view,
+            ignore_whitespace=ignore_whitespace,
+            before_label=before_label, after_label=after_label)
+        record: dict[str, Any] = theatre.record()
+        record["rendered"] = diff_theatre.render(theatre)
+        record["journaled"] = False
+        if self._session_store and self.session_id:
+            self._checkpoint(theatre.record())
+            record["journaled"] = True
+        return record
+
+    # -- M-092: blame and history sight --
+
+    def blame_sight_status(self) -> dict[str, Any]:
+        """The blame-sight gate, in plain data (M-092).
+
+        The setting exactly as stored (validated - a
+        malformed stored value raises, never vanishes)
+        and the plain explanation.
+        """
+        from ..core import blame_sight
+
+        return {
+            "enabled": blame_sight.enabled_from_config(self.config),
+            "explanation": blame_sight.PLAIN_EXPLANATION,
+        }
+
+    def set_blame_sight(self, enabled: bool) -> dict[str, Any]:
+        """Turn blame sight on or off (M-092).
+
+        Validated by :mod:`mythic_agent.core.blame_sight`
+        before anything mutates; journaled first as a
+        ``blame_sight_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``blame_sight_setting_reverted``.
+        """
+        import copy
+
+        from ..core import blame_sight
+
+        new_value, change = blame_sight.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[blame_sight.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "blame_sight_setting_reverted",
+                        "reason": "The blame sight change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Blame sight change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def _blame_journal_entries(self, path: str) -> list[dict[str, Any]]:
+        """The journal's own records for *path* (M-092).
+
+        Two real sources, neither dressed up: the edit
+        journal's entries for this file (file-level
+        records - the edit journal keeps no line numbers,
+        so they can name the file but never a line or a
+        session), and the session store's events across
+        its sessions, each enriched with the session it
+        belongs to so a line-covering record can name its
+        writing session. A source that cannot be read
+        contributes nothing - never a guessed record.
+        """
+        entries: list[dict[str, Any]] = []
+        try:
+            from ..core.edits import EditJournal
+
+            for row in EditJournal(self.project_root).entries():
+                if str(row.get("path")) == path:
+                    entries.append({"type": "edit_journal",
+                                    "path": path})
+        except Exception:
+            pass
+        if self._session_store:
+            try:
+                sessions = self._session_store.list_sessions()
+            except Exception:
+                sessions = []
+            for info in sessions:
+                sid = info.get("id")
+                if not sid:
+                    continue
+                try:
+                    events = self._session_store.export(sid)["events"]
+                except Exception:
+                    continue
+                for event in events:
+                    if isinstance(event, dict):
+                        record = dict(event)
+                        record.setdefault("session_id", sid)
+                        entries.append(record)
+        return entries
+
+    def show_blame_sight(self, path: str,
+                         line: int | None = None,
+                         ) -> dict[str, Any]:
+        """Ask why a line is the way it is (M-092).
+
+        Gate first: with blame sight off this refuses and
+        blames nothing. The blame is real - ``git blame
+        --porcelain`` run in the project through
+        commit_craft's git road, parsed by the pure layer,
+        never invented; a file git cannot blame refuses
+        with git's own words. The journal's records for
+        the file are matched by the pure layer: a record
+        naming the file and covering the line names the
+        writing session, and the note says exactly how
+        far the journal reaches when it does not. The
+        sight is journaled as a ``blame_sight`` session
+        event when a session is attached, and the rendered
+        text rides the returned record.
+        """
+        from ..core import blame_sight
+        from ..core.commit_craft import run_git
+
+        if not blame_sight.enabled_from_config(self.config):
+            raise ValueError(
+                "blame sight is off - turn it on with "
+                "/blame on; nothing was blamed")
+        code, out, err = run_git(
+            self.project_root, "blame", "--porcelain", "--", path)
+        if code != 0:
+            raise ValueError(
+                "git blame could not read " + str(path) + ": "
+                + (err.strip() or "git blame failed"))
+        lines = blame_sight.parse_blame_porcelain(out)
+        if not lines:
+            raise ValueError(
+                f"git blame returned no lines for {path}; "
+                "nothing was blamed")
+        entries = self._blame_journal_entries(path)
+        if line is not None:
+            sight = blame_sight.explain_line(lines, line, entries)
+            record: dict[str, Any] = sight.record()
+            record["rendered"] = blame_sight.format_history_sight(sight)
+            event = sight.record()
+        else:
+            record = {"type": "blame_sight", "path": path,
+                      "line_no": None, "lines": len(lines)}
+            record["rendered"] = blame_sight.format_blame(lines, path)
+            event = {"type": "blame_sight", "path": path,
+                     "lines": len(lines)}
+        record["journaled"] = False
+        if self._session_store and self.session_id:
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
+
+    # -- M-093: guarded mass edits --
+
+    def mass_edit_guard_status(self) -> dict[str, Any]:
+        """The mass-edit gate, in plain data (M-093).
+
+        The setting exactly as stored (validated - a
+        malformed stored value raises, never vanishes)
+        and the plain explanation.
+        """
+        from ..core import mass_edit_guard
+
+        return {
+            "enabled": mass_edit_guard.enabled_from_config(self.config),
+            "explanation": mass_edit_guard.PLAIN_EXPLANATION,
+        }
+
+    def set_mass_edit_guard(self, enabled: bool) -> dict[str, Any]:
+        """Turn the mass edit guard on or off (M-093).
+
+        Validated by :mod:`mythic_agent.core.mass_edit_guard`
+        before anything mutates; journaled first as a
+        ``mass_edit_guard_setting_changed`` event when a
+        session is attached; a failed save restores the
+        previous value exactly and journals a compensating
+        ``mass_edit_guard_setting_reverted``.
+        """
+        import copy
+
+        from ..core import mass_edit_guard
+
+        new_value, change = mass_edit_guard.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[mass_edit_guard.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "mass_edit_guard_setting_reverted",
+                        "reason": "The mass edit guard change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Mass edit guard change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def apply_mass_edit(self, edits: Any,
+                        approval: Any = None) -> dict[str, Any]:
+        """Apply a guarded mass edit (M-093).
+
+        *edits* is a list of proposed new texts, each a
+        ``(path, new_text)`` pair or a mapping with
+        ``path`` and ``after``. Gate first: with the
+        guard off this refuses and changes nothing. The
+        dry-run report is built by the pure layer from
+        the files' true current texts - never from a
+        caller's claim - and when the report requires
+        an approval, an approval covering the report's
+        fingerprint is required BEFORE any byte moves:
+        an unapproved mass apply refuses with every
+        file untouched. An approved (or approval-free)
+        plan lands through the EditJournal road, one
+        journaled write per changed file; a file
+        proposed unchanged is listed in the report and
+        never written. The apply is recorded on the
+        session as a ``mass_edit`` event carrying the
+        report record and the approval fingerprint
+        when a session is attached.
+        """
+        from ..core import mass_edit_guard
+        from ..core.edits import EditJournal
+        from ..core.workspace import resolve_file
+
+        if not mass_edit_guard.enabled_from_config(self.config):
+            raise ValueError(
+                "mass edit guard is off - turn it on with "
+                "/massedit on; nothing was changed")
+        plan: list[dict[str, Any]] = []
+        afters: dict[str, str] = {}
+        for item in edits or []:
+            if isinstance(item, dict):
+                path = item.get("path")
+                after = item.get("after")
+            else:
+                try:
+                    path, after = item
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        "each mass edit is a (path, new text) "
+                        "pair or a mapping with path and "
+                        f"after; got {item!r}") from exc
+            if not isinstance(after, str):
+                raise ValueError(
+                    f"{path}: the new text must be a string")
+            target = resolve_file(
+                self.project_root, str(path), write=True)
+            before = (target.read_text(encoding="utf-8")
+                      if target.exists() else "")
+            cleaned = str(path).strip()
+            if cleaned.startswith("./"):
+                cleaned = cleaned[2:]
+            plan.append({"path": path, "before": before,
+                         "after": after})
+            afters[cleaned] = after
+        report = mass_edit_guard.build_report(plan)
+        mass_edit_guard.require_approval(report, approval)
+        fingerprint = None
+        if isinstance(approval, mass_edit_guard.Approval):
+            fingerprint = approval.fingerprint
+        elif isinstance(approval, dict):
+            fingerprint = approval.get("fingerprint")
+        journal = EditJournal(self.project_root)
+        applied: list[str] = []
+        for entry in report.changed_files:
+            journal.write(entry.path, afters[entry.path])
+            applied.append(entry.path)
+        record: dict[str, Any] = {
+            "type": "mass_edit",
+            "report": report.record(),
+            "approval_fingerprint": fingerprint,
+            "applied": applied,
+            "rendered": mass_edit_guard.format_report(report),
+            "journaled": False}
+        if self._session_store and self.session_id:
+            event = {"type": "mass_edit",
+                     "report": report.record(),
+                     "approval_fingerprint": fingerprint,
+                     "applied": applied}
+            self._checkpoint(event)
+            record["journaled"] = True
+        return record
+
+    # -- M-095: permission profiles --
+
+    def permission_profile_status(self) -> dict[str, Any]:
+        """The session's posture, in plain data (M-095).
+
+        The stored profile exactly as the pure layer
+        resolves it (a malformed stored value raises,
+        never vanishes), the ToolPolicy mode it rides
+        as, the one status-line sentence, and the plain
+        explanation.
+        """
+        from ..core import permission_profiles
+
+        profile = permission_profiles.stored_profile(self.config)
+        return {
+            "profile": profile.to_record(),
+            "policy_mode": permission_profiles.policy_mode_for(
+                profile),
+            "status_line":
+                permission_profiles.format_permission_profile(
+                    self.config),
+            "explanation": permission_profiles.PLAIN_EXPLANATION,
+        }
+
+    def set_permission_profile(self, profile: Any) -> dict[str, Any]:
+        """Change the session's posture (M-095).
+
+        *profile* is a shipped posture's name, a
+        validated Profile, or a custom posture mapping -
+        resolved and validated by the pure layer before
+        anything mutates, so an unknown name refuses
+        with the config untouched. The change is
+        journaled first as the pure layer's
+        ``permission_profile_changed`` record when a
+        session is attached; the live ToolPolicy is
+        rebuilt in the new posture's mode, keeping the
+        approval road it already had; a failed save
+        restores the previous setting and the previous
+        policy exactly and journals a compensating
+        ``permission_profile_reverted``.
+        """
+        import copy
+
+        from ..core import permission_profiles
+        from ..core.policy import ToolPolicy
+
+        if isinstance(profile, permission_profiles.Profile):
+            target = profile
+        elif isinstance(profile, dict):
+            target = permission_profiles.validate_profile(profile)
+        else:
+            target = permission_profiles.profile_named(profile)
+        previous_profile = permission_profiles.stored_profile(
+            self.config)
+        change = permission_profiles.profile_change_record(
+            previous_profile, target)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change)
+            journaled = True
+        previous_config = copy.deepcopy(self.config)
+        previous_policy = self.tool_policy
+        if target.custom:
+            self.config[permission_profiles.SETTING_KEY] = {
+                "name": target.id,
+                "title": target.title,
+                "tools": target.tools,
+                "paths": target.paths,
+                "network": target.network,
+                "commands": target.commands,
+            }
+        else:
+            self.config[permission_profiles.SETTING_KEY] = target.id
+        self.tool_policy = ToolPolicy(
+            permission_profiles.policy_mode_for(target),
+            previous_policy.approval)
+        if not self.save_config():
+            self.config = previous_config
+            self.tool_policy = previous_policy
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "permission_profile_reverted",
+                        "from": target.id,
+                        "to": previous_profile.id,
+                        "reason": "The permission profile change "
+                                  "could not be saved; the "
+                                  "previous posture was "
+                                  "preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Permission profile change could not be saved; "
+                "previous posture was preserved")
+        return {**change, "session_id": self.session_id,
+                "journaled": journaled}
+
+    # -- M-096: remembered approvals --
+
+    def remembered_approvals_status(self) -> dict[str, Any]:
+        """The remembered approvals, in plain data (M-096).
+
+        The validated stored list exactly as the pure
+        layer resolves it (malformed stored data raises,
+        never vanishes), its count, the one listing
+        screen rendered from that same list, and the
+        plain explanation.
+        """
+        from ..core import remembered_approvals
+
+        approvals = remembered_approvals.stored_approvals(
+            self.config)
+        return {
+            "approvals": [a.to_record() for a in approvals],
+            "count": len(approvals),
+            "screen":
+                remembered_approvals.format_remembered_approvals(
+                    approvals),
+            "explanation": remembered_approvals.PLAIN_EXPLANATION,
+        }
+
+    def remember_command_approval(self, spec: Any,
+                                  explicit: Any = False
+                                  ) -> dict[str, Any]:
+        """Remember one approval with an exact scope (M-096).
+
+        *spec* is a scope mapping (command + args pattern
+        + path) or a validated Scope, resolved by the pure
+        layer before anything mutates. Nothing is
+        remembered silently: the pure layer refuses
+        unless *explicit* is exactly True - the recorded
+        answer to a question the user was actually asked
+        - and a duplicate scope refuses too. The change
+        is journaled first as the pure layer's
+        ``remembered`` change record when a session is
+        attached; the stored list is the scopes' plain
+        records under the setting key; a failed save
+        restores the previous config exactly and journals
+        a compensating ``remembered_approval_reverted``.
+        """
+        import copy
+
+        from ..core import remembered_approvals
+
+        current = remembered_approvals.stored_approvals(
+            self.config)
+        updated = remembered_approvals.remember_approval(
+            current, spec, explicit=explicit)
+        approval = updated[-1]
+        change = remembered_approvals.approval_change_record(
+            "remembered", approval, total=len(updated))
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change)
+            journaled = True
+        previous_config = copy.deepcopy(self.config)
+        self.config[remembered_approvals.SETTING_KEY] = [
+            a.scope.to_record() for a in updated]
+        if not self.save_config():
+            self.config = previous_config
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "remembered_approval_reverted",
+                        "action": "remembered",
+                        "id": approval.id,
+                        "reason": "The remembered approval "
+                                  "could not be saved; nothing "
+                                  "was remembered.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Remembered approval could not be saved; "
+                "nothing was remembered")
+        return {**change, "session_id": self.session_id,
+                "journaled": journaled}
+
+    def revoke_remembered_approval(self, approval_id: Any
+                                   ) -> dict[str, Any]:
+        """Revoke one remembered approval by its id (M-096).
+
+        The id is the one the listing shows (or a unique
+        prefix of it), resolved by the pure layer before
+        anything mutates - an unknown or ambiguous id
+        refuses and removes nothing. Journal-first,
+        stored as the remaining scopes' plain records,
+        and a failed save restores the previous config
+        exactly and journals a compensating
+        ``remembered_approval_reverted``, exactly as
+        remembering does.
+        """
+        import copy
+
+        from ..core import remembered_approvals
+
+        current = remembered_approvals.stored_approvals(
+            self.config)
+        updated = remembered_approvals.revoke_approval(
+            current, approval_id)
+        remaining = {a.id for a in updated}
+        removed = next(a for a in current if a.id not in remaining)
+        change = remembered_approvals.approval_change_record(
+            "revoked", removed, total=len(updated))
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change)
+            journaled = True
+        previous_config = copy.deepcopy(self.config)
+        self.config[remembered_approvals.SETTING_KEY] = [
+            a.scope.to_record() for a in updated]
+        if not self.save_config():
+            self.config = previous_config
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "remembered_approval_reverted",
+                        "action": "revoked",
+                        "id": removed.id,
+                        "reason": "The revocation could not be "
+                                  "saved; the remembered "
+                                  "approval was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Remembered approval revocation could not be "
+                "saved; the approval was preserved")
+        return {**change, "session_id": self.session_id,
+                "journaled": journaled}
+
+    def clear_remembered_approvals(self) -> dict[str, Any]:
+        """Revoke every remembered approval at once (M-096).
+
+        Journal-first as one ``remembered_approvals_cleared``
+        record naming how many were cleared; a failed save
+        restores the previous config exactly and journals
+        a compensating ``remembered_approvals_clear_reverted``.
+        Clearing an empty list changes nothing, journals
+        nothing and saves nothing - it simply reports zero.
+        """
+        import copy
+
+        from ..core import remembered_approvals
+
+        current = remembered_approvals.stored_approvals(
+            self.config)
+        record: dict[str, Any] = {
+            "type": "remembered_approvals_cleared",
+            "cleared": len(current),
+            "total": 0,
+        }
+        if not current:
+            return {**record, "session_id": self.session_id,
+                    "journaled": False}
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+            journaled = True
+        previous_config = copy.deepcopy(self.config)
+        self.config[remembered_approvals.SETTING_KEY] = []
+        if not self.save_config():
+            self.config = previous_config
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type":
+                            "remembered_approvals_clear_reverted",
+                        "cleared": len(current),
+                        "reason": "The clear could not be saved; "
+                                  "the remembered approvals "
+                                  "were preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Remembered approvals clear could not be "
+                "saved; the approvals were preserved")
+        return {**record, "session_id": self.session_id,
+                "journaled": journaled}
+
+    def remembered_approval_for(self, command: Any, args: Any,
+                                path: Any):
+        """The remembered approval covering a call, or None.
+
+        The consultation the live approval road makes
+        (M-096): the stored list is validated fresh (a
+        malformed stored list raises, never silently
+        allows or silently forgets), and the pure layer's
+        exact match decides - command, args pattern and
+        project path all exact, or no match.
+        """
+        from ..core import remembered_approvals
+
+        approvals = remembered_approvals.stored_approvals(
+            self.config)
+        return remembered_approvals.find_match(
+            approvals, command, list(args), path)
+
+    def remembered_approval_allows_tool(self, name: str,
+                                        arguments: Any) -> bool:
+        """True when a tool call sits in a remembered scope.
+
+        Only ``run_command`` carries a shell command a
+        remembered scope can name: its command string is
+        split the way a shell splits it, the first word
+        is the command, the rest are the args, and the
+        project is this agent's own project root. Every
+        other tool, an unparseable command string, and an
+        empty one answer False - the ordinary approval
+        prompt decides those, exactly as before. A
+        malformed stored list raises out of the stored
+        validation; ToolPolicy.authorize catches that as
+        a refusal, so a corrupt memory fails closed,
+        never open.
+        """
+        import shlex
+
+        if name != "run_command" or not isinstance(arguments, dict):
+            return False
+        command_text = arguments.get("command")
+        if not isinstance(command_text, str):
+            return False
+        try:
+            parts = shlex.split(command_text)
+        except ValueError:
+            return False
+        if not parts:
+            return False
+        return self.remembered_approval_for(
+            parts[0], parts[1:], str(self.project_root)) is not None
+
+    # -- M-097: the OS sandbox --
+
+    def os_sandbox_status(self) -> dict[str, Any]:
+        """The OS sandbox gate and truth, in plain data (M-097).
+
+        The gate exactly as stored (validated - a malformed
+        stored value raises, never vanishes), the whole
+        per-platform truth table as records, the one screen
+        rendered from that same table, and the plain
+        explanation.
+        """
+        from ..core import os_sandbox
+
+        return {
+            "enabled": os_sandbox.enabled_from_config(self.config),
+            "truth": [entry.to_record()
+                      for entry in os_sandbox.PLATFORM_TRUTH],
+            "screen": os_sandbox.format_os_sandbox(self.config),
+            "explanation": os_sandbox.PLAIN_EXPLANATION,
+        }
+
+    def set_os_sandbox(self, enabled: bool) -> dict[str, Any]:
+        """Turn the OS sandbox gate on or off (M-097).
+
+        Validated by :mod:`mythic_agent.core.os_sandbox`
+        before anything mutates (a no-op change refuses);
+        journaled first as the pure layer's
+        ``os_sandbox_setting_changed`` event when a session
+        is attached; the stored value is the plain bool
+        under the setting key; a failed save restores the
+        previous config exactly and journals a compensating
+        ``os_sandbox_setting_reverted``.
+        """
+        import copy
+
+        from ..core import os_sandbox
+
+        new_value, change = os_sandbox.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[os_sandbox.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "os_sandbox_setting_reverted",
+                        "reason": "The OS sandbox change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "OS sandbox change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def os_sandbox_plan(self, command: Any, *,
+                        platform: Any = None,
+                        network: Any = "deny",
+                        require_confined: Any = False):
+        """One command's confinement plan, purely (M-097).
+
+        The pure layer's plan itself - mechanism, argv
+        prefix, network stance, and whether it honestly
+        confines - with nothing executed or changed.
+        """
+        from ..core import os_sandbox
+
+        return os_sandbox.build_confinement_plan(
+            command, platform=platform, network=network,
+            require_confined=require_confined)
+
+    def run_os_sandboxed(self, command: Any, *,
+                         cwd: Any = None, network: Any = "deny",
+                         require_confined: Any = False,
+                         timeout: Any = None) -> dict[str, Any]:
+        """Run *command* under its confinement plan (M-097).
+
+        The run-under-plan road: the plan comes from the
+        pure layer and the execution rides the elder
+        :class:`mythic_agent.core.sandbox.Sandbox` runner,
+        so its denylist, timeout and memory cap apply on
+        every road. With the gate off, the command takes
+        the elder road unchanged and the record says
+        ``confined`` is False and why. With the gate on,
+        a Linux plan executes through its argv prefix
+        (``unshare`` namespaces; a fresh net namespace
+        when the stance is deny) with the plan's env
+        additions; the seccomp baseline is rendered to a
+        filter-data file and named in the record, but no
+        seccomp installation is claimed - ``setpriv``
+        rejected a plain-name filter on this box
+        (``invalid filter``, measured), so namespaces are
+        the executed confinement and ``seccomp_installed``
+        is honestly False. A plan that confines nothing
+        (Windows today) runs the elder road with
+        ``confined`` False, unless ``require_confined``
+        was asked for, in which case the pure layer
+        refuses before anything runs. Confinement is
+        never claimed proven: the record carries the
+        plan's own support level. The plan is journaled
+        on the session when one is attached.
+        """
+        import shlex
+        import tempfile
+
+        from ..core import os_sandbox
+        from ..core.sandbox import Sandbox
+
+        if not isinstance(command, str) or not command.strip():
+            raise ValueError(
+                "a sandboxed command must be non-empty text")
+        workdir = str(cwd) if cwd is not None else str(self.project_root)
+        enabled = os_sandbox.enabled_from_config(self.config)
+        if not enabled:
+            result = Sandbox(
+                no_network=(network == "deny")).run(
+                    command, cwd=workdir, timeout=timeout)
+            record: dict[str, Any] = {
+                "type": "os_sandbox_run", "slice": "M-097",
+                "command": command, "executed": command,
+                "gate_enabled": False, "confined": False,
+                "platform": os_sandbox.current_platform(),
+                "support": None, "network": network,
+                "plan": None, "seccomp_installed": False,
+                "note": "the OS sandbox gate is off - the "
+                        "command took the elder Sandbox "
+                        "guardrail road unchanged",
+                "returncode": result.returncode,
+                "stdout": result.stdout, "stderr": result.stderr,
+                "timed_out": result.timed_out, "ok": result.ok,
+            }
+            if self._session_store and self.session_id:
+                self._checkpoint(record)
+            return record
+        plan = os_sandbox.build_confinement_plan(
+            command, network=network,
+            require_confined=require_confined)
+        if not plan.confined:
+            result = Sandbox(
+                env=plan.env(),
+                no_network=(network == "deny")).run(
+                    command, cwd=workdir, timeout=timeout)
+            record = {
+                "type": "os_sandbox_run", "slice": "M-097",
+                "command": command, "executed": command,
+                "gate_enabled": True, "confined": False,
+                "platform": plan.platform,
+                "support": plan.support, "network": plan.network,
+                "plan": plan.to_record(),
+                "seccomp_installed": False,
+                "note": "this platform's plan confines "
+                        "nothing yet - the command took the "
+                        "elder Sandbox guardrail road and "
+                        "the record says so",
+                "returncode": result.returncode,
+                "stdout": result.stdout, "stderr": result.stderr,
+                "timed_out": result.timed_out, "ok": result.ok,
+            }
+            if self._session_store and self.session_id:
+                self._checkpoint(os_sandbox.confinement_plan_record(plan))
+            return record
+        seccomp_path = None
+        if plan.platform == "linux":
+            fd, seccomp_path = tempfile.mkstemp(
+                prefix="mythic-seccomp-", suffix=".txt")
+            with open(fd, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "\n".join(os_sandbox.SECCOMP_BASELINE_SYSCALLS)
+                    + "\n")
+        executed = shlex.join(plan.argv())
+        result = Sandbox(
+            env=plan.env(),
+            no_network=(network == "deny")).run(
+                executed, cwd=workdir, timeout=timeout)
+        record = {
+            "type": "os_sandbox_run", "slice": "M-097",
+            "command": command, "executed": executed,
+            "gate_enabled": True, "confined": True,
+            "platform": plan.platform, "support": plan.support,
+            "network": plan.network, "plan": plan.to_record(),
+            "seccomp_filter_file": seccomp_path,
+            "seccomp_installed": False,
+            "note": "executed under the plan's namespace "
+                    "prefix; the seccomp baseline was "
+                    "rendered as filter data only - no "
+                    "seccomp installation and no proven "
+                    "confinement is claimed",
+            "returncode": result.returncode,
+            "stdout": result.stdout, "stderr": result.stderr,
+            "timed_out": result.timed_out, "ok": result.ok,
+        }
+        if self._session_store and self.session_id:
+            self._checkpoint(os_sandbox.confinement_plan_record(plan))
+        return record
+
+    # -- M-098: network gates --
+
+    def network_gates_status(self) -> dict[str, Any]:
+        """The network gates, in plain data (M-098).
+
+        The gate exactly as stored (validated - a
+        malformed stored value or allowlist entry raises,
+        never vanishes), the allowlist entries as plain
+        records, the one screen rendered from that same
+        gate, and the plain explanation.
+        """
+        from ..core import network_gates
+
+        gates = network_gates.gates_from_config(self.config)
+        return {
+            "enabled": network_gates.enabled_from_config(self.config),
+            "entries": [e.to_record() for e in gates.entries],
+            "screen": network_gates.format_network_gates(self.config),
+            "explanation": network_gates.PLAIN_EXPLANATION,
+        }
+
+    def set_network_gates(self, enabled: bool) -> dict[str, Any]:
+        """Turn the network gates on or off (M-098).
+
+        Validated by :mod:`mythic_agent.core.network_gates`
+        before anything mutates (a no-op change refuses);
+        journaled first as the pure layer's
+        ``network_gates_setting_changed`` event when a
+        session is attached; the stored value is the plain
+        bool under the setting key; a failed save restores
+        the previous config exactly and journals a
+        compensating ``network_gates_setting_reverted``.
+        """
+        import copy
+
+        from ..core import network_gates
+
+        new_value, change = network_gates.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[network_gates.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "network_gates_setting_reverted",
+                        "reason": "The network gates change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Network gates change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def add_network_allowlist_entry(self, entry_spec: Any) -> dict[str, Any]:
+        """Allow one tool to reach one domain (M-098).
+
+        The entry is validated by the pure layer before
+        anything mutates (a malformed entry refuses, and
+        an entry already on the list refuses as a
+        duplicate); journaled first as a
+        ``network_allowlist_changed`` record when a session
+        is attached; the stored list is the entries' plain
+        records under the allowlist key; a failed save
+        restores the previous config exactly and journals
+        a compensating ``network_allowlist_reverted``.
+        """
+        import copy
+
+        from ..core import network_gates
+
+        entry = network_gates.validate_entry(entry_spec)
+        gates = network_gates.gates_from_config(self.config)
+        if entry in gates.entries:
+            raise ValueError(
+                f"the network allowlist already grants tool "
+                f"{entry.tool!r} a reach to {entry.domain!r}")
+        record = entry.to_record()
+        change: dict[str, Any] = {
+            "type": "network_allowlist_changed",
+            "action": "allow",
+            "entry": record,
+        }
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change)
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[network_gates.ALLOWLIST_KEY] = [
+            e.to_record() for e in gates.entries] + [record]
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "network_allowlist_reverted",
+                        "action": "allow",
+                        "entry": record,
+                        "reason": "The network allowlist change "
+                                  "could not be saved; the "
+                                  "previous allowlist was "
+                                  "preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Network allowlist change could not be saved; "
+                "previous allowlist was preserved")
+        return {**change, "session_id": self.session_id,
+                "journaled": journaled}
+
+    def check_network_reach(self, tool: Any, target: Any,
+                            command: Any = None):
+        """Decide one outbound reach (M-098).
+
+        The pure layer's decision itself, computed always:
+        a malformed tool raises, and a target whose host
+        cannot be read is a denied decision, never an
+        exception. With the gate on, a denied reach is
+        news: its refusal record is published as a session
+        event when a session is attached. With the gate
+        off, the decision is returned unpublished - the
+        gate is off, and the status screen says so plainly.
+        """
+        from ..core import network_gates
+
+        gates = network_gates.gates_from_config(self.config)
+        enabled = network_gates.enabled_from_config(self.config)
+        decision = network_gates.check_network(
+            tool, target, gates.entries)
+        if enabled and not decision.allowed:
+            record = network_gates.refusal_record(
+                decision, command=command)
+            if self._session_store and self.session_id:
+                self._checkpoint(record)
+        return decision
+
+    # -- M-099: path jail --
+
+    def path_jail_status(self) -> dict[str, Any]:
+        """The path jail, in plain data (M-099).
+
+        The gate exactly as stored (validated - a
+        malformed stored value or grant raises, never
+        vanishes), the grant roots as plain path
+        strings, the session workspace resolved, the
+        one screen rendered from that same jail, and
+        the plain explanation.
+        """
+        from ..core import path_jail
+
+        jail = path_jail.jail_from_config(self.config)
+        workspace = path_jail.resolve_workspace_root(
+            str(self.project_root))
+        return {
+            "enabled": path_jail.enabled_from_config(self.config),
+            "grants": list(jail.grants),
+            "workspace": workspace,
+            "screen": path_jail.format_path_jail(
+                self.config, workspace),
+            "explanation": path_jail.PLAIN_EXPLANATION,
+        }
+
+    def set_path_jail(self, enabled: bool) -> dict[str, Any]:
+        """Turn the path jail on or off (M-099).
+
+        Validated by :mod:`mythic_agent.core.path_jail`
+        before anything mutates (a no-op change refuses);
+        journaled first as the pure layer's
+        ``path_jail_setting_changed`` event when a
+        session is attached; the stored value is the
+        plain bool under the setting key; a failed save
+        restores the previous config exactly and journals
+        a compensating ``path_jail_setting_reverted``.
+        """
+        import copy
+
+        from ..core import path_jail
+
+        new_value, change = path_jail.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[path_jail.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "path_jail_setting_reverted",
+                        "reason": "The path jail change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Path jail change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def add_path_grant(self, grant_spec: Any) -> dict[str, Any]:
+        """Grant one named directory to the path jail (M-099).
+
+        The grant is validated by the pure layer before
+        anything mutates (a malformed grant refuses, and
+        a grant already named refuses as a duplicate);
+        journaled first as a ``path_grants_changed``
+        record when a session is attached; the stored
+        list is the grants' plain path strings under the
+        grants key; a failed save restores the previous
+        config exactly and journals a compensating
+        ``path_grants_reverted``.
+        """
+        import copy
+
+        from ..core import path_jail
+
+        grant = path_jail.validate_grant(grant_spec)
+        jail = path_jail.jail_from_config(self.config)
+        if grant in jail.grants:
+            raise ValueError(
+                f"the path grants already name {grant!r}")
+        change: dict[str, Any] = {
+            "type": "path_grants_changed",
+            "action": "grant",
+            "grant": grant,
+        }
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change)
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[path_jail.GRANTS_KEY] = list(jail.grants) + [grant]
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "path_grants_reverted",
+                        "action": "grant",
+                        "grant": grant,
+                        "reason": "The path grant change "
+                                  "could not be saved; the "
+                                  "previous grants were "
+                                  "preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Path grant change could not be saved; "
+                "previous grants were preserved")
+        return {**change, "session_id": self.session_id,
+                "journaled": journaled}
+
+    def check_path_jail(self, path: Any, workspace_root: Any = None):
+        """Decide one file-tool path (M-099).
+
+        The pure layer's decision itself, computed
+        always, judged against this agent's project
+        root unless *workspace_root* names another:
+        the candidate is resolved (every symlink
+        followed) before judging, and a malformed
+        candidate is a denied decision, never an
+        exception. With the gate on, a denied path is
+        news: its refusal record is published as a
+        session event when a session is attached.
+        With the gate off, the decision is returned
+        unpublished - the gate is off, and the status
+        screen says so plainly. This is the judgement
+        road the /pathjail check surface rides; the
+        elder workspace road keeps its own write rules
+        on the live file tools (see TEAM_LOG boundary).
+        """
+        from ..core import path_jail
+
+        jail = path_jail.jail_from_config(self.config)
+        enabled = path_jail.enabled_from_config(self.config)
+        root = (workspace_root if workspace_root is not None
+                else str(self.project_root))
+        decision = jail.check(path, root)
+        if enabled and not decision.allowed:
+            record = path_jail.refusal_record(decision)
+            if self._session_store and self.session_id:
+                self._checkpoint(record)
+        return decision
+
+
+
+    # -- M-100: plan mode --
+
+    def _held_plan(self):
+        """The plan this agent currently holds, or None (M-100).
+
+        The current plan lives in the agent layer alone -
+        it is session state, not a stored setting - and it
+        exists only as a pure-layer :class:`Plan`, built
+        through ``validate_plan`` / ``build_plan`` and
+        approved through ``approve``.
+        """
+        return getattr(self, "_current_plan", None)
+
+    def current_plan(self):
+        """The held plan itself, or None (M-100)."""
+        return self._held_plan()
+
+    def plan_mode_status(self) -> dict[str, Any]:
+        """Plan mode, in plain data (M-100).
+
+        The gate exactly as stored (validated - a
+        malformed stored value raises, never vanishes),
+        the held plan as its plain record (or None), the
+        one screen rendered from that same gate and plan,
+        whether the build gate is open, and the plain
+        explanation.
+        """
+        from ..core import plan_mode
+
+        plan = self._held_plan()
+        enabled = plan_mode.enabled_from_config(self.config)
+        return {
+            "enabled": enabled,
+            "plan": plan.to_record() if plan is not None else None,
+            "screen": plan_mode.format_plan_mode(self.config, plan),
+            "explanation": plan_mode.PLAIN_EXPLANATION,
+            "can_build": plan_mode.can_build(enabled, plan),
+        }
+
+    def set_plan_mode(self, enabled: bool) -> dict[str, Any]:
+        """Turn plan mode on or off (M-100).
+
+        Validated by :mod:`mythic_agent.core.plan_mode`
+        before anything mutates (a no-op change refuses);
+        journaled first as the pure layer's
+        ``plan_mode_setting_changed`` event when a session
+        is attached; the stored value is the plain bool
+        under the setting key; a failed save restores the
+        previous config exactly and journals a compensating
+        ``plan_mode_setting_reverted``.
+        """
+        import copy
+
+        from ..core import plan_mode
+
+        new_value, change = plan_mode.set_enabled(
+            self.config, enabled)
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change.event())
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[plan_mode.SETTING_KEY] = new_value
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "plan_mode_setting_reverted",
+                        "reason": "The plan mode change could "
+                                  "not be saved; the previous "
+                                  "setting was preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Plan mode change could not be saved; previous "
+                "setting was preserved")
+        return change.record(self.session_id, journaled)
+
+    def set_current_plan(self, plan_spec: Any):
+        """Hold one plan as the current plan (M-100).
+
+        The plan is built through the pure layer's
+        ``validate_plan`` - a mapping is validated whole
+        (one malformed piece refuses the whole plan and
+        nothing is held), a :class:`Plan` passes through
+        as itself. A plan starts unapproved unless its
+        own record says otherwise; approval is a separate
+        act (see :meth:`approve_current_plan`). Returns
+        the held plan itself.
+        """
+        from ..core import plan_mode
+
+        plan = plan_mode.validate_plan(plan_spec)
+        self._current_plan = plan
+        return plan
+
+    def build_current_plan(self, title: Any, intent: Any,
+                           slices: Any):
+        """Build and hold a plan from its pieces (M-100).
+
+        The plan is built through the pure layer's
+        ``build_plan`` (title, intent, and the ordered
+        slice specs, each validated to Part IX form) and
+        held as the current plan, unapproved. Returns the
+        held plan itself.
+        """
+        from ..core import plan_mode
+
+        plan = plan_mode.build_plan(title, intent, slices)
+        self._current_plan = plan
+        return plan
+
+    def approve_current_plan(self):
+        """Approve the held plan - the one gate opens (M-100).
+
+        Approval goes through the pure layer's ``approve``:
+        the held plan is replaced by its approved copy, so
+        the approval belongs to this plan alone. With no
+        plan held there is nothing to approve and the call
+        refuses plainly. Returns the approved plan itself.
+        """
+        from ..core import plan_mode
+
+        plan = self._held_plan()
+        if plan is None:
+            raise ValueError(
+                "there is no plan to approve - set a plan first")
+        approved = plan_mode.approve(plan)
+        self._current_plan = approved
+        return approved
+
+    def check_plan_effect(self, effect: Any) -> str:
+        """Decide one tool effect before it runs (M-100).
+
+        The pure layer's decision itself - ``allow`` or
+        ``deny`` - computed always: an unknown effect
+        raises, never guessed at. With the gate on, a
+        denied effect is news: its refusal record is
+        published as a session event when a session is
+        attached. With the gate off, the decision is
+        computed but returned unpublished - the gate is
+        off, and the status screen says so plainly.
+        """
+        from ..core import plan_mode
+
+        enabled = plan_mode.enabled_from_config(self.config)
+        decision = plan_mode.decide(enabled, effect)
+        if enabled and decision == "deny":
+            record = plan_mode.refusal_record(effect=effect)
+            if self._session_store and self.session_id:
+                self._checkpoint(record)
+        return decision
+
+    def check_plan_build(self) -> bool:
+        """Whether building may begin (M-100).
+
+        The pure layer's ``can_build`` answer, computed
+        always against the held plan: out of plan posture
+        building is the normal posture; in posture only an
+        approved held plan opens the gate. With the gate
+        on, a refused build is news: its refusal record is
+        published as a session event when a session is
+        attached. With the gate off, the answer is computed
+        but returned unpublished.
+        """
+        from ..core import plan_mode
+
+        enabled = plan_mode.enabled_from_config(self.config)
+        plan = self._held_plan()
+        allowed = plan_mode.can_build(enabled, plan)
+        if enabled and not allowed:
+            record = plan_mode.refusal_for_build(
+                enabled, plan).to_record()
+            if self._session_store and self.session_id:
+                self._checkpoint(record)
+        return allowed
+
+    # -- M-101: hooks --
+
+    def hooks_status(self) -> dict[str, Any]:
+        """The configured hooks, in plain data (M-101).
+
+        The hooks exactly as stored (validated whole -
+        one malformed stored hook raises, never silently
+        narrows what was configured), as their plain
+        records, the one screen rendered from that same
+        list, and the plain explanation. Hooks carry no
+        gate of their own: the list itself is the setting.
+        """
+        from ..core import hooks
+
+        configured = hooks.hooks_from_config(self.config)
+        return {
+            "hooks": [h.to_record() for h in configured],
+            "screen": hooks.format_hooks(configured),
+            "explanation": hooks.PLAIN_EXPLANATION,
+        }
+
+    def configured_hooks(self):
+        """The configured hooks themselves (M-101)."""
+        from ..core import hooks
+
+        return hooks.hooks_from_config(self.config)
+
+    def run_hooks(self, event: Any, stdin_text: str = "") -> list:
+        """Run the hooks for one lifecycle event (M-101).
+
+        The enabled hooks for *event* run in listed
+        order, each through a real subprocess bounded by
+        its own timeout, in this agent's workspace, with
+        *stdin_text* as its standard input. Each finished
+        run is judged by the pure layer alone. A verdict
+        that blocks is news: its block record is published
+        as a session event when a session is attached, so
+        the reason the coder must answer can never be
+        lost as a mere log line. An error after the act
+        (post_tool, post_edit, on_session) blocks nothing
+        in the pure layer's own judgement and so publishes
+        nothing - it rides back in the returned verdicts.
+        An unknown event and a malformed stored hook list
+        both raise before anything runs. Returns the
+        verdicts, in run order.
+        """
+        from ..core import hooks
+
+        canonical = hooks.normalize_event(event)
+        configured = hooks.hooks_from_config(self.config)
+        selected = hooks.select_hooks(configured, canonical)
+        verdicts = []
+        for hook in selected:
+            verdict = self._run_one_hook(hook, stdin_text=stdin_text)
+            verdicts.append(verdict)
+            # M-109: a hook run is a command by a hook - it
+            # joins the audit trail with that actor.
+            self._note_audit_hook(hook, verdict)
+            record = hooks.block_record(verdict)
+            if record is not None and self._session_store and self.session_id:
+                self._checkpoint(record)
+        return verdicts
+
+    def _run_one_hook(self, hook: Any, stdin_text: str = ""):
+        """Run one hook's command and judge it (M-101).
+
+        The command runs through the shell it was written
+        for, exactly as the elder sandbox road runs
+        commands. A run that outlives its timeout is
+        judged as an error with exit code 124 (the shell's
+        own timeout verdict) and the timeout named in its
+        reason; a command the OS cannot start at all is
+        judged as an error with exit code 127. Neither is
+        dressed up as an allow.
+        """
+        import subprocess
+
+        from ..core import hooks
+
+        try:
+            completed = subprocess.run(
+                hook.command, shell=True,
+                cwd=str(self.project_root), input=stdin_text,
+                capture_output=True, text=True,
+                timeout=hook.timeout_seconds)
+            return hooks.evaluate_result(
+                hook.event, hook, completed.returncode,
+                stdout=completed.stdout or "",
+                stderr=completed.stderr or "")
+        except subprocess.TimeoutExpired as exc:
+            out = exc.stdout if isinstance(exc.stdout, str) else ""
+            err = exc.stderr if isinstance(exc.stderr, str) else ""
+            reason = ((err.strip() + " ") if err.strip() else "") + (
+                f"the hook timed out after "
+                f"{hook.timeout_seconds}s")
+            return hooks.evaluate_result(
+                hook.event, hook, 124, stdout=out, stderr=reason)
+        except OSError as exc:
+            return hooks.evaluate_result(
+                hook.event, hook, 127, stdout="",
+                stderr=f"the hook could not be run: {exc}")
+
+    # -- M-102: hook packs --
+
+    def hook_packs_status(self) -> dict[str, Any]:
+        """The hook packs, in plain data (M-102).
+
+        The shipped shelf as plain pack records, which
+        of them are fully installed - every hook of the
+        pack present among the configured hooks, judged
+        by event and command exactly as the pure layer's
+        install judges presence - the configured hooks
+        as plain records, the one screen rendered from
+        that same shelf, and the plain explanation. A
+        malformed stored hook list raises, never silently
+        narrows what was configured.
+        """
+        from ..core import hook_packs, hooks
+
+        configured = hooks.hooks_from_config(self.config)
+        present = {(h.event, h.command) for h in configured}
+        installed = {
+            pack.name: all(
+                (hook.event, hook.command) in present
+                for hook in pack.hooks)
+            for pack in hook_packs.SHIPPED_PACKS}
+        return {
+            "packs": [p.to_record() for p in hook_packs.SHIPPED_PACKS],
+            "installed": installed,
+            "hooks": [h.to_record() for h in configured],
+            "screen": hook_packs.format_hook_packs(),
+            "explanation": hook_packs.PLAIN_EXPLANATION,
+        }
+
+    def install_hook_pack(self, pack_spec: Any) -> dict[str, Any]:
+        """Install one hook pack into the hooks (M-102).
+
+        The pack is resolved by the pure layer (a Pack,
+        a shipped name read case-insensitively with
+        dashes as underscores, or a pack mapping) and
+        the merge is computed by the pure layer's
+        ``install_pack`` before anything mutates: the
+        existing hooks are validated whole, a pack hook
+        whose name already names a different configured
+        hook refuses, and a hook already present by
+        event and command is skipped. A pack that is
+        already fully installed changes nothing and
+        writes nothing - no journal entry, no save - and
+        the returned record says so (``changed`` False).
+        Otherwise the install is journaled first as a
+        ``hook_pack_installed`` record when a session is
+        attached; the stored list is the merged hooks'
+        plain records under the M-101 ``hooks`` setting;
+        a failed save restores the previous config
+        exactly and journals a compensating
+        ``hook_pack_install_reverted``.
+        """
+        import copy
+
+        from ..core import hook_packs, hooks
+
+        pack = hook_packs.resolve_pack(pack_spec)
+        existing = hooks.hooks_from_config(self.config)
+        merged = hook_packs.install_pack(existing, pack)
+        added = list(merged[len(existing):])
+        if not added:
+            return {
+                "type": "hook_pack_installed",
+                "action": "install",
+                "pack": pack.name,
+                "added": [],
+                "changed": False,
+                "session_id": self.session_id,
+                "journaled": False,
+            }
+        change: dict[str, Any] = {
+            "type": "hook_pack_installed",
+            "action": "install",
+            "pack": pack.name,
+            "added": [h.to_record() for h in added],
+        }
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change)
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[hooks.SETTING_KEY] = [
+            h.to_record() for h in merged]
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "hook_pack_install_reverted",
+                        "action": "install",
+                        "pack": pack.name,
+                        "reason": "The hook pack install could "
+                                  "not be saved; the previous "
+                                  "hooks were preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Hook pack install could not be saved; previous "
+                "hooks were preserved")
+        return {**change, "changed": True,
+                "session_id": self.session_id,
+                "journaled": journaled}
+
+    # -- M-103: background tasks --
+
+    def _background_jobs(self):
+        """The held background-job registry (M-103).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer Jobs in creation order.
+        It is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        """
+        registry = getattr(self, "_background_registry", None)
+        if registry is None:
+            from ..core.background_tasks import BackgroundJobRegistry
+            registry = BackgroundJobRegistry()
+            self._background_registry = registry
+        return registry
+
+    def _background_lock_for(self):
+        lock = getattr(self, "_background_lock", None)
+        if lock is None:
+            lock = threading.RLock()
+            self._background_lock = lock
+        return lock
+
+    def background_jobs_status(self) -> dict[str, Any]:
+        """Background jobs, in plain data (M-103).
+
+        Every held job as its plain record, in creation
+        order, the one screen rendered from that same
+        registry, and the plain explanation.
+        """
+        from ..core import background_tasks
+
+        registry = self._background_jobs()
+        return {
+            "jobs": [j.to_record() for j in registry.list_jobs()],
+            "screen": background_tasks.format_background(registry),
+            "explanation": background_tasks.PLAIN_EXPLANATION,
+        }
+
+    def get_background_job(self, job_id: Any):
+        """The one held job an id names (M-103).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._background_jobs().get(job_id)
+
+    def background_job_tail(self, job_id: Any = None,
+                            count: int = 10) -> str:
+        """One job's live tail, in plain words (M-103).
+
+        With no id the newest held job is tailed; with
+        no jobs held at all the call refuses plainly.
+        An unknown id raises KeyError.
+        """
+        from ..core import background_tasks
+
+        registry = self._background_jobs()
+        if job_id is None:
+            jobs = registry.list_jobs()
+            if not jobs:
+                raise ValueError(
+                    "there are no background jobs to tail yet")
+            job = jobs[-1]
+        else:
+            job = registry.get(job_id)
+        return background_tasks.format_tail(job, count)
+
+    def start_background_job(self, spec: Any) -> dict[str, Any]:
+        """Start one background job for real (M-103).
+
+        *spec* is a JobSpec, a spec mapping, a bare argv
+        list, or a command string (split the way a shell
+        splits it, then run with no shell at all). The
+        job is created and moved to running in the held
+        registry first; the command then runs as a real
+        subprocess (``shell=False``, stderr folded into
+        stdout) in the spec's cwd or this agent's
+        workspace. A reader thread feeds each output
+        line into the job's bounded tail as it arrives;
+        when the process exits the reader judges it
+        through the pure layer's ``finish_job`` and
+        publishes the completion as session news. A
+        command the OS cannot start at all is judged
+        failed with exit code 127, the house error
+        verdict. Returns the job's plain record as it
+        stands when the call returns - a fast job may
+        already be finished in it.
+        """
+        import shlex
+        import subprocess
+
+        from ..core import background_tasks
+
+        if isinstance(spec, str):
+            spec = shlex.split(spec)
+        registry = self._background_jobs()
+        lock = self._background_lock_for()
+        with lock:
+            job = registry.create(spec)
+            job = registry.start(job.job_id)
+        cwd = job.spec.cwd or str(self.project_root)
+        try:
+            proc = subprocess.Popen(
+                list(job.spec.argv), shell=False, cwd=cwd,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1)
+        except OSError:
+            with lock:
+                finished = registry.finish(job.job_id, 127)
+            self._publish_background_completion(finished)
+            # M-109: a command the OS could not start was
+            # still commanded - the trail names the attempt
+            # and its honest ending.
+            self._note_audit_background_job(job.job_id)
+            return finished.to_record()
+        processes = getattr(self, "_background_processes", None)
+        if processes is None:
+            processes = {}
+            self._background_processes = processes
+        with lock:
+            processes[job.job_id] = proc
+        reader = threading.Thread(
+            target=self._background_reader,
+            args=(job.job_id, proc), daemon=True,
+            name=f"mythic-background-{job.job_id}")
+        reader.start()
+        self._keeper_note_background_activity(job.job_id)
+        # M-109: the started command joins the audit trail
+        # here, where the job visibly lives.
+        self._note_audit_background_job(job.job_id)
+        with lock:
+            return registry.get(job.job_id).to_record()
+
+    def _background_reader(self, job_id: str, proc: Any) -> None:
+        """Feed one job's tail, then land its ending (M-103).
+
+        Runs on the job's reader thread. Output lines
+        land in the bounded tail while the job runs.
+        At exit: a job whose kill was requested is
+        cancelled through ``apply_kill``; any other job
+        is judged by its exit code through the pure
+        registry's finish. Either ending is published
+        as session news exactly once.
+        """
+        registry = self._background_jobs()
+        lock = self._background_lock_for()
+        try:
+            if proc.stdout is not None:
+                for line in proc.stdout:
+                    with lock:
+                        try:
+                            registry.append_output(job_id, line)
+                        except (KeyError, ValueError):
+                            pass  # the job already ended; drop the line
+                    self._keeper_note_background_activity(job_id)
+            exit_code = proc.wait()
+        except Exception:
+            exit_code = proc.poll()
+            if not isinstance(exit_code, int):
+                exit_code = 1
+        landed = None
+        with lock:
+            try:
+                current = registry.get(job_id)
+            except KeyError:
+                return
+            processes = getattr(self, "_background_processes", {})
+            processes.pop(job_id, None)
+            if current.state == "running":
+                if current.kill.requested:
+                    landed = registry.apply_kill(job_id)
+                else:
+                    landed = registry.finish(job_id, exit_code)
+            else:
+                landed = current
+        if landed is not None and landed.is_terminal:
+            self._publish_background_completion(landed)
+
+    def _publish_background_completion(self, job: Any) -> None:
+        """Publish one finished job as session news (M-103).
+
+        The pure layer's completion record - the
+        ``background_job_completed`` session event -
+        is journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each job is announced at most once,
+        however many roads land its ending.
+        """
+        from ..core import background_tasks
+
+        self._keeper_note_background_activity(job.job_id)
+        record = background_tasks.completion_record(job)
+        if record is None:
+            return
+        lock = self._background_lock_for()
+        announced = getattr(self, "_background_announced", None)
+        if announced is None:
+            announced = set()
+            self._background_announced = announced
+        with lock:
+            if job.job_id in announced:
+                return
+            announced.add(job.job_id)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def kill_background_job(self, job_id: Any,
+                            reason: str = "") -> dict[str, Any]:
+        """Kill one background job for real (M-103).
+
+        The kill is first a request, recorded on the
+        job in the held registry with its reason - the
+        job's state does not change yet. The real
+        process is then terminated (``terminate()``,
+        escalating to ``kill()`` if it ignores the
+        request), and the recorded kill lands through
+        the pure layer's ``apply_kill``: the job is
+        cancelled, and its completion is published as
+        session news. The reader thread may land the
+        same ending first; the job is cancelled exactly
+        once either way. A finished job refuses, as the
+        pure layer refuses, and an unknown id raises
+        KeyError. Returns the job's plain record.
+        """
+        import subprocess
+
+        registry = self._background_jobs()
+        lock = self._background_lock_for()
+        with lock:
+            registry.request_kill(job_id, reason)
+            processes = getattr(self, "_background_processes", {})
+            proc = processes.get(registry.get(job_id).job_id)
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                try:
+                    proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    pass
+        landed = None
+        with lock:
+            current = registry.get(job_id)
+            if current.kill.requested and current.state in (
+                    "queued", "running"):
+                landed = registry.apply_kill(current.job_id)
+            else:
+                landed = current
+        if landed is not None and landed.is_terminal:
+            self._publish_background_completion(landed)
+        with lock:
+            return registry.get(job_id).to_record()
+    # -- M-104: the keeper --
+
+    def _keeper_registry(self):
+        """The held keeper watch registry (M-104).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer watch targets in
+        registration order. It is created on first
+        use, so an agent whose ``__init__`` never ran
+        still holds exactly one.
+        """
+        registry = getattr(self, "_keeper_watch_registry", None)
+        if registry is None:
+            from ..core.keeper import KeeperRegistry
+            registry = KeeperRegistry()
+            self._keeper_watch_registry = registry
+        return registry
+
+    def _keeper_job_links(self) -> dict:
+        """Watch id -> the job currently doing its work (M-104).
+
+        A keeper restart starts a replacement job
+        under a fresh job id; the link records which
+        job a watch's heartbeats now follow, so the
+        restarted work keeps feeding its own watch.
+        """
+        links = getattr(self, "_keeper_links", None)
+        if links is None:
+            links = {}
+            self._keeper_links = links
+        return links
+
+    def keeper_status(self, now: Any = None) -> dict[str, Any]:
+        """Keeper watches, in plain data (M-104).
+
+        Every held watch as its plain record, in
+        registration order, every watch's verdict at
+        ``now`` (the current moment when none is
+        named), the one screen rendered from that
+        same registry, and the plain explanation.
+        Judging changes nothing: a status read never
+        restarts, reports, or publishes.
+        """
+        from ..core import keeper
+
+        moment = time.time() if now is None else now
+        registry = self._keeper_registry()
+        return {
+            "targets": [t.to_record() for t in registry.list_targets()],
+            "verdicts": [v.to_record() for v in registry.check(moment)],
+            "screen": keeper.format_keeper(registry, moment),
+            "explanation": keeper.PLAIN_EXPLANATION,
+            "now": moment,
+        }
+
+    def get_keeper_target(self, target_id: Any):
+        """The one held watch an id names (M-104).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._keeper_registry().get(target_id)
+
+    def register_keeper_watch(self, spec: Any = None,
+                              **kwargs: Any) -> dict[str, Any]:
+        """Register one keeper watch for the session (M-104).
+
+        *spec* is a WatchTarget, a target mapping, or
+        field words given as keyword arguments - the
+        pure layer's ``build_watch_target`` readings.
+        A watch that names no last activity is stamped
+        with the registration moment: a watch starts
+        alive, and only quiet after that moment can
+        ever judge it stalled. Returns the held
+        target's plain record.
+        """
+        from dataclasses import replace
+
+        from ..core import keeper
+
+        target = keeper.build_watch_target(spec, **kwargs)
+        if target.last_activity_at == 0.0:
+            target = replace(target, last_activity_at=time.time())
+        return self._keeper_registry().register(target).to_record()
+
+    def keeper_heartbeat(self, target_id: Any,
+                         at: Any = None) -> dict[str, Any]:
+        """Record one sign of life on a held watch (M-104).
+
+        The heartbeat lands at ``at`` or the current
+        moment. Time never runs backwards - the pure
+        layer refuses an earlier moment - and an
+        unknown id raises KeyError. Returns the held
+        target's plain record.
+        """
+        moment = time.time() if at is None else at
+        updated = self._keeper_registry().heartbeat(target_id, moment)
+        return updated.to_record()
+
+    def _keeper_note_background_activity(self, job_id: str) -> None:
+        """Feed one background job's life to its watch (M-104).
+
+        Called where a held job visibly lives: when
+        it starts, when an output line lands in its
+        tail, and when its ending is published. A job
+        feeds the watch registered under its own id,
+        and a watch whose work the keeper restarted
+        follows the replacement job through the link
+        the restart recorded. No watch, no feeding -
+        the note is silent when nothing watches the
+        job.
+        """
+        registry = getattr(self, "_keeper_watch_registry", None)
+        if registry is None:
+            return
+        links = getattr(self, "_keeper_links", {})
+        for target in registry.list_targets(kind="background_job"):
+            if links.get(target.target_id, target.target_id) != job_id:
+                continue
+            try:
+                registry.heartbeat(target.target_id, time.time())
+            except (KeyError, ValueError):
+                pass  # a raced heartbeat never breaks the job's road
+
+    def keeper_check(self, now: Any = None) -> dict[str, Any]:
+        """Judge every held watch once, and act (M-104).
+
+        Every watch is judged at ``now`` (the current
+        moment when none is named) by the pure layer's
+        mechanical reading. Where a verdict owes an
+        action, its intervention record is published
+        as a ``keeper_intervention`` session event -
+        news, never just a log line, and at most once
+        per watch per owed state. Where the owed
+        action is a restart and the watched work has
+        an in-world handle - a held background job -
+        the restart is carried out for real (see
+        :meth:`_carry_keeper_restart`) and spent on
+        the watch through the pure layer's restart
+        recording; a watch with no in-world handle is
+        carried by its published intervention, which
+        puts the owed restart before the session. A
+        report is carried by its publication alone.
+        Returns the verdicts, the intervention
+        records, and the screen rendered after any
+        restarts landed.
+        """
+        from ..core import keeper
+
+        moment = time.time() if now is None else now
+        registry = self._keeper_registry()
+        verdicts = registry.check(moment)
+        interventions: list[dict[str, Any]] = []
+        for verdict in verdicts:
+            if verdict.action == "none":
+                continue
+            target = registry.get(verdict.target_id)
+            record = keeper.intervention_record(verdict, target)
+            if record is None:
+                continue
+            interventions.append(record)
+            self._publish_keeper_intervention(record)
+            if verdict.action == "restart" \
+                    and self._carry_keeper_restart(target):
+                current = registry.get(target.target_id)
+                try:
+                    registry.restart(
+                        target.target_id,
+                        max(moment, current.last_activity_at))
+                except ValueError:
+                    pass  # the restart landed in the world; the
+                    # watch's bound is the pure layer's to judge
+        screen_now = max(
+            [moment]
+            + [t.last_activity_at for t in registry.list_targets()])
+        return {
+            "targets": [t.to_record() for t in registry.list_targets()],
+            "verdicts": [v.to_record() for v in verdicts],
+            "interventions": interventions,
+            "screen": keeper.format_keeper(registry, screen_now),
+            "explanation": keeper.PLAIN_EXPLANATION,
+            "now": moment,
+        }
+
+    def _carry_keeper_restart(self, target: Any) -> bool:
+        """Restart one stalled watch's work in the world (M-104).
+
+        Only a background-job watch has an in-world
+        handle here: the held job the watch names (or
+        the replacement job a previous restart linked
+        to it). A job still running is killed first -
+        it has gone quiet past its bound, and the kill
+        lands its cancellation as session news - then
+        a fresh job is started from the same spec, and
+        the watch is linked to the replacement so its
+        heartbeats keep feeding the watch. A finished
+        job is restarted the same way: a fresh run of
+        the same spec. Returns True when a fresh job
+        was started.
+        """
+        if target.kind != "background_job":
+            return False
+        registry = getattr(self, "_background_registry", None)
+        if registry is None:
+            return False
+        links = self._keeper_job_links()
+        job_id = links.get(target.target_id, target.target_id)
+        try:
+            job = registry.get(job_id)
+        except KeyError:
+            return False
+        if job.state in ("queued", "running"):
+            try:
+                self.kill_background_job(job.job_id, "keeper restart")
+            except (KeyError, ValueError):
+                pass  # a job that ended on its own restarts below
+        record = self.start_background_job({
+            "argv": list(job.spec.argv),
+            "cwd": job.spec.cwd,
+            "label": job.spec.label,
+        })
+        links[target.target_id] = record["job_id"]
+        return True
+
+    def _publish_keeper_intervention(self, record: dict[str, Any]) -> None:
+        """Publish one owed intervention as session news (M-104).
+
+        The pure layer's intervention record - the
+        ``keeper_intervention`` session event - is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each owed state is announced at
+        most once: the announcement is keyed by the
+        watch, the action owed, and the restarts
+        already spent, so a later stall after a
+        restart is new news while a repeated check of
+        the same stall is not.
+        """
+        announced = getattr(self, "_keeper_announced", None)
+        if announced is None:
+            announced = set()
+            self._keeper_announced = announced
+        key = (record["target_id"], record["action"], record["restarts"])
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    # -- M-105: scheduled work --
+
+    def _scheduled_registry(self):
+        """The held scheduled-work registry (M-105).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer scheduled jobs in
+        registration order, with each held job's
+        recorded run moments alongside it. It is
+        created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        """
+        registry = getattr(self, "_scheduled_work_registry", None)
+        if registry is None:
+            from ..core.scheduled_work import ScheduledWorkRegistry
+            registry = ScheduledWorkRegistry()
+            self._scheduled_work_registry = registry
+        return registry
+
+    def scheduled_work_status(self, now: Any = None) -> dict[str, Any]:
+        """Scheduled work, in plain data (M-105).
+
+        Every held job as its plain record, in
+        registration order, every held job's recorded
+        last run, every job's verdict at ``now``
+        (the current moment when none is named),
+        the one screen rendered from that same
+        registry, and the plain explanation. Judging
+        changes nothing: a status read never runs,
+        records, or publishes.
+        """
+        from datetime import datetime
+
+        from ..core import scheduled_work
+
+        moment = datetime.now() if now is None else now
+        registry = self._scheduled_registry()
+        return {
+            "jobs": [j.to_record() for j in registry.list_jobs()],
+            "last_runs": {
+                j.job_id: (
+                    registry.last_run(j.job_id).isoformat()
+                    if registry.last_run(j.job_id) is not None
+                    else None)
+                for j in registry.list_jobs()},
+            "verdicts": [v.to_record() for v in registry.check(moment)],
+            "screen": scheduled_work.format_scheduled_work(
+                registry, moment),
+            "explanation": scheduled_work.PLAIN_EXPLANATION,
+            "now": moment,
+        }
+
+    def get_scheduled_job(self, job_id: Any):
+        """The one held job an id names (M-105).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._scheduled_registry().get(job_id)
+
+    def get_scheduled_verdict(self, job_id: Any, now: Any = None):
+        """The one held job's verdict at a moment (M-105).
+
+        The verdict is the registry's own judgement,
+        against the job's recorded last run, so a
+        recorded run moves it exactly as a check
+        moves it. An unknown id raises KeyError.
+        """
+        from datetime import datetime
+
+        moment = datetime.now() if now is None else now
+        registry = self._scheduled_registry()
+        job = registry.get(job_id)
+        for verdict in registry.check(moment):
+            if verdict.job_id == job.job_id:
+                return verdict
+        raise KeyError(f"unknown scheduled job: {job_id!r}")
+
+    def register_scheduled_job(self, spec: Any = None,
+                               **kwargs: Any) -> dict[str, Any]:
+        """Register one scheduled job for the session (M-105).
+
+        *spec* is a ScheduledJob, a job mapping, or
+        field words given as keyword arguments - the
+        pure layer's ``build_scheduled_job`` readings.
+        The job is held as data only: registering
+        runs nothing and starts no timer. Returns the
+        held job's plain record.
+        """
+        from ..core import scheduled_work
+
+        job = scheduled_work.build_scheduled_job(spec, **kwargs)
+        return self._scheduled_registry().register(job).to_record()
+
+    def record_scheduled_run(self, job_id: Any,
+                             at: Any = None) -> dict[str, Any]:
+        """Record one real run moment for a held job (M-105).
+
+        The run lands at ``at`` or the current
+        moment. Time never runs backwards - the pure
+        registry refuses an earlier moment - and an
+        unknown id raises KeyError. Returns the held
+        job's plain record.
+        """
+        from datetime import datetime
+
+        moment = datetime.now() if at is None else at
+        updated = self._scheduled_registry().record_run(job_id, moment)
+        return updated.to_record()
+
+    def scheduled_check(self, now: Any = None) -> dict[str, Any]:
+        """Judge every held job once, and act (M-105).
+
+        Every job is judged at ``now`` (the current
+        moment when none is named) by the pure
+        layer's mechanical reading, against its own
+        recorded last run. Where a verdict owes an
+        action, its due record is published as a
+        ``scheduled_job_due`` session event - news,
+        never just a log line, and at most once per
+        job per owed due moment. Where the owed
+        action is a run, the job is carried out in
+        the world as a real background job through
+        the M-103 road (see
+        :meth:`_carry_scheduled_run`) and the run is
+        recorded on the registry at the judgement
+        moment, so the same slot is never owed
+        twice. A job that needs approval is
+        published as waiting and never run, and no
+        run is recorded for it. Returns the
+        verdicts, the due records, the background
+        jobs started, and the screen rendered after
+        any runs landed.
+        """
+        from datetime import datetime
+
+        from ..core import scheduled_work
+
+        moment = datetime.now() if now is None else now
+        registry = self._scheduled_registry()
+        verdicts = registry.check(moment)
+        records: list[dict[str, Any]] = []
+        started: list[dict[str, Any]] = []
+        for verdict in verdicts:
+            if verdict.action == "none":
+                continue
+            job = registry.get(verdict.job_id)
+            record = scheduled_work.due_record(verdict, job)
+            if record is None:
+                continue
+            records.append(record)
+            self._publish_scheduled_due(record)
+            if verdict.action == "run":
+                started.append(self._carry_scheduled_run(job, moment))
+        return {
+            "jobs": [j.to_record() for j in registry.list_jobs()],
+            "verdicts": [v.to_record() for v in verdicts],
+            "due_records": records,
+            "started": started,
+            "screen": scheduled_work.format_scheduled_work(
+                registry, moment),
+            "explanation": scheduled_work.PLAIN_EXPLANATION,
+            "now": moment,
+        }
+
+    def _carry_scheduled_run(self, job: Any,
+                             moment: Any) -> dict[str, Any]:
+        """Carry one due job out in the world (M-105).
+
+        The job's argv - a list of words, never a
+        shell string - is started as a real
+        background job through the M-103 road, in
+        the job's cwd when it names one. The run is
+        then recorded on the held registry at the
+        judgement moment: the moment the check found
+        owed is the moment the run answers. Returns
+        the started background job's plain record.
+        """
+        record = self.start_background_job({
+            "argv": list(job.argv),
+            "cwd": job.cwd,
+            "label": job.display_label,
+        })
+        registry = self._scheduled_registry()
+        try:
+            registry.record_run(job.job_id, moment)
+        except ValueError:
+            pass  # the run landed in the world; the
+            # registry's clock is the pure layer's to judge
+        return record
+
+    def _publish_scheduled_due(self, record: dict[str, Any]) -> None:
+        """Publish one owed due moment as session news (M-105).
+
+        The pure layer's due record - the
+        ``scheduled_job_due`` session event - is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each owed due moment is announced
+        at most once: the announcement is keyed by
+        the job, its due moment, and the action
+        owed, so the next slot's due moment is new
+        news while a repeated check of the same
+        moment is not.
+        """
+        announced = getattr(self, "_scheduled_announced", None)
+        if announced is None:
+            announced = set()
+            self._scheduled_announced = announced
+        key = (record["job_id"], record["due_at"], record["action"])
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    # -- M-106: headless fleet mode --
+
+    def _fleet_registry(self):
+        """The held fleet registry (M-106).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer fleet tasks in
+        registration order, with each task's recorded
+        verdict and artefact bundle alongside it. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        """
+        registry = getattr(self, "_fleet_mode_registry", None)
+        if registry is None:
+            from ..core.fleet_mode import FleetRegistry
+            registry = FleetRegistry()
+            self._fleet_mode_registry = registry
+        return registry
+
+    def fleet_status(self) -> dict[str, Any]:
+        """The held fleet, in plain data (M-106).
+
+        Every held task as its plain record, in
+        registration order, every recorded verdict,
+        every recorded artefact bundle, the fleet
+        verdict judged mechanically from those
+        verdicts, its honest exit code, the one screen
+        rendered from that same registry, and the
+        plain explanation. Reading changes nothing: a
+        status read never runs, records, or publishes.
+        """
+        from ..core import fleet_mode
+
+        registry = self._fleet_registry()
+        verdict = registry.fleet_verdict()
+        return {
+            "tasks": [t.to_record() for t in registry.list_tasks()],
+            "verdicts": [v.to_record() for v in registry.list_verdicts()],
+            "bundles": [b.to_record() for b in registry.list_bundles()],
+            "fleet_verdict": verdict.to_record(),
+            "exit_code": verdict.exit_code,
+            "verdict_screen": fleet_mode.format_fleet_verdict(registry),
+            "screen": fleet_mode.format_fleet_mode(registry),
+            "explanation": fleet_mode.PLAIN_EXPLANATION,
+        }
+
+    def get_fleet_task(self, task_id: Any):
+        """The one held task an id names (M-106).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._fleet_registry().get(task_id)
+
+    def get_fleet_verdict(self, task_id: Any):
+        """One held task's recorded verdict, or None (M-106).
+
+        The verdict is the one the fleet check
+        recorded from the task's real run; a task that
+        has not been run yet holds none. An unknown id
+        raises KeyError.
+        """
+        return self._fleet_registry().get_verdict(task_id)
+
+    def register_fleet_task(self, spec: Any = None,
+                            **kwargs: Any) -> dict[str, Any]:
+        """Register one fleet task for the session (M-106).
+
+        *spec* is a FleetTask, a task mapping, or field
+        words given as keyword arguments - the pure
+        layer's ``build_fleet_task`` readings. The task
+        is held as data only: registering runs nothing
+        and starts no process. A task names what to run
+        as an argv list - never a shell string - so a
+        prompt with no argv refuses plainly at this
+        boundary rather than being held as a run that
+        could ever be reported passed. Returns the
+        held task's plain record.
+        """
+        from ..core import fleet_mode
+
+        task = fleet_mode.build_fleet_task(spec, **kwargs)
+        return self._fleet_registry().register(task).to_record()
+
+    def record_fleet_bundle(self, spec: Any = None,
+                            **kwargs: Any) -> dict[str, Any]:
+        """Record one held task's artefact bundle (M-106).
+
+        The bundle names the task's artefacts, as data
+        only - no file is read or written. A task the
+        registry does not hold raises KeyError.
+        Returns the held bundle's plain record.
+        """
+        registry = self._fleet_registry()
+        return registry.record_bundle(spec, **kwargs).to_record()
+
+    def fleet_resume_plan(self,
+                          retry_failures: Any = False) -> dict[str, Any]:
+        """What remains to run, in plain data (M-106).
+
+        The plan is computed by the pure layer from the
+        recorded verdicts alone: a passed task is never
+        remaining; failed and error tasks remain only
+        when ``retry_failures`` is exactly True and are
+        otherwise held back and named. The resume news
+        record rides along - the pure layer's
+        ``fleet_resume`` record when something remains,
+        else None. Asking changes nothing: a plan read
+        never runs, records, or publishes.
+        """
+        from ..core import fleet_mode
+
+        registry = self._fleet_registry()
+        plan = registry.resume_plan(retry_failures)
+        return {
+            "plan": plan.to_record(),
+            "remaining": list(plan.remaining_ids),
+            "passed": list(plan.passed_ids),
+            "held_back": list(plan.held_back_ids),
+            "retry_failures": plan.retry_failures,
+            "news_record": registry.resume_record(retry_failures),
+            "screen": fleet_mode.format_resume_plan(plan),
+            "explanation": fleet_mode.PLAIN_EXPLANATION,
+        }
+
+    def fleet_check(self, retry_failures: Any = False,
+                    timeout: Any = None) -> dict[str, Any]:
+        """Carry the held fleet out in the world (M-106).
+
+        The pure layer's resume plan governs what runs:
+        a passed task is never run again, and failed or
+        error tasks run again only when
+        ``retry_failures`` is exactly True. Every
+        remaining task is started first - as a REAL
+        background job through the M-103 road, its argv
+        exec'd directly, never through a shell, in its
+        repo when it names one - so the fleet runs in
+        parallel; this call then waits for each job's
+        real ending and judges the task from that ending
+        alone (see :meth:`_judge_fleet_job`). A verdict
+        is never invented: a completed job passes its
+        task, a failed job fails it with the job's own
+        exit code, and a cancelled job - or one still
+        unfinished when a named ``timeout`` (in seconds)
+        runs out - is an error, with the reason stated
+        in words. Every verdict is recorded on the held
+        registry, every task completion is published as
+        a ``fleet_task_completed`` session event, and a
+        fleet verdict this check changed is published
+        as a ``fleet_verdict`` session event. Returns
+        the verdicts recorded by this check, the
+        background jobs started, the fleet verdict, its
+        honest exit code, and the screen rendered after
+        the runs landed.
+        """
+        from ..core import fleet_mode
+
+        registry = self._fleet_registry()
+        before = registry.fleet_verdict().to_record()
+        plan = registry.resume_plan(retry_failures)
+        started: list[dict[str, Any]] = []
+        job_ids: dict[str, str] = {}
+        for task_id in plan.remaining_ids:
+            task = registry.get(task_id)
+            record = self.start_background_job({
+                "argv": list(task.argv),
+                "cwd": task.cwd,
+                "label": task.display_label,
+            })
+            started.append(record)
+            job_ids[task_id] = record["job_id"]
+        deadline = None
+        if timeout is not None:
+            import time
+            deadline = time.monotonic() + float(timeout)
+        verdicts: list[dict[str, Any]] = []
+        for task_id in plan.remaining_ids:
+            task = registry.get(task_id)
+            job = self._wait_fleet_job(job_ids[task_id], deadline)
+            verdict = self._judge_fleet_job(task, job)
+            recorded = registry.record_verdict(verdict)
+            verdicts.append(recorded.to_record())
+            self._publish_fleet_completion(recorded, job_ids[task_id])
+        after = registry.fleet_verdict()
+        if after.to_record() != before:
+            self._publish_fleet_verdict(after)
+        return {
+            "tasks": [t.to_record() for t in registry.list_tasks()],
+            "verdicts": verdicts,
+            "started": started,
+            "fleet_verdict": after.to_record(),
+            "exit_code": after.exit_code,
+            "screen": fleet_mode.format_fleet_mode(registry),
+            "explanation": fleet_mode.PLAIN_EXPLANATION,
+        }
+
+    def _wait_fleet_job(self, job_id: str, deadline: Any):
+        """Wait for one background job's real ending (M-106).
+
+        Polls the held M-103 registry until the job
+        reaches a terminal state and returns the job;
+        when a deadline is named and passes first,
+        returns None - the caller judges that an error
+        in words rather than inventing an outcome. With
+        no deadline the wait is for the job's own
+        ending, however long it takes.
+        """
+        import time
+
+        while True:
+            job = self.get_background_job(job_id)
+            if job.is_terminal:
+                return job
+            if deadline is not None and time.monotonic() >= deadline:
+                return None
+            time.sleep(0.02)
+
+    def _judge_fleet_job(self, task: Any, job: Any):
+        """Judge one fleet task from its job's ending (M-106).
+
+        The verdict is the background job's own outcome,
+        read mechanically: completed is passed with the
+        job's exit code (0, as the pure layer requires
+        of a completed job), failed is failed with the
+        job's own exit code, and cancelled - or no
+        ending at all before the wait ran out - is an
+        error, with the reason stated in the verdict's
+        own words. Nothing here passes a task the world
+        did not pass.
+        """
+        from ..core.fleet_mode import build_task_verdict
+
+        if job is None:
+            return build_task_verdict({
+                "task_id": task.task_id, "status": "error",
+                "detail": "the background job did not finish "
+                          "before the fleet wait ran out; no "
+                          "outcome was invented for it"})
+        if job.state == "completed":
+            return build_task_verdict({
+                "task_id": task.task_id, "status": "passed",
+                "exit_code": job.exit_code})
+        if job.state == "failed":
+            return build_task_verdict({
+                "task_id": task.task_id, "status": "failed",
+                "exit_code": job.exit_code,
+                "detail": f"the command ended failed with "
+                          f"exit code {job.exit_code}"})
+        return build_task_verdict({
+            "task_id": task.task_id, "status": "error",
+            "exit_code": job.exit_code,
+            "detail": f"the background job ended {job.state} "
+                      "before the command finished"})
+
+    def _publish_fleet_completion(self, verdict: Any,
+                                  job_id: str) -> None:
+        """Publish one task's completion as session news (M-106).
+
+        The ``fleet_task_completed`` session event is
+        journaled through the same checkpoint road every
+        sibling slice uses, when a session is attached.
+        Each run is announced at most once: the
+        announcement is keyed by the background job that
+        carried the task out, so a retried task's new run
+        is new news while the same run's ending can never
+        be announced twice.
+        """
+        from ..core import fleet_mode
+
+        announced = getattr(self, "_fleet_announced", None)
+        if announced is None:
+            announced = set()
+            self._fleet_announced = announced
+        if job_id in announced:
+            return
+        announced.add(job_id)
+        if self._session_store and self.session_id:
+            task = self._fleet_registry().get(verdict.task_id)
+            self._checkpoint({
+                "type": "fleet_task_completed",
+                "news": True,
+                "surface": "session_event",
+                "slice": fleet_mode.FLEET_MODE_SLICE,
+                "task_id": verdict.task_id,
+                "label": verdict.label,
+                "status": verdict.status,
+                "exit_code": verdict.exit_code,
+                "headline": fleet_mode.format_fleet_task(task, verdict),
+            })
+
+    def _publish_fleet_verdict(self, verdict: Any) -> None:
+        """Publish a changed fleet verdict as session news (M-106).
+
+        The ``fleet_verdict`` session event - the pure
+        layer's own verdict record, with its news words
+        added - is journaled through the same checkpoint
+        road every sibling slice uses, when a session is
+        attached. It is published only by a check that
+        changed the verdict, so an unchanged fleet is
+        never announced again.
+        """
+        from ..core import fleet_mode
+
+        if self._session_store and self.session_id:
+            record = verdict.to_record()
+            record["news"] = True
+            record["surface"] = "session_event"
+            record["headline"] = fleet_mode.format_fleet_verdict(verdict)
+            self._checkpoint(record)
+
+    # -- M-107: budgets as guardrails --
+
+    def _budget_registry(self):
+        """The held budget registry (M-107).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer budgets in registration
+        order, with each budget's latest recorded
+        usage reading alongside it. It is created on
+        first use, so an agent whose ``__init__`` never
+        ran still holds exactly one; the moment it is
+        created is also stamped, so the session's
+        elapsed time can be read from a real clock
+        (see :meth:`budget_live_usage`).
+        """
+        registry = getattr(self, "_budgets_registry", None)
+        if registry is None:
+            import time
+
+            from ..core.budgets import BudgetRegistry
+            registry = BudgetRegistry()
+            self._budgets_registry = registry
+            self._budgets_clock_started = time.time()
+        return registry
+
+    def budget_status(self) -> dict[str, Any]:
+        """The held budgets, in plain data (M-107).
+
+        Every held budget as its plain record, in
+        registration order, every budget's recorded
+        usage reading (or None where none is held),
+        every verdict judged mechanically from the
+        recorded readings, the one screen rendered
+        from that same registry, and the plain
+        explanation. Judging changes nothing: a
+        status read never records, pauses, or
+        publishes.
+        """
+        from ..core import budgets
+
+        registry = self._budget_registry()
+        usage: dict[str, Any] = {}
+        for budget in registry.list_budgets():
+            reading = registry.get_usage(budget.budget_id)
+            usage[budget.budget_id] = (
+                reading.to_record() if reading is not None else None)
+        return {
+            "budgets": [b.to_record() for b in registry.list_budgets()],
+            "usage": usage,
+            "verdicts": [v.to_record() for v in registry.list_verdicts()],
+            "screen": budgets.format_budgets_screen(registry),
+            "explanation": budgets.PLAIN_EXPLANATION,
+        }
+
+    def get_budget(self, budget_id: Any):
+        """The one held budget an id names (M-107).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._budget_registry().get(budget_id)
+
+    def get_budget_usage(self, budget_id: Any):
+        """One held budget's recorded usage, or None (M-107).
+
+        The reading is the one recorded on the
+        registry - by :meth:`record_budget_usage` or
+        :meth:`refresh_budget_usage`; a budget with
+        no recorded reading holds none. An unknown
+        id raises KeyError.
+        """
+        return self._budget_registry().get_usage(budget_id)
+
+    def get_budget_verdict(self, budget_id: Any):
+        """The one held budget's verdict, judged now (M-107).
+
+        The verdict is the registry's own judgement
+        against the budget's recorded reading, so a
+        recorded reading moves it exactly as a check
+        moves it. An unknown id raises KeyError.
+        """
+        return self._budget_registry().check(budget_id)
+
+    def register_budget(self, spec: Any = None,
+                        **kwargs: Any) -> dict[str, Any]:
+        """Register one budget for the session (M-107).
+
+        *spec* is a Budget, a budget mapping, or
+        field words given as keyword arguments - the
+        pure layer's ``build_budget`` readings. The
+        budget is held as data only: registering
+        spends nothing, records no usage, and pauses
+        nothing. A budget names no default limits -
+        a dimension it leaves unnamed is unlimited
+        on that dimension. Returns the held budget's
+        plain record.
+        """
+        from ..core import budgets
+
+        budget = budgets.build_budget(spec, **kwargs)
+        return self._budget_registry().register(budget).to_record()
+
+    def record_budget_usage(self, budget_id: Any, spec: Any = None,
+                            **kwargs: Any) -> dict[str, Any]:
+        """Record one real usage reading for a held budget (M-107).
+
+        *spec* is a BudgetUsage, a usage mapping, or
+        usage field words - the pure layer's
+        ``build_usage`` readings, in the costs road's
+        vocabulary (tokens counted, cost in US
+        dollars, elapsed time in seconds, commands
+        counted). The reading replaces the budget's
+        latest held reading; recording judges
+        nothing and publishes nothing - the pause,
+        when one is owed, is carried out by
+        :meth:`budget_check` at its resting point.
+        A budget the registry does not hold raises
+        KeyError. Returns the recorded reading's
+        plain record.
+        """
+        registry = self._budget_registry()
+        return registry.record_usage(
+            budget_id, spec, **kwargs).to_record()
+
+    def budget_live_usage(self):
+        """The session's real usage reading, from the real roads (M-107).
+
+        Every number is read from a road that really
+        counted it - nothing here is invented:
+        tokens and cost come from the costs road
+        (``core/costs.py``), as its workspace
+        ledger's recorded token sums and its total
+        cost in dollars (a model its pricing table
+        does not know is billed unknown at zero
+        there, so no price is invented here either);
+        elapsed time is the real clock time since
+        this session's budget guardrails were first
+        held; commands are the held background jobs -
+        the session's real command road (M-103) -
+        counted as they are held. Reading changes
+        nothing: no reading is recorded by asking.
+        """
+        import time
+
+        from ..core.budgets import BudgetUsage
+        from ..core.costs import CostTracker
+
+        self._budget_registry()
+        tracker = CostTracker(self.project_root)
+        tokens = 0
+        for aggregate in tracker.by_model().values():
+            tokens += aggregate["input_tokens"] + aggregate["output_tokens"]
+        commands = 0
+        background = getattr(self, "_background_registry", None)
+        if background is not None:
+            commands = len(background.list_jobs())
+        started = getattr(self, "_budgets_clock_started", time.time())
+        return BudgetUsage(
+            tokens_used=tokens,
+            cost_used=tracker.total(),
+            time_used_seconds=max(0.0, time.time() - started),
+            commands_used=commands)
+
+    def refresh_budget_usage(self, budget_id: Any) -> dict[str, Any]:
+        """Feed one held budget the session's real usage (M-107).
+
+        The live reading (see :meth:`budget_live_usage`)
+        is recorded as the budget's latest reading,
+        replacing any older one. A budget the
+        registry does not hold raises KeyError.
+        Returns the recorded reading's plain record.
+        """
+        registry = self._budget_registry()
+        return registry.record_usage(
+            budget_id, self.budget_live_usage()).to_record()
+
+    def budget_check(self, budget_id: Any = None) -> dict[str, Any]:
+        """Judge the held budgets once, and act (M-107).
+
+        Every held budget - or the one budget an id
+        names - is judged against its recorded
+        reading by the pure layer's mechanical
+        reading. Where a verdict is exceeded, the
+        budget is carried out in the world as a
+        graceful pause at this resting point: the
+        pure layer's ``budget_paused`` record is
+        published as a ``budget_paused`` session
+        event - news, never just a log line, and at
+        most once per budget per exceeded moment -
+        and the budget is named among the paused in
+        the return. A warning verdict rides along
+        as its ``budget_report`` record, as data.
+        Nothing is killed mid-edit and no in-flight
+        work is interrupted: the pause lands here,
+        between pieces of work, exactly as the pure
+        layer's headline states it. An unknown id
+        raises KeyError. Returns the verdicts, the
+        pause records, the report records, the
+        paused budget ids, and the screen rendered
+        after the judgements landed.
+        """
+        from ..core import budgets
+
+        registry = self._budget_registry()
+        if budget_id is not None:
+            verdicts = [registry.check(budget_id)]
+        else:
+            verdicts = list(registry.list_verdicts())
+        paused: list[dict[str, Any]] = []
+        reports: list[dict[str, Any]] = []
+        for verdict in verdicts:
+            record = budgets.budget_report_record(None, None, verdict)
+            if record is None:
+                continue
+            if record["type"] == "budget_paused":
+                paused.append(record)
+                self._publish_budget_paused(record)
+            else:
+                reports.append(record)
+        return {
+            "budgets": [b.to_record() for b in registry.list_budgets()],
+            "verdicts": [v.to_record() for v in verdicts],
+            "paused": paused,
+            "reports": reports,
+            "paused_ids": [record["budget_id"] for record in paused],
+            "screen": budgets.format_budgets_screen(registry),
+            "explanation": budgets.PLAIN_EXPLANATION,
+        }
+
+    def _publish_budget_paused(self, record: dict[str, Any]) -> None:
+        """Publish one reached budget as session news (M-107).
+
+        The pure layer's paused record - the
+        ``budget_paused`` session event - is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each exceeded moment is announced
+        at most once: the announcement is keyed by
+        the budget, the dimensions it exceeded, and
+        the amounts it was read at, so a budget that
+        spends further past its limit is a new
+        exceeded moment and new news, while a
+        repeated check of the same reading is not.
+        """
+        from ..core import budgets
+
+        announced = getattr(self, "_budget_announced", None)
+        if announced is None:
+            announced = set()
+            self._budget_announced = announced
+        readings = record["readings"]
+        key = (
+            record["budget_id"],
+            tuple(record["exceeded"]),
+            tuple(
+                (dimension, readings[dimension]["used"])
+                for dimension in budgets.BUDGET_DIMENSIONS),
+        )
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    # -- M-108: the kill switch everywhere --
+
+    def _kill_switch_registry(self):
+        """The held kill-switch registry (M-108).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer halts in the order
+        pulled, with the verdict each pull earned
+        alongside it. It is created on first use, so
+        an agent whose ``__init__`` never ran still
+        holds exactly one.
+        """
+        registry = getattr(self, "_kill_switch_halts_registry", None)
+        if registry is None:
+            from ..core.kill_switch import HaltRegistry
+            registry = HaltRegistry()
+            self._kill_switch_halts_registry = registry
+        return registry
+
+    def kill_switch_status(self) -> dict[str, Any]:
+        """The pulled halts, in plain data (M-108).
+
+        Every held halt as its plain record, in the
+        order pulled, every judged verdict held
+        alongside its halt, the one screen rendered
+        from that same registry, and the plain
+        explanation. Reading changes nothing: a
+        status read registers, judges, halts, or
+        publishes nothing.
+        """
+        from ..core import kill_switch
+
+        registry = self._kill_switch_registry()
+        return {
+            "halts": [h.to_record() for h in registry.list_halts()],
+            "verdicts": [v.to_record() for v in registry.list_verdicts()],
+            "screen": kill_switch.format_halts_screen(registry),
+            "explanation": kill_switch.PLAIN_EXPLANATION,
+        }
+
+    def get_halt(self, halt_id: Any):
+        """The one held halt an id names (M-108).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._kill_switch_registry().get(halt_id)
+
+    def get_halt_verdict(self, halt_id: Any):
+        """One held halt's judged verdict, or None (M-108).
+
+        The verdict is the historical reading judged
+        at the halt's pull, against that moment's
+        holdings - it is never re-judged from later
+        holdings. A halt that has not been pulled
+        through :meth:`pull_kill_switch` holds no
+        verdict. An unknown id raises KeyError.
+        """
+        return self._kill_switch_registry().get_verdict(halt_id)
+
+    def _kill_switch_holdings(self):
+        """The session's real holdings, from the real roads (M-108).
+
+        Every reading comes from a road that really
+        holds it - nothing here is invented:
+
+        * the coder is active when its turn lock is
+          held - a turn in flight holds it;
+        * background jobs are the held M-103 jobs,
+          each with its real lifecycle state;
+        * crew tasks are the held M-106 tasks: a task
+          with a finished verdict is finished, a task
+          backed by a live background job (the road a
+          fleet check runs a task through, the job
+          carrying the task's display label) is
+          running, and any other task is merely
+          queued - a plan, not running work;
+        * pending approvals are read from the
+          approval road itself: approvals are asked
+          one at a time under the tools layer's
+          approval lock, so a pending approval exists
+          exactly while that lock is held, and there
+          is never more than one.
+
+        Reading changes nothing.
+        """
+        from ..core.kill_switch import build_holdings
+
+        turn_lock = getattr(self, "_turn_lock", None)
+        coder_active = bool(
+            turn_lock is not None and turn_lock.locked())
+        jobs: list = []
+        background = getattr(self, "_background_registry", None)
+        if background is not None:
+            jobs = [
+                (job.job_id, job.state)
+                for job in background.list_jobs()]
+        crew: list = []
+        fleet = getattr(self, "_fleet_mode_registry", None)
+        if fleet is not None:
+            active_labels = set()
+            if background is not None:
+                for job in background.list_jobs():
+                    if job.state in ("queued", "running"):
+                        active_labels.add(job.label)
+            for task in fleet.list_tasks():
+                verdict = fleet.get_verdict(task.task_id)
+                status = verdict.status if verdict is not None else None
+                if status in ("passed", "failed", "error", "skipped"):
+                    crew.append((task.task_id, status))
+                elif task.display_label in active_labels:
+                    crew.append((task.task_id, "running"))
+                else:
+                    crew.append((task.task_id, "queued"))
+        pending = 0
+        try:
+            from . import tools as _agent_tools
+
+            if _agent_tools._approval_lock.locked():
+                pending = 1
+        except Exception:
+            pending = 0
+        return build_holdings({
+            "coder_active": coder_active,
+            "background_jobs": jobs,
+            "crew_tasks": crew,
+            "pending_approvals": pending})
+
+    def pull_kill_switch(self, spec: Any = None,
+                         **kwargs: Any) -> dict[str, Any]:
+        """Pull the kill switch, and carry the halt out (M-108).
+
+        *spec* is a Halt, a halt mapping, or field
+        words - the pure layer's ``build_halt``
+        readings; with nothing named, the halt names
+        all four targets. The halt is registered,
+        the session's holdings are read from the real
+        roads (see :meth:`_kill_switch_holdings`),
+        and the pure layer judges the pull against
+        that moment's holdings. The halt is then
+        carried out in the world through the real
+        roads, for the targets named:
+
+        * background jobs - every held job the
+          holdings showed live is killed through the
+          M-103 road (:meth:`kill_background_job`:
+          the kill is recorded as a request, the real
+          process is terminated, the kill is applied
+          and the job's completion is published);
+        * the crew - a running crew task is carried
+          by a background job, so its job is killed
+          through that same road; a crew with no live
+          backing job has nothing running to kill,
+          and the verdict says so (nothing held, or
+          already stopped) rather than claiming a
+          halt that never happened;
+        * the coder and pending approvals - the
+          coder's own cancellation event is set
+          (:meth:`cancel`): in-flight work stops at
+          the next runtime boundary, and a pending
+          approval, which waits on that same event,
+          is refused - it raises its cancellation and
+          is never answered as approved. There is no
+          separate approval road to fake: refusing an
+          approval rides the coder's cancellation
+          event because that is the road approvals
+          are bound to.
+
+        The pure layer's ``kill_switch_pulled`` record
+        is published as session news through the
+        checkpoint road, and the return names the
+        jobs actually killed and any kill that
+        refused, in words. Returns the halt, its
+        verdict, the news record, the killed job ids,
+        the kill refusals, whether the cancellation
+        event was set, the screen rendered after the
+        pull landed, and the plain explanation.
+        """
+        from ..core import kill_switch
+
+        halt = kill_switch.build_halt(spec, **kwargs)
+        registry = self._kill_switch_registry()
+        held = registry.register(halt)
+        holdings = self._kill_switch_holdings()
+        verdict = registry.judge(held.halt_id, holdings)
+        record = registry.record(held.halt_id)
+        targets = set(held.targets)
+        killed: list[str] = []
+        kill_errors: list[str] = []
+        if targets & {"background_jobs", "crew"}:
+            background = getattr(self, "_background_registry", None)
+            if background is not None:
+                if "background_jobs" in targets:
+                    wanted = list(holdings.background_active_ids)
+                else:
+                    running = set(holdings.crew_running_ids)
+                    labels = set()
+                    fleet = getattr(self, "_fleet_mode_registry", None)
+                    if fleet is not None:
+                        for task in fleet.list_tasks():
+                            if task.task_id in running:
+                                labels.add(task.display_label)
+                    wanted = [
+                        job.job_id for job in background.list_jobs()
+                        if job.state in ("queued", "running")
+                        and job.label in labels]
+                for job_id in wanted:
+                    try:
+                        self.kill_background_job(
+                            job_id, held.reason or "kill switch pulled")
+                        killed.append(job_id)
+                    except Exception as exc:
+                        kill_errors.append(f"{job_id}: {exc}")
+        cancel_set = False
+        if targets & {"coder", "approvals"}:
+            self.cancel()
+            cancel_set = True
+        self._publish_kill_switch_pulled(record)
+        return {
+            "halt": held.to_record(),
+            "verdict": verdict.to_record(),
+            "record": record,
+            "killed_job_ids": killed,
+            "kill_errors": kill_errors,
+            "cancel_set": cancel_set,
+            "screen": kill_switch.format_halts_screen(registry),
+            "explanation": kill_switch.PLAIN_EXPLANATION,
+        }
+
+    def _publish_kill_switch_pulled(self, record: dict[str, Any]) -> None:
+        """Publish one pulled switch as session news (M-108).
+
+        The pure layer's ``kill_switch_pulled`` record
+        is journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each pull is announced at most
+        once: the announcement is keyed by the halt
+        id, and every pull holds a fresh id.
+        """
+        announced = getattr(self, "_kill_switch_announced", None)
+        if announced is None:
+            announced = set()
+            self._kill_switch_announced = announced
+        if record["halt_id"] in announced:
+            return
+        announced.add(record["halt_id"])
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    # -- M-109: the audit trail --
+
+    def _audit_registry(self):
+        """The held audit registry (M-109).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer audit entries in append
+        order. It is created on first use, so an agent
+        whose ``__init__`` never ran still holds
+        exactly one.
+        """
+        registry = getattr(self, "_audit_trail_registry", None)
+        if registry is None:
+            from ..core.audit_trail import AuditRegistry
+            registry = AuditRegistry()
+            self._audit_trail_registry = registry
+        return registry
+
+    def audit_status(self) -> dict[str, Any]:
+        """The audit trail, in plain data (M-109).
+
+        Every held entry as its plain record, in
+        append order, the whole-trail export rendered
+        from that same registry, the one screen, and
+        the plain explanation. Reading changes
+        nothing: a status read appends nothing and
+        publishes nothing.
+        """
+        from ..core import audit_trail
+
+        registry = self._audit_registry()
+        return {
+            "entries": [e.to_record() for e in registry.list_entries()],
+            "export": registry.export(),
+            "screen": audit_trail.format_audit_screen(registry),
+            "explanation": audit_trail.PLAIN_EXPLANATION,
+        }
+
+    def get_audit_entry(self, entry_id: Any):
+        """The one held entry an id names (M-109).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._audit_registry().get(entry_id)
+
+    def audit_export(self) -> dict[str, Any]:
+        """The whole trail, exported for review (M-109).
+
+        The export as plain data - every held entry,
+        in append order, with the counts by kind and
+        by actor - and as the pure layer's text
+        export, both from that same registry.
+        Exporting changes nothing and publishes
+        nothing: asking reads the trail out, it does
+        not carry it anywhere.
+        """
+        from ..core import audit_trail
+
+        registry = self._audit_registry()
+        return {
+            "export": registry.export(),
+            "text": audit_trail.format_export(registry),
+            "screen": audit_trail.format_audit_screen(registry),
+            "explanation": audit_trail.PLAIN_EXPLANATION,
+        }
+
+    def record_audit_entry(self, spec: Any = None,
+                           **kwargs: Any) -> dict[str, Any]:
+        """Record one entry on the session's trail (M-109).
+
+        *spec* is an AuditEntry, an entry mapping, or
+        entry field words - the pure layer's
+        ``build_entry`` readings. The entry is
+        appended to the held trail (append-only: an
+        id the trail already holds refuses, exactly
+        as the pure registry refuses) and its
+        ``audit_recorded`` record is published as
+        session news through the checkpoint road.
+        This is the explicit road: it records exactly
+        the act its caller names, so callers name
+        real acts only - the session's own acts are
+        fed by the feeding roads below, as they
+        happen. Returns the held entry, its news
+        record, the screen rendered after the entry
+        landed, and the plain explanation.
+        """
+        from ..core import audit_trail
+
+        entry = audit_trail.build_entry(spec, **kwargs)
+        registry = self._audit_registry()
+        held = registry.append(entry)
+        record = registry.record(held.entry_id)
+        self._publish_audit_record(record)
+        return {
+            "entry": held.to_record(),
+            "record": record,
+            "screen": audit_trail.format_audit_screen(registry),
+            "explanation": audit_trail.PLAIN_EXPLANATION,
+        }
+
+    def _record_audit_note(self, kind: str, actor: str,
+                           summary: str, target: str = "",
+                           detail: str = "") -> None:
+        """Feed one real act to the trail (M-109).
+
+        The feeding roads call this as an act happens.
+        Recording never breaks the road it rides on:
+        a note that cannot be recorded is dropped, and
+        the act itself - which already happened, or
+        was already refused - stays the truth owed.
+        The explicit road (:meth:`record_audit_entry`)
+        refuses loudly instead; only these
+        as-it-happens notes are silent.
+        """
+        try:
+            registry = self._audit_registry()
+            held = registry.append({
+                "kind": kind, "actor": actor,
+                "summary": summary, "target": target,
+                "detail": detail})
+            self._publish_audit_record(registry.record(held.entry_id))
+        except Exception:
+            pass  # the act is the truth owed, not the note
+
+    def _note_audit_tool_call(self, name: str,
+                              arguments: dict[str, Any],
+                              outcome: str) -> None:
+        """Trail one executed tool call (M-109).
+
+        Called once per call from
+        :meth:`_execute_call`, the funnel every tool
+        call in a session travels. The kind is the
+        tool's own: ``run_command`` is a command,
+        ``write_file`` and ``replace_file_content``
+        are edits, every other tool is a tool call.
+        The actor is the coder - or the crew, when
+        this agent is a named subagent rather than
+        the Primary: a spawned agent's acts are crew
+        acts, and its trail says so. The target names
+        what the act touched - the command line, the
+        file, or the tool - and the detail is the
+        outcome word alone; a tool result's text is
+        never trailed, because a result may be a
+        whole file's contents. Programmatic
+        ``apply_*`` edit calls under the funnel are
+        the machinery an edit travels, not separate
+        session acts, and are not trailed separately -
+        the tool call that drove them is.
+        """
+        actor = "coder" if self.name == "Primary" else "crew"
+        if name == "run_command":
+            command = arguments.get("command")
+            target = (command.strip()[:200]
+                      if isinstance(command, str) else "")
+            summary = (f"ran command {target}" if target
+                       else "ran a command with run_command")
+            self._record_audit_note(
+                "command", actor, summary, target=target,
+                detail=outcome)
+        elif name in ("write_file", "replace_file_content"):
+            path = arguments.get("path")
+            target = (path.strip()[:200]
+                      if isinstance(path, str) else "")
+            summary = (f"edited {target} with {name}" if target
+                       else f"edited a file with {name}")
+            self._record_audit_note(
+                "edit", actor, summary, target=target,
+                detail=outcome)
+        else:
+            self._record_audit_note(
+                "tool_call", actor, f"ran tool {name}",
+                target=name, detail=outcome)
+
+    def _note_audit_approval(self, name: str, approved: bool,
+                             via: str) -> None:
+        """Trail one human approval decision (M-109).
+
+        Called from the approval callbacks the tree
+        actually builds - the TUI road in
+        :meth:`bind_tui` and the terminal road in
+        ``terminal.configured_agent`` - at the moment
+        the human's answer lands: a remembered
+        approval answering, or the prompt answered
+        granted or refused. The actor is the human.
+        A decision never reached (a prompt cancelled
+        before any answer) is not an approval and is
+        never trailed as one.
+        """
+        word = "approved" if approved else "refused"
+        self._record_audit_note(
+            "approval", "human", f"{word} tool {name}",
+            target=name, detail=f"{word} via {via}")
+
+    def _note_audit_background_job(self, job_id: str) -> None:
+        """Trail one started background command (M-109).
+
+        Called from :meth:`start_background_job` where
+        the job visibly lives - started, or refused
+        by the OS before it could start (its honest
+        127 ending, held as a failed job). The actor
+        is the crew when the job carries a held fleet
+        task's display label - the reading M-108's
+        holdings use to tell running crew work - and
+        the coder otherwise: a fleet command is crew
+        work, and the trail says which it was rather
+        than guessing.
+        """
+        try:
+            job = self._background_jobs().get(job_id)
+        except Exception:
+            return
+        actor = "coder"
+        fleet = getattr(self, "_fleet_mode_registry", None)
+        if fleet is not None:
+            try:
+                labels = {t.display_label
+                          for t in fleet.list_tasks()}
+            except Exception:
+                labels = set()
+            if job.label in labels:
+                actor = "crew"
+        self._record_audit_note(
+            "command", actor,
+            f"started background command {job.label}",
+            target=job.spec.command_text[:200],
+            detail=f"background job {job.job_id} ({job.state})")
+
+    def _note_audit_hook(self, hook: Any, verdict: Any) -> None:
+        """Trail one hook run (M-109).
+
+        Called from :meth:`run_hooks` as each hook's
+        run is judged: a hook run is a command, and
+        its actor is the hook. Hooks fire only
+        through ``run_hooks`` in this tree - there is
+        no other hook firing road - so no hook act is
+        trailed from anywhere else.
+        """
+        self._record_audit_note(
+            "command", "hook",
+            f"ran hook {verdict.hook} for {verdict.event}",
+            target=str(hook.command)[:200],
+            detail=(f"decision {verdict.decision}, "
+                    f"exit {verdict.exit_code}"))
+
+    def _publish_audit_record(self, record: dict[str, Any]) -> None:
+        """Publish one recorded entry as session news (M-109).
+
+        The pure layer's ``audit_recorded`` record is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each entry is announced at most
+        once: the announcement is keyed by the entry
+        id, and every appended entry holds a fresh id.
+        """
+        announced = getattr(self, "_audit_announced", None)
+        if announced is None:
+            announced = set()
+            self._audit_announced = announced
+        if record["entry_id"] in announced:
+            return
+        announced.add(record["entry_id"])
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
+    # -- M-110: secret hygiene in action --
+
+    def _hygiene_registry(self):
+        """The held secret-hygiene registry (M-110).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer file screenings in the
+        order judged. It is created on first use, so
+        an agent whose ``__init__`` never ran still
+        holds exactly one.
+        """
+        registry = getattr(self, "_secret_hygiene_registry", None)
+        if registry is None:
+            from ..core.secret_hygiene import HygieneRegistry
+            registry = HygieneRegistry()
+            self._secret_hygiene_registry = registry
+        return registry
+
+    def secret_hygiene_status(self) -> dict[str, Any]:
+        """Secret hygiene, in plain data (M-110).
+
+        Every held screening as its plain record, in
+        the order judged, the one screen rendered
+        from that same registry, and the plain
+        explanation. Reading changes nothing: a
+        status read screens, registers, or publishes
+        nothing.
+        """
+        from ..core import secret_hygiene
+
+        registry = self._hygiene_registry()
+        return {
+            "screenings": [s.to_record() for s in registry.list_screenings()],
+            "screen": secret_hygiene.format_secrets_screen(registry),
+            "explanation": secret_hygiene.PLAIN_EXPLANATION,
+        }
+
+    def get_screening(self, screening_id: Any):
+        """The one held screening an id names (M-110).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._hygiene_registry().get(screening_id)
+
+    def screen_file(self, filename: Any, text: Any = "") -> dict[str, Any]:
+        """Screen one file for commit, and hold the verdict (M-110).
+
+        The file's name and text are judged by the
+        pure layer and the verdict is held for the
+        session. A refused verdict is published as a
+        ``secret_refusal`` session event through the
+        checkpoint road - a refusal is always news,
+        never lost as a log line. The screened text is
+        read only to locate secret shapes in it: the
+        held verdict names the file and the pattern
+        kinds only, and the content is never stored,
+        logged or shown. Returns the held screening,
+        its refusal record (None when clean), the
+        screen rendered after the verdict landed, and
+        the plain explanation.
+        """
+        from ..core import secret_hygiene
+
+        registry = self._hygiene_registry()
+        held = registry.screen(filename, text)
+        record = registry.record(held.screening_id)
+        self._publish_secret_refusal(record)
+        return {
+            "screening": held.to_record(),
+            "record": record,
+            "screen": secret_hygiene.format_secrets_screen(registry),
+            "explanation": secret_hygiene.PLAIN_EXPLANATION,
+        }
+
+    def screen_project_file(self, filename: Any) -> dict[str, Any]:
+        """Screen one real file in the project (M-110).
+
+        The named file is read from the project root
+        and screened through :meth:`screen_file`. A
+        name that escapes the project, or a file the
+        project does not hold, refuses plainly and
+        screens nothing - a file that cannot be read
+        cannot honestly be screened for content.
+        """
+        from pathlib import Path
+
+        name = str(filename).strip()
+        root = Path(self.project_root).resolve()
+        candidate = (root / name).resolve()
+        if candidate != root and root not in candidate.parents:
+            raise ValueError(
+                f"secret hygiene can only screen files inside "
+                f"the project, got {filename!r}")
+        if not candidate.is_file():
+            raise ValueError(
+                f"no such file in the project to screen: {name}")
+        body = candidate.read_bytes().decode("utf-8", errors="replace")
+        return self.screen_file(name, body)
+
+    def redact_output(self, text: Any) -> str:
+        """One output text, hygiene-redacted (M-110).
+
+        The pure layer's redaction: every secret-shaped
+        span replaced with the one fixed marker, so the
+        returned text can never echo a secret the shapes
+        know. Ordinary text is returned untouched.
+        """
+        from ..core.secret_hygiene import redact_secrets
+
+        return redact_secrets(text)
+
+    def _hygiene_redact(self, text: str) -> str:
+        """Feed one real output through the hygiene redaction (M-110).
+
+        The feeding roads call this as an output is
+        produced. It composes with the shipped
+        redaction layer rather than replacing it: the
+        shipped layer (``core/redaction.py``) already
+        guards the logging road through
+        ``protect_logging``, session exports and
+        listings through ``SessionStore``'s sanitizer,
+        and terminal display through the agent's
+        redactor - all on the shipped scanner's shapes
+        plus configured and environment secrets. This
+        feeding adds the pure layer's wider reading
+        (the scanner's shapes plus the .env-style
+        assignment shape) on the road the shipped
+        layer does not itself pass through: a tool
+        result, at the funnel, before it enters the
+        transcript. Redaction here never breaks the
+        road it rides on: a text the pure layer
+        refuses (a non-text) is passed through the
+        shipped redactor instead, so an output is
+        never lost to a hygiene note.
+        """
+        try:
+            from ..core.secret_hygiene import redact_secrets
+
+            return redact_secrets(text)
+        except Exception:
+            try:
+                return self.redactor.text(text)
+            except Exception:
+                return text
+
+    def _publish_secret_refusal(self, record: Any) -> None:
+        """Publish one refused screening as session news (M-110).
+
+        The pure layer's ``secret_refusal`` record is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each screening's refusal is
+        announced at most once: the announcement is
+        keyed by the screening id, and every held
+        screening holds a fresh id. A clean screening
+        owes no news - its record is None and nothing
+        is published.
+        """
+        if record is None:
+            return
+        announced = getattr(self, "_secret_hygiene_announced", None)
+        if announced is None:
+            announced = set()
+            self._secret_hygiene_announced = announced
+        if record["screening_id"] in announced:
+            return
+        announced.add(record["screening_id"])
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    # -- M-111: destructive-command doctrine --
+
+    def _doctrine_registry(self):
+        """The held doctrine registry (M-111).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer judgements in the order
+        judged. It is created on first use, so an
+        agent whose ``__init__`` never ran still
+        holds exactly one.
+        """
+        registry = getattr(self, "_destructive_doctrine_registry", None)
+        if registry is None:
+            from ..core.destructive_doctrine import DoctrineRegistry
+            registry = DoctrineRegistry()
+            self._destructive_doctrine_registry = registry
+        return registry
+
+    def doctrine_status(self) -> dict[str, Any]:
+        """The doctrine judgements, in plain data (M-111).
+
+        Every held judgement as its plain record, in
+        the order judged, the one screen rendered
+        from that same registry, and the plain
+        explanation. Reading changes nothing: a
+        status read judges, registers, or publishes
+        nothing.
+        """
+        from ..core import destructive_doctrine
+
+        registry = self._doctrine_registry()
+        return {
+            "judgements": [j.to_record() for j in registry.list_judgements()],
+            "screen": destructive_doctrine.format_doctrine_screen(registry),
+            "explanation": destructive_doctrine.PLAIN_EXPLANATION,
+        }
+
+    def get_judgement(self, judgement_id: Any):
+        """The one held judgement an id names (M-111).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._doctrine_registry().get(judgement_id)
+
+    def judge_command(self, command: Any, argv: Any = None) -> dict[str, Any]:
+        """Judge one command against the ladder, and hold it (M-111).
+
+        The command is judged by the pure layer and
+        the judgement is held for the session. A
+        judgement on the costly or irreversible rung
+        is published as a ``destructive_act`` session
+        event through the checkpoint road - its
+        headline names an irreversible act's targets
+        in plain words first. Judging runs nothing:
+        the shipped sandbox denylist and the
+        permission-profile roads still refuse and ask
+        on the execution road exactly as before; this
+        layer classifies and announces, it does not
+        replace them. Returns the held judgement, its
+        news record, the screen rendered after the
+        judgement landed, and the plain explanation.
+        """
+        from ..core import destructive_doctrine
+
+        registry = self._doctrine_registry()
+        held = registry.judge(command, argv)
+        record = registry.record(held.judgement_id)
+        self._publish_doctrine_record(record)
+        return {
+            "judgement": held.to_record(),
+            "record": record,
+            "screen": destructive_doctrine.format_doctrine_screen(registry),
+            "explanation": destructive_doctrine.PLAIN_EXPLANATION,
+        }
+
+    def _note_doctrine_command(self, name: str,
+                               arguments: dict[str, Any]) -> None:
+        """Judge one real command on the funnel (M-111).
+
+        Called once per call from
+        :meth:`_execute_call`, the funnel every tool
+        call in a session travels, beside the M-109
+        audit note. Only ``run_command`` carries a
+        command to judge - every other tool is not a
+        command, and this layer judges commands
+        alone. The judgement is held for the session
+        whatever the call's outcome was: a command
+        the sandbox denylist refused was still
+        judged, and its rung is still the truth owed.
+        Judging never breaks the road it rides on: a
+        command that cannot be judged is dropped,
+        and the call itself stays the truth owed.
+        """
+        if name != "run_command":
+            return
+        command = arguments.get("command")
+        if not isinstance(command, str) or not command.strip():
+            return
+        try:
+            registry = self._doctrine_registry()
+            held = registry.judge(command.strip())
+            self._publish_doctrine_record(
+                registry.record(held.judgement_id))
+        except Exception:
+            pass  # the call is the truth owed, not the judgement
+
+    def _publish_doctrine_record(self, record: dict[str, Any]) -> None:
+        """Publish one weighty judgement as session news (M-111).
+
+        The pure layer's ``destructive_act`` record is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached - for the rungs that carry weight:
+        a costly act, and an irreversible act whose
+        headline names its targets in plain words
+        first. A reversible act needs no approval and
+        owes no news, and an unclassified command is
+        held and shown on the screen but never
+        announced as an act this layer understands.
+        Each judgement is announced at most once: the
+        announcement is keyed by the judgement id,
+        and every held judgement holds a fresh id.
+        """
+        if record.get("rung") not in ("costly", "irreversible"):
+            return
+        announced = getattr(self, "_doctrine_announced", None)
+        if announced is None:
+            announced = set()
+            self._doctrine_announced = announced
+        if record["judgement_id"] in announced:
+            return
+        announced.add(record["judgement_id"])
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+    # -- M-112: rollback drills --
+
+    def _drill_registry(self):
+        """The held drill registry (M-112).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer drill results in the
+        order reported. It is created on first use,
+        so an agent whose ``__init__`` never ran
+        still holds exactly one.
+        """
+        registry = getattr(self, "_rollback_drill_registry", None)
+        if registry is None:
+            from ..core.rollback_drills import DrillRegistry
+            registry = DrillRegistry()
+            self._rollback_drill_registry = registry
+        return registry
+
+    def rollback_status(self) -> dict[str, Any]:
+        """The drill results, in plain data (M-112).
+
+        Every held result as its plain record, in
+        the order reported, the one screen rendered
+        from that same registry, and the plain
+        explanation. Reading changes nothing: a
+        status read judges, registers, or publishes
+        nothing.
+        """
+        from ..core import rollback_drills
+
+        registry = self._drill_registry()
+        return {
+            "results": [r.to_record() for r in registry.list_results()],
+            "screen": rollback_drills.format_rollback_screen(registry),
+            "explanation": rollback_drills.PLAIN_EXPLANATION,
+        }
+
+    def get_drill_run(self, run_id: Any):
+        """The one held drill result an id names (M-112).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._drill_registry().get(run_id)
+
+    def register_drill_result(self, result: Any = None,
+                              **kwargs: Any) -> dict[str, Any]:
+        """Hold one reported drill result, and announce it (M-112).
+
+        The result is validated and held by the pure
+        registry, and its ``rollback_drill_run``
+        record is published as a session event
+        through the checkpoint road, so the run's
+        outcome is news, never just a log line.
+        Returns the held result, its news record,
+        the screen rendered after it landed, and the
+        plain explanation.
+        """
+        from ..core import rollback_drills
+
+        registry = self._drill_registry()
+        held = registry.register(result, **kwargs)
+        record = registry.record(held.run_id)
+        self._publish_drill_record(record)
+        return {
+            "result": held.to_record(),
+            "record": record,
+            "screen": rollback_drills.format_rollback_screen(registry),
+            "explanation": rollback_drills.PLAIN_EXPLANATION,
+        }
+
+    def judge_drill_run(self, drill_id: Any,
+                        steps_passed: Any) -> dict[str, Any]:
+        """Judge one drill run from its reported count (M-112).
+
+        The pure judge reads the count a real test
+        run reported against the held drill's own
+        step count - recovered only when every step
+        passed, never rounded up - and the result is
+        held for the session and published as a
+        ``rollback_drill_run`` session event. This
+        layer judges counts, as data: it scripts no
+        disaster and restores nothing itself - the
+        drills are run in tests against the real
+        recovery roads, and their reported counts
+        are what is judged here. Returns the held
+        result, its news record, the screen rendered
+        after the judgement landed, and the plain
+        explanation.
+        """
+        from ..core import rollback_drills
+
+        registry = self._drill_registry()
+        held = registry.judge(drill_id, steps_passed)
+        record = registry.record(held.run_id)
+        self._publish_drill_record(record)
+        return {
+            "result": held.to_record(),
+            "record": record,
+            "screen": rollback_drills.format_rollback_screen(registry),
+            "explanation": rollback_drills.PLAIN_EXPLANATION,
+        }
+
+    def _publish_drill_record(self, record: dict[str, Any]) -> None:
+        """Publish one drill run as session news (M-112).
+
+        The pure layer's ``rollback_drill_run``
+        record is journaled through the same
+        checkpoint road every sibling slice uses,
+        when a session is attached - for EVERY
+        judged run, as the pure layer shapes it:
+        a drill's outcome is owed in plain words
+        whether it recovered whole, in part, or
+        not at all. Each run is announced at most
+        once: the announcement is keyed by the run
+        id, and every held result holds a fresh id.
+        """
+        if record.get("type") != "rollback_drill_run":
+            return
+        announced = getattr(self, "_rollback_announced", None)
+        if announced is None:
+            announced = set()
+            self._rollback_announced = announced
+        if record["run_id"] in announced:
+            return
+        announced.add(record["run_id"])
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
