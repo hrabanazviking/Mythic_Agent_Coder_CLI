@@ -279,6 +279,8 @@ class CommandHandler:
                 self._handle_policy(args)
             elif cmd == "/crew":
                 self._handle_crew(args)
+            elif cmd == "/offices":
+                self._handle_offices(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -3283,6 +3285,63 @@ class CommandHandler:
                 text = primary.crew_status()["screen"]
             else:
                 text = format_member(primary.find_crew_member(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_offices(self, args: str):
+        """M-122: /offices - the six offices formalised.
+
+        ``/offices`` shows the offices held this
+        session (the shipped book - the six offices
+        formalised as data - when none is held yet);
+        ``/offices show <office>`` (or a bare office
+        id) shows one office; ``/offices handoffs
+        <office>`` shows one office's hand-off
+        contracts; ``/offices contract <from> <to>``
+        shows the one contract between two offices.
+        Reading registers and publishes nothing as
+        session news: an office is held only when it
+        is taken up through the agent layer, and a
+        held office is published as an office session
+        event. The registry is session state held by
+        the agent; it is not a stored setting.
+        """
+        from ..core.offices import format_office, parse_offices_args
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_offices_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "handoffs":
+                definition = primary.find_office_definition(target)
+                lines = [format_office(definition)]
+                for contract in definition.handoffs:
+                    lines.append(
+                        f"  -> {contract.to_office}: "
+                        f"{contract.artifact} - {contract.condition}")
+                text = "\n".join(lines)
+            elif action == "contract":
+                from_office, to_office = target
+                contract = primary.office_contract(from_office, to_office)
+                text = (f"  {from_office} -> {to_office}: "
+                        f"{contract.artifact} - {contract.condition}")
+            elif target is None:
+                text = primary.offices_status()["screen"]
+            else:
+                text = format_office(primary.find_office_definition(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
