@@ -710,7 +710,7 @@ slices:
   title: Secret hygiene in action
   summary: the coder never echoes secrets, redacts known key shapes from outputs and logs, and refuses
     to commit files matching secret patterns (with the file named, content never shown).
-  status: queued
+  status: done
 - id: M-111
   part: 5
   title: Destructive-command doctrine
