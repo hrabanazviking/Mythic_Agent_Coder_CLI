@@ -413,3 +413,371 @@ def test_format_plan_mode_whole_slice():
     bare = format_plan_mode({})
     assert "Plan mode: off (plan_mode) - " in bare
     assert "no plan yet" in bare
+
+# -- agent layer: status, set, held plan, checks, surfaces (M-100) ---
+
+import copy as _copy
+
+from mythic_agent.core import plan_mode as pm
+from mythic_agent.core.sessions import SessionStore
+
+
+class _OfflineMemory:
+    def __init__(self):
+        self.archived = []
+
+    def search(self, query, top_k=2):
+        return []
+
+    def insert(self, text, metadata=None):
+        self.archived.append(text)
+
+
+@pytest.fixture()
+def agent(tmp_path, monkeypatch):
+    from mythic_agent.agents import llm
+    from mythic_agent.core.secure_api import unsubscribe
+
+    config = {"model": "test-model", "base_url": "http://localhost:1/v1", "api_keys": {}}
+    monkeypatch.setattr(llm.config_manager, "MYTHIC_DIR", tmp_path / "state")
+    monkeypatch.setattr(llm.config_manager, "load_config", lambda: _copy.deepcopy(config))
+    monkeypatch.setattr(llm.config_manager, "save_config", lambda config: True)
+    monkeypatch.setattr(llm, "get_vector_provider", lambda *args: _OfflineMemory())
+    instance = llm.Agent(project_root=tmp_path)
+    from mythic_agent.core.policy import ToolPolicy
+    instance.tool_policy = ToolPolicy("trusted")
+    yield instance
+    unsubscribe("agent_clear_history", instance._handle_clear_history)
+    unsubscribe("agent_compact_history", instance._handle_compact_history)
+
+
+def _store_for(tmp_path):
+    return SessionStore(tmp_path, tmp_path / "state")
+
+
+def _events(store, session_id, type_name):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == type_name]
+
+
+def _spec(**overrides):
+    spec = {
+        "title": "Ship the thing",
+        "intent": "Build the thing in slices",
+        "slices": [_slice()],
+    }
+    spec.update(overrides)
+    return spec
+
+
+class TestPlanModeAgent:
+    def test_status_defaults_off_no_plan(self, agent):
+        status = agent.plan_mode_status()
+        assert status["enabled"] is False
+        assert status["plan"] is None
+        assert status["screen"] == format_plan_mode(agent.config, None)
+        assert status["explanation"] == PLAIN_EXPLANATION
+        assert status["can_build"] is True
+        assert agent.current_plan() is None
+
+    def test_status_reflects_on_and_held_plan(self, agent):
+        agent.config[SETTING_KEY] = True
+        agent.set_current_plan(_spec())
+        status = agent.plan_mode_status()
+        assert status["enabled"] is True
+        assert status["plan"]["title"] == "Ship the thing"
+        assert status["plan"]["approved"] is False
+        assert status["can_build"] is False
+        agent.approve_current_plan()
+        assert agent.plan_mode_status()["can_build"] is True
+
+    def test_status_malformed_config_raises(self, agent):
+        agent.config[SETTING_KEY] = "yes"
+        with pytest.raises(ValueError):
+            agent.plan_mode_status()
+
+    def test_set_on_then_off(self, agent):
+        record = agent.set_plan_mode(True)
+        assert record["type"] == "plan_mode_setting_changed"
+        assert record["from"] is False and record["to"] is True
+        assert record["journaled"] is False
+        assert agent.config[SETTING_KEY] is True
+        assert format_gate_change(record) == "Plan mode is now on."
+        record = agent.set_plan_mode(False)
+        assert record["from"] is True and record["to"] is False
+        assert format_gate_change(record) == "Plan mode is now off."
+
+    def test_set_noop_refuses_and_changes_nothing(self, agent):
+        with pytest.raises(ValueError, match="already off"):
+            agent.set_plan_mode(False)
+        assert SETTING_KEY not in agent.config
+        with pytest.raises(ValueError):
+            agent.set_plan_mode("on")
+
+    def test_set_journals_on_the_session(self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        record = agent.set_plan_mode(True)
+        assert record["journaled"] is True
+        events = _events(store, session_id, "plan_mode_setting_changed")
+        assert len(events) == 1
+        assert events[0]["from"] is False and events[0]["to"] is True
+        agent.close()
+
+    def test_save_failure_restores_and_journals_the_revert(
+            self, agent, tmp_path, monkeypatch):
+        from mythic_agent.agents import llm
+
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        before = _copy.deepcopy(agent.config)
+        monkeypatch.setattr(llm.config_manager, "save_config",
+                            lambda config: False)
+        with pytest.raises(RuntimeError, match="could not be saved"):
+            agent.set_plan_mode(True)
+        assert agent.config == before
+        assert SETTING_KEY not in agent.config
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert types[-2:] == ["plan_mode_setting_changed",
+                              "plan_mode_setting_reverted"]
+        agent.close()
+
+    def test_set_current_plan_validates_and_holds(self, agent):
+        plan = agent.set_current_plan(_spec())
+        assert isinstance(plan, Plan)
+        assert agent.current_plan() is plan
+        assert plan.approved is False
+        with pytest.raises(ValueError):
+            agent.set_current_plan(_spec(slices=[]))
+        assert agent.current_plan() is plan
+        held = agent.set_current_plan(_plan())
+        assert held.title == "Ship the thing"
+
+    def test_build_current_plan_from_pieces(self, agent):
+        plan = agent.build_current_plan(
+            "Built plan", "Build it", [_slice()])
+        assert plan.title == "Built plan"
+        assert agent.current_plan() is plan
+        with pytest.raises(ValueError):
+            agent.build_current_plan("T", "I", [])
+
+    def test_approve_current_plan(self, agent):
+        with pytest.raises(ValueError, match="no plan to approve"):
+            agent.approve_current_plan()
+        original = agent.set_current_plan(_spec())
+        approved = agent.approve_current_plan()
+        assert approved.approved is True
+        assert original.approved is False
+        assert agent.current_plan() is approved
+
+    def test_approval_does_not_leak_into_the_next_plan(self, agent):
+        agent.set_current_plan(_spec())
+        agent.approve_current_plan()
+        fresh = agent.set_current_plan(_spec(title="Another plan"))
+        assert fresh.approved is False
+        assert agent.plan_mode_status()["plan"]["approved"] is False
+
+class TestCheckPlan:
+    def test_read_allowed_publishes_nothing(self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        agent.config[SETTING_KEY] = True
+        before = len(store.export(session_id)["events"])
+        assert agent.check_plan_effect("read") == "allow"
+        assert len(store.export(session_id)["events"]) == before
+        assert _events(store, session_id, "plan_mode_refusal") == []
+        agent.close()
+
+    def test_write_denied_publishes_refusal_news(self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        agent.config[SETTING_KEY] = True
+        assert agent.check_plan_effect("write") == "deny"
+        events = _events(store, session_id, "plan_mode_refusal")
+        assert len(events) == 1
+        assert events[0]["news"] is True
+        assert events[0]["surface"] == "session_event"
+        assert events[0]["effect"] == "write"
+        agent.close()
+
+    def test_execute_alias_denied_as_execute(self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        agent.config[SETTING_KEY] = True
+        assert agent.check_plan_effect("command") == "deny"
+        events = _events(store, session_id, "plan_mode_refusal")
+        assert len(events) == 1
+        assert events[0]["effect"] == "execute"
+        agent.close()
+
+    def test_gate_off_computes_allow_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        assert agent.check_plan_effect("write") == "allow"
+        assert agent.check_plan_build() is True
+        assert _events(store, session_id, "plan_mode_refusal") == []
+        agent.close()
+
+    def test_unknown_effect_raises(self, agent):
+        agent.config[SETTING_KEY] = True
+        with pytest.raises(ValueError):
+            agent.check_plan_effect("teleport")
+
+    def test_build_gated_without_a_plan_publishes_refusal(
+            self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        agent.config[SETTING_KEY] = True
+        assert agent.check_plan_build() is False
+        events = _events(store, session_id, "plan_mode_refusal")
+        assert len(events) == 1
+        assert events[0]["news"] is True
+        assert events[0]["plan_title"] is None
+        agent.close()
+
+    def test_build_gated_on_unapproved_plan_publishes_refusal(
+            self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        agent.config[SETTING_KEY] = True
+        agent.set_current_plan(_spec())
+        assert agent.check_plan_build() is False
+        events = _events(store, session_id, "plan_mode_refusal")
+        assert len(events) == 1
+        assert events[0]["plan_title"] == "Ship the thing"
+        agent.close()
+
+    def test_build_allowed_after_approval_publishes_nothing(
+            self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        agent.config[SETTING_KEY] = True
+        agent.set_current_plan(_spec())
+        agent.approve_current_plan()
+        before = len(store.export(session_id)["events"])
+        assert agent.check_plan_build() is True
+        assert len(store.export(session_id)["events"]) == before
+        assert _events(store, session_id, "plan_mode_refusal") == []
+        agent.close()
+
+
+class TestPlanTerminalSurface:
+    def test_show_is_the_whole_slice(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/plan")
+        assert "M-100" in text and "Plan mode: off (plan_mode)" in text
+
+    def test_check_allowed_and_denied_headlines(self, agent):
+        from mythic_agent.terminal import _slash
+        _slash(agent, "/plan on")
+        _, _, text = _slash(agent, "/plan check read")
+        assert text.startswith("Plan allowed:")
+        _, _, text = _slash(agent, "/plan check write")
+        assert text.startswith("Plan mode refusal:")
+
+    def test_build_gate_flow(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/plan build")
+        assert text.startswith("Building allowed:")
+        _slash(agent, "/plan on")
+        _, _, text = _slash(agent, "/plan build")
+        assert text.startswith("Plan mode refusal:")
+        agent.set_current_plan(_spec())
+        _, _, text = _slash(agent, "/plan approve")
+        assert "Plan approved:" in text
+        _, _, text = _slash(agent, "/plan build")
+        assert text.startswith("Building allowed:")
+
+    def test_approve_without_a_plan_is_a_plain_error(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/plan approve")
+        assert "no plan to approve" in text
+
+    def test_gate_via_the_terminal(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/plan on")
+        assert text == "Plan mode is now on."
+        assert agent.config[SETTING_KEY] is True
+        _, _, text = _slash(agent, "/plan on")
+        assert "already on" in text
+        _, _, text = _slash(agent, "/plan off")
+        assert text == "Plan mode is now off."
+
+    def test_bad_grammar_is_the_usage(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/plan frobnicate")
+        assert text == USAGE
+
+
+@pytest.fixture()
+def plan_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _plan_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestPlanCommand:
+    def test_show_is_default(self, plan_handler, agent):
+        plan_handler._handle_plan("")
+        text = _plan_published_text(plan_handler)
+        assert "M-100" in text and "Plan mode: off" in text
+
+    def test_check_denied_is_published(self, plan_handler, agent):
+        agent.config[SETTING_KEY] = True
+        plan_handler._handle_plan("check write")
+        assert "Plan mode refusal:" in _plan_published_text(plan_handler)
+
+    def test_approve_then_build_is_published(self, plan_handler, agent):
+        agent.config[SETTING_KEY] = True
+        agent.set_current_plan(_spec())
+        plan_handler._handle_plan("approve")
+        assert "Plan approved:" in _plan_published_text(plan_handler)
+        plan_handler._handle_plan("build")
+        assert "Building allowed:" in _plan_published_text(plan_handler)
+
+    def test_gate_via_the_handler(self, plan_handler, agent):
+        plan_handler._handle_plan("on")
+        assert "now on" in _plan_published_text(plan_handler)
+        assert agent.config[SETTING_KEY] is True
+
+    def test_bad_grammar_is_published(self, plan_handler, agent):
+        plan_handler._handle_plan("frobnicate")
+        assert "Usage: /plan" in _plan_published_text(plan_handler)
+
+
+class TestChatScreenRoutingPlan:
+    def test_plan_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/plan off", _FakeLog())
+        assert calls == [("/plan", "off")]

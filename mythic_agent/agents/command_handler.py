@@ -241,6 +241,8 @@ class CommandHandler:
                 self._handle_network(args)
             elif cmd == "/pathjail":
                 self._handle_pathjail(args)
+            elif cmd == "/plan":
+                self._handle_plan(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -2209,6 +2211,100 @@ class CommandHandler:
                           f"{record['grant']} added.[/green]\n"))
                 return
             record = primary.set_path_jail(request["action"] == "on")
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_gate_change(record)}[/green]\n")
+
+    def _handle_plan(self, args: str):
+        """M-100: /plan - plan mode perfected.
+
+        ``/plan`` shows the whole slice (the gate and the
+        held plan); ``on`` / ``off`` steer the gate
+        (journaled by the agent layer); ``approve``
+        approves the held plan - the one gate to building;
+        ``build`` asks the build gate (a refused build
+        under the gate is published by the agent layer as
+        session news); ``check <effect>`` decides one tool
+        effect (a denied effect under the gate is likewise
+        published as session news). Nothing here writes or
+        runs anything - judging is the pure layer's work
+        and holding the plan is the agent layer's.
+        """
+        from ..core.plan_mode import (
+            enabled_from_config,
+            format_gate_change,
+            format_plan,
+            format_refusal,
+            parse_plan_args,
+            refusal_for_build,
+            refusal_for_effect,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_plan_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            try:
+                status = primary.plan_mode_status()
+                assert status["enabled"] == enabled_from_config(
+                    primary.config)
+                text = status["screen"]
+            except ValueError as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{text}[/bold cyan]\n")
+            return
+        try:
+            if request["action"] == "check":
+                decision = primary.check_plan_effect(request["effect"])
+                if decision == "allow":
+                    text = (f"Plan allowed: a {request['effect']} "
+                            f"effect is allowed.")
+                else:
+                    text = format_refusal(
+                        refusal_for_effect(
+                            enabled_from_config(primary.config),
+                            request["effect"])) + "."
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[bold cyan]{text}[/bold cyan]\n")
+                return
+            if request["action"] == "approve":
+                plan = primary.approve_current_plan()
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=(f"\n[green]Plan approved: {plan.title} - "
+                          f"building is now allowed in plan "
+                          f"posture.\n{format_plan(plan)}[/green]\n"))
+                return
+            if request["action"] == "build":
+                if primary.check_plan_build():
+                    text = "Building allowed: the build gate is open."
+                else:
+                    text = format_refusal(
+                        refusal_for_build(
+                            enabled_from_config(primary.config),
+                            primary.current_plan())) + "."
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[bold cyan]{text}[/bold cyan]\n")
+                return
+            record = primary.set_plan_mode(request["action"] == "on")
         except (ValueError, KeyError, RuntimeError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
