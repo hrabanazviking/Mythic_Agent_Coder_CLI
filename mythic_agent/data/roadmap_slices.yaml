@@ -781,7 +781,7 @@ slices:
   title: The six offices formalised
   summary: Skald (intent & vision), Architect (design), Forge Worker (build), Auditor (verify), Cartographer
     (map & research), Scribe (memory & docs) — duties, tools, and hand-off contracts per office.
-  status: queued
+  status: done
 - id: M-123
   part: 6
   title: Custom offices

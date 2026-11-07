@@ -150,3 +150,9 @@ mythic_agent/agents/llm.py:11670:get_crew_member:method
 mythic_agent/agents/llm.py:11707:register_crew_member:method
 mythic_agent/agents/llm.py:11734:load_crew_casting:method
 mythic_agent/agents/llm.py:11769:spawn_crew_member:method
+mythic_agent/agents/llm.py:11926:get_office_definition:method
+mythic_agent/agents/llm.py:11951:office_handoffs:method
+mythic_agent/agents/llm.py:11972:register_office:method
+mythic_agent/agents/llm.py:11999:load_offices_book:method
+mythic_agent/core/offices.py:489:handoffs_from:method
+mythic_agent/core/offices.py:493:handoffs_to:method
