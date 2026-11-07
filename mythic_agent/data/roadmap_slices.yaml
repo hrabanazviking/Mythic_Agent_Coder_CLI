@@ -728,7 +728,7 @@ slices:
   title: Multi-repo workspaces
   summary: several repos under one session with per-repo policies; cross-repo changes are one change set,
     reviewed whole.
-  status: queued
+  status: done
 - id: M-114
   part: 5
   title: Remote and SSH work

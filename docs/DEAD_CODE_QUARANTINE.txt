@@ -131,3 +131,8 @@ mythic_agent/agents/llm.py:9875:record_audit_entry:method
 mythic_agent/agents/llm.py:10209:redact_output:method
 mythic_agent/agents/llm.py:10463:register_drill_result:method
 mythic_agent/agents/llm.py:10489:judge_drill_run:method
+mythic_agent/agents/llm.py:10589:get_held_repo:method
+mythic_agent/agents/llm.py:10637:hold_cross_repo_set:method
+mythic_agent/agents/llm.py:10663:register_cross_repo_set:method
+mythic_agent/core/multi_repo.py:563:has_repo:method
+mythic_agent/core/multi_repo.py:707:decide_file:method
