@@ -716,7 +716,7 @@ slices:
   title: Destructive-command doctrine
   summary: a written ladder (reversible → costly → irreversible) with the approval each rung needs; `rm
     -rf` class acts always name their targets in plain words first.
-  status: queued
+  status: done
 - id: M-112
   part: 5
   title: Rollback drills
