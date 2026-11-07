@@ -442,3 +442,277 @@ def test_parse_background_args_refusals():
                 "show bad/id", "kill bad;id", 7):
         with pytest.raises(ValueError):
             parse_background_args(bad)
+
+
+# -- agent layer: real subprocesses (M-103) --------------------------------
+
+import copy as _copy
+import sys as _sys
+import time as _time
+
+from mythic_agent.core.sessions import SessionStore
+
+
+class _OfflineMemoryBg:
+    def __init__(self):
+        self.archived = []
+
+    def search(self, query, top_k=2):
+        return []
+
+    def insert(self, text, metadata=None):
+        self.archived.append(text)
+
+
+@pytest.fixture()
+def bg_agent(tmp_path, monkeypatch):
+    from mythic_agent.agents import llm
+    from mythic_agent.core.secure_api import unsubscribe
+
+    config = {"model": "test-model", "base_url": "http://localhost:1/v1", "api_keys": {}}
+    monkeypatch.setattr(llm.config_manager, "MYTHIC_DIR", tmp_path / "state")
+    monkeypatch.setattr(llm.config_manager, "load_config", lambda: _copy.deepcopy(config))
+    monkeypatch.setattr(llm.config_manager, "save_config", lambda config: True)
+    monkeypatch.setattr(llm, "get_vector_provider", lambda *args: _OfflineMemoryBg())
+    instance = llm.Agent(project_root=tmp_path)
+    from mythic_agent.core.policy import ToolPolicy
+    instance.tool_policy = ToolPolicy("trusted")
+    yield instance
+    unsubscribe("agent_clear_history", instance._handle_clear_history)
+    unsubscribe("agent_compact_history", instance._handle_compact_history)
+
+
+def _bg_events(store, session_id, type_name):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == type_name]
+
+
+def _wait_state(agent, job_id, states, timeout=15.0):
+    deadline = _time.monotonic() + timeout
+    while _time.monotonic() < deadline:
+        job = agent.get_background_job(job_id)
+        if job.state in states:
+            return job
+        _time.sleep(0.05)
+    return agent.get_background_job(job_id)
+
+
+class TestBackgroundAgentJobs:
+    def test_status_starts_empty(self, bg_agent):
+        status = bg_agent.background_jobs_status()
+        assert status["jobs"] == []
+        assert "Background jobs: none." in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+        assert status["screen"] == format_background(
+            bg_agent._background_jobs())
+
+    def test_start_completes_and_tail_keeps_output(self, bg_agent):
+        record = bg_agent.start_background_job(
+            [_sys.executable, "-c", "print('bg-one'); print('bg-two')"])
+        job = _wait_state(bg_agent, record["job_id"], ("completed",))
+        assert job.state == "completed"
+        assert job.exit_code == 0
+        assert job.tail_lines == ("bg-one", "bg-two")
+        tail = bg_agent.background_job_tail(record["job_id"])
+        assert "bg-one" in tail and "bg-two" in tail
+        status = bg_agent.background_jobs_status()
+        assert [j["job_id"] for j in status["jobs"]] == [record["job_id"]]
+        assert status["jobs"][0]["state"] == "completed"
+
+    def test_start_nonzero_exit_fails(self, bg_agent):
+        record = bg_agent.start_background_job(
+            [_sys.executable, "-c", "import sys; sys.exit(3)"])
+        job = _wait_state(bg_agent, record["job_id"], ("failed",))
+        assert job.state == "failed"
+        assert job.exit_code == 3
+
+    def test_start_accepts_a_command_string(self, bg_agent):
+        record = bg_agent.start_background_job(
+            _sys.executable + " -c \"print('bg-str')\"")
+        job = _wait_state(bg_agent, record["job_id"], ("completed",))
+        assert job.tail_lines == ("bg-str",)
+
+    def test_unstartable_command_is_judged_127(self, bg_agent):
+        record = bg_agent.start_background_job(
+            ["/nonexistent/mythic-no-such-command"])
+        assert record["state"] == "failed"
+        assert record["exit_code"] == 127
+
+    def test_kill_cancels_a_sleeping_job(self, bg_agent):
+        record = bg_agent.start_background_job(
+            [_sys.executable, "-c", "import time; time.sleep(30)"])
+        job = _wait_state(bg_agent, record["job_id"], ("running",))
+        assert job.state == "running"
+        killed = bg_agent.kill_background_job(record["job_id"], "test over")
+        assert killed["state"] == "cancelled"
+        job = bg_agent.get_background_job(record["job_id"])
+        assert job.state == "cancelled"
+        assert job.kill.requested is True
+        assert job.kill.reason == "test over"
+        assert job.exit_code is None
+
+    def test_kill_a_finished_job_refuses(self, bg_agent):
+        record = bg_agent.start_background_job(
+            [_sys.executable, "-c", "pass"])
+        _wait_state(bg_agent, record["job_id"], ("completed",))
+        with pytest.raises(ValueError):
+            bg_agent.kill_background_job(record["job_id"])
+
+    def test_unknown_job_raises_keyerror(self, bg_agent):
+        with pytest.raises(KeyError):
+            bg_agent.get_background_job("job-99")
+        with pytest.raises(KeyError):
+            bg_agent.background_job_tail("job-99")
+
+    def test_tail_defaults_to_the_newest_job(self, bg_agent):
+        first = bg_agent.start_background_job(
+            [_sys.executable, "-c", "print('older')"])
+        _wait_state(bg_agent, first["job_id"], ("completed",))
+        second = bg_agent.start_background_job(
+            [_sys.executable, "-c", "print('newer')"])
+        _wait_state(bg_agent, second["job_id"], ("completed",))
+        tail = bg_agent.background_job_tail()
+        assert "newer" in tail
+        assert second["job_id"] in tail
+
+    def test_completion_event_is_published(self, bg_agent, tmp_path):
+        store = SessionStore(tmp_path, tmp_path / "state")
+        session_id = bg_agent.attach_session(store)
+        record = bg_agent.start_background_job(
+            [_sys.executable, "-c", "print('bg-news')"])
+        _wait_state(bg_agent, record["job_id"], ("completed",))
+        deadline = _time.monotonic() + 5.0
+        events = []
+        while _time.monotonic() < deadline:
+            events = _bg_events(store, session_id, "background_job_completed")
+            if events:
+                break
+            _time.sleep(0.05)
+        assert len(events) == 1
+        assert events[0]["job_id"] == record["job_id"]
+        assert events[0]["state"] == "completed"
+        assert events[0]["exit_code"] == 0
+        assert "finished: completed (exit 0)" in events[0]["headline"]
+
+
+class TestBackgroundTerminalSurface:
+    def test_show_is_the_whole_slice(self, bg_agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(bg_agent, "/background")
+        assert text.startswith("Background tasks (M-103) - ")
+        assert "Background jobs: none." in text
+        assert USAGE in text
+
+    def test_start_show_and_tail_via_the_terminal(self, bg_agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(
+            bg_agent,
+            "/background start " + _sys.executable
+            + " -c \"print('term-bg')\"")
+        assert text.startswith("Background job started: job-")
+        job_id = bg_agent.background_jobs_status()["jobs"][0]["job_id"]
+        _wait_state(bg_agent, job_id, ("completed",))
+        _, _, text = _slash(bg_agent, "/background show " + job_id)
+        assert text.startswith(job_id + ": ")
+        assert "[completed" in text
+        _, _, text = _slash(bg_agent, "/background tail " + job_id)
+        assert "term-bg" in text
+        _, _, text = _slash(bg_agent, "/background")
+        assert "Background jobs: 1 held." in text
+
+    def test_kill_via_the_terminal(self, bg_agent):
+        from mythic_agent.terminal import _slash
+        _slash(bg_agent, "/background start " + _sys.executable
+               + " -c \"import time; time.sleep(30)\"")
+        job_id = bg_agent.background_jobs_status()["jobs"][0]["job_id"]
+        _wait_state(bg_agent, job_id, ("running",))
+        _, _, text = _slash(bg_agent, "/background kill " + job_id)
+        assert "was killed" in text
+        assert bg_agent.get_background_job(job_id).state == "cancelled"
+
+    def test_bad_grammar_is_the_usage(self, bg_agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(bg_agent, "/background frobnicate x")
+        assert text == USAGE
+        _, _, text = _slash(bg_agent, "/background kill")
+        assert text == USAGE
+        _, _, text = _slash(bg_agent, "/background show job-99")
+        assert "unknown background job" in text
+
+
+@pytest.fixture()
+def bg_handler(bg_agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = bg_agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _bg_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestBackgroundCommand:
+    def test_show_is_default(self, bg_handler, bg_agent):
+        bg_handler._handle_background("")
+        assert "Background jobs: none." in _bg_published_text(bg_handler)
+
+    def test_start_tail_and_kill_are_published(self, bg_handler, bg_agent):
+        bg_handler._handle_background(
+            "start " + _sys.executable + " -c \"import time; time.sleep(30)\"")
+        assert "Background job started: job-" in _bg_published_text(bg_handler)
+        job_id = bg_agent.background_jobs_status()["jobs"][0]["job_id"]
+        _wait_state(bg_agent, job_id, ("running",))
+        bg_handler._handle_background("tail " + job_id)
+        assert "Tail of job " + job_id in _bg_published_text(bg_handler)
+        bg_handler._handle_background("kill " + job_id)
+        assert "was killed" in _bg_published_text(bg_handler)
+        assert bg_agent.get_background_job(job_id).state == "cancelled"
+
+    def test_completed_job_shows_via_the_handler(self, bg_handler, bg_agent):
+        bg_handler._handle_background(
+            "start " + _sys.executable + " -c \"print('handler-bg')\"")
+        job_id = bg_agent.background_jobs_status()["jobs"][0]["job_id"]
+        _wait_state(bg_agent, job_id, ("completed",))
+        bg_handler._handle_background("show " + job_id)
+        text = _bg_published_text(bg_handler)
+        assert job_id + ": " in text
+        assert "[completed" in text
+
+    def test_bad_grammar_is_published(self, bg_handler, bg_agent):
+        bg_handler._handle_background("kill")
+        assert "Usage: /background" in _bg_published_text(bg_handler)
+        bg_handler._handle_background("frobnicate")
+        assert "unknown background job" in _bg_published_text(bg_handler)
+
+
+class TestChatScreenRoutingBackground:
+    def test_background_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/background tail job-1", _FakeLog())
+        assert calls == [("/background", "tail job-1")]

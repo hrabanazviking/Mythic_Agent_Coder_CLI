@@ -247,6 +247,8 @@ class CommandHandler:
                 self._handle_hooks(args)
             elif cmd == "/hookpacks":
                 self._handle_hookpacks(args)
+            elif cmd == "/background":
+                self._handle_background(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -2442,6 +2444,65 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[green]{text}[/green]\n")
+
+    def _handle_background(self, args: str):
+        """M-103: /background - background tasks.
+
+        /background shows the held jobs; show <job> (or
+        a bare job id) shows one job; tail [<job>] shows
+        one job's live tail (the newest job when no id
+        is named); kill <job> records the kill request,
+        terminates the real process, and lands the
+        cancellation; start <command...> starts the
+        command as a real job - split into argv words,
+        never run through a shell. When a job finishes,
+        the agent layer publishes its completion as
+        session news. Judging is the pure layer's work
+        and running is the agent layer's; nothing here
+        runs a process itself.
+        """
+        import shlex
+
+        from ..core.background_tasks import (
+            format_completion,
+            format_job,
+            parse_background_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_background_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "show":
+                if target is None:
+                    text = primary.background_jobs_status()["screen"]
+                else:
+                    text = format_job(primary.get_background_job(target))
+            elif action == "tail":
+                text = primary.background_job_tail(target)
+            elif action == "kill":
+                primary.kill_background_job(target)
+                text = format_completion(primary.get_background_job(target))
+            else:  # start
+                argv = shlex.split(target)
+                record = primary.start_background_job(argv)
+                job = primary.get_background_job(record["job_id"])
+                text = f"Background job started: {format_job(job)}"
+        except (KeyError, ValueError, OSError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
 
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.

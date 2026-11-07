@@ -849,6 +849,9 @@ class BackgroundJobRegistry:
     def request_kill(self, job_id: Any, reason: Any = "") -> Job:
         return self._store(request_kill(self.get(job_id), reason))
 
+    def apply_kill(self, job_id: Any) -> Job:
+        return self._store(apply_kill(self.get(job_id)))
+
     def kill(self, job_id: Any, reason: Any = "") -> Job:
         return self._store(kill_job(self.get(job_id), reason))
 
