@@ -698,7 +698,7 @@ slices:
   title: The kill switch everywhere
   summary: one key/command halts the coder, the crew, background jobs, and pending approvals — tested,
     instant.
-  status: queued
+  status: done
 - id: M-109
   part: 5
   title: Audit trail
