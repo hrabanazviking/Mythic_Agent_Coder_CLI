@@ -627,3 +627,307 @@ def test_headline_for_a_scoped_quiet_pull():
     assert record["headline"] == (
         "Kill switch pulled (halt-5): background jobs: nothing held.")
     assert record["targets"] == ["background_jobs"]
+
+
+# -- agent layer: the switch held for a session (M-108) --------------------
+
+import copy as _copy
+import sys as _sys
+import time as _time
+
+from mythic_agent.core.sessions import SessionStore
+
+
+class _OfflineMemoryHalt:
+    def __init__(self):
+        self.archived = []
+
+    def search(self, query, top_k=2):
+        return []
+
+    def insert(self, text, metadata=None):
+        self.archived.append(text)
+
+
+@pytest.fixture()
+def halt_agent(tmp_path, monkeypatch):
+    from mythic_agent.agents import llm
+    from mythic_agent.core.secure_api import unsubscribe
+
+    config = {"model": "test-model", "base_url": "http://localhost:1/v1",
+              "api_keys": {}}
+    monkeypatch.setattr(llm.config_manager, "MYTHIC_DIR", tmp_path / "state")
+    monkeypatch.setattr(llm.config_manager, "load_config",
+                        lambda: _copy.deepcopy(config))
+    monkeypatch.setattr(llm.config_manager, "save_config",
+                        lambda config: True)
+    monkeypatch.setattr(llm, "get_vector_provider",
+                        lambda *args: _OfflineMemoryHalt())
+    instance = llm.Agent(project_root=tmp_path)
+    from mythic_agent.core.policy import ToolPolicy
+    instance.tool_policy = ToolPolicy("trusted")
+    yield instance
+    unsubscribe("agent_clear_history", instance._handle_clear_history)
+    unsubscribe("agent_compact_history", instance._handle_compact_history)
+
+
+def _halt_events(store, session_id, type_name):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == type_name]
+
+
+def _wait_job_state(agent, job_id, states, timeout=15.0):
+    deadline = _time.monotonic() + timeout
+    while _time.monotonic() < deadline:
+        job = agent.get_background_job(job_id)
+        if job.state in states:
+            return job
+        _time.sleep(0.05)
+    return agent.get_background_job(job_id)
+
+
+def _sleeping_job(agent, label=None):
+    spec = [_sys.executable, "-c", "import time; time.sleep(30)"]
+    if label is not None:
+        spec = {"argv": spec, "label": label}
+    record = agent.start_background_job(spec)
+    _wait_job_state(agent, record["job_id"], ("running",))
+    return record["job_id"]
+
+
+class TestKillSwitchAgentStatus:
+    def test_status_starts_empty(self, halt_agent):
+        status = halt_agent.kill_switch_status()
+        assert status["halts"] == []
+        assert status["verdicts"] == []
+        assert "Kill switch: none pulled." in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+        assert status["screen"] == format_halts_screen(
+            halt_agent._kill_switch_registry())
+
+    def test_unknown_halt_raises_keyerror(self, halt_agent):
+        with pytest.raises(KeyError):
+            halt_agent.get_halt("halt-99")
+        with pytest.raises(KeyError):
+            halt_agent.get_halt_verdict("halt-99")
+
+    def test_holdings_of_a_quiet_session(self, halt_agent):
+        holdings = halt_agent._kill_switch_holdings()
+        assert holdings.coder_active is False
+        assert holdings.background_jobs == ()
+        assert holdings.crew_tasks == ()
+        assert holdings.pending_approvals == 0
+
+
+class TestKillSwitchPull:
+    def test_pull_on_a_quiet_session_publishes_once(self, halt_agent, tmp_path):
+        store = SessionStore(tmp_path, tmp_path / "state")
+        session_id = halt_agent.attach_session(store)
+        result = halt_agent.pull_kill_switch({"actor": "user"})
+        assert result["halt"]["halt_id"] == "halt-1"
+        assert result["halt"]["targets"] == list(HALT_TARGETS)
+        assert result["verdict"]["status"] == "already_stopped"
+        assert result["verdict"]["outcomes"] == {
+            "coder": "already_stopped", "crew": "nothing_held",
+            "background_jobs": "nothing_held", "approvals": "nothing_held"}
+        assert result["killed_job_ids"] == []
+        assert result["kill_errors"] == []
+        assert result["cancel_set"] is True
+        assert halt_agent._cancel.is_set()
+        assert result["record"]["type"] == "kill_switch_pulled"
+        events = _halt_events(store, session_id, "kill_switch_pulled")
+        assert len(events) == 1
+        assert events[0]["halt_id"] == "halt-1"
+        status = halt_agent.kill_switch_status()
+        assert [h["halt_id"] for h in status["halts"]] == ["halt-1"]
+        assert status["verdicts"][0]["status"] == "already_stopped"
+        assert halt_agent.get_halt_verdict("halt-1").status == (
+            "already_stopped")
+
+    def test_pull_kills_a_real_background_job(self, halt_agent):
+        job_id = _sleeping_job(halt_agent)
+        result = halt_agent.pull_kill_switch({"reason": "test over"})
+        assert result["verdict"]["outcomes"]["background_jobs"] == "halted"
+        assert result["verdict"]["background_active"] == [job_id]
+        assert result["killed_job_ids"] == [job_id]
+        job = halt_agent.get_background_job(job_id)
+        assert job.state == "cancelled"
+        assert job.kill.reason == "test over"
+        # A second pull sees the job as already stopped, never halted.
+        again = halt_agent.pull_kill_switch({})
+        assert again["verdict"]["outcomes"]["background_jobs"] == (
+            "already_stopped")
+        assert again["killed_job_ids"] == []
+
+    def test_scoped_pull_leaves_other_targets_alone(self, halt_agent):
+        job_id = _sleeping_job(halt_agent)
+        result = halt_agent.pull_kill_switch({"targets": ["coder"]})
+        assert list(result["verdict"]["outcomes"]) == ["coder"]
+        assert result["killed_job_ids"] == []
+        assert result["cancel_set"] is True
+        job = _wait_job_state(halt_agent, job_id, ("running",))
+        assert job.state == "running"
+        halt_agent.kill_background_job(job_id, "cleanup")
+
+    def test_background_only_pull_sets_no_cancel(self, halt_agent):
+        job_id = _sleeping_job(halt_agent)
+        result = halt_agent.pull_kill_switch(
+            {"targets": ["background_jobs"]})
+        assert result["killed_job_ids"] == [job_id]
+        assert result["cancel_set"] is False
+        assert not halt_agent._cancel.is_set()
+
+    def test_pull_with_the_coder_at_work_halts_it(self, halt_agent):
+        halt_agent._turn_lock.acquire()
+        try:
+            assert halt_agent._kill_switch_holdings().coder_active is True
+            result = halt_agent.pull_kill_switch(
+                {"targets": ["coder"], "actor": "user"})
+        finally:
+            halt_agent._turn_lock.release()
+        assert result["verdict"]["outcomes"] == {"coder": "halted"}
+        assert result["verdict"]["status"] == "halted"
+        assert halt_agent._cancel.is_set()
+
+    def test_pull_refuses_a_pending_approval(self, halt_agent):
+        from mythic_agent.agents import tools as agent_tools
+        agent_tools._approval_lock.acquire()
+        try:
+            assert halt_agent._kill_switch_holdings().pending_approvals == 1
+            result = halt_agent.pull_kill_switch(
+                {"targets": ["approvals"]})
+        finally:
+            agent_tools._approval_lock.release()
+        assert result["verdict"]["outcomes"] == {"approvals": "halted"}
+        assert result["cancel_set"] is True
+
+
+class TestKillSwitchCrew:
+    def test_queued_crew_is_a_plan_not_held_work(self, halt_agent):
+        record = halt_agent.register_fleet_task({
+            "label": "crew sleeper",
+            "argv": [_sys.executable, "-c", "pass"]})
+        holdings = halt_agent._kill_switch_holdings()
+        assert holdings.crew_tasks == ((record["task_id"], "queued"),)
+        result = halt_agent.pull_kill_switch({"targets": ["crew"]})
+        assert result["verdict"]["outcomes"] == {"crew": "nothing_held"}
+        assert result["killed_job_ids"] == []
+        assert result["cancel_set"] is False
+
+    def test_running_crew_halts_on_its_backing_job(self, halt_agent):
+        record = halt_agent.register_fleet_task({
+            "label": "crew sleeper",
+            "argv": [_sys.executable, "-c", "import time; time.sleep(30)"]})
+        job_id = _sleeping_job(halt_agent, label="crew sleeper")
+        holdings = halt_agent._kill_switch_holdings()
+        assert holdings.crew_tasks == ((record["task_id"], "running"),)
+        result = halt_agent.pull_kill_switch({"targets": ["crew"]})
+        assert result["verdict"]["outcomes"] == {"crew": "halted"}
+        assert result["verdict"]["crew_running"] == [record["task_id"]]
+        assert result["killed_job_ids"] == [job_id]
+        assert halt_agent.get_background_job(job_id).state == "cancelled"
+        assert result["cancel_set"] is False
+
+    def test_finished_crew_is_already_stopped(self, halt_agent):
+        record = halt_agent.register_fleet_task({
+            "label": "crew done",
+            "argv": [_sys.executable, "-c", "pass"]})
+        halt_agent._fleet_registry().record_verdict(
+            {"task_id": record["task_id"], "status": "passed",
+             "exit_code": 0})
+        result = halt_agent.pull_kill_switch({"targets": ["crew"]})
+        assert result["verdict"]["outcomes"] == {"crew": "already_stopped"}
+        assert result["killed_job_ids"] == []
+
+
+class TestHaltTerminalSurface:
+    def test_show_is_the_whole_slice(self, halt_agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(halt_agent, "/halt")
+        assert text.startswith("Kill switch (M-108) - ")
+        assert "Kill switch: none pulled." in text
+        assert USAGE in text
+
+    def test_pull_and_show_one_via_the_terminal(self, halt_agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(halt_agent, "/halt pull")
+        assert "Kill switch: 1 pulled." in text
+        _, _, text = _slash(halt_agent, "/halt show halt-1")
+        assert text.startswith("halt-1: kill switch - targets:")
+        assert "Verdict: already_stopped." in text
+        _, _, text = _slash(halt_agent, "/halt show halt-99")
+        assert "unknown halt" in text
+
+    def test_bad_grammar_is_the_usage(self, halt_agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(halt_agent, "/halt crew")
+        assert text == USAGE
+        _, _, text = _slash(halt_agent, "/halt pull a b")
+        assert text == USAGE
+
+
+@pytest.fixture()
+def halt_handler(halt_agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = halt_agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _halt_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestHaltCommand:
+    def test_show_is_default(self, halt_handler, halt_agent):
+        halt_handler._handle_halt("")
+        assert "Kill switch: none pulled." in _halt_published_text(
+            halt_handler)
+
+    def test_pull_via_the_handler(self, halt_handler, halt_agent):
+        halt_handler._handle_halt("pull")
+        assert "Kill switch: 1 pulled." in _halt_published_text(halt_handler)
+        assert halt_agent.get_halt("halt-1").actor == "user"
+
+    def test_show_one_via_the_handler(self, halt_handler, halt_agent):
+        halt_agent.pull_kill_switch({})
+        halt_handler._handle_halt("show halt-1")
+        assert "halt-1: " in _halt_published_text(halt_handler)
+
+    def test_bad_grammar_is_published(self, halt_handler, halt_agent):
+        halt_handler._handle_halt("pull a b")
+        assert "Usage: /halt" in _halt_published_text(halt_handler)
+        halt_handler._handle_halt("show halt-99")
+        assert "unknown halt" in _halt_published_text(halt_handler)
+
+
+class TestChatScreenRoutingHalt:
+    def test_halt_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/halt pull", _FakeLog())
+        assert calls == [("/halt", "pull")]

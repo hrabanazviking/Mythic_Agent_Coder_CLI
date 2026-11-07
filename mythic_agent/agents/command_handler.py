@@ -257,6 +257,8 @@ class CommandHandler:
                 self._handle_fleet(args)
             elif cmd == "/budgets":
                 self._handle_budgets(args)
+            elif cmd == "/halt":
+                self._handle_halt(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -2717,6 +2719,68 @@ class CommandHandler:
                 text = primary.budget_check()["screen"]
             else:
                 text = primary.budget_check(target)["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_halt(self, args: str):
+        """M-108: /halt - the kill switch everywhere.
+
+        /halt shows the halts pulled this session
+        with each pull's verdict - halted, already
+        stopped, or nothing held, per target, in
+        words; show <halt> (or a bare halt id) shows
+        one halt with its verdict; pull pulls the
+        switch on every target and pull <target>
+        pulls it on one target alone, carrying the
+        halt out through the real roads - held
+        background jobs are killed through the M-103
+        road (a running crew task rides that same
+        road, on its backing job), the coder's own
+        cancellation event is set so in-flight work
+        stops at the next boundary, and a pending
+        approval, which waits on that same event, is
+        refused - and the pull is published as a
+        kill_switch_pulled session event. Judging is
+        the pure layer's work; reading the holdings
+        from the real roads and carrying the halt out
+        are the agent layer's. The registry is
+        session state held by the agent; it is not a
+        stored setting.
+        """
+        from ..core.kill_switch import (
+            format_halt,
+            parse_halt_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_halt_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "show":
+                if target is None:
+                    text = primary.kill_switch_status()["screen"]
+                else:
+                    text = format_halt(
+                        primary.get_halt(target),
+                        primary.get_halt_verdict(target))
+            else:
+                spec: dict = {"actor": "user"}
+                if target is not None:
+                    spec["targets"] = [target]
+                text = primary.pull_kill_switch(spec)["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
