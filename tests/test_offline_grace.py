@@ -296,3 +296,249 @@ def test_assessment_record_shape():
     assert record["slice"] == "M-115"
     assert record["failure_kinds"] == ["network_down"]
     assert record["unknowns"] == []
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# The agent holds a DegradationRegistry for the
+# session (session state only, no new setting):
+# evidence is judged by the pure judge and every
+# judged assessment - full, degraded or unknown -
+# is published as degradation_change session news,
+# deduped per record id. The honest boundary of
+# this layer: it gathers no evidence itself and
+# probes nothing - judging held evidence, in plain
+# words, is the slice's agent work.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _grace_events(store, session_id):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == "degradation_change"]
+
+
+def _held_records(agent):
+    return agent._degradation_registry().list_records()
+
+
+class TestGraceAgentStatus:
+    def test_status_starts_empty(self, agent):
+        status = agent.grace_status()
+        assert status["records"] == []
+        assert "no records held" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+        assert status["screen"] == format_grace_screen(
+            agent._degradation_registry())
+
+    def test_registry_is_one_per_agent(self, agent):
+        assert agent._degradation_registry() is agent._degradation_registry()
+        # The M-108 lesson: the attribute never shares the method name.
+        assert agent._degradation_store is agent._degradation_registry()
+
+    def test_unknown_record_raises_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_grace_record("grace-99")
+
+
+class TestGraceAgentJudging:
+    def test_full_judged_held_and_published_once(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.judge_degradation(FULL)
+        assert outcome["assessment"]["record_id"] == "grace-1"
+        assert outcome["assessment"]["state"] == "full"
+        assert outcome["record"]["type"] == "degradation_change"
+        assert outcome["record"]["news"] is True
+        assert outcome["record"]["state"] == "full"
+        assert "nothing is lost" in outcome["record"]["headline"]
+        events = _grace_events(store, session_id)
+        assert len(events) == 1
+        assert events[0]["record_id"] == "grace-1"
+        agent._publish_degradation_record(outcome["record"])
+        agent.grace_status()
+        agent.get_grace_record("grace-1")
+        assert len(_grace_events(store, session_id)) == 1
+        assert agent.get_grace_record("grace-1").state == "full"
+
+    def test_each_failure_kind_judged_and_published(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        provider = agent.judge_degradation({**FULL, "provider": "unreachable"})
+        assert provider["assessment"]["failure_kinds"] == ["provider_down"]
+        assert any("model answers" in phrase
+                   for phrase in provider["record"]["lost"])
+        lsp = agent.judge_degradation({**FULL, "lsp": "down"})
+        assert lsp["assessment"]["failure_kinds"] == ["lsp_down"]
+        assert any("navigation" in phrase for phrase in lsp["record"]["lost"])
+        network = agent.judge_degradation({**FULL, "network": "down"})
+        assert network["assessment"]["failure_kinds"] == ["network_down"]
+        assert [item.record_id for item in _held_records(agent)] == [
+            "grace-1", "grace-2", "grace-3"]
+        assert len(_grace_events(store, session_id)) == 3
+
+    def test_needs_key_judged_honestly(self, agent):
+        outcome = agent.judge_degradation({**FULL, "provider": "needs-key"})
+        assert outcome["assessment"]["failure_kinds"] == ["provider_down"]
+        assert any("needs-key" in reason and "missing key" in reason
+                   for reason in outcome["record"]["reasons"])
+
+    def test_unknown_state_is_honest(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.judge_degradation({})
+        assert outcome["assessment"]["state"] == "unknown"
+        assert outcome["assessment"]["unknowns"] == ["provider", "lsp", "network"]
+        assert outcome["record"]["failure_kinds"] == []
+        assert "unknown" in outcome["record"]["headline"]
+        assert "full -" not in outcome["record"]["headline"]
+        assert len(_grace_events(store, session_id)) == 1
+
+    def test_register_prebuilt_assessment_published(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_grace_assessment(
+            judge_degradation({**FULL, "lsp": "down"}))
+        assert outcome["assessment"]["record_id"] == "grace-1"
+        assert outcome["record"]["type"] == "degradation_change"
+        assert len(_grace_events(store, session_id)) == 1
+        with pytest.raises(ValueError):
+            agent.register_grace_assessment(DegradationAssessment(
+                state="full", record_id="grace-1"))
+        assert len(_held_records(agent)) == 1
+        assert len(_grace_events(store, session_id)) == 1
+
+    def test_bad_evidence_holds_and_publishes_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        with pytest.raises(ValueError):
+            agent.judge_degradation({"provider": "flaky"})
+        with pytest.raises(ValueError):
+            agent.judge_degradation({"bogus": "up"})
+        assert _held_records(agent) == ()
+        assert _grace_events(store, session_id) == []
+
+    def test_status_read_publishes_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.judge_degradation({**FULL, "network": "down"})
+        assert len(_grace_events(store, session_id)) == 1
+        agent.grace_status()
+        agent.get_grace_record("grace-1")
+        agent.grace_status()
+        assert len(_grace_events(store, session_id)) == 1
+
+    def test_judge_without_session_holds_quietly(self, agent):
+        outcome = agent.judge_degradation({**FULL, "lsp": "down"})
+        assert outcome["assessment"]["record_id"] == "grace-1"
+        assert "1 held" in outcome["screen"]
+        assert len(_held_records(agent)) == 1
+
+
+class TestGraceTerminalSurface:
+    def test_show_is_the_whole_slice(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/grace")
+        assert text.startswith("Offline and degraded grace (M-115) - ")
+        assert "no records held" in text
+        assert USAGE in text
+
+    def test_help_line_names_grace(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert "/grace [show|show <record>|failures]" in text
+
+    def test_failures_via_the_terminal(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/grace failures")
+        assert text.startswith("Degraded grace failures: 3 kinds.")
+        assert "diagnostics" in text
+        assert _held_records(agent) == ()
+
+    def test_show_one_via_the_terminal(self, agent):
+        from mythic_agent.terminal import _slash
+        agent.judge_degradation({**FULL, "provider": "unreachable"})
+        _, _, text = _slash(agent, "/grace show grace-1")
+        assert text.startswith("grace-1: Degradation: degraded")
+        assert "model answers" in text
+        _, _, text = _slash(agent, "/grace grace-1")
+        assert "lost:" in text
+
+    def test_unknown_and_bad_grammar_via_the_terminal(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/grace show grace-99")
+        assert "unknown degradation record" in text
+        _, _, text = _slash(agent, "/grace failures now")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/grace drop grace-1")
+        assert text == USAGE
+
+
+@pytest.fixture()
+def grace_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _grace_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestGraceCommand:
+    def test_show_is_default(self, grace_handler, agent):
+        grace_handler._handle_grace("")
+        assert "no records held" in _grace_published_text(grace_handler)
+
+    def test_failures_via_the_handler(self, grace_handler, agent):
+        grace_handler._handle_grace("failures")
+        assert "Degraded grace failures: 3 kinds." in (
+            _grace_published_text(grace_handler))
+        assert _held_records(agent) == ()
+
+    def test_show_one_via_the_handler(self, grace_handler, agent):
+        agent.judge_degradation({**FULL, "network": "down"})
+        grace_handler._handle_grace("show grace-1")
+        assert "grace-1: Degradation: degraded" in (
+            _grace_published_text(grace_handler))
+        assert "remote provider" in _grace_published_text(grace_handler)
+
+    def test_bad_grammar_and_unknown_are_published(
+            self, grace_handler, agent):
+        grace_handler._handle_grace("failures now")
+        assert "Usage: /grace" in _grace_published_text(grace_handler)
+        grace_handler._handle_grace("show grace-99")
+        assert "unknown degradation record" in _grace_published_text(
+            grace_handler)
+
+
+class TestChatScreenRoutingGrace:
+    def test_grace_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/grace failures", _FakeLog())
+        assert calls == [("/grace", "failures")]

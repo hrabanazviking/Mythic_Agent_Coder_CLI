@@ -10896,6 +10896,143 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-115: offline and degraded grace --
+
+    def _degradation_registry(self):
+        """The held degradation registry (M-115).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer degradation assessments
+        in the order they were judged. It is created
+        on first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named ``_degradation_store``,
+        never the method's own name (the M-108
+        lesson).
+        """
+        registry = getattr(self, "_degradation_store", None)
+        if registry is None:
+            from ..core.offline_grace import DegradationRegistry
+            registry = DegradationRegistry()
+            self._degradation_store = registry
+        return registry
+
+    def grace_status(self) -> dict[str, Any]:
+        """The held degradation records, in plain data (M-115).
+
+        Every held assessment as its plain record, in
+        the order judged, the one screen rendered
+        from that same registry, and the plain
+        explanation. Reading changes nothing: a
+        status read judges, registers, or publishes
+        nothing.
+        """
+        from ..core import offline_grace
+
+        registry = self._degradation_registry()
+        return {
+            "records": [a.to_record() for a in registry.list_records()],
+            "screen": offline_grace.format_grace_screen(registry),
+            "explanation": offline_grace.PLAIN_EXPLANATION,
+        }
+
+    def get_grace_record(self, record_id: Any):
+        """The one held assessment an id names (M-115).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._degradation_registry().get(record_id)
+
+    def register_grace_assessment(self, assessment: Any) -> dict[str, Any]:
+        """Hold one judged assessment for the session (M-115).
+
+        The assessment is held by the pure registry
+        under its id or a fresh deterministic one - a
+        duplicate id refuses, and a refusal holds
+        nothing new and publishes nothing - and a
+        held assessment is published as its
+        ``degradation_change`` session-news record
+        through the checkpoint road, so what the
+        coder lost is news, never just a log line.
+        Returns the held assessment, its news record,
+        the screen rendered after it landed, and the
+        plain explanation.
+        """
+        from ..core import offline_grace
+
+        registry = self._degradation_registry()
+        held = registry.register(assessment)
+        record = registry.record(held.record_id)
+        self._publish_degradation_record(record)
+        return {
+            "assessment": held.to_record(),
+            "record": record,
+            "screen": offline_grace.format_grace_screen(registry),
+            "explanation": offline_grace.PLAIN_EXPLANATION,
+        }
+
+    def judge_degradation(self, evidence: Any) -> dict[str, Any]:
+        """Judge evidence and hold the assessment (M-115).
+
+        The pure judge derives the state from the
+        given evidence only - full only when the
+        provider, the language server and the network
+        all affirmatively answer, a dimension whose
+        evidence is unknown named unknown and never
+        guessed up or down, and one failure never
+        inventing another - and the assessment is
+        held for the session and published as a
+        ``degradation_change`` session event. Bad
+        evidence refuses plainly, and a refusal holds
+        nothing and publishes nothing. This layer
+        gathers no evidence itself and probes
+        nothing: judging held evidence is the slice's
+        agent work. Returns the held assessment, its
+        news record, the screen, and the plain
+        explanation.
+        """
+        from ..core import offline_grace
+
+        registry = self._degradation_registry()
+        held = registry.judge_and_register(evidence)
+        record = registry.record(held.record_id)
+        self._publish_degradation_record(record)
+        return {
+            "assessment": held.to_record(),
+            "record": record,
+            "screen": offline_grace.format_grace_screen(registry),
+            "explanation": offline_grace.PLAIN_EXPLANATION,
+        }
+
+    def _publish_degradation_record(self, record: dict[str, Any]) -> None:
+        """Publish one degradation change as session news (M-115).
+
+        The pure layer's ``degradation_change``
+        record is journaled through the same
+        checkpoint road every sibling slice uses,
+        when a session is attached - for EVERY judged
+        assessment, as the pure layer shapes it: a
+        degradation is owed in plain words, its
+        headline always stating what was lost. Each
+        record is announced at most once: the
+        announcement is keyed by the record id, and
+        every held record holds a fresh id.
+        """
+        if record.get("type") != "degradation_change":
+            return
+        announced = getattr(self, "_degradation_announced", None)
+        if announced is None:
+            announced = set()
+            self._degradation_announced = announced
+        if record["record_id"] in announced:
+            return
+        announced.add(record["record_id"])
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
