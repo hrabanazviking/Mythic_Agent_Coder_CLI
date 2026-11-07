@@ -173,3 +173,9 @@ mythic_agent/agents/llm.py:12533:find_dealt_assignment:method
 mythic_agent/agents/llm.py:12613:register_dealt_assignment:method
 mythic_agent/agents/llm.py:12644:deal_task_dealing_plan:method
 mythic_agent/agents/llm.py:12693:redeal_task_assignment:method
+mythic_agent/agents/llm.py:12821:get_handoff:method
+mythic_agent/agents/llm.py:12892:register_handoff:method
+mythic_agent/agents/llm.py:12922:record_comms_ledger:method
+mythic_agent/agents/llm.py:12973:ask_batched_human_questions:method
+mythic_agent/core/crew_comms.py:695:by_sender:method
+mythic_agent/core/crew_comms.py:701:by_recipient:method
