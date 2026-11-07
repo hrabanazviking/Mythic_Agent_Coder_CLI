@@ -28,6 +28,7 @@ __all__ = [
     "create_pr",
     "get_actions_status",
     "list_issues",
+    "view_issue",
     "main",
     "register_cli",
 ]
@@ -96,6 +97,21 @@ def list_issues(state: str = "open", limit: int = 30,
             "--json", "number,title,state,labels,url"]
     if labels:
         args += ["--label", ",".join(labels)]
+    return json.loads(_run_gh(*args))
+
+
+def view_issue(number: int) -> dict[str, Any]:
+    """View one issue; returns ``{"number", "title", "body", "state", "labels", "url"}``.
+
+    The single-issue road M-083's issue-to-slice seam fetches
+    through: the issue's body rides along (the list road omits
+    it), because the planned slice's acceptance checks are
+    drafted from the body's own words.
+    """
+    if number < 1:
+        raise ValueError("Issue number must be >= 1")
+    args = ["issue", "view", str(number),
+            "--json", "number,title,body,state,labels,url"]
     return json.loads(_run_gh(*args))
 
 

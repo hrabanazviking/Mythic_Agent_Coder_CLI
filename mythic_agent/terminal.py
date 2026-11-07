@@ -73,9 +73,25 @@ def configured_agent(args: Any, default_permission: str) -> Agent:
             config[name] = value
     agent = Agent(project_root=args.workspace, config=config)
     mode = args.permission or policy_mode(config, machine=default_permission == "read-only")
-    agent.tool_policy = ToolPolicy(mode, lambda name, arguments: _approve(
-        name, agent.redactor.sanitize(arguments), agent._cancel,
-        runtime_settings(agent.config)["approval_timeout"]))
+    def approve(name, arguments):
+        # M-096: an exact remembered approval for this
+        # command in this project answers first; every
+        # other call takes the ordinary prompt road.
+        if agent.remembered_approval_allows_tool(name, arguments):
+            # M-109: a remembered approval is a human
+            # approval already given - trailed as one.
+            agent._note_audit_approval(
+                name, True, "a remembered approval")
+            return True
+        decided = _approve(
+            name, agent.redactor.sanitize(arguments), agent._cancel,
+            runtime_settings(agent.config)["approval_timeout"])
+        # M-109: the human's answer at the prompt is
+        # trailed as an approval, granted or refused.
+        agent._note_audit_approval(
+            name, decided, "the approval prompt")
+        return decided
+    agent.tool_policy = ToolPolicy(mode, approve)
     try:
         agent.attach_session(resume=getattr(args, "resume", None))
     except Exception:
@@ -260,8 +276,8 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /commitcraft [on|off|plan|commit <concern>|push] /guardians [word on|word off|check <path>] /autocommit [on|off|allow-protected|block-protected] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /changeset [on|off] /rename [on|off|<old-path> <new-path>] /generated [on|off|<path>|mark <path> <generator>] /largefile [on|off|<path>]/largefile [on|off|<path>] /stash [show|on|off|shelve <name>|restore <name>|drop <name>] /patch [show|on|off|export <set name>|import <patch file>] /editor [show|on|off|file <path>|prompt] /diff [show|on|off|unified|side-by-side|whitespace|whitespace off] /blame [show|on|off|<path> [<line>]] /massedit [show|on|off] /posture [show|<profile name>] /remember [list|forget <id>|clear] /sandbox [show|on|off|truth|plan <command>] /network [show|on|off|list|check <tool> <host>|allow <tool> <domain>] /pathjail [show|on|off|grants|check <path>|grant <abs-path>] /plan [show|on|off|approve|build|check <effect>] /hooks [show|show <event>|check <event>] /hookpacks [show|show <pack>|install <pack>] /background [show|show <job>|tail [<job>]|kill <job>|start <command...>] /keeper [show|show <target>|check|heartbeat <target>] /schedule [show|show <job>|check] /fleet [show|show <task>|verdict|resume] /budgets [show|show <budget>|check|check <budget>] /halt [show|show <halt>|pull|pull <target>] /audit [show|show <entry>|export] /secrets [show|show <screening>|check <file>] /doctrine [show|show <judgement>|ladder|check <command>] /rollback [show|show <run>|drills|run <drill>] /issueslice [on|off|github <number>] /prcraft [on|off|tasks <pr>] /commitcraft [on|off|plan|commit <concern>|push] /guardians [word on|word off|check <path>] /autocommit [on|off|allow-protected|block-protected] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /issueslice [on|off|github <number>] /prcraft [on|off|tasks <pr>] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
         return True, False, "Conversation cleared."
@@ -446,6 +462,825 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, KeyError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_setting_change(record)
+    if command == "/changeset":
+        from .core.change_sets import (
+            enabled_from_config,
+            format_change_sets,
+            format_setting_change,
+            parse_changeset_args,
+        )
+        try:
+            request = parse_changeset_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.change_set_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, format_change_sets(agent.config)
+        try:
+            record = agent.set_change_sets(request["enabled"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_setting_change(record)
+    if command == "/rename":
+        from .core.rename_move import (
+            enabled_from_config,
+            format_move_record,
+            format_rename_move,
+            format_setting_change,
+            parse_rename_args,
+        )
+        try:
+            request = parse_rename_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.rename_move_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, format_rename_move(agent.config)
+        try:
+            if request["action"] in ("on", "off"):
+                record = agent.set_rename_move(request["action"] == "on")
+                return True, False, format_setting_change(record)
+            record = agent.rename_move_file(
+                request["source"], request["destination"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_move_record(record)
+    if command == "/generated":
+        from .core.generated_code import (
+            enabled_from_config,
+            format_generated_code,
+            format_generated_record,
+            format_setting_change,
+            parse_generated_args,
+        )
+        try:
+            request = parse_generated_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.generated_code_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, format_generated_code(agent.config)
+        try:
+            if request["action"] in ("on", "off"):
+                record = agent.set_generated_code(request["action"] == "on")
+                return True, False, format_setting_change(record)
+            if request["action"] == "check":
+                data = agent.check_generated_code(request["path"])
+            else:
+                data = agent.mark_generated_file(
+                    request["path"], request["generator"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_generated_record(data)
+    if command == "/largefile":
+        from .core.large_file_care import (
+            enabled_from_config,
+            format_file_care,
+            format_large_file_care,
+            format_setting_change,
+            parse_largefile_args,
+        )
+        try:
+            request = parse_largefile_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.large_file_care_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, format_large_file_care(agent.config)
+        try:
+            if request["action"] in ("on", "off"):
+                record = agent.set_large_file_care(request["action"] == "on")
+                return True, False, format_setting_change(record)
+            data = agent.check_large_file(request["path"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        text = format_file_care(data)
+        if data.get("chunk_plan"):
+            text = text + "\n" + data["chunk_plan"]
+        return True, False, text
+
+    if command == "/stash":
+        from .core.stash_shelf import (
+            enabled_from_config,
+            format_setting_change,
+            format_shelf_entry,
+            format_shelf_list,
+            format_stash_shelf,
+            parse_stash_args,
+        )
+        try:
+            request = parse_stash_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.stash_shelf_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, (format_stash_shelf(agent.config)
+                                 + "\n" + format_shelf_list(
+                                     status["entries"]))
+        try:
+            if request["action"] in ("on", "off"):
+                record = agent.set_stash_shelf(request["action"] == "on")
+                return True, False, format_setting_change(record)
+            if request["action"] == "shelve":
+                record = agent.shelve_stash(request["name"])
+                return True, False, (
+                    f"Shelved {record['name']!r} - the tree is back "
+                    "to its base.\n" + format_shelf_entry(record["entry"]))
+            if request["action"] == "restore":
+                record = agent.restore_stash(request["name"])
+                return True, False, (
+                    f"Restored {record['name']!r}: {record['files']} "
+                    "file(s) back in the tree, off the shelf.")
+            record = agent.drop_stash(request["name"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, (
+            f"Dropped {record['name']!r} from the stash shelf; "
+            "the tree was not changed.")
+    if command == "/patch":
+        from .core.patch_exchange import (
+            enabled_from_config,
+            format_patch_exchange,
+            format_setting_change,
+            parse_patch_args,
+        )
+        try:
+            request = parse_patch_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.patch_exchange_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, format_patch_exchange(agent.config)
+        try:
+            if request["action"] in ("on", "off"):
+                record = agent.set_patch_exchange(request["action"] == "on")
+                return True, False, format_setting_change(record)
+            if request["action"] == "import":
+                record = agent.import_patch_from_file(request["ref"])
+                return True, False, (
+                    f"Imported patch {record['name']!r} from "
+                    f"{record['source']}: {record['applied']} file(s) "
+                    f"applied, {record['changed_files']} changed.")
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, (
+            f"There is no change set named {request['name']!r} held "
+            "by this session - change sets are values the agent layer "
+            "builds and applies (M-084), not a stored shelf; export "
+            "one through the agent road (export_patch_to_file) with "
+            "the set itself. Nothing was exported.")
+    if command == "/editor":
+        from .core.editor_bridge import (
+            enabled_from_config,
+            format_editor_bridge,
+            format_setting_change,
+            parse_editor_args,
+        )
+        try:
+            request = parse_editor_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.editor_bridge_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, format_editor_bridge(agent.config)
+        try:
+            if request["action"] in ("on", "off"):
+                record = agent.set_editor_bridge(request["action"] == "on")
+                return True, False, format_setting_change(record)
+            if request["action"] == "file":
+                record = agent.edit_file_in_editor(request["path"])
+                text = (f"Editor round-trip (file) {record['label']}: "
+                        f"{record['status']}\n  {record['reason']}")
+                if record["status"] == "changed":
+                    text += "\n  The changed text was written to the file."
+                return True, False, text
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, (
+            "This surface holds no draft - a prompt round-trip runs "
+            "through the agent road (edit_prompt_in_editor) with the "
+            "draft text itself. Nothing was sent.")
+    if command == "/diff":
+        from .core.diff_theatre import (
+            enabled_from_config,
+            format_diff_theatre,
+            format_setting_change,
+            parse_diff_args,
+        )
+        try:
+            request = parse_diff_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.diff_theatre_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, format_diff_theatre(agent.config)
+        demo_before = "alpha\nbeta old gamma\ndelta\n"
+        demo_after = "alpha\nbeta new gamma\ndelta\n"
+        try:
+            if request["action"] in ("on", "off"):
+                record = agent.set_diff_theatre(request["action"] == "on")
+                return True, False, format_setting_change(record)
+            if request["action"] == "view":
+                record = agent.show_diff_theatre(
+                    demo_before, demo_after, view=request["view"])
+                return True, False, record["rendered"]
+            record = agent.show_diff_theatre(
+                demo_before, demo_after,
+                ignore_whitespace=request["ignore_whitespace"])
+            return True, False, record["rendered"]
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+    if command == "/blame":
+        from .core.blame_sight import (
+            enabled_from_config,
+            format_blame_sight,
+            format_setting_change,
+            parse_blame_args,
+        )
+        try:
+            request = parse_blame_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.blame_sight_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, format_blame_sight(agent.config)
+        try:
+            if request["action"] in ("on", "off"):
+                record = agent.set_blame_sight(request["action"] == "on")
+                return True, False, format_setting_change(record)
+            record = agent.show_blame_sight(
+                request["path"], request["line"])
+            return True, False, record["rendered"]
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+    if command == "/massedit":
+        from .core.mass_edit_guard import (
+            enabled_from_config,
+            format_mass_edit_guard,
+            format_setting_change,
+            parse_mass_edit_args,
+        )
+        try:
+            request = parse_mass_edit_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.mass_edit_guard_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, format_mass_edit_guard(agent.config)
+        try:
+            record = agent.set_mass_edit_guard(request["action"] == "on")
+            return True, False, format_setting_change(record)
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+    if command == "/posture":
+        from .core.permission_profiles import (
+            format_permission_profiles,
+            format_profile_change,
+            parse_posture_args,
+            policy_mode_for,
+            stored_profile,
+        )
+        try:
+            request = parse_posture_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.permission_profile_status()
+            assert status["policy_mode"] == policy_mode_for(
+                stored_profile(agent.config))
+            return True, False, format_permission_profiles(
+                agent.config)
+        try:
+            record = agent.set_permission_profile(
+                request["profile"])
+            return True, False, format_profile_change(record)
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+    if command == "/remember":
+        from .core.remembered_approvals import (
+            PLAIN_EXPLANATION,
+            USAGE,
+            parse_remember_args,
+            stored_approvals,
+        )
+        try:
+            request = parse_remember_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "list":
+            status = agent.remembered_approvals_status()
+            assert status["count"] == len(
+                stored_approvals(agent.config))
+            return True, False, (
+                "Remembered approvals (M-096) - "
+                + PLAIN_EXPLANATION + "\n\n"
+                + status["screen"] + "\n\n" + USAGE + "\n"
+                "An approval is remembered only by your "
+                "explicit yes at the approval prompt; "
+                "/remember itself never creates one.")
+        try:
+            if request["action"] == "forget":
+                record = agent.revoke_remembered_approval(
+                    request["id"])
+                args_text = " ".join(
+                    record["args_pattern"]) or "(no args)"
+                return True, False, (
+                    f"Revoked remembered approval: "
+                    f"{record['command']} {args_text} in "
+                    f"{record['path']} [{record['id'][:12]}] - "
+                    f"{record['total']} remembered now.")
+            record = agent.clear_remembered_approvals()
+            return True, False, (
+                f"Cleared {record['cleared']} remembered "
+                f"approval(s); none remain.")
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+    if command == "/sandbox":
+        from .core.os_sandbox import (
+            enabled_from_config,
+            format_confinement_plan,
+            format_gate_change,
+            format_platform_truth,
+            parse_sandbox_args,
+        )
+        try:
+            request = parse_sandbox_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.os_sandbox_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, status["screen"]
+        if request["action"] == "truth":
+            return True, False, format_platform_truth()
+        if request["action"] == "plan":
+            try:
+                plan = agent.os_sandbox_plan(
+                    request["command"], platform=request["platform"])
+            except ValueError as exc:
+                return True, False, str(exc)
+            return True, False, format_confinement_plan(plan)
+        try:
+            record = agent.set_os_sandbox(request["action"] == "on")
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_gate_change(record)
+    if command == "/network":
+        from .core.network_gates import (
+            enabled_from_config,
+            format_allowlist,
+            format_gate_change,
+            format_network_decision,
+            gates_from_config,
+            parse_network_args,
+        )
+        try:
+            request = parse_network_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.network_gates_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, status["screen"]
+        if request["action"] == "list":
+            return True, False, format_allowlist(
+                gates_from_config(agent.config).entries)
+        if request["action"] == "check":
+            try:
+                decision = agent.check_network_reach(
+                    request["tool"], request["target"])
+            except ValueError as exc:
+                return True, False, str(exc)
+            return True, False, format_network_decision(decision)
+        if request["action"] == "allow":
+            try:
+                record = agent.add_network_allowlist_entry(request["entry"])
+            except (ValueError, KeyError, RuntimeError) as exc:
+                return True, False, str(exc)
+            entry = record["entry"]
+            return True, False, (
+                f"Network allowlist: {entry['tool']}: "
+                f"{entry['domain']} added.")
+        try:
+            record = agent.set_network_gates(request["action"] == "on")
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_gate_change(record)
+    if command == "/pathjail":
+        from .core.path_jail import (
+            enabled_from_config,
+            format_gate_change,
+            format_grants,
+            format_jail_decision,
+            grants_from_config,
+            parse_pathjail_args,
+        )
+        try:
+            request = parse_pathjail_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.path_jail_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, status["screen"]
+        if request["action"] == "grants":
+            return True, False, format_grants(
+                grants_from_config(agent.config))
+        if request["action"] == "check":
+            try:
+                decision = agent.check_path_jail(request["path"])
+            except ValueError as exc:
+                return True, False, str(exc)
+            return True, False, format_jail_decision(decision)
+        if request["action"] == "grant":
+            try:
+                record = agent.add_path_grant(request["grant"])
+            except (ValueError, KeyError, RuntimeError) as exc:
+                return True, False, str(exc)
+            return True, False, f"Path grant: {record['grant']} added."
+        try:
+            record = agent.set_path_jail(request["action"] == "on")
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_gate_change(record)
+    if command == "/plan":
+        from .core.plan_mode import (
+            enabled_from_config,
+            format_gate_change,
+            format_plan,
+            format_refusal,
+            parse_plan_args,
+            refusal_for_build,
+            refusal_for_effect,
+        )
+        try:
+            request = parse_plan_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.plan_mode_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, status["screen"]
+        if request["action"] == "check":
+            try:
+                decision = agent.check_plan_effect(request["effect"])
+            except ValueError as exc:
+                return True, False, str(exc)
+            if decision == "allow":
+                return True, False, (
+                    f"Plan allowed: a {request['effect']} effect "
+                    f"is allowed.")
+            return True, False, format_refusal(
+                refusal_for_effect(
+                    enabled_from_config(agent.config),
+                    request["effect"])) + "."
+        if request["action"] == "approve":
+            try:
+                plan = agent.approve_current_plan()
+            except ValueError as exc:
+                return True, False, str(exc)
+            return True, False, (
+                f"Plan approved: {plan.title} - building is now "
+                f"allowed in plan posture.\n" + format_plan(plan))
+        if request["action"] == "build":
+            if agent.check_plan_build():
+                return True, False, (
+                    "Building allowed: the build gate is open.")
+            return True, False, format_refusal(
+                refusal_for_build(
+                    enabled_from_config(agent.config),
+                    agent.current_plan())) + "."
+        try:
+            record = agent.set_plan_mode(request["action"] == "on")
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_gate_change(record)
+    if command == "/hooks":
+        from .core.hooks import (
+            format_hooks,
+            format_verdict,
+            hooks_from_config,
+            parse_hooks_args,
+        )
+        try:
+            action, event = parse_hooks_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if action == "show":
+            try:
+                status = agent.hooks_status()
+            except ValueError as exc:
+                return True, False, str(exc)
+            if event is None:
+                return True, False, status["screen"]
+            try:
+                named = [h for h in hooks_from_config(agent.config)
+                         if h.event == event]
+            except ValueError as exc:
+                return True, False, str(exc)
+            return True, False, format_hooks(named)
+        try:
+            verdicts = agent.run_hooks(event)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if not verdicts:
+            return True, False, (
+                f"No hooks are configured for {event}; "
+                f"nothing ran.")
+        return True, False, "\n".join(
+            format_verdict(v) for v in verdicts)
+    if command == "/hookpacks":
+        from .core.hook_packs import (
+            format_pack,
+            get_pack,
+            parse_hook_packs_args,
+        )
+        from .core.hooks import format_hooks
+        try:
+            action, pack_name = parse_hook_packs_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if action == "show":
+            if pack_name is None:
+                try:
+                    status = agent.hook_packs_status()
+                except ValueError as exc:
+                    return True, False, str(exc)
+                return True, False, status["screen"]
+            pack = get_pack(pack_name)
+            return True, False, (
+                format_pack(pack) + "\n"
+                + format_hooks(list(pack.hooks)))
+        try:
+            record = agent.install_hook_pack(pack_name)
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        if not record["changed"]:
+            return True, False, (
+                f"Hook pack {pack_name} is already installed; "
+                f"nothing changed.")
+        return True, False, (
+            f"Hook pack installed: {pack_name} "
+            f"({len(record['added'])} hook(s) added).")
+    if command == "/background":
+        from .core.background_tasks import (
+            format_completion,
+            format_job,
+            parse_background_args,
+        )
+        try:
+            action, target = parse_background_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if action == "show":
+            if target is None:
+                return True, False, agent.background_jobs_status()["screen"]
+            try:
+                job = agent.get_background_job(target)
+            except KeyError as exc:
+                return True, False, str(exc)
+            return True, False, format_job(job)
+        if action == "tail":
+            try:
+                return True, False, agent.background_job_tail(target)
+            except (KeyError, ValueError) as exc:
+                return True, False, str(exc)
+        if action == "kill":
+            try:
+                agent.kill_background_job(target)
+                job = agent.get_background_job(target)
+            except (KeyError, ValueError) as exc:
+                return True, False, str(exc)
+            return True, False, format_completion(job)
+        try:
+            argv = shlex.split(target)
+        except ValueError as exc:
+            return True, False, str(exc)
+        try:
+            record = agent.start_background_job(argv)
+        except (ValueError, OSError) as exc:
+            return True, False, str(exc)
+        job = agent.get_background_job(record["job_id"])
+        return True, False, f"Background job started: {format_job(job)}"
+    if command == "/keeper":
+        import time as _time
+
+        from .core.keeper import format_watch_target, parse_keeper_args
+        try:
+            action, target = parse_keeper_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if action == "show":
+            if target is None:
+                return True, False, agent.keeper_status()["screen"]
+            try:
+                watched = agent.get_keeper_target(target)
+            except KeyError as exc:
+                return True, False, str(exc)
+            return True, False, format_watch_target(watched, _time.time())
+        if action == "check":
+            return True, False, agent.keeper_check()["screen"]
+        try:
+            agent.keeper_heartbeat(target)
+            watched = agent.get_keeper_target(target)
+        except (KeyError, ValueError) as exc:
+            return True, False, str(exc)
+        return True, False, format_watch_target(watched, _time.time())
+    if command == "/schedule":
+        from .core.scheduled_work import (
+            format_verdict,
+            parse_schedule_args,
+        )
+        try:
+            action, target = parse_schedule_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if action == "show":
+            if target is None:
+                return True, False, agent.scheduled_work_status()["screen"]
+            try:
+                verdict = agent.get_scheduled_verdict(target)
+            except KeyError as exc:
+                return True, False, str(exc)
+            return True, False, format_verdict(verdict)
+        return True, False, agent.scheduled_check()["screen"]
+    if command == "/fleet":
+        from .core.fleet_mode import (
+            format_fleet_task,
+            parse_fleet_args,
+        )
+        try:
+            action, target = parse_fleet_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if action == "show":
+            if target is None:
+                return True, False, agent.fleet_status()["screen"]
+            try:
+                task = agent.get_fleet_task(target)
+                verdict = agent.get_fleet_verdict(target)
+            except KeyError as exc:
+                return True, False, str(exc)
+            return True, False, format_fleet_task(task, verdict)
+        if action == "verdict":
+            return True, False, agent.fleet_status()["verdict_screen"]
+        return True, False, agent.fleet_resume_plan()["screen"]
+    if command == "/budgets":
+        from .core.budgets import (
+            format_budget,
+            parse_budgets_args,
+        )
+        try:
+            action, target = parse_budgets_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if action == "show":
+            if target is None:
+                return True, False, agent.budget_status()["screen"]
+            try:
+                budget = agent.get_budget(target)
+                verdict = agent.get_budget_verdict(target)
+            except KeyError as exc:
+                return True, False, str(exc)
+            return True, False, format_budget(budget, verdict)
+        if target is None:
+            return True, False, agent.budget_check()["screen"]
+        try:
+            return True, False, agent.budget_check(target)["screen"]
+        except KeyError as exc:
+            return True, False, str(exc)
+    if command == "/halt":
+        from .core.kill_switch import (
+            format_halt,
+            parse_halt_args,
+        )
+        try:
+            action, target = parse_halt_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if action == "show":
+            if target is None:
+                return True, False, agent.kill_switch_status()["screen"]
+            try:
+                halt = agent.get_halt(target)
+                verdict = agent.get_halt_verdict(target)
+            except KeyError as exc:
+                return True, False, str(exc)
+            return True, False, format_halt(halt, verdict)
+        spec: dict = {"actor": "user"}
+        if target is not None:
+            spec["targets"] = [target]
+        return True, False, agent.pull_kill_switch(spec)["screen"]
+    if command == "/audit":
+        from .core.audit_trail import (
+            format_entry,
+            parse_audit_args,
+        )
+        try:
+            action, target = parse_audit_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if action == "export":
+            return True, False, agent.audit_export()["text"]
+        if target is None:
+            return True, False, agent.audit_status()["screen"]
+        try:
+            entry = agent.get_audit_entry(target)
+        except KeyError as exc:
+            return True, False, str(exc)
+        return True, False, format_entry(entry)
+    if command == "/secrets":
+        # M-110 terminal road: show the held screenings,
+        # show one screening, or screen one project file.
+        from .core.secret_hygiene import format_screening as _fmt_scr, parse_secrets_args as _parse_sec
+        try:
+            _act, _tgt = _parse_sec(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "check":
+            try:
+                _res = agent.screen_project_file(_tgt)
+            except ValueError as _exc:
+                return True, False, str(_exc)
+            return True, False, _res["screen"]
+        if _tgt is None:
+            return True, False, agent.secret_hygiene_status()["screen"]
+        try:
+            _one = agent.get_screening(_tgt)
+        except KeyError as _exc:
+            return True, False, str(_exc)
+        return True, False, _fmt_scr(_one)
+    if command == "/doctrine":
+        # M-111 terminal road: show the held judgements,
+        # show one judgement, show the ladder alone, or
+        # judge one command now and hold the judgement.
+        from .core.destructive_doctrine import format_judgement as _fmt_jdg, format_ladder as _fmt_lad, parse_doctrine_args as _parse_doc
+        try:
+            _act, _tgt = _parse_doc(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "ladder":
+            return True, False, _fmt_lad()
+        if _act == "check":
+            return True, False, agent.judge_command(_tgt)["screen"]
+        if _tgt is None:
+            return True, False, agent.doctrine_status()["screen"]
+        try:
+            _one = agent.get_judgement(_tgt)
+        except KeyError as _exc:
+            return True, False, str(_exc)
+        return True, False, _fmt_jdg(_one)
+    if command == "/rollback":
+        # M-112 terminal road: show the held results,
+        # show one run, show the drill book alone, or
+        # name the one drill a run would exercise.
+        from .core.rollback_drills import format_drill as _fmt_drl, format_drills as _fmt_drls, format_result as _fmt_res, parse_rollback_args as _parse_rb
+        try:
+            _act, _tgt = _parse_rb(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "drills":
+            return True, False, _fmt_drls()
+        if _act == "run":
+            return True, False, _fmt_drl(_tgt)
+        if _tgt is None:
+            return True, False, agent.rollback_status()["screen"]
+        try:
+            _one = agent.get_drill_run(_tgt)
+        except KeyError as _exc:
+            return True, False, str(_exc)
+        return True, False, _fmt_res(_one)
+    if command == "/conflicts":
+        from .core.conflict_workbench import (
+            enabled_from_config,
+            format_conflict_workbench,
+            format_setting_change,
+            parse_conflicts_args,
+        )
+        try:
+            request = parse_conflicts_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.conflict_workbench_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, format_conflict_workbench(
+                agent.config, agent.project_root)
+        try:
+            record = agent.set_conflict_workbench(request["enabled"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_setting_change(record)
     if command == "/checkpoint":
         from .core.checkpoints import (
             enabled_from_config,
@@ -596,6 +1431,61 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except (ValueError, RuntimeError) as exc:
             return True, False, str(exc)
         return True, False, format_push_record(record)
+    if command == "/prcraft":
+        from .core.pr_craft import (
+            enabled_from_config,
+            format_pr_craft,
+            format_setting_change,
+            format_tasks,
+            parse_prcraft_args,
+        )
+        try:
+            request = parse_prcraft_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.pr_craft_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, format_pr_craft(agent.config)
+        if request["action"] == "tasks":
+            try:
+                fetched = agent.fetch_review_tasks(request["number"])
+            except (ValueError, KeyError, RuntimeError) as exc:
+                return True, False, str(exc)
+            return True, False, format_tasks(fetched["tasks"])
+        try:
+            record = agent.set_pr_craft(request["enabled"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_setting_change(record)
+    if command == "/issueslice":
+        from .core.issue_slice import (
+            enabled_from_config,
+            format_issue_slice,
+            format_plan_record,
+            format_setting_change,
+            parse_issueslice_args,
+        )
+        try:
+            request = parse_issueslice_args(arguments)
+        except ValueError as exc:
+            return True, False, str(exc)
+        if request["action"] == "show":
+            status = agent.issue_slice_status()
+            assert status["enabled"] == enabled_from_config(agent.config)
+            return True, False, format_issue_slice(agent.config)
+        if request["action"] == "plan":
+            try:
+                record = agent.plan_issue_slice(
+                    request["source"], request["number"])
+            except (ValueError, RuntimeError) as exc:
+                return True, False, str(exc)
+            return True, False, format_plan_record(record)
+        try:
+            record = agent.set_issue_slice(request["enabled"])
+        except (ValueError, KeyError, RuntimeError) as exc:
+            return True, False, str(exc)
+        return True, False, format_setting_change(record)
     if command == "/kista":
         from .core.key_custody import (
             custody_entries,
@@ -1244,6 +2134,19 @@ def chat_loop(args: Any) -> int:
         session = PromptSession()
     console.print(f"Mythic chat · {agent.project_root} · {agent.config['model']}")
     console.print(f"Session: {agent.session_id}", markup=False)
+    # M-095: the posture is always visible - the status
+    # line carries it from the first moment of the chat.
+    # A failure to render it claims nothing and never
+    # blocks the chat (the M-040 pattern).
+    try:
+        from .core.permission_profiles import (
+            format_permission_profile,
+        )
+        console.print(
+            format_permission_profile(agent.config),
+            markup=False)
+    except Exception:
+        pass
     console.print("Use /help for commands, /quit or Ctrl+D to leave, Ctrl+C to interrupt.")
     # M-040: at session start, say it once and exactly when the
     # app is offline — a probed board with no door that can

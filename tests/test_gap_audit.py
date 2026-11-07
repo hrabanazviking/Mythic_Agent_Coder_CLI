@@ -134,14 +134,15 @@ def test_validation_rejects_broken_data():
             row["part"] = "IV"
     assert any("roadmap part" in p for p in validate_audit(wrong_part))
 
-    # A still-proposed row (hooks) carries the
+    # A still-proposed row (custom-commands) carries the
     # lying-kind mutation: repo-map's own row flipped to
     # "existing" truthfully when M-044 built its module,
     # lsp-integration's row flipped truthfully at M-049,
-    # and debugger-dap's row flipped truthfully at M-054.
+    # debugger-dap's row flipped truthfully at M-054,
+    # and hooks' row flipped truthfully at M-101.
     lying_kind = copy.deepcopy(raw)
     for row in lying_kind["rows"]:
-        if row["feature"] == "hooks":
+        if row["feature"] == "custom-commands":
             row["module_kind"] = "existing"
     assert any("marked existing but absent" in p
                for p in validate_audit(lying_kind, repo_root=REPO_ROOT))
