@@ -253,6 +253,8 @@ class CommandHandler:
                 self._handle_keeper(args)
             elif cmd == "/schedule":
                 self._handle_schedule(args)
+            elif cmd == "/fleet":
+                self._handle_fleet(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -2604,6 +2606,59 @@ class CommandHandler:
                             target, status["now"]))
             else:  # check
                 text = primary.scheduled_check()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_fleet(self, args: str):
+        """M-106: /fleet - headless fleet mode.
+
+        /fleet shows the held tasks with their recorded
+        verdicts and the fleet verdict with its honest
+        exit code; show <task> (or a bare task id) shows
+        one task with its verdict; verdict shows the
+        fleet verdict alone; resume shows the resume
+        plan - what remains to run, what passed and will
+        never run again, and what is held back until
+        retrying failures is asked for. Judging and
+        planning are the pure layer's work; running the
+        fleet is the agent layer's fleet_check, carried
+        out for real through the M-103 road - nothing
+        here starts a run.
+        """
+        from ..core.fleet_mode import (
+            format_fleet_task,
+            parse_fleet_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_fleet_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "show":
+                status = primary.fleet_status()
+                if target is None:
+                    text = status["screen"]
+                else:
+                    text = format_fleet_task(
+                        primary.get_fleet_task(target),
+                        primary.get_fleet_verdict(target))
+            elif action == "verdict":
+                text = primary.fleet_status()["verdict_screen"]
+            else:  # resume
+                text = primary.fleet_resume_plan()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
