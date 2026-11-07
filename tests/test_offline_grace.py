@@ -1,6 +1,6 @@
 """M-115 - Offline and degraded grace.
 
-TIER: unit (pure layer)
+TIER: integration
 
 Covers the M-115 pure layer
 (``mythic_agent.core.offline_grace``): failure kinds
