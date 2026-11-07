@@ -442,3 +442,273 @@ def test_format_keeper_is_the_whole_screen():
     assert "Keeper watches: 1 held." in screen
     assert screen.rstrip().endswith(USAGE)
     assert "none." in format_keeper(None, 0)
+
+
+# -- agent layer: watches held for a session (M-104) -----------------------
+
+import copy as _copy
+import sys as _sys
+import time as _time
+
+from mythic_agent.core.sessions import SessionStore
+
+
+class _OfflineMemoryKeeper:
+    def __init__(self):
+        self.archived = []
+
+    def search(self, query, top_k=2):
+        return []
+
+    def insert(self, text, metadata=None):
+        self.archived.append(text)
+
+
+@pytest.fixture()
+def keeper_agent(tmp_path, monkeypatch):
+    from mythic_agent.agents import llm
+    from mythic_agent.core.secure_api import unsubscribe
+
+    config = {"model": "test-model", "base_url": "http://localhost:1/v1", "api_keys": {}}
+    monkeypatch.setattr(llm.config_manager, "MYTHIC_DIR", tmp_path / "state")
+    monkeypatch.setattr(llm.config_manager, "load_config", lambda: _copy.deepcopy(config))
+    monkeypatch.setattr(llm.config_manager, "save_config", lambda config: True)
+    monkeypatch.setattr(llm, "get_vector_provider", lambda *args: _OfflineMemoryKeeper())
+    instance = llm.Agent(project_root=tmp_path)
+    from mythic_agent.core.policy import ToolPolicy
+    instance.tool_policy = ToolPolicy("trusted")
+    yield instance
+    unsubscribe("agent_clear_history", instance._handle_clear_history)
+    unsubscribe("agent_compact_history", instance._handle_compact_history)
+
+
+def _keeper_events(store, session_id, type_name):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == type_name]
+
+
+def _wait_job_state(agent, job_id, states, timeout=15.0):
+    deadline = _time.monotonic() + timeout
+    while _time.monotonic() < deadline:
+        job = agent.get_background_job(job_id)
+        if job.state in states:
+            return job
+        _time.sleep(0.05)
+    return agent.get_background_job(job_id)
+
+
+def _stalled_task(agent, **overrides):
+    spec = {"target_id": "watch-task", "kind": "task",
+            "label": "quiet task", "stall_after_seconds": 60,
+            "last_activity_at": 1000.0, "max_restarts": 3}
+    spec.update(overrides)
+    return agent.register_keeper_watch(spec)
+
+
+class TestKeeperAgentWatches:
+    def test_status_starts_empty(self, keeper_agent):
+        status = keeper_agent.keeper_status(now=10.0)
+        assert status["targets"] == []
+        assert status["verdicts"] == []
+        assert "Keeper watches: none." in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+        assert status["screen"] == format_keeper(
+            keeper_agent._keeper_registry(), 10.0)
+
+    def test_register_stamps_a_fresh_watch_with_now(self, keeper_agent):
+        before = _time.time()
+        record = keeper_agent.register_keeper_watch(
+            {"kind": "task", "label": "fresh work"})
+        assert record["target_id"] == "watch-1"
+        assert record["last_activity_at"] >= before
+        assert record["type"] == "keeper_watch"
+
+    def test_register_and_heartbeat(self, keeper_agent):
+        _stalled_task(keeper_agent)
+        record = keeper_agent.keeper_heartbeat("watch-task", at=1500.0)
+        assert record["last_activity_at"] == 1500.0
+        target = keeper_agent.get_keeper_target("watch-task")
+        assert target.last_activity_at == 1500.0
+        with pytest.raises(ValueError):
+            keeper_agent.keeper_heartbeat("watch-task", at=1400.0)
+        with pytest.raises(KeyError):
+            keeper_agent.keeper_heartbeat("watch-99", at=1500.0)
+        with pytest.raises(KeyError):
+            keeper_agent.get_keeper_target("watch-99")
+
+    def test_check_active_watch_owes_nothing(self, keeper_agent):
+        _stalled_task(keeper_agent)
+        result = keeper_agent.keeper_check(now=1010.0)
+        assert result["interventions"] == []
+        assert result["verdicts"][0]["status"] == "active"
+        assert result["verdicts"][0]["action"] == "none"
+
+    def test_check_stalled_task_publishes_intervention_once(
+            self, keeper_agent, tmp_path):
+        store = SessionStore(tmp_path, tmp_path / "state")
+        session_id = keeper_agent.attach_session(store)
+        _stalled_task(keeper_agent)
+        result = keeper_agent.keeper_check(now=2000.0)
+        assert len(result["interventions"]) == 1
+        record = result["interventions"][0]
+        assert record["type"] == "keeper_intervention"
+        assert record["action"] == "restart"
+        assert record["target_id"] == "watch-task"
+        events = _keeper_events(store, session_id, "keeper_intervention")
+        assert len(events) == 1
+        assert events[0]["target_id"] == "watch-task"
+        keeper_agent.keeper_check(now=2000.0)
+        events = _keeper_events(store, session_id, "keeper_intervention")
+        assert len(events) == 1
+
+    def test_check_exhausted_watch_reports(self, keeper_agent):
+        _stalled_task(keeper_agent, restarts=3)
+        result = keeper_agent.keeper_check(now=2000.0)
+        assert result["verdicts"][0]["action"] == "report"
+        assert result["interventions"][0]["action"] == "report"
+        assert "reporting the stall" in result["interventions"][0]["headline"]
+
+    def test_background_job_activity_feeds_its_watch(self, keeper_agent):
+        keeper_agent.register_keeper_watch(
+            {"target_id": "job-1", "kind": "background_job",
+             "label": "watched job", "stall_after_seconds": 60,
+             "last_activity_at": 1.0})
+        record = keeper_agent.start_background_job(
+            [_sys.executable, "-c", "print('kept-alive')"])
+        assert record["job_id"] == "job-1"
+        _wait_job_state(keeper_agent, "job-1", ("completed",))
+        deadline = _time.monotonic() + 5.0
+        target = keeper_agent.get_keeper_target("job-1")
+        while target.last_activity_at <= 1.0 and _time.monotonic() < deadline:
+            _time.sleep(0.05)
+            target = keeper_agent.get_keeper_target("job-1")
+        assert target.last_activity_at > 1.0
+        status = keeper_agent.keeper_status(
+            now=target.last_activity_at + 10.0)
+        assert status["verdicts"][0]["status"] == "active"
+
+    def test_check_restarts_a_stalled_background_job(self, keeper_agent):
+        record = keeper_agent.start_background_job(
+            [_sys.executable, "-c", "import time; time.sleep(30)"])
+        _wait_job_state(keeper_agent, record["job_id"], ("running",))
+        keeper_agent.register_keeper_watch(
+            {"target_id": record["job_id"], "kind": "background_job",
+             "label": "sleeping job", "stall_after_seconds": 60,
+             "last_activity_at": _time.time() - 120.0})
+        result = keeper_agent.keeper_check()
+        assert len(result["interventions"]) == 1
+        assert result["interventions"][0]["action"] == "restart"
+        old = keeper_agent.get_background_job(record["job_id"])
+        assert old.state == "cancelled"
+        jobs = keeper_agent.background_jobs_status()["jobs"]
+        assert len(jobs) == 2
+        assert jobs[1]["job_id"] != record["job_id"]
+        target = keeper_agent.get_keeper_target(record["job_id"])
+        assert target.restarts == 1
+        again = keeper_agent.keeper_check()
+        assert again["interventions"] == []
+        keeper_agent.kill_background_job(jobs[1]["job_id"], "test over")
+
+
+class TestKeeperTerminalSurface:
+    def test_show_is_the_whole_slice(self, keeper_agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(keeper_agent, "/keeper")
+        assert text.startswith("Keeper (M-104) - ")
+        assert "Keeper watches: none." in text
+        assert USAGE in text
+
+    def test_show_one_heartbeat_and_check_via_the_terminal(
+            self, keeper_agent):
+        from mythic_agent.terminal import _slash
+        _stalled_task(keeper_agent)
+        _, _, text = _slash(keeper_agent, "/keeper show watch-task")
+        assert text.startswith("watch-task: ")
+        _, _, text = _slash(keeper_agent, "/keeper heartbeat watch-task")
+        assert text.startswith("watch-task: ")
+        assert "active" in text
+        _stalled_task(keeper_agent, target_id="watch-old",
+                      label="old task")
+        _, _, text = _slash(keeper_agent, "/keeper check")
+        assert "Keeper watches: 2 held." in text
+        assert "stalled" in text
+
+    def test_bad_grammar_is_the_usage(self, keeper_agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(keeper_agent, "/keeper frobnicate x")
+        assert text == USAGE
+        _, _, text = _slash(keeper_agent, "/keeper heartbeat")
+        assert text == USAGE
+        _, _, text = _slash(keeper_agent, "/keeper show watch-99")
+        assert "unknown watch target" in text
+
+
+@pytest.fixture()
+def keeper_handler(keeper_agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = keeper_agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _keeper_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestKeeperCommand:
+    def test_show_is_default(self, keeper_handler, keeper_agent):
+        keeper_handler._handle_keeper("")
+        assert "Keeper watches: none." in _keeper_published_text(
+            keeper_handler)
+
+    def test_check_and_heartbeat_are_published(
+            self, keeper_handler, keeper_agent):
+        _stalled_task(keeper_agent)
+        keeper_handler._handle_keeper("check")
+        assert "stalled" in _keeper_published_text(keeper_handler)
+        keeper_handler._handle_keeper("heartbeat watch-task")
+        assert "watch-task: " in _keeper_published_text(keeper_handler)
+
+    def test_show_one_via_the_handler(self, keeper_handler, keeper_agent):
+        _stalled_task(keeper_agent)
+        keeper_handler._handle_keeper("show watch-task")
+        assert "watch-task: " in _keeper_published_text(keeper_handler)
+
+    def test_bad_grammar_is_published(self, keeper_handler, keeper_agent):
+        keeper_handler._handle_keeper("heartbeat")
+        assert "Usage: /keeper" in _keeper_published_text(keeper_handler)
+        keeper_handler._handle_keeper("show watch-99")
+        assert "unknown watch target" in _keeper_published_text(
+            keeper_handler)
+
+
+class TestChatScreenRoutingKeeper:
+    def test_keeper_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/keeper check", _FakeLog())
+        assert calls == [("/keeper", "check")]

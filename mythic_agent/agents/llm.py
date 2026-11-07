@@ -8343,6 +8343,7 @@ class Agent:
             args=(job.job_id, proc), daemon=True,
             name=f"mythic-background-{job.job_id}")
         reader.start()
+        self._keeper_note_background_activity(job.job_id)
         with lock:
             return registry.get(job.job_id).to_record()
 
@@ -8367,6 +8368,7 @@ class Agent:
                             registry.append_output(job_id, line)
                         except (KeyError, ValueError):
                             pass  # the job already ended; drop the line
+                    self._keeper_note_background_activity(job_id)
             exit_code = proc.wait()
         except Exception:
             exit_code = proc.poll()
@@ -8402,6 +8404,7 @@ class Agent:
         """
         from ..core import background_tasks
 
+        self._keeper_note_background_activity(job.job_id)
         record = background_tasks.completion_record(job)
         if record is None:
             return
@@ -8465,6 +8468,256 @@ class Agent:
             self._publish_background_completion(landed)
         with lock:
             return registry.get(job_id).to_record()
+    # -- M-104: the keeper --
+
+    def _keeper_registry(self):
+        """The held keeper watch registry (M-104).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer watch targets in
+        registration order. It is created on first
+        use, so an agent whose ``__init__`` never ran
+        still holds exactly one.
+        """
+        registry = getattr(self, "_keeper_watch_registry", None)
+        if registry is None:
+            from ..core.keeper import KeeperRegistry
+            registry = KeeperRegistry()
+            self._keeper_watch_registry = registry
+        return registry
+
+    def _keeper_job_links(self) -> dict:
+        """Watch id -> the job currently doing its work (M-104).
+
+        A keeper restart starts a replacement job
+        under a fresh job id; the link records which
+        job a watch's heartbeats now follow, so the
+        restarted work keeps feeding its own watch.
+        """
+        links = getattr(self, "_keeper_links", None)
+        if links is None:
+            links = {}
+            self._keeper_links = links
+        return links
+
+    def keeper_status(self, now: Any = None) -> dict[str, Any]:
+        """Keeper watches, in plain data (M-104).
+
+        Every held watch as its plain record, in
+        registration order, every watch's verdict at
+        ``now`` (the current moment when none is
+        named), the one screen rendered from that
+        same registry, and the plain explanation.
+        Judging changes nothing: a status read never
+        restarts, reports, or publishes.
+        """
+        from ..core import keeper
+
+        moment = time.time() if now is None else now
+        registry = self._keeper_registry()
+        return {
+            "targets": [t.to_record() for t in registry.list_targets()],
+            "verdicts": [v.to_record() for v in registry.check(moment)],
+            "screen": keeper.format_keeper(registry, moment),
+            "explanation": keeper.PLAIN_EXPLANATION,
+            "now": moment,
+        }
+
+    def get_keeper_target(self, target_id: Any):
+        """The one held watch an id names (M-104).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._keeper_registry().get(target_id)
+
+    def register_keeper_watch(self, spec: Any = None,
+                              **kwargs: Any) -> dict[str, Any]:
+        """Register one keeper watch for the session (M-104).
+
+        *spec* is a WatchTarget, a target mapping, or
+        field words given as keyword arguments - the
+        pure layer's ``build_watch_target`` readings.
+        A watch that names no last activity is stamped
+        with the registration moment: a watch starts
+        alive, and only quiet after that moment can
+        ever judge it stalled. Returns the held
+        target's plain record.
+        """
+        from dataclasses import replace
+
+        from ..core import keeper
+
+        target = keeper.build_watch_target(spec, **kwargs)
+        if target.last_activity_at == 0.0:
+            target = replace(target, last_activity_at=time.time())
+        return self._keeper_registry().register(target).to_record()
+
+    def keeper_heartbeat(self, target_id: Any,
+                         at: Any = None) -> dict[str, Any]:
+        """Record one sign of life on a held watch (M-104).
+
+        The heartbeat lands at ``at`` or the current
+        moment. Time never runs backwards - the pure
+        layer refuses an earlier moment - and an
+        unknown id raises KeyError. Returns the held
+        target's plain record.
+        """
+        moment = time.time() if at is None else at
+        updated = self._keeper_registry().heartbeat(target_id, moment)
+        return updated.to_record()
+
+    def _keeper_note_background_activity(self, job_id: str) -> None:
+        """Feed one background job's life to its watch (M-104).
+
+        Called where a held job visibly lives: when
+        it starts, when an output line lands in its
+        tail, and when its ending is published. A job
+        feeds the watch registered under its own id,
+        and a watch whose work the keeper restarted
+        follows the replacement job through the link
+        the restart recorded. No watch, no feeding -
+        the note is silent when nothing watches the
+        job.
+        """
+        registry = getattr(self, "_keeper_watch_registry", None)
+        if registry is None:
+            return
+        links = getattr(self, "_keeper_links", {})
+        for target in registry.list_targets(kind="background_job"):
+            if links.get(target.target_id, target.target_id) != job_id:
+                continue
+            try:
+                registry.heartbeat(target.target_id, time.time())
+            except (KeyError, ValueError):
+                pass  # a raced heartbeat never breaks the job's road
+
+    def keeper_check(self, now: Any = None) -> dict[str, Any]:
+        """Judge every held watch once, and act (M-104).
+
+        Every watch is judged at ``now`` (the current
+        moment when none is named) by the pure layer's
+        mechanical reading. Where a verdict owes an
+        action, its intervention record is published
+        as a ``keeper_intervention`` session event -
+        news, never just a log line, and at most once
+        per watch per owed state. Where the owed
+        action is a restart and the watched work has
+        an in-world handle - a held background job -
+        the restart is carried out for real (see
+        :meth:`_carry_keeper_restart`) and spent on
+        the watch through the pure layer's restart
+        recording; a watch with no in-world handle is
+        carried by its published intervention, which
+        puts the owed restart before the session. A
+        report is carried by its publication alone.
+        Returns the verdicts, the intervention
+        records, and the screen rendered after any
+        restarts landed.
+        """
+        from ..core import keeper
+
+        moment = time.time() if now is None else now
+        registry = self._keeper_registry()
+        verdicts = registry.check(moment)
+        interventions: list[dict[str, Any]] = []
+        for verdict in verdicts:
+            if verdict.action == "none":
+                continue
+            target = registry.get(verdict.target_id)
+            record = keeper.intervention_record(verdict, target)
+            if record is None:
+                continue
+            interventions.append(record)
+            self._publish_keeper_intervention(record)
+            if verdict.action == "restart" \
+                    and self._carry_keeper_restart(target):
+                current = registry.get(target.target_id)
+                try:
+                    registry.restart(
+                        target.target_id,
+                        max(moment, current.last_activity_at))
+                except ValueError:
+                    pass  # the restart landed in the world; the
+                    # watch's bound is the pure layer's to judge
+        screen_now = max(
+            [moment]
+            + [t.last_activity_at for t in registry.list_targets()])
+        return {
+            "targets": [t.to_record() for t in registry.list_targets()],
+            "verdicts": [v.to_record() for v in verdicts],
+            "interventions": interventions,
+            "screen": keeper.format_keeper(registry, screen_now),
+            "explanation": keeper.PLAIN_EXPLANATION,
+            "now": moment,
+        }
+
+    def _carry_keeper_restart(self, target: Any) -> bool:
+        """Restart one stalled watch's work in the world (M-104).
+
+        Only a background-job watch has an in-world
+        handle here: the held job the watch names (or
+        the replacement job a previous restart linked
+        to it). A job still running is killed first -
+        it has gone quiet past its bound, and the kill
+        lands its cancellation as session news - then
+        a fresh job is started from the same spec, and
+        the watch is linked to the replacement so its
+        heartbeats keep feeding the watch. A finished
+        job is restarted the same way: a fresh run of
+        the same spec. Returns True when a fresh job
+        was started.
+        """
+        if target.kind != "background_job":
+            return False
+        registry = getattr(self, "_background_registry", None)
+        if registry is None:
+            return False
+        links = self._keeper_job_links()
+        job_id = links.get(target.target_id, target.target_id)
+        try:
+            job = registry.get(job_id)
+        except KeyError:
+            return False
+        if job.state in ("queued", "running"):
+            try:
+                self.kill_background_job(job.job_id, "keeper restart")
+            except (KeyError, ValueError):
+                pass  # a job that ended on its own restarts below
+        record = self.start_background_job({
+            "argv": list(job.spec.argv),
+            "cwd": job.spec.cwd,
+            "label": job.spec.label,
+        })
+        links[target.target_id] = record["job_id"]
+        return True
+
+    def _publish_keeper_intervention(self, record: dict[str, Any]) -> None:
+        """Publish one owed intervention as session news (M-104).
+
+        The pure layer's intervention record - the
+        ``keeper_intervention`` session event - is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each owed state is announced at
+        most once: the announcement is keyed by the
+        watch, the action owed, and the restarts
+        already spent, so a later stall after a
+        restart is new news while a repeated check of
+        the same stall is not.
+        """
+        announced = getattr(self, "_keeper_announced", None)
+        if announced is None:
+            announced = set()
+            self._keeper_announced = announced
+        key = (record["target_id"], record["action"], record["restarts"])
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 
 class AgentManager:
