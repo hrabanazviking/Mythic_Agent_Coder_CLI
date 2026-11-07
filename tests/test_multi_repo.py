@@ -478,3 +478,371 @@ def test_module_is_pure_data_only():
     assert "import os" not in source
     assert "import sys" not in source
     assert "open(" not in source
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# The agent holds a MultiRepoRegistry for the
+# session (session state only, no new setting):
+# repos are registered as setup (publishing
+# nothing), cross-repo sets are built on the pure
+# road and published as multi_repo_change_set
+# session news, and the real-road tests walk a
+# cross-repo set against two real on-disk git
+# repos - true texts read per repo, the set
+# decided and planned whole, the planned texts
+# landed in both repos as one set.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _multi_repo_events(store, session_id):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == "multi_repo_change_set"]
+
+
+def _held_sets(agent):
+    return agent._multi_repo_registry().list_sets()
+
+
+def _two_repos(agent):
+    agent.register_repo(repo_id="api", root="/srv/api",
+                        policy={"mode": "trusted"})
+    agent.register_repo(repo_id="docs", root="/srv/docs",
+                        policy={"mode": "ask"})
+    return agent.multi_repo_workspace("session")
+
+
+_MEMBERS = [
+    {"repo_id": "api", "path": "app.py",
+     "format_id": "whole-file", "payload": "x = 2\n"},
+    {"repo_id": "docs", "path": "guide.md",
+     "format_id": "whole-file", "payload": "guide v2\n"},
+]
+
+
+class TestMultiRepoAgentStatus:
+    def test_status_starts_empty(self, agent):
+        status = agent.multi_repo_status()
+        assert status["repos"] == []
+        assert status["sets"] == []
+        assert "no repos held" in status["screen"]
+        assert "no sets held" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+        assert status["screen"] == format_multi_repo_screen(
+            agent._multi_repo_registry())
+
+    def test_registry_is_one_per_agent(self, agent):
+        assert agent._multi_repo_registry() is agent._multi_repo_registry()
+        # The M-108 lesson: the attribute never shares the method name.
+        assert agent._multi_repo_store is agent._multi_repo_registry()
+
+    def test_unknown_set_raises_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_cross_repo_set("set-99")
+
+    def test_unknown_repo_refuses_plainly(self, agent):
+        with pytest.raises(ValueError) as excinfo:
+            agent.get_held_repo("nope")
+        assert "unknown repo" in str(excinfo.value)
+
+    def test_register_repo_publishes_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_repo(
+            repo_id="api", root="/srv/api",
+            policy={"mode": "trusted"})
+        assert outcome["repo"]["repo_id"] == "api"
+        assert outcome["repo"]["policy"]["mode"] == "trusted"
+        assert "1 repos held" in outcome["screen"]
+        assert _multi_repo_events(store, session_id) == []
+        with pytest.raises(ValueError):
+            agent.register_repo(repo_id="api", root="/elsewhere")
+
+    def test_set_built_held_and_published_once(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        workspace = _two_repos(agent)
+        outcome = agent.register_cross_repo_set(
+            workspace, "bump versions", _MEMBERS)
+        assert outcome["set"]["set_id"] == "set-1"
+        assert outcome["set"]["repo_ids"] == ["api", "docs"]
+        assert outcome["record"]["type"] == "multi_repo_change_set"
+        assert outcome["record"]["news"] is True
+        assert outcome["record"]["headline"].startswith(
+            "Cross-repo change set 'bump versions'")
+        assert "not yet reviewed whole" in outcome["record"]["headline"]
+        events = _multi_repo_events(store, session_id)
+        assert len(events) == 1
+        assert events[0]["repo_ids"] == ["api", "docs"]
+        assert events[0]["files"] == ["api/app.py", "docs/guide.md"]
+        agent._publish_multi_repo_record(outcome["record"])
+        agent.multi_repo_status()
+        agent.get_cross_repo_set("set-1")
+        assert len(_multi_repo_events(store, session_id)) == 1
+        assert agent.get_cross_repo_set("set-1").name == "bump versions"
+
+    def test_decided_set_held_states_reviewed_whole(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        workspace = _two_repos(agent)
+        cross = build_cross_repo_change_set(
+            workspace, "bump", _MEMBERS)
+        decided = cross.decide_file(0, "accept").decide_file(1, "accept")
+        outcome = agent.hold_cross_repo_set(decided)
+        assert outcome["set"]["reviewed_whole"] is True
+        assert "reviewed whole as one change set" in (
+            outcome["record"]["headline"])
+        assert len(_multi_repo_events(store, session_id)) == 1
+
+    def test_build_refusals_hold_nothing(self, agent):
+        workspace = _two_repos(agent)
+        with pytest.raises(ValueError):
+            agent.register_cross_repo_set(workspace, "x", [
+                {"repo_id": "nope", "path": "a.py",
+                 "format_id": "whole-file", "payload": "x\n"}])
+        agent.register_repo(repo_id="frozen", root="/srv/frozen",
+                            policy={"mode": "read_only"})
+        workspace = agent.multi_repo_workspace("session")
+        with pytest.raises(ValueError):
+            agent.register_cross_repo_set(workspace, "x", [
+                {"repo_id": "frozen", "path": "a.py",
+                 "format_id": "whole-file", "payload": "x\n"}])
+        assert _held_sets(agent) == ()
+
+    def test_status_read_publishes_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        workspace = _two_repos(agent)
+        agent.register_cross_repo_set(workspace, "bump", _MEMBERS)
+        assert len(_multi_repo_events(store, session_id)) == 1
+        agent.multi_repo_status()
+        agent.get_cross_repo_set("set-1")
+        agent.multi_repo_status()
+        assert len(_multi_repo_events(store, session_id)) == 1
+
+    def test_build_without_session_holds_quietly(self, agent):
+        workspace = _two_repos(agent)
+        outcome = agent.register_cross_repo_set(
+            workspace, "bump", _MEMBERS)
+        assert outcome["set"]["set_id"] == "set-1"
+        assert "1 held" in outcome["screen"]
+        assert len(_held_sets(agent)) == 1
+
+
+class TestMultiRepoRealRoads:
+    """Cross-repo sets walked against two real repos.
+
+    Each test stages two real git repositories on
+    disk, reads their files' true texts per repo,
+    and walks the slice's own roads: register the
+    repos (their roots' canonical identities
+    proven distinct on workspace.py's road), build
+    ONE set spanning both, decide it whole, plan
+    it whole against the true texts, and land the
+    planned texts in both repos - both repos then
+    show the change, as one set. No count or
+    outcome here is invented.
+    """
+
+    def _stage_repo(self, root, files):
+        import subprocess
+        root.mkdir(parents=True)
+        subprocess.run(["git", "init", "-b", "main", str(root)],
+                       check=True, capture_output=True)
+        for name, text in files.items():
+            (root / name).write_text(text)
+        subprocess.run(["git", "-C", str(root), "add", "."],
+                       check=True, capture_output=True)
+        subprocess.run(
+            ["git", "-C", str(root), "-c", "user.name=Multi",
+             "-c", "user.email=multi@example.invalid",
+             "commit", "-m", "base"], check=True, capture_output=True)
+
+    def test_cross_repo_set_lands_in_both_repos_as_one(
+            self, agent, tmp_path):
+        from mythic_agent.core.workspace import workspace_id
+        api = tmp_path / "api-repo"
+        docs = tmp_path / "docs-repo"
+        self._stage_repo(api, {"app.py": "x = 1\n"})
+        self._stage_repo(docs, {"guide.md": "guide v1\n"})
+        assert workspace_id(api) != workspace_id(docs)
+        agent.register_repo(repo_id="api", root=str(api),
+                            policy={"mode": "trusted"})
+        agent.register_repo(repo_id="docs", root=str(docs),
+                            policy={"mode": "ask"})
+        workspace = agent.multi_repo_workspace("session")
+        cross = build_cross_repo_change_set(workspace, "release bump", [
+            {"repo_id": "api", "path": "app.py",
+             "format_id": "search-replace", "payload": _SEARCH},
+            {"repo_id": "docs", "path": "guide.md",
+             "format_id": "whole-file", "payload": "guide v2\n"},
+        ])
+        # Undecided, the whole set refuses against the true texts.
+        currents = {
+            "api": {"app.py": (api / "app.py").read_text()},
+            "docs": {"guide.md": (docs / "guide.md").read_text()}}
+        with pytest.raises(ValueError):
+            plan_cross_repo_change_set(cross, currents)
+        decided = cross.decide_file(0, "accept").decide_file(1, "accept")
+        by_repo, outcome = plan_cross_repo_change_set(decided, currents)
+        assert outcome.applied == 2 and outcome.changed_files == 2
+        held = agent.hold_cross_repo_set(decided)
+        assert held["set"]["reviewed_whole"] is True
+        # Land the plan: the test writes the planned texts, one per
+        # repo, exactly as the one set planned them.
+        roots = {"api": api, "docs": docs}
+        for repo_id, files in by_repo.items():
+            for path, text in files.items():
+                (roots[repo_id] / path).write_text(text)
+        assert (api / "app.py").read_text() == "x = 2\n"
+        assert (docs / "guide.md").read_text() == "guide v2\n"
+        import subprocess
+        for root in (api, docs):
+            status = subprocess.run(
+                ["git", "-C", str(root), "status", "--porcelain"],
+                check=True, capture_output=True, text=True).stdout
+            assert status.strip() != ""  # each repo carries its part
+
+    def test_stale_file_in_one_repo_refuses_the_whole_plan(
+            self, agent, tmp_path):
+        api = tmp_path / "api-repo"
+        docs = tmp_path / "docs-repo"
+        self._stage_repo(api, {"app.py": "x = 1\n"})
+        self._stage_repo(docs, {"guide.md": "guide v1\n"})
+        agent.register_repo(repo_id="api", root=str(api))
+        agent.register_repo(repo_id="docs", root=str(docs))
+        workspace = agent.multi_repo_workspace("session")
+        decided = build_cross_repo_change_set(
+            workspace, "release bump", [
+                {"repo_id": "api", "path": "app.py",
+                 "format_id": "search-replace", "payload": _SEARCH},
+                {"repo_id": "docs", "path": "guide.md",
+                 "format_id": "whole-file", "payload": "guide v2\n"},
+            ]).decide_file(0, "accept").decide_file(1, "accept")
+        # The docs file moved after the set was built: the whole
+        # plan refuses - the api part is never planned alone.
+        (api / "app.py").write_text("x = 99\n")
+        currents = {
+            "api": {"app.py": (api / "app.py").read_text()},
+            "docs": {"guide.md": (docs / "guide.md").read_text()}}
+        with pytest.raises(ValueError):
+            plan_cross_repo_change_set(decided, currents)
+        assert (docs / "guide.md").read_text() == "guide v1\n"
+
+
+class TestMultiRepoTerminalSurface:
+    def test_show_is_the_whole_slice(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/multirepo")
+        assert text.startswith("Multi-repo workspaces (M-113) - ")
+        assert "no repos held" in text
+        assert "no sets held" in text
+        assert USAGE in text
+
+    def test_help_line_names_multirepo(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert "/multirepo [show|show <set>|repos]" in text
+
+    def test_repos_via_the_terminal(self, agent):
+        from mythic_agent.terminal import _slash
+        _two_repos(agent)
+        _, _, text = _slash(agent, "/multirepo repos")
+        assert text.startswith("Multi-repo workspace: 2 repos held.")
+        assert "trusted for changes" in text
+        assert _held_sets(agent) == ()
+
+    def test_show_one_via_the_terminal(self, agent):
+        from mythic_agent.terminal import _slash
+        workspace = _two_repos(agent)
+        agent.register_cross_repo_set(workspace, "bump", _MEMBERS)
+        _, _, text = _slash(agent, "/multirepo show set-1")
+        assert text.startswith("set-1: 'bump' spans api, docs")
+        assert "not yet reviewed whole" in text
+        _, _, text = _slash(agent, "/multirepo set-1")
+        assert "docs/guide.md" in text
+
+    def test_unknown_and_bad_grammar_via_the_terminal(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/multirepo show set-99")
+        assert "unknown cross-repo set" in text
+        _, _, text = _slash(agent, "/multirepo repos set-1")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/multirepo drop set-1")
+        assert text == USAGE
+
+
+@pytest.fixture()
+def multirepo_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _multirepo_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestMultiRepoCommand:
+    def test_show_is_default(self, multirepo_handler, agent):
+        multirepo_handler._handle_multirepo("")
+        assert "no repos held" in _multirepo_published_text(
+            multirepo_handler)
+
+    def test_repos_via_the_handler(self, multirepo_handler, agent):
+        _two_repos(agent)
+        multirepo_handler._handle_multirepo("repos")
+        assert "Multi-repo workspace: 2 repos held." in (
+            _multirepo_published_text(multirepo_handler))
+        assert _held_sets(agent) == ()
+
+    def test_show_one_via_the_handler(self, multirepo_handler, agent):
+        workspace = _two_repos(agent)
+        agent.register_cross_repo_set(workspace, "bump", _MEMBERS)
+        multirepo_handler._handle_multirepo("show set-1")
+        assert "set-1: 'bump' spans api, docs" in (
+            _multirepo_published_text(multirepo_handler))
+        assert "not yet reviewed whole" in _multirepo_published_text(
+            multirepo_handler)
+
+    def test_bad_grammar_and_unknown_are_published(
+            self, multirepo_handler, agent):
+        multirepo_handler._handle_multirepo("repos set-1")
+        assert "Usage: /multirepo" in _multirepo_published_text(
+            multirepo_handler)
+        multirepo_handler._handle_multirepo("show set-99")
+        assert "unknown cross-repo set" in _multirepo_published_text(
+            multirepo_handler)
+
+
+class TestChatScreenRoutingMultiRepo:
+    def test_multirepo_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/multirepo repos", _FakeLog())
+        assert calls == [("/multirepo", "repos")]

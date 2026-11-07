@@ -10544,6 +10544,182 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-113: multi-repo workspaces --
+
+    def _multi_repo_registry(self):
+        """The held multi-repo registry (M-113).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer repos and cross-repo
+        sets in the order they were registered and
+        built. It is created on first use, so an
+        agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_multi_repo_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_multi_repo_store", None)
+        if registry is None:
+            from ..core.multi_repo import MultiRepoRegistry
+            registry = MultiRepoRegistry()
+            self._multi_repo_store = registry
+        return registry
+
+    def multi_repo_status(self) -> dict[str, Any]:
+        """The held repos and sets, in plain data (M-113).
+
+        Every held repo and cross-repo set as its
+        plain record, in the order held, the one
+        screen rendered from that same registry,
+        and the plain explanation. Reading changes
+        nothing: a status read registers, builds,
+        or publishes nothing.
+        """
+        from ..core import multi_repo
+
+        registry = self._multi_repo_registry()
+        return {
+            "repos": [r.to_record() for r in registry.list_repos()],
+            "sets": [s.to_record() for s in registry.list_sets()],
+            "screen": multi_repo.format_multi_repo_screen(registry),
+            "explanation": multi_repo.PLAIN_EXPLANATION,
+        }
+
+    def get_held_repo(self, repo_id: Any):
+        """The one held repo an id names (M-113).
+
+        An id no held repo carries refuses plainly,
+        exactly as the pure registry answers.
+        """
+        return self._multi_repo_registry().get_repo(repo_id)
+
+    def get_cross_repo_set(self, set_id: Any):
+        """The one held cross-repo set an id names (M-113).
+
+        An unknown id raises KeyError, exactly as
+        the pure registry answers.
+        """
+        return self._multi_repo_registry().get(set_id)
+
+    def multi_repo_workspace(self, name: Any):
+        """The held repos as one workspace (M-113).
+
+        Built from the registry's held repos, in
+        registration order - the workspace a
+        cross-repo set is built against.
+        """
+        return self._multi_repo_registry().workspace(name)
+
+    def register_repo(self, repo: Any = None,
+                      **kwargs: Any) -> dict[str, Any]:
+        """Hold one repo for the session (M-113).
+
+        The entry is validated and held by the pure
+        registry; a duplicate repo id refuses.
+        Registering a repo publishes nothing: a repo
+        joining the workspace is setup, not news -
+        the news this slice publishes is the
+        cross-repo change set. Returns the held
+        repo, the screen rendered after it landed,
+        and the plain explanation.
+        """
+        from ..core import multi_repo
+
+        registry = self._multi_repo_registry()
+        held = registry.register_repo(repo, **kwargs)
+        return {
+            "repo": held.to_record(),
+            "screen": multi_repo.format_multi_repo_screen(registry),
+            "explanation": multi_repo.PLAIN_EXPLANATION,
+        }
+
+    def hold_cross_repo_set(self, cross: Any) -> dict[str, Any]:
+        """Hold one built cross-repo set, and announce it (M-113).
+
+        The set is held by the pure registry under
+        its id or the next deterministic one, and
+        its ``multi_repo_change_set`` record is
+        published as a session event through the
+        checkpoint road, so a cross-repo change is
+        news, never just a log line. Returns the
+        held set, its news record, the screen
+        rendered after it landed, and the plain
+        explanation.
+        """
+        from ..core import multi_repo
+
+        registry = self._multi_repo_registry()
+        held = registry.register(cross)
+        record = registry.record(held.set_id)
+        self._publish_multi_repo_record(record)
+        return {
+            "set": held.to_record(),
+            "record": record,
+            "screen": multi_repo.format_multi_repo_screen(registry),
+            "explanation": multi_repo.PLAIN_EXPLANATION,
+        }
+
+    def register_cross_repo_set(self, workspace: Any, name: Any,
+                                members: Any) -> dict[str, Any]:
+        """Build one cross-repo set and hold it (M-113).
+
+        The set is built on the pure layer's road -
+        ONE M-084 change set spanning the named
+        repos, each member judged by M-084's
+        ``make_edit`` unchanged, a repo the
+        workspace does not hold refusing plainly
+        and a read-only repo refusing its member at
+        build time - then held for the session and
+        published as a ``multi_repo_change_set``
+        session event. This layer builds and holds
+        the set as data: it writes no file in any
+        repo - planning and applying ride M-084's
+        roads, exercised in this slice's tests
+        against real on-disk repos. Returns the
+        held set, its news record, the screen, and
+        the plain explanation.
+        """
+        from ..core import multi_repo
+
+        registry = self._multi_repo_registry()
+        held = registry.build_and_register(workspace, name, members)
+        record = registry.record(held.set_id)
+        self._publish_multi_repo_record(record)
+        return {
+            "set": held.to_record(),
+            "record": record,
+            "screen": multi_repo.format_multi_repo_screen(registry),
+            "explanation": multi_repo.PLAIN_EXPLANATION,
+        }
+
+    def _publish_multi_repo_record(self, record: dict[str, Any]) -> None:
+        """Publish one cross-repo set as session news (M-113).
+
+        The pure layer's ``multi_repo_change_set``
+        record is journaled through the same
+        checkpoint road every sibling slice uses,
+        when a session is attached - for EVERY held
+        set, as the pure layer shapes it: a
+        cross-repo change is owed in plain words
+        whether it is already reviewed whole or
+        still holds undecided files. Each set is
+        announced at most once: the announcement is
+        keyed by the set id, and every held set
+        holds a fresh id.
+        """
+        if record.get("type") != "multi_repo_change_set":
+            return
+        announced = getattr(self, "_multi_repo_announced", None)
+        if announced is None:
+            announced = set()
+            self._multi_repo_announced = announced
+        if record["set_id"] in announced:
+            return
+        announced.add(record["set_id"])
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
