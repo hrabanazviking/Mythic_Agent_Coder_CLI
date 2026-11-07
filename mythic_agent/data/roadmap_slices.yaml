@@ -740,7 +740,7 @@ slices:
   title: Offline and degraded grace
   summary: provider down, LSP down, net down — each failure narrows the coder honestly and says what it
     lost.
-  status: queued
+  status: done
 - id: M-116
   part: 5
   title: Approval by phone-sized moments
