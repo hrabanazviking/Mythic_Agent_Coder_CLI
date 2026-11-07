@@ -112,3 +112,4 @@ mythic_agent/agents/llm.py:7118:remember_command_approval:method
 mythic_agent/agents/llm.py:7407:run_os_sandboxed:method
 mythic_agent/agents/llm.py:7912:set_current_plan:method
 mythic_agent/agents/llm.py:7930:build_current_plan:method
+mythic_agent/agents/llm.py:8032:configured_hooks:method
