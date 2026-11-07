@@ -375,3 +375,312 @@ def test_parse_hook_packs_args_install_and_errors():
         with pytest.raises(ValueError) as excinfo:
             parse_hook_packs_args(bad)
         assert str(excinfo.value) == USAGE
+
+# -- agent layer: status, install, surfaces (M-102) ---
+
+import copy as _copy
+
+from mythic_agent.core.hooks import SETTING_KEY as HOOKS_SETTING_KEY
+from mythic_agent.core.sessions import SessionStore
+
+
+class _OfflineMemory:
+    def __init__(self):
+        self.archived = []
+
+    def search(self, query, top_k=2):
+        return []
+
+    def insert(self, text, metadata=None):
+        self.archived.append(text)
+
+
+@pytest.fixture()
+def agent(tmp_path, monkeypatch):
+    from mythic_agent.agents import llm
+    from mythic_agent.core.secure_api import unsubscribe
+
+    config = {"model": "test-model", "base_url": "http://localhost:1/v1", "api_keys": {}}
+    monkeypatch.setattr(llm.config_manager, "MYTHIC_DIR", tmp_path / "state")
+    monkeypatch.setattr(llm.config_manager, "load_config", lambda: _copy.deepcopy(config))
+    monkeypatch.setattr(llm.config_manager, "save_config", lambda config: True)
+    monkeypatch.setattr(llm, "get_vector_provider", lambda *args: _OfflineMemory())
+    instance = llm.Agent(project_root=tmp_path)
+    from mythic_agent.core.policy import ToolPolicy
+    instance.tool_policy = ToolPolicy("trusted")
+    yield instance
+    unsubscribe("agent_clear_history", instance._handle_clear_history)
+    unsubscribe("agent_compact_history", instance._handle_compact_history)
+
+
+def _store_for(tmp_path):
+    return SessionStore(tmp_path, tmp_path / "state")
+
+
+def _events(store, session_id, type_name):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == type_name]
+
+
+def _configure_hooks(agent, *specs):
+    agent.config[HOOKS_SETTING_KEY] = list(specs)
+
+
+class TestHookPacksAgentStatus:
+    def test_status_defaults_to_nothing_installed(self, agent):
+        status = agent.hook_packs_status()
+        assert [p["name"] for p in status["packs"]] == list(PACK_NAMES)
+        assert status["installed"] == {
+            "tests_after_edits": False,
+            "readme_guard": False,
+            "verify_pushes": False}
+        assert status["hooks"] == []
+        assert status["screen"] == format_hook_packs()
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_status_reflects_configured_hooks(self, agent):
+        _configure_hooks(agent, *[
+            h.to_record() for h in get_pack("readme_guard").hooks])
+        status = agent.hook_packs_status()
+        assert status["installed"]["readme_guard"] is True
+        assert status["installed"]["verify_pushes"] is False
+        assert len(status["hooks"]) == 2
+
+    def test_status_partial_install_is_not_installed(self, agent):
+        first = get_pack("verify_pushes").hooks[0]
+        _configure_hooks(agent, first.to_record())
+        status = agent.hook_packs_status()
+        assert status["installed"]["verify_pushes"] is False
+
+    def test_status_malformed_config_raises(self, agent):
+        _configure_hooks(agent, {"event": "pre_tool"})
+        with pytest.raises(ValueError):
+            agent.hook_packs_status()
+        agent.config[HOOKS_SETTING_KEY] = "pytest -q"
+        with pytest.raises(ValueError):
+            agent.hook_packs_status()
+
+
+class TestInstallHookPack:
+    def test_install_happy_path_stores_plain_records(self, agent):
+        record = agent.install_hook_pack("readme_guard")
+        assert record["type"] == "hook_pack_installed"
+        assert record["pack"] == "readme_guard"
+        assert record["changed"] is True
+        assert record["journaled"] is False
+        assert len(record["added"]) == 2
+        stored = agent.config[HOOKS_SETTING_KEY]
+        assert stored == [
+            h.to_record() for h in get_pack("readme_guard").hooks]
+        assert agent.hook_packs_status()["installed"]["readme_guard"] is True
+        assert [h.command for h in agent.configured_hooks()] == [
+            h.command for h in get_pack("readme_guard").hooks]
+
+    def test_install_reads_the_name_case_and_dash_insensitively(self, agent):
+        record = agent.install_hook_pack("README-GUARD")
+        assert record["pack"] == "readme_guard" and record["changed"] is True
+
+    def test_install_accepts_a_pack_object(self, agent):
+        record = agent.install_hook_pack(get_pack("verify_pushes"))
+        assert record["pack"] == "verify_pushes"
+        assert len(agent.config[HOOKS_SETTING_KEY]) == 2
+
+    def test_install_appends_after_existing_in_pack_order(self, agent):
+        _configure_hooks(agent,
+                         {"event": "on_session", "command": "hello.sh",
+                          "name": "hello"})
+        record = agent.install_hook_pack("verify_pushes")
+        stored = agent.config[HOOKS_SETTING_KEY]
+        assert stored[0]["command"] == "hello.sh"
+        assert stored[1:] == [
+            h.to_record() for h in get_pack("verify_pushes").hooks]
+        assert len(record["added"]) == 2
+
+    def test_install_partial_adds_only_the_missing_hooks(self, agent):
+        first = get_pack("tests_after_edits").hooks[0]
+        _configure_hooks(agent, {"event": first.event,
+                                 "command": first.command,
+                                 "name": "my-own-name"})
+        record = agent.install_hook_pack("tests_after_edits")
+        assert record["changed"] is True
+        assert len(record["added"]) == 1
+        assert record["added"][0]["command"] == (
+            "python -m compileall -q mythic_agent")
+        assert len(agent.config[HOOKS_SETTING_KEY]) == 2
+
+    def test_install_idempotent_writes_and_journals_nothing(
+            self, agent, tmp_path, monkeypatch):
+        from mythic_agent.agents import llm
+
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        first = agent.install_hook_pack("tests_after_edits")
+        assert first["changed"] is True and first["journaled"] is True
+        before = _copy.deepcopy(agent.config)
+        saves = []
+        monkeypatch.setattr(
+            llm.config_manager, "save_config",
+            lambda config: saves.append(config) or False)
+        second = agent.install_hook_pack("tests_after_edits")
+        assert second["changed"] is False
+        assert second["journaled"] is False
+        assert second["added"] == []
+        assert saves == []
+        assert agent.config == before
+        events = _events(store, session_id, "hook_pack_installed")
+        assert len(events) == 1
+        agent.close()
+
+    def test_install_journals_on_the_session(self, agent, tmp_path):
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        record = agent.install_hook_pack("verify_pushes")
+        assert record["journaled"] is True
+        events = _events(store, session_id, "hook_pack_installed")
+        assert len(events) == 1
+        assert events[0]["pack"] == "verify_pushes"
+        assert len(events[0]["added"]) == 2
+        agent.close()
+
+    def test_install_save_failure_restores_and_journals_the_revert(
+            self, agent, tmp_path, monkeypatch):
+        from mythic_agent.agents import llm
+
+        store = _store_for(tmp_path)
+        session_id = agent.attach_session(store)
+        _configure_hooks(agent,
+                         {"event": "on_session", "command": "hello.sh"})
+        before = _copy.deepcopy(agent.config)
+        monkeypatch.setattr(llm.config_manager, "save_config",
+                            lambda config: False)
+        with pytest.raises(RuntimeError, match="could not be saved"):
+            agent.install_hook_pack("readme_guard")
+        assert agent.config == before
+        types = [e["type"] for e in store.export(session_id)["events"]]
+        assert types[-2:] == ["hook_pack_installed",
+                              "hook_pack_install_reverted"]
+        agent.close()
+
+    def test_install_unknown_pack_raises_and_writes_nothing(self, agent):
+        with pytest.raises(ValueError):
+            agent.install_hook_pack("nope")
+        assert HOOKS_SETTING_KEY not in agent.config
+
+    def test_install_name_collision_refuses_and_writes_nothing(self, agent):
+        _configure_hooks(agent,
+                         {"event": "on_session", "command": "other.sh",
+                          "name": "run-tests-after-edit"})
+        before = _copy.deepcopy(agent.config)
+        with pytest.raises(ValueError):
+            agent.install_hook_pack("tests_after_edits")
+        assert agent.config == before
+
+    def test_install_malformed_existing_hooks_raise(self, agent):
+        _configure_hooks(agent, {"event": "pre_tool"})
+        with pytest.raises(ValueError):
+            agent.install_hook_pack("readme_guard")
+
+
+class TestHookPacksTerminalSurface:
+    def test_show_is_the_whole_slice(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/hookpacks")
+        assert text.startswith("Hook packs (M-102) - ")
+        assert "Hook packs: 3 shipped." in text
+
+    def test_show_one_pack_gives_its_details(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/hookpacks show readme_guard")
+        assert text.startswith("readme_guard: ")
+        assert "git diff --quiet -- README.md" in text
+        _, _, text = _slash(agent, "/hookpacks verify-pushes")
+        assert text.startswith("verify_pushes: ")
+
+    def test_install_via_the_terminal(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/hookpacks install tests-after-edits")
+        assert text == (
+            "Hook pack installed: tests_after_edits (2 hook(s) added).")
+        assert agent.hook_packs_status()["installed"]["tests_after_edits"] is True
+        _, _, text = _slash(agent, "/hookpacks install tests_after_edits")
+        assert text == (
+            "Hook pack tests_after_edits is already installed; "
+            "nothing changed.")
+
+    def test_bad_grammar_is_the_usage(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/hookpacks frobnicate")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/hookpacks install nope")
+        assert text == USAGE
+
+
+@pytest.fixture()
+def hookpacks_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _hookpacks_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestHookPacksCommand:
+    def test_show_is_default(self, hookpacks_handler, agent):
+        hookpacks_handler._handle_hookpacks("")
+        assert "Hook packs: 3 shipped." in _hookpacks_published_text(
+            hookpacks_handler)
+
+    def test_show_one_pack_is_published(self, hookpacks_handler, agent):
+        hookpacks_handler._handle_hookpacks("show readme_guard")
+        text = _hookpacks_published_text(hookpacks_handler)
+        assert "readme_guard: " in text
+        assert "git diff --cached --quiet -- README.md" in text
+
+    def test_install_is_published(self, hookpacks_handler, agent):
+        hookpacks_handler._handle_hookpacks("install verify_pushes")
+        text = _hookpacks_published_text(hookpacks_handler)
+        assert "Hook pack installed: verify_pushes" in text
+        assert agent.hook_packs_status()["installed"]["verify_pushes"] is True
+        hookpacks_handler._handle_hookpacks("install verify_pushes")
+        assert "already installed" in _hookpacks_published_text(
+            hookpacks_handler)
+
+    def test_bad_grammar_is_published(self, hookpacks_handler, agent):
+        hookpacks_handler._handle_hookpacks("frobnicate")
+        assert "Usage: /hookpacks" in _hookpacks_published_text(
+            hookpacks_handler)
+
+
+class TestChatScreenRoutingHookPacks:
+    def test_hookpacks_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/hookpacks install readme_guard", _FakeLog())
+        assert calls == [("/hookpacks", "install readme_guard")]

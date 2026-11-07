@@ -245,6 +245,8 @@ class CommandHandler:
                 self._handle_plan(args)
             elif cmd == "/hooks":
                 self._handle_hooks(args)
+            elif cmd == "/hookpacks":
+                self._handle_hookpacks(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -2376,6 +2378,70 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_hookpacks(self, args: str):
+        """M-102: /hookpacks - hook packs.
+
+        /hookpacks shows the shipped shelf; show <pack>
+        (or a bare pack name) shows one pack and the
+        hooks it carries; install <pack> installs one
+        pack through the agent layer - journal-first,
+        the merged hooks stored as plain hook records
+        under the M-101 hooks setting, and a pack that
+        is already fully installed changes nothing and
+        writes nothing. Judging is the pure layer's work
+        and storing is the agent layer's; nothing here
+        writes a setting itself.
+        """
+        from ..core.hook_packs import (
+            format_pack,
+            get_pack,
+            parse_hook_packs_args,
+        )
+        from ..core.hooks import format_hooks
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, pack_name = parse_hook_packs_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if action == "show":
+            try:
+                if pack_name is None:
+                    text = primary.hook_packs_status()["screen"]
+                else:
+                    pack = get_pack(pack_name)
+                    text = (format_pack(pack) + "\n"
+                            + format_hooks(list(pack.hooks)))
+            except ValueError as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{text}[/bold cyan]\n")
+            return
+        try:
+            record = primary.install_hook_pack(pack_name)
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if not record["changed"]:
+            text = (f"Hook pack {pack_name} is already installed; "
+                    f"nothing changed.")
+        else:
+            text = (f"Hook pack installed: {pack_name} "
+                    f"({len(record['added'])} hook(s) added).")
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{text}[/green]\n")
 
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.
