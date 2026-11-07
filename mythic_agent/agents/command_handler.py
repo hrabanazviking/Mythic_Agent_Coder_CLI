@@ -285,6 +285,8 @@ class CommandHandler:
                 self._handle_worktrees(args)
             elif cmd == "/dealing":
                 self._handle_dealing(args)
+            elif cmd == "/comms":
+                self._handle_comms(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -3553,6 +3555,68 @@ class CommandHandler:
             else:
                 text = format_assignments(
                     primary.find_dealt_assignments(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_comms(self, args: str):
+        """M-126: /comms - crew comms.
+
+        ``/comms`` shows the hand-offs held this
+        session (the shipped example ledger - six
+        hand-offs among the M-121 casting - when none
+        is held yet); ``/comms show <member>`` (or a
+        bare member id, or ``human``) shows one
+        member's hand-offs; ``/comms ask`` shows the
+        one batched ask of the questions waiting for
+        the human, each with its full context;
+        ``/comms kinds`` shows the hand-off kinds.
+        Reading registers and publishes nothing as
+        session news: a hand-off is held only when it
+        is handed through the agent layer, and a held
+        hand-off is published as a crew_handoff
+        session event, a batched ask as ONE
+        human_question_batch session event. This road
+        spawns no crew and delivers no message: the
+        registry holds the hand-offs as data, and
+        there is no Part VIII board yet - this surface
+        is where the hand-offs and the batch are
+        visible. The registry is session state held
+        by the agent; it is not a stored setting.
+        """
+        from ..core.crew_comms import (
+            format_handoffs,
+            format_human_batch,
+            format_kinds,
+            parse_comms_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_comms_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "ask":
+                text = format_human_batch(
+                    primary.human_question_batch())
+            elif action == "kinds":
+                text = format_kinds()
+            elif target is None:
+                text = primary.crew_comms_status()["screen"]
+            else:
+                text = format_handoffs(
+                    primary.find_handoffs(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
