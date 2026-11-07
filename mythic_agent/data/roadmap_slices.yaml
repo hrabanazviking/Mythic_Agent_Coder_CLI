@@ -734,7 +734,7 @@ slices:
   title: Remote and SSH work
   summary: run the coder against a project on another machine (Mimir, purplelongship) through one connection
     — files and commands stay on that machine.
-  status: queued
+  status: done
 - id: M-115
   part: 5
   title: Offline and degraded grace
