@@ -277,6 +277,8 @@ class CommandHandler:
                 self._handle_moment(args)
             elif cmd == "/policy":
                 self._handle_policy(args)
+            elif cmd == "/crew":
+                self._handle_crew(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -3241,6 +3243,50 @@ class CommandHandler:
         text = (format_plan(policy)
                 if request["action"] == "plan"
                 else format_policy_sections(policy))
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_crew(self, args: str):
+        """M-121: /crew - agents as files.
+
+        ``/crew`` shows the crew held this session
+        (the shipped casting - the existing characters
+        as data - when none is held yet); ``/crew show
+        <member>`` (or a bare member id) shows one
+        member; ``/crew office <office>`` shows the
+        member holding one office. Reading registers,
+        spawns and publishes nothing: a member is held
+        only when it joins through the agent layer,
+        and held members spawn through the shipped
+        sub-agent road. The registry is session state
+        held by the agent; it is not a stored setting.
+        """
+        from ..core.crew_members import format_member, parse_crew_args
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_crew_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "office":
+                text = format_member(
+                    primary.crew_member_for_office(target))
+            elif target is None:
+                text = primary.crew_status()["screen"]
+            else:
+                text = format_member(primary.find_crew_member(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
