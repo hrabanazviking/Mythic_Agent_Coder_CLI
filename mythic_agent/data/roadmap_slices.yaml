@@ -757,7 +757,7 @@ slices:
   title: Third-party red-team pack
   summary: crafted prompt-injection and tool-abuse attempts (from files, web pages, issues) the coder
     must refuse or defang — run in CI.
-  status: queued
+  status: done
 - id: M-119
   part: 5
   title: Policy as code
