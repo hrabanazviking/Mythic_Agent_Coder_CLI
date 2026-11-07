@@ -662,7 +662,7 @@ slices:
   title: Hook packs
   summary: the house hooks (run tests after edits, guard the README, verify pushes) shipped as installable
     packs.
-  status: queued
+  status: done
 - id: M-103
   part: 5
   title: Background tasks
