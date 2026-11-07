@@ -805,7 +805,7 @@ slices:
   title: Crew comms
   summary: structured hand-offs (findings, diffs, questions) between members; a member's question to the
     human is batched and asked once, with full context.
-  status: queued
+  status: done
 - id: M-127
   part: 6
   title: Cycle and deadlock detection grown
