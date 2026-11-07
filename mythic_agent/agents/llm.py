@@ -8107,6 +8107,113 @@ class Agent:
                 hook.event, hook, 127, stdout="",
                 stderr=f"the hook could not be run: {exc}")
 
+    # -- M-102: hook packs --
+
+    def hook_packs_status(self) -> dict[str, Any]:
+        """The hook packs, in plain data (M-102).
+
+        The shipped shelf as plain pack records, which
+        of them are fully installed - every hook of the
+        pack present among the configured hooks, judged
+        by event and command exactly as the pure layer's
+        install judges presence - the configured hooks
+        as plain records, the one screen rendered from
+        that same shelf, and the plain explanation. A
+        malformed stored hook list raises, never silently
+        narrows what was configured.
+        """
+        from ..core import hook_packs, hooks
+
+        configured = hooks.hooks_from_config(self.config)
+        present = {(h.event, h.command) for h in configured}
+        installed = {
+            pack.name: all(
+                (hook.event, hook.command) in present
+                for hook in pack.hooks)
+            for pack in hook_packs.SHIPPED_PACKS}
+        return {
+            "packs": [p.to_record() for p in hook_packs.SHIPPED_PACKS],
+            "installed": installed,
+            "hooks": [h.to_record() for h in configured],
+            "screen": hook_packs.format_hook_packs(),
+            "explanation": hook_packs.PLAIN_EXPLANATION,
+        }
+
+    def install_hook_pack(self, pack_spec: Any) -> dict[str, Any]:
+        """Install one hook pack into the hooks (M-102).
+
+        The pack is resolved by the pure layer (a Pack,
+        a shipped name read case-insensitively with
+        dashes as underscores, or a pack mapping) and
+        the merge is computed by the pure layer's
+        ``install_pack`` before anything mutates: the
+        existing hooks are validated whole, a pack hook
+        whose name already names a different configured
+        hook refuses, and a hook already present by
+        event and command is skipped. A pack that is
+        already fully installed changes nothing and
+        writes nothing - no journal entry, no save - and
+        the returned record says so (``changed`` False).
+        Otherwise the install is journaled first as a
+        ``hook_pack_installed`` record when a session is
+        attached; the stored list is the merged hooks'
+        plain records under the M-101 ``hooks`` setting;
+        a failed save restores the previous config
+        exactly and journals a compensating
+        ``hook_pack_install_reverted``.
+        """
+        import copy
+
+        from ..core import hook_packs, hooks
+
+        pack = hook_packs.resolve_pack(pack_spec)
+        existing = hooks.hooks_from_config(self.config)
+        merged = hook_packs.install_pack(existing, pack)
+        added = list(merged[len(existing):])
+        if not added:
+            return {
+                "type": "hook_pack_installed",
+                "action": "install",
+                "pack": pack.name,
+                "added": [],
+                "changed": False,
+                "session_id": self.session_id,
+                "journaled": False,
+            }
+        change: dict[str, Any] = {
+            "type": "hook_pack_installed",
+            "action": "install",
+            "pack": pack.name,
+            "added": [h.to_record() for h in added],
+        }
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change)
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[hooks.SETTING_KEY] = [
+            h.to_record() for h in merged]
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "hook_pack_install_reverted",
+                        "action": "install",
+                        "pack": pack.name,
+                        "reason": "The hook pack install could "
+                                  "not be saved; the previous "
+                                  "hooks were preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Hook pack install could not be saved; previous "
+                "hooks were preserved")
+        return {**change, "changed": True,
+                "session_id": self.session_id,
+                "journaled": journaled}
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
