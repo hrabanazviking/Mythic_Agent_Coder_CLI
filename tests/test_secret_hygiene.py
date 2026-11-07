@@ -532,3 +532,250 @@ def test_parse_secrets_args_case_and_extra():
         parse_secrets_args("check .env extra")
     with pytest.raises(ValueError):
         parse_secrets_args("secret_file")
+
+# -- agent layer: hygiene held for a session (M-110) ----------------------
+
+import json as _json
+import subprocess as _subprocess
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _refusal_events(store, session_id):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == "secret_refusal"]
+
+
+def _call(agent, name, arguments):
+    return agent._execute_call({"function": {
+        "name": name, "arguments": _json.dumps(arguments)}})
+
+
+def _git(root, *args):
+    result = _subprocess.run(
+        ["git", "-C", str(root), *args],
+        capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+    return result.stdout.strip()
+
+
+def _make_repo(tmp_path):
+    _git(tmp_path, "init", "-b", "main")
+    _git(tmp_path, "config", "user.email", "test@example.com")
+    _git(tmp_path, "config", "user.name", "Slice Test")
+    (tmp_path / "app.py").write_text("alpha = 1\n", encoding="utf-8")
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-m", "initial")
+
+
+class TestSecretsAgentStatus:
+    def test_status_starts_empty(self, agent):
+        status = agent.secret_hygiene_status()
+        assert status["screenings"] == []
+        assert "Secret hygiene: no files screened." in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+        assert status["screen"] == format_secrets_screen(
+            agent._hygiene_registry())
+
+    def test_unknown_screening_raises_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_screening("hygiene-99")
+
+    def test_clean_screening_holds_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.screen_file("app.py", "alpha = 1\n")
+        assert outcome["screening"]["status"] == "clean"
+        assert outcome["record"] is None
+        assert _refusal_events(store, session_id) == []
+        status = agent.secret_hygiene_status()
+        assert [s["screening_id"] for s in status["screenings"]] == [
+            "hygiene-1"]
+        assert agent.get_screening("hygiene-1").filename == "app.py"
+
+    def test_refused_screening_publishes_once(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.screen_file(
+            "leak.py", "KEY = " + FAKE_OPENAI + "\n")
+        assert outcome["screening"]["status"] == "refused"
+        assert outcome["record"]["type"] == "secret_refusal"
+        assert outcome["record"]["news"] is True
+        assert FAKE_OPENAI not in str(outcome)
+        events = _refusal_events(store, session_id)
+        assert len(events) == 1
+        assert events[0]["filename"] == "leak.py"
+        agent._publish_secret_refusal(outcome["record"])
+        assert len(_refusal_events(store, session_id)) == 1
+        agent.secret_hygiene_status()
+        agent.get_screening("hygiene-1")
+        assert len(_refusal_events(store, session_id)) == 1
+
+    def test_screen_project_file_and_refusals(self, agent, tmp_path):
+        (tmp_path / "clean.txt").write_text("ordinary words\n")
+        outcome = agent.screen_project_file("clean.txt")
+        assert outcome["screening"]["status"] == "clean"
+        with pytest.raises(ValueError, match="no such file"):
+            agent.screen_project_file("missing.txt")
+        with pytest.raises(ValueError, match="inside"):
+            agent.screen_project_file("../outside.txt")
+        assert len(agent.secret_hygiene_status()["screenings"]) == 1
+
+    def test_redact_output(self, agent):
+        text = agent.redact_output("the key is " + FAKE_OPENAI + " ok")
+        assert FAKE_OPENAI not in text
+        assert REDACTION_MARKER in text
+        assert agent.redact_output("ordinary text") == "ordinary text"
+
+
+class TestSecretsToolRoad:
+    def test_tool_result_is_redacted_at_the_funnel(
+            self, agent, tmp_path):
+        (tmp_path / "leak.txt").write_text(
+            "token: " + FAKE_GITHUB + "\n", encoding="utf-8")
+        result = _call(agent, "read_file", {"path": "leak.txt"})
+        assert FAKE_GITHUB not in result
+        assert REDACTION_MARKER in result
+
+    def test_clean_tool_result_is_untouched(self, agent, tmp_path):
+        (tmp_path / "note.txt").write_text("hello hygiene")
+        result = _call(agent, "read_file", {"path": "note.txt"})
+        assert result == "hello hygiene"
+
+class TestSecretsCommitRoad:
+    def test_secret_text_refused_and_nothing_committed(
+            self, agent, tmp_path):
+        _make_repo(tmp_path)
+        _git(tmp_path, "switch", "-c", "feature/login")
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.set_auto_commit(True)
+        (tmp_path / "leak.py").write_text(
+            "KEY = " + FAKE_OPENAI + "\n", encoding="utf-8")
+        with pytest.raises(ValueError, match="secret hygiene"):
+            agent.commit_accepted_edits(["leak.py"], "Add the leak")
+        assert _git(tmp_path, "log", "--format=%s").splitlines() == [
+            "initial"]
+        events = _refusal_events(store, session_id)
+        assert len(events) == 1
+        assert events[0]["filename"] == "leak.py"
+        assert FAKE_OPENAI not in str(events)
+
+    def test_secret_filename_refused_and_nothing_committed(
+            self, agent, tmp_path):
+        _make_repo(tmp_path)
+        _git(tmp_path, "switch", "-c", "feature/login")
+        agent.set_auto_commit(True)
+        (tmp_path / ".env").write_text("PLAIN = words\n", encoding="utf-8")
+        with pytest.raises(ValueError, match="secret hygiene"):
+            agent.commit_accepted_edits([".env"], "Add the env file")
+        assert _git(tmp_path, "log", "--format=%s").splitlines() == [
+            "initial"]
+        held = agent.secret_hygiene_status()["screenings"]
+        assert held[-1]["kinds"] == ["secret_file"]
+
+    def test_clean_file_commits(self, agent, tmp_path):
+        _make_repo(tmp_path)
+        _git(tmp_path, "switch", "-c", "feature/login")
+        agent.set_auto_commit(True)
+        (tmp_path / "app.py").write_text("alpha = 2\n", encoding="utf-8")
+        record = agent.commit_accepted_edits(["app.py"], "Change alpha")
+        assert record["committed"] is True
+        assert _git(tmp_path, "log", "-1", "--format=%s") == "Change alpha"
+        held = agent.secret_hygiene_status()["screenings"]
+        assert [s["status"] for s in held] == ["clean"]
+
+
+class TestSecretsTerminalSurface:
+    def test_show_is_the_whole_slice(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/secrets")
+        assert text.startswith("Secret hygiene (M-110) - ")
+        assert "Secret hygiene: no files screened." in text
+        assert USAGE in text
+
+    def test_check_and_show_one_via_the_terminal(self, agent, tmp_path):
+        from mythic_agent.terminal import _slash
+        (tmp_path / "clean.txt").write_text("ordinary words\n")
+        _, _, text = _slash(agent, "/secrets check clean.txt")
+        assert "1 screened" in text
+        _, _, text = _slash(agent, "/secrets show hygiene-1")
+        assert text.startswith("hygiene-1: clean.txt - clean")
+        _, _, text = _slash(agent, "/secrets hygiene-1")
+        assert "clean.txt" in text
+
+    def test_unknown_bad_grammar_and_missing_file(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/secrets show hygiene-99")
+        assert "unknown screening" in text
+        _, _, text = _slash(agent, "/secrets check")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/secrets check nope.txt")
+        assert "no such file" in text
+
+
+@pytest.fixture()
+def secrets_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _secrets_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestSecretsCommand:
+    def test_show_is_default(self, secrets_handler, agent):
+        secrets_handler._handle_secrets("")
+        assert "Secret hygiene: no files screened." in (
+            _secrets_published_text(secrets_handler))
+
+    def test_check_and_show_one_via_the_handler(
+            self, secrets_handler, agent, tmp_path):
+        (tmp_path / "clean.txt").write_text("ordinary words\n")
+        secrets_handler._handle_secrets("check clean.txt")
+        assert "1 screened" in _secrets_published_text(secrets_handler)
+        secrets_handler._handle_secrets("show hygiene-1")
+        assert "hygiene-1: " in _secrets_published_text(secrets_handler)
+
+    def test_bad_grammar_and_unknown_are_published(
+            self, secrets_handler, agent):
+        secrets_handler._handle_secrets("check")
+        assert "Usage: /secrets" in _secrets_published_text(secrets_handler)
+        secrets_handler._handle_secrets("show hygiene-99")
+        assert "unknown screening" in _secrets_published_text(
+            secrets_handler)
+
+
+class TestChatScreenRoutingSecrets:
+    def test_secrets_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/secrets check app.py", _FakeLog())
+        assert calls == [("/secrets", "check app.py")]

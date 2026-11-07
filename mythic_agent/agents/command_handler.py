@@ -261,6 +261,8 @@ class CommandHandler:
                 self._handle_halt(args)
             elif cmd == "/audit":
                 self._handle_audit(args)
+            elif cmd == "/secrets":
+                self._handle_secrets(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -2830,6 +2832,53 @@ class CommandHandler:
                 text = primary.audit_status()["screen"]
             else:
                 text = format_entry(primary.get_audit_entry(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_secrets(self, args: str):
+        """M-110: /secrets - secret hygiene in action.
+
+        /secrets shows the files screened this session
+        with each verdict - clean, or commit refused
+        with the secret pattern kinds named (content
+        is never shown); show <screening> (or a bare
+        screening id) shows one screening; check <file>
+        screens one real file in the project now and
+        holds the verdict - a refused verdict is
+        published as a secret_refusal session event.
+        Reading the screenings screens and publishes
+        nothing. The registry is session state held by
+        the agent; it is not a stored setting.
+        """
+        from ..core.secret_hygiene import (
+            format_screening,
+            parse_secrets_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_secrets_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "check":
+                text = primary.screen_project_file(target)["screen"]
+            elif target is None:
+                text = primary.secret_hygiene_status()["screen"]
+            else:
+                text = format_screening(primary.get_screening(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
