@@ -539,190 +539,190 @@ slices:
   title: Conflict workbench
   summary: merge/rebase conflicts presented as decisions with both sides' intent summarised; resolution
     is edited, tested, and journaled like any change.
-  status: queued
+  status: done
 - id: M-082
   part: 4
   title: PR craft
   summary: create, review, and respond to pull requests — review comments fetched as tasks; a review pass
     posts only at the user's word (sending as the user is a standing pause-line).
-  status: queued
+  status: done
 - id: M-083
   part: 4
   title: Issue-to-slice
   summary: a GitHub issue (or Samverk issue, Part X) becomes a planned slice with acceptance checks drafted
     from its text.
-  status: queued
+  status: done
 - id: M-084
   part: 4
   title: Multi-file change sets
   summary: a change set is a named, reviewable unit across files with its test evidence attached.
-  status: queued
+  status: done
 - id: M-085
   part: 4
   title: Rename/move files as first-class edits
   summary: (history-preserving git mv, references updated via Part III's graph).
-  status: queued
+  status: done
 - id: M-086
   part: 4
   title: Generated-code honesty
   summary: generated files are marked, their generator recorded; hand-edits to generated files warn before
     saving.
-  status: queued
+  status: done
 - id: M-087
   part: 4
   title: Large-file and binary care
   summary: big files edited by anchored chunks; binaries never text-edited; size guards explain themselves.
-  status: queued
+  status: done
 - id: M-088
   part: 4
   title: The stash shelf
   summary: quick-shelve work-in-progress by name, restore across sessions; the shelf survives crashes
     (journal-backed).
-  status: queued
+  status: done
 - id: M-089
   part: 4
   title: Patch export/import
   summary: a change set as a portable patch file with its evidence header — the hand-off format betweenmachines
     and between agents.
-  status: queued
+  status: done
 - id: M-090
   part: 4
   title: Editor bridges lite
   summary: '`$EDITOR` round-trip for any file or prompt at any approval point (the terminal user''s oldest
     right).'
-  status: queued
+  status: done
 - id: M-091
   part: 4
   title: Diff theatre in the TUI
   summary: side-by-side and unified views, word-level highlighting, whitespace toggle — colour never the
     only signal.
-  status: queued
+  status: done
 - id: M-092
   part: 4
   title: Blame and history sight
   summary: '"why is this line like this?" — blame + the journal''s own record of the session that wrote
     it.'
-  status: queued
+  status: done
 - id: M-093
   part: 4
   title: Guarded mass edits
   summary: repo-wide edits require a dry-run report (files, hunks, risks) approved before a single byte
     moves.
-  status: queued
+  status: done
 - id: M-094
   part: 4
   title: Part IV gate
   summary: benchmark refactor task completed with zero failed applies, hunk review used, auto-commits
     clean, checkpoint restore proven mid-task.
-  status: queued
+  status: done
 - id: M-095
   part: 5
   title: Permission profiles
   summary: named postures (Read-Only Scout, Trusted Forge, Full Autonomy, and custom) binding tools, paths,
     network, and commands; the posture is always visible in the status line.
-  status: queued
+  status: done
 - id: M-096
   part: 5
   title: Remembered approvals with scope
   summary: '"always allow *this* command in *this* project" — scopes are exact (command + args pattern
     + path), listed, and revocable in one screen; nothing is remembered silently.'
-  status: queued
+  status: done
 - id: M-097
   part: 5
   title: The OS sandbox (Codex's crown, native)
   summary: commands run under OS confinement (Linux namespaces/seccomp, macOS sandbox-exec, Windows job
     objects as far as each honestly goes) — no Docker, ever; per-platform truth in the platform table.
-  status: queued
+  status: done
 - id: M-098
   part: 5
   title: Network gates
   summary: outbound network per-tool and per-domain allowlists; a sandboxed command that reaches for the
     net is refused and the refusal is news, not a log line.
-  status: queued
+  status: done
 - id: M-099
   part: 5
   title: Path jail
   summary: file tools confined to the workspace + named grants; escapes by symlink are checked, not assumed
     away.
-  status: queued
+  status: done
 - id: M-100
   part: 5
   title: Plan mode perfected
   summary: in plan posture the coder may read everything and write nothing; the plan it produces is slices
     with acceptance checks (Part IX form), and approving the plan is the one gate to building.
-  status: queued
+  status: done
 - id: M-101
   part: 5
   title: Hooks — the full lifecycle
   summary: pre/post tool, pre/post edit, on-test, on-commit, on-session events running user scripts; hook
     output can block with a reason the coder must answer.
-  status: queued
+  status: done
 - id: M-102
   part: 5
   title: Hook packs
   summary: the house hooks (run tests after edits, guard the README, verify pushes) shipped as installable
     packs.
-  status: queued
+  status: done
 - id: M-103
   part: 5
   title: Background tasks
   summary: long commands (builds, suites, servers) run as managed background jobs with live output tails,
     kill, and completion events into the session.
-  status: queued
+  status: done
 - id: M-104
   part: 5
   title: The Keeper pattern built in
   summary: a watcher that notices stalled work (a dead background job, a crew member gone quiet) and restarts
     or reports per the user's standing keeper law — timers that *work*, not timers that watch.
-  status: queued
+  status: done
 - id: M-105
   part: 5
   title: Scheduled work
   summary: cron-style jobs ("run the suite at dawn", "check the upstream repo weekly") as data, with the
     same approval lines as live work.
-  status: queued
+  status: done
 - id: M-106
   part: 5
   title: Headless fleet mode
   summary: '`mythic run` grown for CI — parallel tasks across repos, machine-readable verdicts, artefact
     bundles, honest exit codes; a fleet run is resumable.'
-  status: queued
+  status: done
 - id: M-107
   part: 5
   title: Budgets as guardrails
   summary: per-task and per-session token, cost, time, and command budgets; hitting a budget is a graceful
     pause with a report, never a mid-edit death.
-  status: queued
+  status: done
 - id: M-108
   part: 5
   title: The kill switch everywhere
   summary: one key/command halts the coder, the crew, background jobs, and pending approvals — tested,
     instant.
-  status: queued
+  status: done
 - id: M-109
   part: 5
   title: Audit trail
   summary: every tool call, approval, edit, and command in the journal with actor (human/coder/crew/hook)
     — exportable for review; the trail is append-only.
-  status: queued
+  status: done
 - id: M-110
   part: 5
   title: Secret hygiene in action
   summary: the coder never echoes secrets, redacts known key shapes from outputs and logs, and refuses
     to commit files matching secret patterns (with the file named, content never shown).
-  status: queued
+  status: done
 - id: M-111
   part: 5
   title: Destructive-command doctrine
   summary: a written ladder (reversible → costly → irreversible) with the approval each rung needs; `rm
     -rf` class acts always name their targets in plain words first.
-  status: queued
+  status: done
 - id: M-112
   part: 5
   title: Rollback drills
   summary: scripted disasters (bad mass edit, wrong branch push attempt, corrupted session) recovered
     in tests.
-  status: queued
+  status: done
 - id: M-113
   part: 5
   title: Multi-repo workspaces

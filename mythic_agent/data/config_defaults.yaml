@@ -10,6 +10,19 @@ edit_format: auto
 hash_anchored_edits: true
 apply_repair_loop: true
 hunk_review: true
+change_sets: true
+rename_move: true
+generated_code: true
+large_file_care: true
+stash_shelf: true
+patch_exchange: true
+editor_bridge: true
+diff_theatre: true
+blame_sight: true
+mass_edit_guard: true
+issue_to_slice: true
+pr_craft: true
+conflict_workbench: true
 commit_craft: true
 checkpoints: true
 session_branching: true
@@ -48,6 +61,15 @@ mythic_engineering_mode: false
 auto_accept_permissions: false
 permission_mode: ask
 machine_permission_mode: read-only
+permission_profile: trusted-forge
+remembered_approvals: []
+os_sandbox: true
+network_gates: true
+network_allowlist: []
+path_jail: true
+path_grants: []
+plan_mode: false
+hooks: []
 streaming: false
 runtime: {}
 github:

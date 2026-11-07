@@ -209,6 +209,66 @@ class CommandHandler:
                 self._handle_repairloop(args)
             elif cmd == "/hunkreview":
                 self._handle_hunkreview(args)
+            elif cmd == "/changeset":
+                self._handle_changeset(args)
+            elif cmd == "/rename":
+                self._handle_rename(args)
+            elif cmd == "/generated":
+                self._handle_generated(args)
+            elif cmd == "/largefile":
+                self._handle_largefile(args)
+            elif cmd == "/stash":
+                self._handle_stash(args)
+            elif cmd == "/patch":
+                self._handle_patch(args)
+            elif cmd == "/editor":
+                self._handle_editor(args)
+            elif cmd == "/issueslice":
+                self._handle_issueslice(args)
+            elif cmd == "/diff":
+                self._handle_diff(args)
+            elif cmd == "/blame":
+                self._handle_blame(args)
+            elif cmd == "/massedit":
+                self._handle_massedit(args)
+            elif cmd == "/posture":
+                self._handle_posture(args)
+            elif cmd == "/remember":
+                self._handle_remember(args)
+            elif cmd == "/sandbox":
+                self._handle_sandbox(args)
+            elif cmd == "/network":
+                self._handle_network(args)
+            elif cmd == "/pathjail":
+                self._handle_pathjail(args)
+            elif cmd == "/plan":
+                self._handle_plan(args)
+            elif cmd == "/hooks":
+                self._handle_hooks(args)
+            elif cmd == "/hookpacks":
+                self._handle_hookpacks(args)
+            elif cmd == "/background":
+                self._handle_background(args)
+            elif cmd == "/keeper":
+                self._handle_keeper(args)
+            elif cmd == "/schedule":
+                self._handle_schedule(args)
+            elif cmd == "/fleet":
+                self._handle_fleet(args)
+            elif cmd == "/budgets":
+                self._handle_budgets(args)
+            elif cmd == "/halt":
+                self._handle_halt(args)
+            elif cmd == "/audit":
+                self._handle_audit(args)
+            elif cmd == "/secrets":
+                self._handle_secrets(args)
+            elif cmd == "/doctrine":
+                self._handle_doctrine(args)
+            elif cmd == "/rollback":
+                self._handle_rollback(args)
+            elif cmd == "/conflicts":
+                self._handle_conflicts(args)
             elif cmd == "/commitcraft":
                 self._handle_commitcraft(args)
             elif cmd == "/checkpoint":
@@ -219,6 +279,8 @@ class CommandHandler:
                 self._handle_autocommit(args)
             elif cmd == "/guardians":
                 self._handle_guardians(args)
+            elif cmd == "/prcraft":
+                self._handle_prcraft(args)
             elif cmd == "/kista":
                 self._handle_kista(args)
             elif cmd == "/resume-thought":
@@ -1217,6 +1279,1768 @@ class CommandHandler:
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[green]{format_setting_change(record)}[/green]\n")
 
+    def _handle_changeset(self, args: str):
+        """M-084: /changeset — multi-file change sets.
+
+        ``/changeset`` shows the gate (on by default), the
+        plain-words explanation, and a worked two-file
+        accept / reject example with its test evidence
+        attached; ``/changeset on`` / ``off`` changes the
+        gate (journaled by the agent layer).
+        """
+        from ..core.change_sets import (
+            enabled_from_config,
+            format_change_sets,
+            format_setting_change,
+            parse_changeset_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_changeset_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.change_set_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_change_sets(primary.config)}[/bold cyan]\n"
+                     "[dim]Turn the gate off with /changeset off, "
+                     "or back on with /changeset on.[/dim]\n")
+            return
+        try:
+            record = primary.set_change_sets(request["enabled"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_setting_change(record)}[/green]\n")
+
+    def _handle_rename(self, args: str):
+        """M-085: /rename — rename/move files as first-class edits.
+
+        ``/rename`` shows the gate (on by default), the
+        plain-words explanation, and a worked example plan;
+        ``/rename on`` / ``off`` changes the gate (journaled
+        by the agent layer); ``/rename <old> <new>``
+        executes one move through the agent (git mv plus
+        the graph's reference updates).
+        """
+        from ..core.rename_move import (
+            enabled_from_config,
+            format_move_record,
+            format_rename_move,
+            format_setting_change,
+            parse_rename_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_rename_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.rename_move_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_rename_move(primary.config)}[/bold cyan]\n"
+                     "[dim]Turn the gate off with /rename off, "
+                     "or back on with /rename on.[/dim]\n")
+            return
+        try:
+            if request["action"] in ("on", "off"):
+                record = primary.set_rename_move(
+                    request["action"] == "on")
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_setting_change(record)}[/green]\n")
+                return
+            record = primary.rename_move_file(
+                request["source"], request["destination"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_move_record(record)}[/green]\n")
+
+    def _handle_generated(self, args: str):
+        """M-086: /generated - generated-code honesty.
+
+        ``/generated`` shows the gate (on by default), the
+        plain-words explanation, and a worked example;
+        ``/generated on`` / ``off`` changes the gate
+        (journaled by the agent layer); ``/generated
+        <path>`` classifies one file from its own face;
+        ``/generated mark <path> <generator>`` marks one
+        file with its generator's name.
+        """
+        from ..core.generated_code import (
+            enabled_from_config,
+            format_generated_code,
+            format_generated_record,
+            format_setting_change,
+            parse_generated_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_generated_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.generated_code_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_generated_code(primary.config)}[/bold cyan]\n"
+                     "[dim]Turn the gate off with /generated off, "
+                     "or back on with /generated on.[/dim]\n")
+            return
+        try:
+            if request["action"] in ("on", "off"):
+                record = primary.set_generated_code(
+                    request["action"] == "on")
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_setting_change(record)}[/green]\n")
+                return
+            if request["action"] == "check":
+                data = primary.check_generated_code(request["path"])
+            else:
+                data = primary.mark_generated_file(
+                    request["path"], request["generator"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_generated_record(data)}[/green]\n")
+
+    def _handle_largefile(self, args: str):
+        """M-087: /largefile - large-file and binary care.
+
+        ``/largefile`` shows the gate (on by default), the
+        plain-words explanation, and a worked example of
+        each road; ``/largefile on`` / ``off`` changes the
+        gate (journaled by the agent layer); ``/largefile
+        <path>`` classifies one file from its true bytes -
+        a large text file also shows its anchored chunk
+        plan, and a binary is refused in plain words.
+        """
+        from ..core.large_file_care import (
+            enabled_from_config,
+            format_file_care,
+            format_large_file_care,
+            format_setting_change,
+            parse_largefile_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_largefile_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.large_file_care_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_large_file_care(primary.config)}[/bold cyan]\n"
+                     "[dim]Turn the gate off with /largefile off, "
+                     "or back on with /largefile on.[/dim]\n")
+            return
+        try:
+            if request["action"] in ("on", "off"):
+                record = primary.set_large_file_care(
+                    request["action"] == "on")
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_setting_change(record)}[/green]\n")
+                return
+            data = primary.check_large_file(request["path"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        text = format_file_care(data)
+        if data.get("chunk_plan"):
+            text = text + "\n" + data["chunk_plan"]
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{text}[/green]\n")
+
+
+    def _handle_stash(self, args: str):
+        """M-088: /stash - the stash shelf.
+
+        ``/stash`` shows the gate (on by default), the
+        plain-words explanation, and the live shelf;
+        ``/stash on`` / ``off`` changes the gate
+        (journaled by the agent layer); ``/stash shelve
+        <name>`` shelves the tree's work-in-progress by
+        name and the tree goes back to its base;
+        ``/stash restore <name>`` brings it back (a
+        moved tree refuses, naming the conflicts);
+        ``/stash drop <name>`` drops an entry.
+        """
+        from ..core.stash_shelf import (
+            enabled_from_config,
+            format_setting_change,
+            format_shelf_entry,
+            format_shelf_list,
+            format_stash_shelf,
+            parse_stash_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_stash_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.stash_shelf_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_stash_shelf(primary.config)}[/bold cyan]\n"
+                     f"{format_shelf_list(status['entries'])}\n"
+                     "[dim]Shelve work with /stash shelve <name>, "
+                     "bring it back with /stash restore <name>.[/dim]\n")
+            return
+        try:
+            if request["action"] in ("on", "off"):
+                record = primary.set_stash_shelf(
+                    request["action"] == "on")
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_setting_change(record)}[/green]\n")
+                return
+            if request["action"] == "shelve":
+                record = primary.shelve_stash(request["name"])
+                text = (f"Shelved {record['name']!r} - the tree is "
+                        "back to its base.\n"
+                        + format_shelf_entry(record["entry"]))
+            elif request["action"] == "restore":
+                record = primary.restore_stash(request["name"])
+                text = (f"Restored {record['name']!r}: "
+                        f"{record['files']} file(s) back in the "
+                        "tree, off the shelf.")
+            else:
+                record = primary.drop_stash(request["name"])
+                text = (f"Dropped {record['name']!r} from the "
+                        "stash shelf; the tree was not changed.")
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{text}[/green]\n")
+
+    def _handle_patch(self, args: str):
+        """M-089: /patch - patch export/import.
+
+        ``/patch`` shows the gate (on by default) and the
+        plain-words explanation with a worked example;
+        ``/patch on`` / ``off`` changes the gate (journaled
+        by the agent layer); ``/patch import <patch file>``
+        lands a proven patch file on the real tree, whole
+        or not at all; ``/patch export <set name>`` refuses
+        plainly - the agent layer holds no stored change
+        sets, so export runs through the agent road with
+        the set itself.
+        """
+        from ..core.patch_exchange import (
+            enabled_from_config,
+            format_patch_exchange,
+            format_setting_change,
+            parse_patch_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_patch_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.patch_exchange_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_patch_exchange(primary.config)}[/bold cyan]\n"
+                     "[dim]Import a patch file with /patch import "
+                     "<patch file>.[/dim]\n")
+            return
+        try:
+            if request["action"] in ("on", "off"):
+                record = primary.set_patch_exchange(
+                    request["action"] == "on")
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_setting_change(record)}[/green]\n")
+                return
+            if request["action"] == "import":
+                record = primary.import_patch_from_file(request["ref"])
+                text = (f"Imported patch {record['name']!r} from "
+                        f"{record['source']}: {record['applied']} "
+                        f"file(s) applied, {record['changed_files']} "
+                        "changed.")
+            else:
+                text = (f"There is no change set named "
+                        f"{request['name']!r} held by this session - "
+                        "change sets are values the agent layer "
+                        "builds and applies (M-084), not a stored "
+                        "shelf; export one through the agent road "
+                        "(export_patch_to_file) with the set itself. "
+                        "Nothing was exported.")
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[red]{text}[/red]\n")
+                return
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{text}[/green]\n")
+
+    def _handle_editor(self, args: str):
+        """M-090: /editor - editor bridges lite.
+
+        ``/editor`` shows the gate (on by default), the
+        plain-words explanation, and the editor resolved
+        from the environment; ``/editor on`` / ``off``
+        changes the gate (journaled by the agent layer);
+        ``/editor file <path>`` round-trips a real file
+        through the user's editor; ``/editor prompt``
+        refuses plainly on this surface - it holds no
+        draft, so a prompt round-trip runs through the
+        agent road with the draft text itself.
+        """
+        from ..core.editor_bridge import (
+            enabled_from_config,
+            format_editor_bridge,
+            format_setting_change,
+            parse_editor_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_editor_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.editor_bridge_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            if status["editor"] is not None:
+                editor_line = (
+                    f"Editor: {status['editor']['name']} "
+                    f"(from {status['editor']['source']}: "
+                    f"{status['editor']['raw']})")
+            else:
+                editor_line = f"Editor: none - {status['editor_error']}"
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_editor_bridge(primary.config)}[/bold cyan]\n"
+                     f"{editor_line}\n"
+                     "[dim]Round-trip a file with /editor file "
+                     "<path>.[/dim]\n")
+            return
+        if request["action"] == "prompt":
+            text = ("This surface holds no draft - a prompt "
+                    "round-trip runs through the agent road "
+                    "(edit_prompt_in_editor) with the draft text "
+                    "itself. Nothing was sent.")
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{text}[/red]\n")
+            return
+        try:
+            if request["action"] in ("on", "off"):
+                record = primary.set_editor_bridge(
+                    request["action"] == "on")
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_setting_change(record)}[/green]\n")
+                return
+            record = primary.edit_file_in_editor(request["path"])
+            text = (f"Editor round-trip (file) {record['label']}: "
+                    f"{record['status']}\n  {record['reason']}")
+            if record["status"] == "changed":
+                text += "\n  The changed text was written to the file."
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{text}[/green]\n")
+
+    def _handle_diff(self, args: str):
+        """M-091: /diff - diff theatre in the TUI.
+
+        ``/diff`` shows the gate (on by default), the
+        plain-words explanation, and one demo change
+        staged both ways; ``/diff on`` / ``off`` changes
+        the gate (journaled by the agent layer);
+        ``/diff unified`` / ``side-by-side`` stages the
+        demo change in that view through the agent road,
+        and ``/diff whitespace`` / ``whitespace off``
+        stages it with the whitespace toggle judged.
+        """
+        from ..core.diff_theatre import (
+            enabled_from_config,
+            format_diff_theatre,
+            format_setting_change,
+            parse_diff_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_diff_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.diff_theatre_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_diff_theatre(primary.config)}[/bold cyan]\n")
+            return
+        demo_before = "alpha\nbeta old gamma\ndelta\n"
+        demo_after = "alpha\nbeta new gamma\ndelta\n"
+        try:
+            if request["action"] in ("on", "off"):
+                record = primary.set_diff_theatre(
+                    request["action"] == "on")
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_setting_change(record)}[/green]\n")
+                return
+            if request["action"] == "view":
+                record = primary.show_diff_theatre(
+                    demo_before, demo_after, view=request["view"])
+            else:
+                record = primary.show_diff_theatre(
+                    demo_before, demo_after,
+                    ignore_whitespace=request["ignore_whitespace"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{record['rendered']}[/green]\n")
+
+    def _handle_blame(self, args: str):
+        """M-092: /blame - blame and history sight.
+
+        ``/blame`` shows the gate (on by default), the
+        plain-words explanation, a demo file blamed, and
+        its second line explained by blame and journal
+        together; ``/blame on`` / ``off`` changes the gate
+        (journaled by the agent layer); ``/blame <path>``
+        blames the whole file through the agent road and
+        ``/blame <path> <line>`` (or ``<path>:<line>``)
+        asks why that one line is the way it is.
+        """
+        from ..core.blame_sight import (
+            enabled_from_config,
+            format_blame_sight,
+            format_setting_change,
+            parse_blame_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_blame_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.blame_sight_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_blame_sight(primary.config)}[/bold cyan]\n")
+            return
+        try:
+            if request["action"] in ("on", "off"):
+                record = primary.set_blame_sight(
+                    request["action"] == "on")
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[green]{format_setting_change(record)}[/green]\n")
+                return
+            record = primary.show_blame_sight(
+                request["path"], request["line"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{record['rendered']}[/green]\n")
+
+    def _handle_massedit(self, args: str):
+        """M-093: /massedit - guarded mass edits.
+
+        ``/massedit`` shows the gate (on by default),
+        the plain-words explanation, and a demo plan
+        dry-run whole - files, hunks, risks, and the
+        approval its fingerprint would need;
+        ``/massedit on`` / ``off`` changes the gate
+        (journaled by the agent layer). Applying a
+        mass edit runs through the agent road with
+        the plan itself, never through this surface.
+        """
+        from ..core.mass_edit_guard import (
+            enabled_from_config,
+            format_mass_edit_guard,
+            format_setting_change,
+            parse_mass_edit_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_mass_edit_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.mass_edit_guard_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_mass_edit_guard(primary.config)}[/bold cyan]\n")
+            return
+        try:
+            record = primary.set_mass_edit_guard(
+                request["action"] == "on")
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_setting_change(record)}[/green]\n")
+
+    def _handle_posture(self, args: str):
+        """M-095: /posture - permission profiles.
+
+        ``/posture`` shows the current posture (the
+        status-line sentence itself), every shipped
+        posture, and the ToolPolicy mode the current
+        one rides as; ``/posture <name>`` changes the
+        posture (journaled by the agent layer, the live
+        policy rebuilt in the new mode); ``/posture
+        custom <name> | <title> | <tools> | <paths> |
+        <network> | <commands>`` sets a validated custom
+        posture. An unknown name refuses plainly with
+        the shipped names listed.
+        """
+        from ..core.permission_profiles import (
+            format_permission_profiles,
+            format_profile_change,
+            parse_posture_args,
+            policy_mode_for,
+            stored_profile,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_posture_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.permission_profile_status()
+            assert status["policy_mode"] == policy_mode_for(
+                stored_profile(primary.config))
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_permission_profiles(primary.config)}[/bold cyan]\n")
+            return
+        try:
+            record = primary.set_permission_profile(
+                request["profile"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_profile_change(record)}[/green]\n")
+
+    def _handle_remember(self, args: str):
+        """M-096: /remember - remembered approvals.
+
+        ``/remember`` (or ``list`` / ``show``) shows the
+        one screen: every remembered approval with its
+        exact scope and id, or the plain none;
+        ``/remember forget <id>`` revokes the named one
+        and ``/remember clear`` revokes all (both
+        journaled by the agent layer). Creating one is
+        not a /remember verb: an approval is remembered
+        only by the user's explicit yes at the approval
+        prompt, never silently and never from this
+        command's grammar.
+        """
+        from ..core.remembered_approvals import (
+            PLAIN_EXPLANATION,
+            USAGE,
+            parse_remember_args,
+            stored_approvals,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_remember_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "list":
+            status = primary.remembered_approvals_status()
+            assert status["count"] == len(
+                stored_approvals(primary.config))
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=(f"\n[bold cyan]Remembered approvals "
+                      f"(M-096) - {PLAIN_EXPLANATION}\n\n"
+                      f"{status['screen']}\n\n{USAGE}\n"
+                      "An approval is remembered only by "
+                      "your explicit yes at the approval "
+                      "prompt; /remember itself never "
+                      "creates one.[/bold cyan]\n"))
+            return
+        try:
+            if request["action"] == "forget":
+                record = primary.revoke_remembered_approval(
+                    request["id"])
+                args_text = " ".join(
+                    record["args_pattern"]) or "(no args)"
+                message = (
+                    f"Revoked remembered approval: "
+                    f"{record['command']} {args_text} in "
+                    f"{record['path']} [{record['id'][:12]}] - "
+                    f"{record['total']} remembered now.")
+            else:
+                record = primary.clear_remembered_approvals()
+                message = (
+                    f"Cleared {record['cleared']} remembered "
+                    f"approval(s); none remain.")
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{message}[/green]\n")
+
+    def _handle_sandbox(self, args: str):
+        """M-097: /sandbox - the OS sandbox (native).
+
+        ``/sandbox`` shows the whole slice (the gate, the
+        per-platform truth table, and a sample Linux plan);
+        ``on`` / ``off`` steer the gate (journaled by the
+        agent layer); ``truth`` shows the platform truth
+        table alone; ``plan <command>`` builds one
+        command's confinement plan for the current
+        platform and ``plan <platform> -- <command>``
+        names the platform. Nothing here runs a command -
+        running under a plan is the agent layer's
+        ``run_os_sandboxed`` road.
+        """
+        from ..core.os_sandbox import (
+            enabled_from_config,
+            format_confinement_plan,
+            format_gate_change,
+            format_platform_truth,
+            parse_sandbox_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_sandbox_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] in ("show", "truth", "plan"):
+            try:
+                if request["action"] == "show":
+                    status = primary.os_sandbox_status()
+                    assert status["enabled"] == enabled_from_config(
+                        primary.config)
+                    text = status["screen"]
+                elif request["action"] == "truth":
+                    text = format_platform_truth()
+                else:
+                    plan = primary.os_sandbox_plan(
+                        request["command"],
+                        platform=request["platform"])
+                    text = format_confinement_plan(plan)
+            except ValueError as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{text}[/bold cyan]\n")
+            return
+        try:
+            record = primary.set_os_sandbox(request["action"] == "on")
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_gate_change(record)}[/green]\n")
+
+    def _handle_network(self, args: str):
+        """M-098: /network - the network gates.
+
+        ``/network`` shows the whole slice (the gate and
+        its allowlist); ``on`` / ``off`` steer the gate
+        (journaled by the agent layer); ``list`` shows the
+        allowlist alone; ``check <tool> <host>`` decides one
+        reach (a denied reach under the gate is published
+        by the agent layer as session news); ``allow <tool>
+        <domain>`` adds one allowlist entry. Nothing here
+        opens a socket - deciding is the pure layer's work
+        and holding the list is the agent layer's.
+        """
+        from ..core.network_gates import (
+            enabled_from_config,
+            format_allowlist,
+            format_gate_change,
+            format_network_decision,
+            gates_from_config,
+            parse_network_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_network_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] in ("show", "list"):
+            try:
+                if request["action"] == "show":
+                    status = primary.network_gates_status()
+                    assert status["enabled"] == enabled_from_config(
+                        primary.config)
+                    text = status["screen"]
+                else:
+                    text = format_allowlist(
+                        gates_from_config(primary.config).entries)
+            except ValueError as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{text}[/bold cyan]\n")
+            return
+        try:
+            if request["action"] == "check":
+                decision = primary.check_network_reach(
+                    request["tool"], request["target"])
+                text = format_network_decision(decision)
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[bold cyan]{text}[/bold cyan]\n")
+                return
+            if request["action"] == "allow":
+                record = primary.add_network_allowlist_entry(
+                    request["entry"])
+                entry = record["entry"]
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=(f"\n[green]Network allowlist: "
+                          f"{entry['tool']}: {entry['domain']} "
+                          f"added.[/green]\n"))
+                return
+            record = primary.set_network_gates(
+                request["action"] == "on")
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_gate_change(record)}[/green]\n")
+
+    def _handle_pathjail(self, args: str):
+        """M-099: /pathjail - the path jail.
+
+        ``/pathjail`` shows the whole slice (the gate,
+        the resolved workspace and its grants); ``on`` /
+        ``off`` steer the gate (journaled by the agent
+        layer); ``grants`` shows the grant list alone;
+        ``check <path>`` decides one path (a denied path
+        under the gate is published by the agent layer
+        as session news); ``grant <abs-path>`` names one
+        grant root. Nothing here opens a file - judging
+        is the pure layer's work and holding the grants
+        is the agent layer's.
+        """
+        from ..core.path_jail import (
+            enabled_from_config,
+            format_gate_change,
+            format_grants,
+            format_jail_decision,
+            grants_from_config,
+            parse_pathjail_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_pathjail_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] in ("show", "grants"):
+            try:
+                if request["action"] == "show":
+                    status = primary.path_jail_status()
+                    assert status["enabled"] == enabled_from_config(
+                        primary.config)
+                    text = status["screen"]
+                else:
+                    text = format_grants(
+                        grants_from_config(primary.config))
+            except ValueError as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{text}[/bold cyan]\n")
+            return
+        try:
+            if request["action"] == "check":
+                decision = primary.check_path_jail(request["path"])
+                text = format_jail_decision(decision)
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[bold cyan]{text}[/bold cyan]\n")
+                return
+            if request["action"] == "grant":
+                record = primary.add_path_grant(request["grant"])
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=(f"\n[green]Path grant: "
+                          f"{record['grant']} added.[/green]\n"))
+                return
+            record = primary.set_path_jail(request["action"] == "on")
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_gate_change(record)}[/green]\n")
+
+    def _handle_plan(self, args: str):
+        """M-100: /plan - plan mode perfected.
+
+        ``/plan`` shows the whole slice (the gate and the
+        held plan); ``on`` / ``off`` steer the gate
+        (journaled by the agent layer); ``approve``
+        approves the held plan - the one gate to building;
+        ``build`` asks the build gate (a refused build
+        under the gate is published by the agent layer as
+        session news); ``check <effect>`` decides one tool
+        effect (a denied effect under the gate is likewise
+        published as session news). Nothing here writes or
+        runs anything - judging is the pure layer's work
+        and holding the plan is the agent layer's.
+        """
+        from ..core.plan_mode import (
+            enabled_from_config,
+            format_gate_change,
+            format_plan,
+            format_refusal,
+            parse_plan_args,
+            refusal_for_build,
+            refusal_for_effect,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_plan_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            try:
+                status = primary.plan_mode_status()
+                assert status["enabled"] == enabled_from_config(
+                    primary.config)
+                text = status["screen"]
+            except ValueError as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{text}[/bold cyan]\n")
+            return
+        try:
+            if request["action"] == "check":
+                decision = primary.check_plan_effect(request["effect"])
+                if decision == "allow":
+                    text = (f"Plan allowed: a {request['effect']} "
+                            f"effect is allowed.")
+                else:
+                    text = format_refusal(
+                        refusal_for_effect(
+                            enabled_from_config(primary.config),
+                            request["effect"])) + "."
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[bold cyan]{text}[/bold cyan]\n")
+                return
+            if request["action"] == "approve":
+                plan = primary.approve_current_plan()
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=(f"\n[green]Plan approved: {plan.title} - "
+                          f"building is now allowed in plan "
+                          f"posture.\n{format_plan(plan)}[/green]\n"))
+                return
+            if request["action"] == "build":
+                if primary.check_plan_build():
+                    text = "Building allowed: the build gate is open."
+                else:
+                    text = format_refusal(
+                        refusal_for_build(
+                            enabled_from_config(primary.config),
+                            primary.current_plan())) + "."
+                publish_sync(
+                    "agent_chat_chunk", agent_name="Primary",
+                    text=f"\n[bold cyan]{text}[/bold cyan]\n")
+                return
+            record = primary.set_plan_mode(request["action"] == "on")
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_gate_change(record)}[/green]\n")
+
+    def _handle_hooks(self, args: str):
+        """M-101: /hooks - the full lifecycle.
+
+        /hooks shows every configured hook;
+        show <event> (or a bare event word) shows one
+        event's hooks; check <event> runs that event's
+        enabled hooks for real and reports each verdict -
+        a blocking verdict is published by the agent layer
+        as session news, with the reason the coder must
+        answer. Judging is the pure layer's work and
+        running is the agent layer's; nothing here runs a
+        script itself.
+        """
+        from ..core.hooks import (
+            format_hooks,
+            format_verdict,
+            hooks_from_config,
+            parse_hooks_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, event = parse_hooks_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if action == "show":
+            try:
+                if event is None:
+                    text = primary.hooks_status()["screen"]
+                else:
+                    named = [h for h in hooks_from_config(
+                        primary.config) if h.event == event]
+                    text = format_hooks(named)
+            except ValueError as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{text}[/bold cyan]\n")
+            return
+        try:
+            verdicts = primary.run_hooks(event)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if not verdicts:
+            text = (f"No hooks are configured for {event}; "
+                    f"nothing ran.")
+        else:
+            text = "\n".join(format_verdict(v) for v in verdicts)
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_hookpacks(self, args: str):
+        """M-102: /hookpacks - hook packs.
+
+        /hookpacks shows the shipped shelf; show <pack>
+        (or a bare pack name) shows one pack and the
+        hooks it carries; install <pack> installs one
+        pack through the agent layer - journal-first,
+        the merged hooks stored as plain hook records
+        under the M-101 hooks setting, and a pack that
+        is already fully installed changes nothing and
+        writes nothing. Judging is the pure layer's work
+        and storing is the agent layer's; nothing here
+        writes a setting itself.
+        """
+        from ..core.hook_packs import (
+            format_pack,
+            get_pack,
+            parse_hook_packs_args,
+        )
+        from ..core.hooks import format_hooks
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, pack_name = parse_hook_packs_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if action == "show":
+            try:
+                if pack_name is None:
+                    text = primary.hook_packs_status()["screen"]
+                else:
+                    pack = get_pack(pack_name)
+                    text = (format_pack(pack) + "\n"
+                            + format_hooks(list(pack.hooks)))
+            except ValueError as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{text}[/bold cyan]\n")
+            return
+        try:
+            record = primary.install_hook_pack(pack_name)
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if not record["changed"]:
+            text = (f"Hook pack {pack_name} is already installed; "
+                    f"nothing changed.")
+        else:
+            text = (f"Hook pack installed: {pack_name} "
+                    f"({len(record['added'])} hook(s) added).")
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{text}[/green]\n")
+
+    def _handle_background(self, args: str):
+        """M-103: /background - background tasks.
+
+        /background shows the held jobs; show <job> (or
+        a bare job id) shows one job; tail [<job>] shows
+        one job's live tail (the newest job when no id
+        is named); kill <job> records the kill request,
+        terminates the real process, and lands the
+        cancellation; start <command...> starts the
+        command as a real job - split into argv words,
+        never run through a shell. When a job finishes,
+        the agent layer publishes its completion as
+        session news. Judging is the pure layer's work
+        and running is the agent layer's; nothing here
+        runs a process itself.
+        """
+        import shlex
+
+        from ..core.background_tasks import (
+            format_completion,
+            format_job,
+            parse_background_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_background_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "show":
+                if target is None:
+                    text = primary.background_jobs_status()["screen"]
+                else:
+                    text = format_job(primary.get_background_job(target))
+            elif action == "tail":
+                text = primary.background_job_tail(target)
+            elif action == "kill":
+                primary.kill_background_job(target)
+                text = format_completion(primary.get_background_job(target))
+            else:  # start
+                argv = shlex.split(target)
+                record = primary.start_background_job(argv)
+                job = primary.get_background_job(record["job_id"])
+                text = f"Background job started: {format_job(job)}"
+        except (KeyError, ValueError, OSError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_keeper(self, args: str):
+        """M-104: /keeper - the keeper pattern.
+
+        /keeper shows the held watches, each judged in
+        words - active, quiet, or stalled, from its last
+        sign of life alone; show <target> (or a bare
+        target id) shows one watch; check judges every
+        watch now and acts on what is owed - an owed
+        intervention is published as session news, and
+        a stalled background job is restarted for real
+        while its restarts remain; heartbeat <target>
+        records a sign of life on one watch. Judging is
+        the pure layer's work and restarting is the
+        agent layer's; nothing here starts a timer.
+        """
+        from ..core.keeper import format_watch_target, parse_keeper_args
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_keeper_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "show":
+                status = primary.keeper_status()
+                if target is None:
+                    text = status["screen"]
+                else:
+                    text = format_watch_target(
+                        primary.get_keeper_target(target), status["now"])
+            elif action == "check":
+                text = primary.keeper_check()["screen"]
+            else:  # heartbeat
+                primary.keeper_heartbeat(target)
+                status = primary.keeper_status()
+                text = format_watch_target(
+                    primary.get_keeper_target(target), status["now"])
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_schedule(self, args: str):
+        """M-105: /schedule - scheduled work.
+
+        /schedule shows the held jobs, each judged in
+        words - not due, due, overdue, waiting for
+        approval, or disabled, against its own
+        recorded last run; show <job> (or a bare job
+        id) shows one job's verdict; check judges
+        every job now and acts on what is owed - an
+        owed due moment is published as session news,
+        a due unattended job is carried out for real
+        as a background job and its run recorded,
+        and a job that needs approval is published
+        as waiting and never run. Judging is the pure
+        layer's work and running is the agent layer's
+        through the M-103 road; nothing here starts
+        a timer.
+        """
+        from ..core.scheduled_work import (
+            format_verdict,
+            parse_schedule_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_schedule_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "show":
+                status = primary.scheduled_work_status()
+                if target is None:
+                    text = status["screen"]
+                else:
+                    text = format_verdict(
+                        primary.get_scheduled_verdict(
+                            target, status["now"]))
+            else:  # check
+                text = primary.scheduled_check()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_fleet(self, args: str):
+        """M-106: /fleet - headless fleet mode.
+
+        /fleet shows the held tasks with their recorded
+        verdicts and the fleet verdict with its honest
+        exit code; show <task> (or a bare task id) shows
+        one task with its verdict; verdict shows the
+        fleet verdict alone; resume shows the resume
+        plan - what remains to run, what passed and will
+        never run again, and what is held back until
+        retrying failures is asked for. Judging and
+        planning are the pure layer's work; running the
+        fleet is the agent layer's fleet_check, carried
+        out for real through the M-103 road - nothing
+        here starts a run.
+        """
+        from ..core.fleet_mode import (
+            format_fleet_task,
+            parse_fleet_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_fleet_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "show":
+                status = primary.fleet_status()
+                if target is None:
+                    text = status["screen"]
+                else:
+                    text = format_fleet_task(
+                        primary.get_fleet_task(target),
+                        primary.get_fleet_verdict(target))
+            elif action == "verdict":
+                text = primary.fleet_status()["verdict_screen"]
+            else:  # resume
+                text = primary.fleet_resume_plan()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_budgets(self, args: str):
+        """M-107: /budgets - budgets as guardrails.
+
+        /budgets shows the held budgets with each
+        budget's verdict judged from its recorded
+        usage reading - within, warning, or exceeded,
+        with the used-of-limit amounts always stated
+        in words; show <budget> (or a bare budget id)
+        shows one budget with its verdict; check
+        judges every held budget now (check <budget>
+        judges one) and acts on what is owed - an
+        exceeded budget is carried out as a graceful
+        pause at this resting point and published as
+        a budget_paused session event, never a
+        mid-edit death. Judging is the pure layer's
+        work; recording real usage from the real
+        roads and carrying the pause out are the
+        agent layer's. The registry is session state
+        held by the agent; it is not a stored setting.
+        """
+        from ..core.budgets import (
+            format_budget,
+            parse_budgets_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_budgets_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "show":
+                if target is None:
+                    text = primary.budget_status()["screen"]
+                else:
+                    text = format_budget(
+                        primary.get_budget(target),
+                        primary.get_budget_verdict(target))
+            elif target is None:  # check
+                text = primary.budget_check()["screen"]
+            else:
+                text = primary.budget_check(target)["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_halt(self, args: str):
+        """M-108: /halt - the kill switch everywhere.
+
+        /halt shows the halts pulled this session
+        with each pull's verdict - halted, already
+        stopped, or nothing held, per target, in
+        words; show <halt> (or a bare halt id) shows
+        one halt with its verdict; pull pulls the
+        switch on every target and pull <target>
+        pulls it on one target alone, carrying the
+        halt out through the real roads - held
+        background jobs are killed through the M-103
+        road (a running crew task rides that same
+        road, on its backing job), the coder's own
+        cancellation event is set so in-flight work
+        stops at the next boundary, and a pending
+        approval, which waits on that same event, is
+        refused - and the pull is published as a
+        kill_switch_pulled session event. Judging is
+        the pure layer's work; reading the holdings
+        from the real roads and carrying the halt out
+        are the agent layer's. The registry is
+        session state held by the agent; it is not a
+        stored setting.
+        """
+        from ..core.kill_switch import (
+            format_halt,
+            parse_halt_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_halt_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "show":
+                if target is None:
+                    text = primary.kill_switch_status()["screen"]
+                else:
+                    text = format_halt(
+                        primary.get_halt(target),
+                        primary.get_halt_verdict(target))
+            else:
+                spec: dict = {"actor": "user"}
+                if target is not None:
+                    spec["targets"] = [target]
+                text = primary.pull_kill_switch(spec)["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_audit(self, args: str):
+        """M-109: /audit - the audit trail.
+
+        /audit shows the session's trail - every tool
+        call, approval, edit and command recorded as it
+        happened, each stamped with its actor (the
+        human, the coder, the crew or a hook); show
+        <entry> (or a bare entry id) shows one entry;
+        export renders the whole trail as a text export
+        for review, naming every held entry in append
+        order with the counts by kind and by actor. The
+        trail is append-only: no road here edits,
+        removes or reorders an entry, and reading it
+        records nothing. The registry is session state
+        held by the agent; it is not a stored setting.
+        """
+        from ..core.audit_trail import (
+            format_entry,
+            parse_audit_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_audit_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "export":
+                text = primary.audit_export()["text"]
+            elif target is None:
+                text = primary.audit_status()["screen"]
+            else:
+                text = format_entry(primary.get_audit_entry(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_secrets(self, args: str):
+        """M-110: /secrets - secret hygiene in action.
+
+        /secrets shows the files screened this session
+        with each verdict - clean, or commit refused
+        with the secret pattern kinds named (content
+        is never shown); show <screening> (or a bare
+        screening id) shows one screening; check <file>
+        screens one real file in the project now and
+        holds the verdict - a refused verdict is
+        published as a secret_refusal session event.
+        Reading the screenings screens and publishes
+        nothing. The registry is session state held by
+        the agent; it is not a stored setting.
+        """
+        from ..core.secret_hygiene import (
+            format_screening,
+            parse_secrets_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_secrets_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "check":
+                text = primary.screen_project_file(target)["screen"]
+            elif target is None:
+                text = primary.secret_hygiene_status()["screen"]
+            else:
+                text = format_screening(primary.get_screening(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_doctrine(self, args: str):
+        """M-111: /doctrine - the destructive-command doctrine.
+
+        /doctrine shows the commands judged this
+        session with each judgement's rung and the
+        approval it needs, stated in words; show
+        <judgement> (or a bare judgement id) shows one
+        judgement; ladder shows the three-rung ladder
+        alone; check <command> judges one command now
+        and holds the judgement - a costly or
+        irreversible judgement is published as a
+        destructive_act session event, its headline
+        naming an irreversible act's targets in plain
+        words first. Reading the judgements judges and
+        publishes nothing beyond the check road's own
+        judgement. The registry is session state held
+        by the agent; it is not a stored setting.
+        """
+        from ..core.destructive_doctrine import (
+            format_judgement,
+            format_ladder,
+            parse_doctrine_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_doctrine_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "ladder":
+                text = format_ladder()
+            elif action == "check":
+                text = primary.judge_command(target)["screen"]
+            elif target is None:
+                text = primary.doctrine_status()["screen"]
+            else:
+                text = format_judgement(primary.get_judgement(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_rollback(self, args: str):
+        """M-112: /rollback - the rollback drills.
+
+        /rollback shows the drill results held this
+        session with each outcome stated in words;
+        show <run> (or a bare run id) shows one run;
+        drills shows the drill book alone; run
+        <drill> names the one held drill a run would
+        exercise, with its recovery road. Reading
+        judges and publishes nothing: a result is
+        held only when a drill run's reported step
+        count is judged through the agent. The
+        registry is session state held by the agent;
+        it is not a stored setting.
+        """
+        from ..core.rollback_drills import (
+            format_drill,
+            format_drills,
+            format_result,
+            parse_rollback_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_rollback_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "drills":
+                text = format_drills()
+            elif action == "run":
+                text = format_drill(target)
+            elif target is None:
+                text = primary.rollback_status()["screen"]
+            else:
+                text = format_result(primary.get_drill_run(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_conflicts(self, args: str):
+        """M-081: /conflicts — the conflict workbench.
+
+        ``/conflicts`` shows the gate (on by default), the
+        plain-words explanation, a worked example, and this
+        repository's live conflicts with both sides' intent;
+        ``/conflicts on`` / ``off`` changes the gate
+        (journaled by the agent layer).
+        """
+        from ..core.conflict_workbench import (
+            enabled_from_config,
+            format_conflict_workbench,
+            format_setting_change,
+            parse_conflicts_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_conflicts_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.conflict_workbench_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_conflict_workbench(primary.config, primary.project_root)}[/bold cyan]\n"
+                     "[dim]Turn the gate off with /conflicts off, "
+                     "or back on with /conflicts on.[/dim]\n")
+            return
+        try:
+            record = primary.set_conflict_workbench(request["enabled"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_setting_change(record)}[/green]\n")
+
     def _handle_checkpoint(self, args: str):
         """M-075: /checkpoint — named checkpoints.
 
@@ -1397,6 +3221,67 @@ class CommandHandler:
             else:
                 record = primary.set_auto_commit_allow_protected(
                     request["allowed"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_setting_change(record)}[/green]\n")
+
+    def _handle_issueslice(self, args: str):
+        """M-083: /issueslice — issue-to-slice.
+
+        ``/issueslice`` shows the gate (on by default), the
+        plain-words explanation, the seam's sources, and a
+        sample issue planned; ``/issueslice on`` / ``off``
+        changes the gate (journaled by the agent layer);
+        ``/issueslice github <number>`` fetches that issue
+        through the seam and plans it as a slice.
+        """
+        from ..core.issue_slice import (
+            enabled_from_config,
+            format_issue_slice,
+            format_plan_record,
+            format_setting_change,
+            parse_issueslice_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_issueslice_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.issue_slice_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_issue_slice(primary.config)}[/bold cyan]\n"
+                     "[dim]Turn the gate off with /issueslice off, "
+                     "or back on with /issueslice on.[/dim]\n")
+            return
+        if request["action"] == "plan":
+            try:
+                record = primary.plan_issue_slice(
+                    request["source"], request["number"])
+            except (ValueError, KeyError, RuntimeError) as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[green]{format_plan_record(record)}[/green]\n")
+            return
+        try:
+            record = primary.set_issue_slice(request["enabled"])
         except (ValueError, KeyError, RuntimeError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
@@ -1648,6 +3533,71 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[green]{format_decision(applied['decision'])}[/green]\n")
+
+    def _handle_prcraft(self, args: str):
+        """M-082: /prcraft — PR craft.
+
+        ``/prcraft`` shows the gate (on by default), the
+        plain-words explanation, and a worked example over
+        a fake GitHub road: a PR fetched as data, its
+        review comments fetched as tasks, an unarmed review
+        draft refusing to post, and the same draft posting
+        once armed with the user's word. ``/prcraft on`` /
+        ``off`` changes the gate (journaled by the agent
+        layer); ``/prcraft tasks <n>`` fetches PR <n>'s
+        review comments as tasks through the user's own gh
+        road. Posting itself rides the agent's draft roads
+        and only ever at the user's recorded word.
+        """
+        from ..core.pr_craft import (
+            enabled_from_config,
+            format_pr_craft,
+            format_setting_change,
+            format_tasks,
+            parse_prcraft_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_prcraft_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            status = primary.pr_craft_status()
+            assert status["enabled"] == enabled_from_config(
+                primary.config)
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_pr_craft(primary.config)}[/bold cyan]\n"
+                     "[dim]Turn the gate off with /prcraft off, "
+                     "or back on with /prcraft on.[/dim]\n")
+            return
+        if request["action"] == "tasks":
+            try:
+                fetched = primary.fetch_review_tasks(request["number"])
+            except (ValueError, KeyError, RuntimeError) as e:
+                publish_sync("agent_chat_chunk", agent_name="Primary",
+                             text=f"\n[red]{e}[/red]\n")
+                return
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{format_tasks(fetched['tasks'])}[/bold cyan]\n")
+            return
+        try:
+            record = primary.set_pr_craft(request["enabled"])
+        except (ValueError, KeyError, RuntimeError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[green]{format_setting_change(record)}[/green]\n")
 
     def _handle_kista(self, args: str):
         """M-032: /kista — key custody, in plain words.
