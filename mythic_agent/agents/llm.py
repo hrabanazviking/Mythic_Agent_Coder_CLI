@@ -12760,6 +12760,301 @@ class Agent:
             self._checkpoint(record)
 
 
+    # -- M-126: crew comms --
+
+    def _crew_comms_registry(self):
+        """The held crew-comms registry (M-126).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer hand-offs in the order
+        they were handed, beside the session dealing
+        registry (M-125) and never in it: a hand-off
+        is the crew's traffic, not a dealt assignment.
+        It is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly
+        one. The attribute is named
+        ``_crew_comms_store``, never the method's own
+        name (the M-108 lesson).
+        """
+        registry = getattr(self, "_crew_comms_store", None)
+        if registry is None:
+            from ..core.crew_comms import CrewCommsRegistry
+            registry = CrewCommsRegistry()
+            self._crew_comms_store = registry
+        return registry
+
+    def crew_comms_status(self) -> dict[str, Any]:
+        """The crew comms, in plain data (M-126).
+
+        The hand-offs held this session as plain
+        records, the session ledger's hand-offs as
+        plain records (the shipped example ledger -
+        six hand-offs among the M-121 casting - until
+        a ledger is recorded), the one batch of the
+        questions waiting for the human as its batch
+        record, the one screen - rendered from the
+        held registry, or from the shipped example
+        ledger when nothing is held yet - and the
+        plain explanation. Reading registers and
+        publishes nothing, spawns no crew and
+        delivers no message: this layer holds the
+        hand-offs as data only. There is no Part
+        VIII board yet; the screen is where the
+        hand-offs and the batch are visible.
+        """
+        from ..core import crew_comms
+
+        registry = self._crew_comms_registry()
+        held = registry.list_handoffs()
+        ledger = self.comms_ledger()
+        screen = crew_comms.format_comms_screen(registry) \
+            if held else crew_comms.format_comms_screen()
+        return {
+            "handoffs": [h.to_record() for h in held],
+            "ledger": [h.to_record() for h in ledger.handoffs],
+            "batch": crew_comms.batch_record(self.human_question_batch()),
+            "screen": screen,
+            "explanation": crew_comms.PLAIN_EXPLANATION,
+        }
+
+    def get_handoff(self, handoff_id: Any):
+        """The one held hand-off an id names (M-126).
+
+        A hand-off the session does not hold raises
+        KeyError, exactly as the pure registry
+        answers.
+        """
+        return self._crew_comms_registry().get(handoff_id)
+
+    def find_handoffs(self, member: Any):
+        """Every hand-off one member sent or received (M-126).
+
+        The session's held registry answers when the
+        session holds any hand-off; otherwise the
+        shipped example ledger answers. The human
+        reads as a recipient: finding the human's
+        hand-offs finds every hand-off addressed to
+        the human. A member holding nothing in the
+        answering set raises KeyError. Reading
+        registers and publishes nothing.
+        """
+        from ..core.crew_comms import (
+            load_comms_ledger, normalize_recipient)
+
+        wanted = normalize_recipient(member)
+        registry = self._crew_comms_registry()
+        if registry.list_handoffs():
+            found = registry.for_member(wanted)
+        else:
+            found = tuple(
+                h for h in load_comms_ledger().handoffs
+                if h.sender == wanted or h.recipient == wanted)
+        if not found:
+            raise KeyError(
+                f"no hand-off holds the member: {wanted!r}")
+        return found
+
+    def comms_ledger(self):
+        """The session's comms ledger, as data (M-126).
+
+        The ledger the session recorded through
+        :meth:`record_comms_ledger`, or the shipped
+        example ledger until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.crew_comms import load_comms_ledger
+
+        ledger = getattr(self, "_crew_comms_ledger", None)
+        if ledger is None:
+            return load_comms_ledger()
+        return ledger
+
+    def human_question_batch(self):
+        """The one batch of questions waiting for the human (M-126).
+
+        Derived by the pure layer from what the
+        session holds - the held registry when the
+        session holds any hand-off, otherwise the
+        shipped example ledger - every waiting
+        question in hand-off order, each with its
+        full context. Reading registers, publishes
+        and asks nothing: asking is
+        :meth:`ask_batched_human_questions`' road.
+        """
+        from ..core.crew_comms import batch_human_questions
+
+        registry = self._crew_comms_registry()
+        if registry.list_handoffs():
+            return registry.batch()
+        return batch_human_questions(self.comms_ledger())
+
+    def register_handoff(self, handoff: Any) -> dict[str, Any]:
+        """Hold one hand-off for the session (M-126).
+
+        The hand-off is held by the pure registry
+        under its id or a fresh deterministic one -
+        a supplied id already held refuses, and a
+        refusal holds nothing new and publishes
+        nothing - and a held hand-off is published
+        as its ``handoff_record`` session-news record
+        through the checkpoint road, so a hand-off
+        made is news with its shape attached. Returns
+        the held hand-off, its news record, the
+        screen rendered after it landed, and the
+        plain explanation. Holding a hand-off spawns
+        no crew and delivers no message: the registry
+        holds the hand-off as data.
+        """
+        from ..core import crew_comms
+
+        registry = self._crew_comms_registry()
+        held = registry.register(handoff)
+        record = crew_comms.handoff_record(held)
+        self._publish_comms_record(record)
+        return {
+            "handoff": held.to_record(),
+            "record": record,
+            "screen": crew_comms.format_comms_screen(registry),
+            "explanation": crew_comms.PLAIN_EXPLANATION,
+        }
+
+    def record_comms_ledger(self, ledger: Any = None) -> dict[str, Any]:
+        """Record a whole ledger of hand-offs for the session (M-126).
+
+        With no ledger named, the shipped example
+        ledger is recorded through the pure layer -
+        six hand-offs among the M-121 casting. A
+        ledger loaded from a file (the pure layer's
+        ``load_comms_ledger_file`` road) may be
+        passed instead, so a real ledger is recorded
+        as it stands. Every hand-off is held in
+        ledger order and published as its
+        ``handoff_record`` session news, deduped per
+        hand-off id, the ledger is remembered as the
+        session's ledger, and the same ledger
+        recorded twice refuses - a ledger is recorded
+        once, never duplicated into the session.
+        Returns the held hand-offs, their news
+        records, the count, the screen, and the
+        explanation. Recording spawns no crew and
+        delivers no message.
+        """
+        from ..core import crew_comms
+
+        ledger = ledger if ledger is not None \
+            else crew_comms.load_comms_ledger()
+        fingerprint = tuple(
+            (h.sender, h.recipient, h.kind, h.slice_id,
+             h.title, h.body) for h in ledger.handoffs)
+        recorded = getattr(self, "_crew_comms_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._crew_comms_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this comms ledger is already recorded for "
+                "the session; a ledger is recorded once")
+        registry = self._crew_comms_registry()
+        held = registry.register_ledger(ledger)
+        recorded.add(fingerprint)
+        self._crew_comms_ledger = ledger
+        records = [crew_comms.handoff_record(h) for h in held]
+        for record in records:
+            self._publish_comms_record(record)
+        return {
+            "handoffs": [h.to_record() for h in held],
+            "records": records,
+            "count": len(held),
+            "screen": crew_comms.format_comms_screen(registry),
+            "explanation": crew_comms.PLAIN_EXPLANATION,
+        }
+
+    def ask_batched_human_questions(self) -> dict[str, Any]:
+        """Ask the human the waiting questions, once, together (M-126).
+
+        The batching rule carried out: the batch is
+        derived from what the session holds by
+        :meth:`human_question_batch` - every waiting
+        question, in hand-off order, each with its
+        sender, slice, title and body - and published
+        as ONE ``human_question_batch`` session-news
+        record holding them all, never one record per
+        question. The announcement is deduped per
+        batch: asking again while the same questions
+        wait publishes nothing new, and a batch grown
+        by a newly held question is a new ask. With
+        no waiting question nothing is published and
+        the count is 0. Returns the batch, its news
+        record, the count, the batched-ask screen,
+        and the plain explanation.
+        """
+        from ..core import crew_comms
+
+        batch = self.human_question_batch()
+        record = crew_comms.batch_record(batch)
+        if batch.questions:
+            self._publish_batch_record(record)
+        return {
+            "batch": batch.to_record(),
+            "record": record,
+            "count": len(batch.questions),
+            "screen": crew_comms.format_human_batch(batch),
+            "explanation": crew_comms.PLAIN_EXPLANATION,
+        }
+
+    def _publish_comms_record(self, record: dict[str, Any]) -> None:
+        """Publish one hand-off as session news (M-126).
+
+        The pure layer's ``handoff_record`` is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each hand-off id is announced at
+        most once. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") != "crew_handoff":
+            return
+        announced = getattr(self, "_crew_comms_announced", None)
+        if announced is None:
+            announced = set()
+            self._crew_comms_announced = announced
+        key = record.get("handoff_id")
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_batch_record(self, record: dict[str, Any]) -> None:
+        """Publish one batched ask as session news (M-126).
+
+        The pure layer's ``batch_record`` is journaled
+        through the same checkpoint road, when a
+        session is attached - ONE event holding every
+        waiting question, so the human is asked once.
+        Each batch is announced at most once: the
+        announcement is keyed by the batch's questions
+        (sender, slice, title), so a batch grown by a
+        newly held question announces again as the new
+        batch it is. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") != "human_question_batch":
+            return
+        announced = getattr(self, "_crew_comms_batch_announced", None)
+        if announced is None:
+            announced = set()
+            self._crew_comms_batch_announced = announced
+        key = tuple(
+            (q.get("sender"), q.get("slice_id"), q.get("title"))
+            for q in record.get("questions", []))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
