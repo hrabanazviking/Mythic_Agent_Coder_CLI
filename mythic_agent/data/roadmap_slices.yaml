@@ -793,7 +793,7 @@ slices:
   title: Parallel worktrees
   summary: each building crew member works in its own git worktree on its own branch (the house law from
     bitter experience); the coordinator merges — never two writers in one tree.
-  status: queued
+  status: done
 - id: M-125
   part: 6
   title: Task dealing
