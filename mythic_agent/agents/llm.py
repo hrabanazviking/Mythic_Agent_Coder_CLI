@@ -6502,6 +6502,7 @@ class Agent:
             return self._hygiene_redact(f"Tool {name} failed: {exc}")
         finally:
             self._note_audit_tool_call(name, parsed, outcome)
+            self._note_doctrine_command(name, parsed)
 
     # -- M-090: editor bridges lite against the real editor --
 
@@ -10277,6 +10278,142 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-111: destructive-command doctrine --
+
+    def _doctrine_registry(self):
+        """The held doctrine registry (M-111).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer judgements in the order
+        judged. It is created on first use, so an
+        agent whose ``__init__`` never ran still
+        holds exactly one.
+        """
+        registry = getattr(self, "_destructive_doctrine_registry", None)
+        if registry is None:
+            from ..core.destructive_doctrine import DoctrineRegistry
+            registry = DoctrineRegistry()
+            self._destructive_doctrine_registry = registry
+        return registry
+
+    def doctrine_status(self) -> dict[str, Any]:
+        """The doctrine judgements, in plain data (M-111).
+
+        Every held judgement as its plain record, in
+        the order judged, the one screen rendered
+        from that same registry, and the plain
+        explanation. Reading changes nothing: a
+        status read judges, registers, or publishes
+        nothing.
+        """
+        from ..core import destructive_doctrine
+
+        registry = self._doctrine_registry()
+        return {
+            "judgements": [j.to_record() for j in registry.list_judgements()],
+            "screen": destructive_doctrine.format_doctrine_screen(registry),
+            "explanation": destructive_doctrine.PLAIN_EXPLANATION,
+        }
+
+    def get_judgement(self, judgement_id: Any):
+        """The one held judgement an id names (M-111).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._doctrine_registry().get(judgement_id)
+
+    def judge_command(self, command: Any, argv: Any = None) -> dict[str, Any]:
+        """Judge one command against the ladder, and hold it (M-111).
+
+        The command is judged by the pure layer and
+        the judgement is held for the session. A
+        judgement on the costly or irreversible rung
+        is published as a ``destructive_act`` session
+        event through the checkpoint road - its
+        headline names an irreversible act's targets
+        in plain words first. Judging runs nothing:
+        the shipped sandbox denylist and the
+        permission-profile roads still refuse and ask
+        on the execution road exactly as before; this
+        layer classifies and announces, it does not
+        replace them. Returns the held judgement, its
+        news record, the screen rendered after the
+        judgement landed, and the plain explanation.
+        """
+        from ..core import destructive_doctrine
+
+        registry = self._doctrine_registry()
+        held = registry.judge(command, argv)
+        record = registry.record(held.judgement_id)
+        self._publish_doctrine_record(record)
+        return {
+            "judgement": held.to_record(),
+            "record": record,
+            "screen": destructive_doctrine.format_doctrine_screen(registry),
+            "explanation": destructive_doctrine.PLAIN_EXPLANATION,
+        }
+
+    def _note_doctrine_command(self, name: str,
+                               arguments: dict[str, Any]) -> None:
+        """Judge one real command on the funnel (M-111).
+
+        Called once per call from
+        :meth:`_execute_call`, the funnel every tool
+        call in a session travels, beside the M-109
+        audit note. Only ``run_command`` carries a
+        command to judge - every other tool is not a
+        command, and this layer judges commands
+        alone. The judgement is held for the session
+        whatever the call's outcome was: a command
+        the sandbox denylist refused was still
+        judged, and its rung is still the truth owed.
+        Judging never breaks the road it rides on: a
+        command that cannot be judged is dropped,
+        and the call itself stays the truth owed.
+        """
+        if name != "run_command":
+            return
+        command = arguments.get("command")
+        if not isinstance(command, str) or not command.strip():
+            return
+        try:
+            registry = self._doctrine_registry()
+            held = registry.judge(command.strip())
+            self._publish_doctrine_record(
+                registry.record(held.judgement_id))
+        except Exception:
+            pass  # the call is the truth owed, not the judgement
+
+    def _publish_doctrine_record(self, record: dict[str, Any]) -> None:
+        """Publish one weighty judgement as session news (M-111).
+
+        The pure layer's ``destructive_act`` record is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached - for the rungs that carry weight:
+        a costly act, and an irreversible act whose
+        headline names its targets in plain words
+        first. A reversible act needs no approval and
+        owes no news, and an unclassified command is
+        held and shown on the screen but never
+        announced as an act this layer understands.
+        Each judgement is announced at most once: the
+        announcement is keyed by the judgement id,
+        and every held judgement holds a fresh id.
+        """
+        if record.get("rung") not in ("costly", "irreversible"):
+            return
+        announced = getattr(self, "_doctrine_announced", None)
+        if announced is None:
+            announced = set()
+            self._doctrine_announced = announced
+        if record["judgement_id"] in announced:
+            return
+        announced.add(record["judgement_id"])
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
