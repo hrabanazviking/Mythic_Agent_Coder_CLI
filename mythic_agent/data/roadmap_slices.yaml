@@ -787,7 +787,7 @@ slices:
   title: Custom offices
   summary: user-defined roles beyond the six (a "Gatekeeper" for security review, a "Benchmarker") with
     the same contract machinery.
-  status: queued
+  status: done
 - id: M-124
   part: 6
   title: Parallel worktrees
