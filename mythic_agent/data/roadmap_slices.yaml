@@ -769,7 +769,7 @@ slices:
   title: Part V gate
   summary: an overnight-style autonomous run on the benchmark pack under Trusted Forge — sandbox on, budgets
     on, audit trail complete, zero doctrine violations.
-  status: queued
+  status: done
 - id: M-121
   part: 6
   title: Agents as files
