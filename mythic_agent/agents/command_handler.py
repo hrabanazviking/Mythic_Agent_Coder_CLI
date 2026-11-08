@@ -329,6 +329,8 @@ class CommandHandler:
                 self._handle_contextbudget(args)
             elif cmd == "/mentions":
                 self._handle_mentions(args)
+            elif cmd == "/instructionfiles":
+                self._handle_instruction_files(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -5091,6 +5093,70 @@ class CommandHandler:
                 text = format_index(primary.mentions_canon())
             else:
                 text = primary.mentions_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_instruction_files(self, args: str):
+        """M-149: /instructionfiles - instruction files unified.
+
+        ``/instructionfiles`` shows the instruction files
+        held this session (the shipped example book - six
+        files at the M-148 slice boundary, of every origin,
+        with its one pinned panel - when none is held yet);
+        ``/instructionfiles entry <file-id>`` shows one
+        entry; ``/instructionfiles origin <origin>`` shows
+        the files of one origin; ``/instructionfiles layer
+        <layer>`` shows the files at one layer;
+        ``/instructionfiles panel`` shows the panel derived
+        from the whole book. Reading registers and publishes
+        nothing as session news: entries are held only when
+        they are given through the agent's canon roads, and
+        every entry held for the session is journaled as an
+        instruction_files_entry session event and every
+        derived panel as an instruction_files_panel session
+        event. This surface writes, renames and applies no
+        file - a foreign file stays a foreign file, honoured
+        on its own turf - and there is no Part VIII board
+        yet, so the account is visible on this surface, not
+        on a board.
+        """
+        from ..core.instruction_files import (
+            format_entries,
+            format_entry,
+            format_panel,
+            parse_instruction_files_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_instruction_files_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "entry":
+                text = format_entry(primary.get_instruction_file(target))
+            elif action == "origin":
+                text = format_entries(
+                    primary.instruction_files_book(), target)
+            elif action == "layer":
+                text = "\n".join(
+                    format_entry(entry) for entry in
+                    primary.instruction_files_for_layer(target)) or (
+                    "No instruction files are held.")
+            elif action == "panel":
+                text = format_panel(primary.instruction_files_book())
+            else:
+                text = primary.instruction_files_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

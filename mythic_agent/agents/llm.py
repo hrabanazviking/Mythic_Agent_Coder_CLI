@@ -21761,6 +21761,443 @@ class Agent:
             self._checkpoint(record)
 
 
+    # -- M-149: instruction files unified --
+
+    def _instruction_files_registry(self):
+        """The held instruction-files registry (M-149).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer entry records one
+        by one, beside the session mention registry
+        (M-148) and never in it: the instruction
+        canon is one book of entry records - one
+        instruction file in force, its filename, the
+        origin that filename truly carries, its
+        path, its source and its layer - under the
+        book this slice names. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named
+        ``_instruction_files_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_instruction_files_store", None)
+        if registry is None:
+            from ..core.instruction_files import InstructionFilesRegistry
+            registry = InstructionFilesRegistry()
+            self._instruction_files_store = registry
+        return registry
+
+    def instruction_files_book(self):
+        """The session's instruction-files book, as data (M-149).
+
+        The held registry's book when the session
+        holds any entry - the files the session has
+        actually gathered (entries held one by one,
+        before any whole book stands recorded, stand
+        under a session instruction-files book
+        composed here in the agent layer, so a later
+        whole book recorded under its own title is
+        never refused by a shim title at the
+        registry) - otherwise the book recorded
+        whole through
+        :meth:`record_instruction_files_book`, or the
+        shipped example instruction-files book until
+        one is recorded. Reading registers and
+        publishes nothing.
+        """
+        from ..core.instruction_files import (
+            InstructionFilesBook, load_instruction_files)
+        registry = self._instruction_files_registry()
+        if registry.list_entries():
+            try:
+                book = registry.book()
+            except ValueError:
+                return InstructionFilesBook(
+                    title="Session instruction files",
+                    entries=registry.list_entries())
+            held = getattr(self, "_instruction_files_held", None)
+            if held is not None and held.title == book.title \
+                    and held.entry_ids() == book.entry_ids():
+                return held
+            return book
+        book = getattr(self, "_instruction_files_held", None)
+        if book is None:
+            return load_instruction_files()
+        return book
+
+    def _instruction_files_screen(self) -> str:
+        """The /instructionfiles screen for the session's state (M-149).
+
+        Rendered from the held book when one stands,
+        and from the shipped example book while
+        nothing is held.
+        """
+        from ..core import instruction_files as files_module
+        registry = self._instruction_files_registry()
+        if not registry.list_entries():
+            return files_module.format_instruction_files_screen()
+        return files_module.format_instruction_files_screen(
+            self.instruction_files_book())
+
+    def instruction_files_status(self) -> dict[str, Any]:
+        """The instruction-files account, in plain data (M-149).
+
+        The entries held this session as plain
+        records, the held book's record (none until
+        an entry stands held), the session
+        instruction-files book's pieces as plain
+        records (the shipped example book - six
+        files at the M-148 slice boundary, of every
+        origin, with its one pinned panel - until
+        entries are held), its whole-book record,
+        the panel derived from the whole book and
+        every panel the book holds as plain records,
+        the entries in plain words and the panel
+        told in plain words, the one screen -
+        rendered from the held book, or from the
+        shipped example book when nothing is held
+        yet - and the plain explanation. Reading
+        registers and publishes nothing, writes,
+        renames and applies no file: this layer
+        holds the account as data only, and no
+        record here claims an instruction was ever
+        applied by this slice. There is no Part VIII
+        board yet; the screen is where the account
+        is visible.
+        """
+        from ..core import instruction_files as files_module
+        registry = self._instruction_files_registry()
+        held_entries = registry.list_entries()
+        book = self.instruction_files_book()
+        return {
+            "entries": [e.to_record() for e in held_entries],
+            "book": (book.to_record() if held_entries else None),
+            "instruction_files": {
+                "title": book.title,
+                "entries": [e.to_record() for e in book.entries],
+            },
+            "book_record": files_module.book_record(book),
+            "panel": files_module.derive_panel(book).to_record(),
+            "panels": [p.to_record() for p in book.panels],
+            "plain_words": [
+                files_module.plain_words(entry)
+                for entry in book.entries],
+            "panel_plain_words": files_module.panel_plain_words(book),
+            "screen": self._instruction_files_screen(),
+            "explanation": files_module.PLAIN_EXPLANATION,
+        }
+
+    def get_instruction_file(self, file_id: Any):
+        """The one entry an id names (M-149).
+
+        The session's held registry answers when the
+        session holds any entry; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held
+        session answers for its own book alone: an
+        id the held book holds no entry for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._instruction_files_registry()
+        if registry.list_entries():
+            return registry.get_entry(file_id)
+        return self.instruction_files_book().entry_for(file_id)
+
+    def instruction_files_for_origin(self, origin: Any):
+        """Every entry of one origin (M-149).
+
+        Read off the session's book - the held
+        registry's book when the session holds any
+        entry, otherwise the shipped example book
+        (or the book recorded whole for the
+        session) - in held order. A held session
+        answers for its own book alone, with no
+        silent fall back to the example. Reading
+        registers and publishes nothing.
+        """
+        return self.instruction_files_book().entries_for_origin(origin)
+
+    def instruction_files_for_layer(self, layer: Any):
+        """Every entry at one layer (M-149).
+
+        Read off the session's book, in held order,
+        under the same held-book rule as
+        :meth:`instruction_files_for_origin`.
+        Reading registers and publishes nothing.
+        """
+        return self.instruction_files_book().entries_for_layer(layer)
+
+    def instruction_files_panel(self):
+        """The panel derived for the whole book (M-149).
+
+        The panel is derived at call time from the
+        whole book of entries - the held registry's
+        entries when the session holds any entry,
+        otherwise the shipped example book's entries
+        (or the entries of the book recorded whole
+        for the session) - so its rows are the
+        entries carried whole with their derived
+        ranks, in precedence order, and its totals
+        are the entries' own counts, read at call
+        time. Reading registers and publishes
+        nothing.
+        """
+        from ..core.instruction_files import derive_panel as _derive_panel
+        return _derive_panel(self.instruction_files_book())
+
+    def register_instruction_file(self, entry: Any) -> dict[str, Any]:
+        """Hold one instruction-file entry for the session (M-149).
+
+        The entry is held by the pure registry under
+        its id or the deterministic instruction-N
+        id - a record id already standing here
+        refuses, as does the same file already
+        standing here at the same layer and path,
+        and a refusal holds nothing new and
+        publishes nothing. A held entry is published
+        as its ``entry_record`` session-news record
+        through the checkpoint road, and the panel
+        derived from the held entries as its
+        ``panel_record`` session news, so a file
+        named in force is news. Returns the held
+        entry, its news record, the panel and its
+        news record, the screen rendered after it
+        landed, and the plain explanation. Holding
+        an entry writes, renames and applies no
+        file: the registry holds the entry as data,
+        and the panel stays a derivation read off
+        the held entries at call time.
+        """
+        from ..core import instruction_files as files_module
+        registry = self._instruction_files_registry()
+        held = registry.register_entry(entry)
+        record = files_module.entry_record(held)
+        self._publish_instruction_files_record(record)
+        panel = files_module.derive_panel(registry)
+        panel_record = files_module.panel_record(panel)
+        self._publish_instruction_files_record(panel_record)
+        return {
+            "entry": held.to_record(),
+            "record": record,
+            "panel": panel.to_record(),
+            "panel_record": panel_record,
+            "screen": self._instruction_files_screen(),
+            "explanation": files_module.PLAIN_EXPLANATION,
+        }
+
+    def scan_and_register_instruction_files(
+            self, workspace: Any) -> dict[str, Any]:
+        """Scan a workspace and hold its instruction files (M-149).
+
+        The workspace is scanned by the pure scan
+        road - the shipped instruction resolver,
+        composed by import, with this canon's
+        filename set - and every entry found is held
+        by the pure registry, in scan order, each
+        published as its ``entry_record`` session
+        news with the derived ``panel_record``. A
+        file already standing here refuses, as the
+        pure layers refuse. Returns the held
+        entries, their news records, the panel news
+        record, the count held, the screen, and the
+        plain explanation. Scanning reads through
+        the elder road and writes nothing: every
+        file in the workspace is left byte-identical,
+        foreign files included, and holding the
+        entries applies no instruction itself beyond
+        what the elder road already does.
+        """
+        from ..core import instruction_files as files_module
+        found = files_module.scan_workspace(workspace)
+        records = []
+        held_records = []
+        panel_record = None
+        for entry in found:
+            outcome = self.register_instruction_file(entry)
+            held_records.append(outcome["entry"])
+            records.append(outcome["record"])
+            panel_record = outcome["panel_record"]
+        return {
+            "entries": held_records,
+            "records": records,
+            "panel_record": panel_record,
+            "count": len(records),
+            "screen": self._instruction_files_screen(),
+            "explanation": files_module.PLAIN_EXPLANATION,
+        }
+
+    def register_instruction_files_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole instruction-files book for the session (M-149).
+
+        Every entry of the book is held by the pure
+        registry, in book order - the first book
+        held sets the registry's title, a later book
+        under a different title refuses, as does a
+        book naming a held entry id or a held file.
+        The book's panels are derivations, not
+        holdings, and are not held. Every entry is
+        published as its ``entry_record`` session
+        news, in book order, and the book's derived
+        panel as its ``panel_record`` session news.
+        Returns the held book, its entries, their
+        news records, the panel news record, the
+        count of entries held, the screen, and the
+        explanation. Registering writes, renames and
+        applies no file.
+        """
+        from ..core import instruction_files as files_module
+        validated = files_module.build_book(book)
+        registry = self._instruction_files_registry()
+        registry.register_book(validated)
+        records = [
+            files_module.entry_record(entry)
+            for entry in validated.entries]
+        for record in records:
+            self._publish_instruction_files_record(record)
+        panel_record = files_module.panel_record(
+            files_module.derive_panel(validated))
+        self._publish_instruction_files_record(panel_record)
+        return {
+            "book": validated.to_record(),
+            "entries": [e.to_record() for e in validated.entries],
+            "records": records,
+            "panel_record": panel_record,
+            "count": len(records),
+            "screen": self._instruction_files_screen(),
+            "explanation": files_module.PLAIN_EXPLANATION,
+        }
+
+    def record_instruction_files_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole instruction-files book for the session (M-149).
+
+        With no book named, the shipped example
+        instruction-files book is recorded through
+        the pure layer - six files at the M-148
+        slice boundary, of every origin, with its
+        one pinned panel. A book loaded from a file
+        (the pure layer's
+        ``load_instruction_files_file`` road) may be
+        passed instead, so a real instruction-files
+        book is recorded as it stands. Every entry
+        is held and published as its ``entry_record``
+        session news, in book order, and the book's
+        derived panel as its ``panel_record``
+        session news; the book is remembered whole
+        as the session's - its held panel and all -
+        and the same book recorded twice refuses -
+        fingerprinted on its entry ids and title - a
+        book is recorded once, never duplicated into
+        the session. Returns the held book, its
+        entries, their news records, the panel news
+        record, the count of entries held, the
+        screen, and the explanation. Recording
+        writes, renames and applies no file.
+        """
+        from ..core import instruction_files as files_module
+        book = book if book is not None \
+            else files_module.load_instruction_files()
+        validated = files_module.build_book(book)
+        fingerprint = (tuple(validated.entry_ids()), validated.title)
+        recorded = getattr(self, "_instruction_files_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._instruction_files_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this instruction-files book is already recorded "
+                "for the session; a book is recorded once")
+        registry = self._instruction_files_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._instruction_files_held = validated
+        records = [
+            files_module.entry_record(entry)
+            for entry in validated.entries]
+        for record in records:
+            self._publish_instruction_files_record(record)
+        panel_record = files_module.panel_record(
+            files_module.derive_panel(validated))
+        self._publish_instruction_files_record(panel_record)
+        return {
+            "book": validated.to_record(),
+            "entries": [e.to_record() for e in validated.entries],
+            "records": records,
+            "panel_record": panel_record,
+            "count": len(records),
+            "screen": files_module.format_instruction_files_screen(
+                validated),
+            "explanation": files_module.PLAIN_EXPLANATION,
+        }
+
+    def report_instruction_files(self) -> dict[str, Any]:
+        """Render the session instruction-files book, as a report (M-149).
+
+        The book - the held registry's book when the
+        session holds any entry, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone: its entries, its
+        panel and its one screen. Rendering registers
+        and publishes nothing, writes, renames and
+        applies no file: the agent layer renders the
+        account as data. Returns the book, its
+        entries and panels as plain records, the
+        derived panel, the rendered entries and
+        panel, the screen, and the plain explanation.
+        """
+        from ..core import instruction_files as files_module
+        book = self.instruction_files_book()
+        return {
+            "book": book.to_record(),
+            "entries": [e.to_record() for e in book.entries],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": files_module.derive_panel(book).to_record(),
+            "entries_text": files_module.format_entries(book),
+            "panel_text": files_module.format_panel(book),
+            "screen": self._instruction_files_screen(),
+            "explanation": files_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_instruction_files_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one instruction-files record as session news (M-149).
+
+        The pure layer's ``entry_record`` and
+        ``panel_record`` are journaled through the
+        same checkpoint road every sibling slice
+        uses, when a session is attached. Each
+        record is announced at most once: an entry
+        under its own file id, and a panel under its
+        whole derived shape (its rows and total), so
+        a panel grown by a newly held entry announces
+        again as the new figure it is. A foreign
+        record type is never published on this road.
+        """
+        if record.get("type") == "instruction_files_entry":
+            key = ("instruction_files_entry", record.get("file_id"))
+        elif record.get("type") == "instruction_files_panel":
+            key = ("instruction_files_panel", record.get("panel_id"),
+                   tuple(row.get("file_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_files"))
+        else:
+            return
+        announced = getattr(self, "_instruction_files_announced", None)
+        if announced is None:
+            announced = set()
+            self._instruction_files_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
