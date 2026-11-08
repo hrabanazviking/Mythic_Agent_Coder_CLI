@@ -1,0 +1,61 @@
+schema: mythic.custom_offices/1
+slice: M-123
+part: 6
+part_title: Agents as files
+custom_note: |
+  Custom offices: user-defined roles beyond the six
+  formalised offices of M-122, held as validated data
+  with the same contract machinery - duties, tools,
+  inputs, outputs, and hand-off contracts validated
+  by the M-122 validators, composed with by import.
+  This file holds the two examples the roadmap for
+  this slice names: a Gatekeeper for security review
+  and a Benchmarker. They are examples of what a user
+  may define, not a second formalisation: a custom
+  office is user-defined, is not one of the six, and
+  never overrides one. No custom office id here names
+  any shipped office - not one of the six formalised
+  offices, not the shipped polymath or guardian crew
+  offices, and never primary, the lead session itself.
+  A custom office's hand-offs land on a formalised
+  office or on a custom office defined in the same
+  file, so the hand-off graph stays closed. A user's
+  own file, in this same shape, may define any custom
+  offices whose ids obey that no-collision rule.
+offices:
+- id: gatekeeper
+  title: "Gatekeeper"
+  focus: "security review"
+  purpose: "Reviewing built work for security risks before it passes the gate: exposed secrets, unsafe paths, and doors left open."
+  duties:
+  - "Review a built change for security risks: leaked secrets, unsafe file paths, and weakened checks."
+  - "Name every risk found with the evidence for it, in plain words a builder can act on."
+  - "Give a plain gate verdict: the work may pass, or it may not pass until the named risks are repaired."
+  tools: [read_file, list_dir, grep_search, run_command]
+  inputs: [a built change with its tests from the Forge Worker, verification findings from the Auditor]
+  outputs: [security findings, a gate verdict]
+  handoffs:
+  - to: auditor
+    artifact: "the security findings - each risk named with the evidence for it"
+    condition: "every risk found is named; a clean pass with unnamed risks is never handed over"
+  - to: forge_worker
+    artifact: "the required repairs - the risks that must be fixed before the work passes the gate"
+    condition: "each repair names the risk it closes, so the fix can be checked against it"
+- id: benchmarker
+  title: "Benchmarker"
+  focus: "benchmarking & measurement"
+  purpose: "Measuring built work against the benchmark pack and reporting what the numbers actually say."
+  duties:
+  - "Run the benchmark pack against built work and record the measured results."
+  - "Compare the measurements with the previous recorded run and name every change, better or worse."
+  - "Report the numbers as measured, never rounded into a claim they do not support."
+  tools: [read_file, list_dir, grep_search, run_command]
+  inputs: [a built change with its tests from the Forge Worker, the benchmark pack]
+  outputs: [a benchmark report, a comparison with the previous run]
+  handoffs:
+  - to: auditor
+    artifact: "the benchmark report - the measured results and the comparison with the previous run"
+    condition: "every number in the report is a measured number, with the run it came from named"
+  - to: gatekeeper
+    artifact: "the benchmarked change - the built work whose measurements are recorded, ready for security review"
+    condition: "the measurements handed over are the measurements of this exact change, not an earlier one"

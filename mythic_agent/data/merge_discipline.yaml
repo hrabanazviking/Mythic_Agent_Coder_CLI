@@ -1,0 +1,83 @@
+schema: mythic.merge_discipline/1
+slice: M-128
+part: 6
+part_title: Agents as files
+keeper: forge_worker
+plan_note: |
+  Merge discipline: the merging of member branches,
+  as data. The evidence is two lists - the steps
+  (which member merges which slice from which
+  branch, the merge plan in slice order) and the
+  merges (each merge as it was recorded: the member,
+  the slice, the branch, the test gate recorded at
+  the merge - passed, failed or missing - and the
+  merge's outcome, green or red) - and the verdicts
+  are derived from that evidence alone: member
+  branches merge strictly in slice order along each
+  member's own line, a test gate is recorded at each
+  merge, and a red merge stops only its own line,
+  never the whole crew. This file is ONE EXAMPLE
+  PLAN AND LEDGER in the shape a real plan and
+  ledger's file takes: seven steps and five recorded
+  merges among the shipped M-121 casting, holding
+  exactly one verdict of each kind - forge_worker
+  merging M-125 green and then M-128 red (that line
+  stops at M-128), scribe's M-133 merge attempted
+  before M-126 (out of order), and scribe's M-126
+  merge recorded with no test gate - while auditor's
+  green M-130 merge advances its own line untouched
+  by forge_worker's red. A real plan and ledger is
+  a new file in this same shape - it is never this
+  file edited in place. This layer holds the merging
+  as data only: it executes no git, performs no real
+  merge and spawns or stops no crew member itself;
+  the coordinator acts on the verdicts through
+  later roads.
+steps:
+- member: forge_worker
+  slice_id: M-125
+  branch: crew/forge_worker/m-125
+- member: scribe
+  slice_id: M-126
+  branch: crew/scribe/m-126
+- member: guardian
+  slice_id: M-127
+  branch: crew/guardian/m-127
+- member: forge_worker
+  slice_id: M-128
+  branch: crew/forge_worker/m-128
+- member: auditor
+  slice_id: M-130
+  branch: crew/auditor/m-130
+- member: auditor
+  slice_id: M-132
+  branch: crew/auditor/m-132
+- member: scribe
+  slice_id: M-133
+  branch: crew/scribe/m-133
+merges:
+- member: forge_worker
+  slice_id: M-125
+  branch: crew/forge_worker/m-125
+  gate: passed
+  outcome: green
+- member: forge_worker
+  slice_id: M-128
+  branch: crew/forge_worker/m-128
+  gate: passed
+  outcome: red
+- member: scribe
+  slice_id: M-133
+  branch: crew/scribe/m-133
+  gate: passed
+  outcome: green
+- member: scribe
+  slice_id: M-126
+  branch: crew/scribe/m-126
+  gate: missing
+  outcome: green
+- member: auditor
+  slice_id: M-130
+  branch: crew/auditor/m-130
+  gate: passed
+  outcome: green

@@ -1,0 +1,57 @@
+schema: mythic.task_dealing/1
+slice: M-125
+part: 6
+part_title: Agents as files
+dealer: coordinator
+plan_note: |
+  Task dealing: the dealing as data. A plan's slices
+  are dealt to the crew by office fit and current
+  load - a slice goes first to a member holding the
+  office its work fits, and among equally fitting
+  members to the least loaded, casting order
+  breaking ties - and the human may re-deal any
+  slice to another member. This file is ONE EXAMPLE
+  PLAN in the shape a real plan's file takes: the
+  next ten roadmap slices, M-125 to M-134, each
+  naming the office its work fits, dealt against
+  the shipped M-121 casting. A real plan is a new
+  file in this same shape, dealt for that plan's
+  slices - it is never this file edited in place.
+  The roadmap names the board (Part VIII) as where
+  a dealing will be visible; that board does not
+  exist yet, so this dealing is visible through
+  this slice's own /dealing screen, and nothing
+  here claims a board exists. This layer deals as
+  data only: it starts no crew and spawns no agent
+  itself.
+tasks:
+- slice_id: M-125
+  title: Task dealing
+  office: forge_worker
+- slice_id: M-126
+  title: Crew comms
+  office: scribe
+- slice_id: M-127
+  title: Cycle and deadlock detection grown
+  office: guardian
+- slice_id: M-128
+  title: Merge discipline
+  office: forge_worker
+- slice_id: M-129
+  title: Heterogeneous crews
+  office: polymath
+- slice_id: M-130
+  title: The Auditor's veto
+  office: auditor
+- slice_id: M-131
+  title: Research swarms
+  office: cartographer
+- slice_id: M-132
+  title: Review panels
+  office: auditor
+- slice_id: M-133
+  title: Crew memory
+  office: scribe
+- slice_id: M-134
+  title: Stand-ups
+  office: skald
