@@ -1,0 +1,140 @@
+schema: mythic.crew_interrupts/1
+slice: M-144
+part: 6
+part_title: The Crew
+interrupts_note: |
+  Crew interrupts with grace: pausing one member,
+  the whole crew, or one slice - each leaves its
+  worktree and journal consistent. A crew
+  interrupt book holds one interrupt record per
+  pause, in held order: each record names the
+  pause in plain words, its scope (one member of
+  the shipped casting, the whole crew, or one
+  slice of the road, the target standing with the
+  scope) and the readings the pause rests on -
+  the worktree as it stands (clean, checkpointed
+  or dirty), the journal's flush state (flushed
+  or pending) and the point the pause is taken
+  at (a resting point, or mid-edit). A record
+  names no consistency and no status, because
+  both are derived from its readings: the pause
+  leaves its worktree and journal consistent
+  exactly when the worktree is clean or
+  checkpointed, the journal is flushed and the
+  pause lands at a resting point. A consistency
+  report of one pause is derived from its
+  readings - its three checks, its consistency
+  and its account read off the record - and a
+  stored report that disagrees with the derived
+  one is refused. The interrupt index is derived
+  from the whole book: its rows are the
+  per-pause consistency reports in held order,
+  its totals are the records' own derived counts
+  (every pause held, those leaving things
+  consistent, those not yet) and its account is
+  read off the rows and totals; a stored index
+  that disagrees refuses. This file is ONE
+  EXAMPLE CREW INTERRUPT BOOK, in the shape a
+  real crew interrupts file takes: the M-143
+  slice boundary - the roadmap's three pause
+  scopes, three of them leaving the worktree and
+  journal consistent and one honest mid-edit
+  counter-example that does not yet, with the
+  one interrupt index of it. A real interrupt
+  book is a new file in this same shape - it is
+  never this file edited in place. This layer
+  holds interrupts as data only: it pauses no
+  member, halts no crew, signals no process,
+  touches no worktree, writes no journal and
+  persists nothing.
+guide:
+  title: "Crew interrupt book at the M-143 slice boundary"
+entries:
+- interrupt_id: int-auditor-rest
+  scope: member
+  title: Pause the Auditor
+  detail: The Auditor rests at the end of a review pass while the rest of the crew works on.
+  member: auditor
+  worktree: clean
+  journal: flushed
+  point: resting
+- interrupt_id: int-crew-rest
+  scope: crew
+  title: Pause the whole crew
+  detail: The whole crew rests together at a slice boundary, every worktree held at its checkpoint.
+  worktree: checkpointed
+  journal: flushed
+  point: resting
+- interrupt_id: int-slice-m143
+  scope: slice
+  title: Pause slice M-143
+  detail: The M-143 work rests where it banked, its worktree clean and its journal flushed.
+  slice_id: M-143
+  worktree: clean
+  journal: flushed
+  point: resting
+- interrupt_id: int-forge-worker-mid-edit
+  scope: member
+  title: Pause the Forge Worker mid-edit
+  detail: An honest counter-example - the Forge Worker is caught mid-edit with a dirty tree and a journal entry still pending, so this pause does not yet leave things consistent.
+  member: forge_worker
+  worktree: dirty
+  journal: pending
+  point: mid_edit
+indexes:
+- index_id: index-m143-boundary
+  rows:
+  - interrupt_id: int-auditor-rest
+    scope: member
+    member: auditor
+    checks:
+    - "worktree clean: consistent"
+    - "journal flushed: consistent"
+    - "pause at a resting point: consistent"
+    consistent: true
+    account:
+    - "Pausing member auditor leaves its worktree and journal consistent."
+    - "The pause lands at a resting point with the worktree clean or checkpointed and the journal flushed."
+    - "This record pauses no one: it is data only, and no process is signalled by this layer."
+  - interrupt_id: int-crew-rest
+    scope: crew
+    checks:
+    - "worktree checkpointed: consistent"
+    - "journal flushed: consistent"
+    - "pause at a resting point: consistent"
+    consistent: true
+    account:
+    - "Pausing the whole crew leaves its worktree and journal consistent."
+    - "The pause lands at a resting point with the worktree clean or checkpointed and the journal flushed."
+    - "This record pauses no one: it is data only, and no process is signalled by this layer."
+  - interrupt_id: int-slice-m143
+    scope: slice
+    slice_id: M-143
+    checks:
+    - "worktree clean: consistent"
+    - "journal flushed: consistent"
+    - "pause at a resting point: consistent"
+    consistent: true
+    account:
+    - "Pausing slice M-143 leaves its worktree and journal consistent."
+    - "The pause lands at a resting point with the worktree clean or checkpointed and the journal flushed."
+    - "This record pauses no one: it is data only, and no process is signalled by this layer."
+  - interrupt_id: int-forge-worker-mid-edit
+    scope: member
+    member: forge_worker
+    checks:
+    - "worktree dirty: not consistent"
+    - "journal pending: not consistent"
+    - "pause taken mid-edit: not consistent"
+    consistent: false
+    account:
+    - "Pausing member forge_worker does not yet leave its worktree and journal consistent."
+    - "Not yet consistent: worktree dirty: not consistent; journal pending: not consistent; pause taken mid-edit: not consistent."
+    - "This record pauses no one: it is data only, and no process is signalled by this layer."
+  total_interrupts: 4
+  total_consistent: 3
+  total_inconsistent: 1
+  account:
+  - "The book holds 4 crew interrupt(s): 3 leave the worktree and journal consistent, 1 do not yet."
+  - "Every consistency word here is derived from the held records' worktree, journal and pause-point readings, never stored loose."
+  - "An interrupt here is a record of a graceful pause; nothing in this book pauses a member, a crew or a slice."
