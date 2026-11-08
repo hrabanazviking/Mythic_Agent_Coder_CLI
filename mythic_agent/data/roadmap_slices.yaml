@@ -902,7 +902,7 @@ slices:
   part: 6
   title: Crew templates
   summary: saved formations (Duo, Full Six, Research Swarm, Review Panel) summonable by name.
-  status: queued
+  status: done
 - id: M-144
   part: 6
   title: Interrupts with grace
