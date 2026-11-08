@@ -307,6 +307,8 @@ class CommandHandler:
                 self._handle_crewsize(args)
             elif cmd == "/voices":
                 self._handle_voices(args)
+            elif cmd == "/externals":
+                self._handle_externals(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -4317,6 +4319,68 @@ class CommandHandler:
                 text = format_profiles(primary.character_voices(), target)
             else:
                 text = primary.character_voices_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_externals(self, args: str):
+        """M-137: /externals - external agents as crew.
+
+        ``/externals`` shows the seat book held this
+        session (the shipped example book - two
+        outside agents at the M-136 slice boundary,
+        one under each budget scope - when none is
+        held yet); ``/externals seat <member-id>``
+        shows one member's seat; ``/externals check
+        <member-id>`` derives one seat's check;
+        ``/externals mcp`` shows the seats riding the
+        MCP transport; ``/externals transports``
+        lists the transports. Reading registers and
+        publishes nothing as session news: seats are
+        held only when they are given through the
+        agent layer, and held seats are published as
+        an external_seat session event. This road
+        opens no MCP session, spawns no agent,
+        persists nothing, calls no model and claims
+        no board: the registry holds the seats as
+        data, and there is no Part VIII board yet -
+        this surface is where the seats are visible.
+        The registry is session state held by the
+        agent; it is not a stored setting.
+        """
+        from ..core.external_agents import (
+            format_check,
+            format_seat,
+            format_seats,
+            format_transports,
+            parse_external_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_external_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "transports":
+                text = format_transports()
+            elif action == "seat":
+                text = format_seat(primary.get_external_seat(target))
+            elif action == "check":
+                text = format_check(primary.external_seat_check(target))
+            elif action == "transport":
+                text = format_seats(primary.external_agents(), target)
+            else:
+                text = primary.external_agents_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
