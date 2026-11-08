@@ -943,7 +943,7 @@ slices:
   title: Project Memory Map (Mythic law)
   summary: every project grows a living map — architecture, decisions, gotchas, where things live — maintained
     by the Scribe as work proceeds, diffs reviewable.
-  status: queued
+  status: done
 - id: M-151
   part: 7
   title: Compaction v2, glass-box
