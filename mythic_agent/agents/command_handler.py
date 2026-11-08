@@ -297,6 +297,8 @@ class CommandHandler:
                 self._handle_veto(args)
             elif cmd == "/swarm":
                 self._handle_swarm(args)
+            elif cmd == "/panel":
+                self._handle_panel(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -3950,6 +3952,90 @@ class CommandHandler:
                     format_finding(finding)
                     for finding
                     in primary.find_swarm_findings(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_panel(self, args: str):
+        """M-132: /panel - review panels.
+
+        ``/panel`` shows the panel held this session
+        (the shipped example panel - the
+        session-branching restore guard, approved by
+        the auditor on anthropic/claude-sonnet-4-5
+        and held to request_changes by the guardian
+        on ollama/llama3.1, a disagreement surfaced -
+        when none is held yet); ``/panel show
+        <reviewer>`` (or a bare reviewer id) shows
+        one reviewer's review; ``/panel outcome``
+        shows the derived outcome with both
+        positions named; ``/panel verdicts`` shows
+        the positions the panel holds; ``/panel
+        kinds`` shows the verdict kinds. Reading
+        registers and publishes nothing as session
+        news: pieces are held only when they are
+        given through the agent layer, and held
+        pieces are published as a panel_change /
+        panel_review session event, each outcome
+        report as ONE panel_outcome session event.
+        This road runs no review, calls no model,
+        executes no change and spawns no crew: the
+        registry holds the panel as data, and there
+        is no Part VIII board yet - this surface is
+        where the outcome is visible. The registry
+        is session state held by the agent; it is
+        not a stored setting.
+        """
+        from ..core.review_panels import (
+            format_review,
+            format_verdict_kinds,
+            outcome_plain_words,
+            parse_panel_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_panel_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "kinds":
+                text = format_verdict_kinds()
+            elif action == "outcome":
+                outcome = primary.panel_outcome()
+                lines = [outcome_plain_words(outcome)]
+                if outcome.reviewers:
+                    lines.append("Positions:")
+                    lines.extend(
+                        f"- {r} holds {v}" for r, v in zip(
+                            outcome.reviewers,
+                            outcome.verdicts))
+                text = "\n".join(lines)
+            elif action == "verdicts":
+                outcome = primary.panel_outcome()
+                text = "\n".join(
+                    f"- {r}: {v}" for r, v in zip(
+                        outcome.reviewers,
+                        outcome.verdicts)) \
+                    if outcome.verdicts \
+                    else "No verdicts are held yet."
+            elif target is None:
+                text = primary.panel_status()["screen"]
+            else:
+                text = "\n".join(
+                    format_review(review)
+                    for review
+                    in primary.find_panel_reviews(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
