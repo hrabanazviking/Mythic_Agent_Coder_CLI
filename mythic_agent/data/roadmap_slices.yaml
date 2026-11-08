@@ -835,7 +835,7 @@ slices:
   title: Research swarms
   summary: Cartographer-led fan-out for questions (docs, options, comparisons) returning one digested
     answer with sources — the deep-research pattern as a crew formation.
-  status: queued
+  status: done
 - id: M-132
   part: 6
   title: Review panels
