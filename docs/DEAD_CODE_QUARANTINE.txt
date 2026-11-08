@@ -290,3 +290,10 @@ mythic_agent/core/dogfood.py:972:entries_in:method
 mythic_agent/core/solo_mode.py:747:row_for:method
 mythic_agent/core/solo_mode.py:954:capabilities_named:method
 mythic_agent/terminal.py:1927:_fmt_rsteps:import
+mythic_agent/agents/llm.py:20051:crew_interrupts_for_member:method
+mythic_agent/agents/llm.py:20123:register_crew_interrupt:method
+mythic_agent/agents/llm.py:20164:register_crew_interrupt_book:method
+mythic_agent/agents/llm.py:20215:record_crew_interrupt_book:method
+mythic_agent/agents/llm.py:20287:report_crew_interrupts:method
+mythic_agent/core/crew_interrupts.py:1031:row_for:method
+mythic_agent/core/crew_interrupts.py:1244:interrupts_with_scope:method
