@@ -327,6 +327,8 @@ class CommandHandler:
                 self._handle_crewschedules(args)
             elif cmd == "/contextbudget":
                 self._handle_contextbudget(args)
+            elif cmd == "/mentions":
+                self._handle_mentions(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -5013,6 +5015,82 @@ class CommandHandler:
                 text = format_panel(primary.context_budget_view())
             else:
                 text = primary.context_budget_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_mentions(self, args: str):
+        """M-148: /mentions - the @-mention canon.
+
+        ``/mentions`` shows the mention canon held
+        this session (the shipped example canon -
+        seven mentions at the M-147 slice boundary,
+        one of every kind, its seven pinned plans and
+        its one pinned index - when none is held yet);
+        ``/mentions mention <mention-id>`` shows one
+        mention; ``/mentions kind <kind>`` shows the
+        mentions of one kind; ``/mentions plan
+        <mention-id>`` shows the plan derived for one
+        mention; ``/mentions parse <text>`` shows the
+        mentions the grammar reads out of a text,
+        holding none of them; ``/mentions index``
+        shows the index derived from the whole book.
+        Reading registers and publishes nothing as
+        session news: mentions are held only when they
+        are given through the agent's canon roads, and
+        every mention held for the session is journaled
+        as a mentions_mention session event, every
+        derived plan as a mentions_plan session event
+        and every derived index as a mentions_index
+        session event. This surface reads no file,
+        fetches no page, indexes no symbol, opens no
+        session, fetches no issue, compiles no context,
+        calls no model and persists nothing - parsing
+        and planning pull nothing in by themselves -
+        and there is no Part VIII board yet, so the
+        canon is visible on this surface, not on a
+        board.
+        """
+        from ..core.mentions import (
+            format_index,
+            format_mention,
+            format_mentions,
+            format_plan,
+            parse_mentions,
+            parse_mentions_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_mentions_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "mention":
+                text = format_mention(primary.get_mention(target))
+            elif action == "kind":
+                text = format_mentions(
+                    primary.mentions_canon(), target)
+            elif action == "plan":
+                text = format_plan(primary.mention_plan(target))
+            elif action == "parse":
+                parsed = parse_mentions(target)
+                text = "\n".join(
+                    format_mention(entry) for entry in parsed) \
+                    if parsed else "No mentions stand in that text."
+            elif action == "index":
+                text = format_index(primary.mentions_canon())
+            else:
+                text = primary.mentions_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

@@ -21298,6 +21298,469 @@ class Agent:
             self._checkpoint(record)
 
 
+# -- M-148: the @-mention canon --
+
+    def _mentions_registry(self):
+        """The held mention registry (M-148).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer mention records one
+        by one, beside the session context budget
+        registry (M-147) and never in it: the mention
+        canon is one book of mention records - one
+        pull named in text, its kind, target, the
+        text that named it, its source and the reason
+        it is pulled - under the book this slice
+        names. It is created on first use, so an
+        agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_mentions_store``, never the method's own
+        name (the M-108 lesson).
+        """
+        registry = getattr(self, "_mentions_store", None)
+        if registry is None:
+            from ..core.mentions import MentionRegistry
+            registry = MentionRegistry()
+            self._mentions_store = registry
+        return registry
+
+    def mentions_canon(self):
+        """The session's mention canon, as data (M-148).
+
+        The held registry's canon when the session
+        holds any mention - the mentions the session
+        has actually gathered (mentions held one by
+        one, before any whole canon stands recorded,
+        stand under a session mention canon composed
+        here in the agent layer, so a later whole
+        canon recorded under its own title is never
+        refused by a shim title at the registry) -
+        otherwise the canon recorded whole through
+        :meth:`record_mentions_canon`, or the shipped
+        example mention canon until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.mentions import MentionCanon, load_mentions
+        registry = self._mentions_registry()
+        if registry.list_mentions():
+            try:
+                book = registry.canon()
+            except ValueError:
+                return MentionCanon(
+                    title="Session mention canon",
+                    mentions=registry.list_mentions())
+            held = getattr(self, "_mentions_held", None)
+            if held is not None and held.title == book.title \
+                    and held.mention_ids() == book.mention_ids():
+                return held
+            return book
+        book = getattr(self, "_mentions_held", None)
+        if book is None:
+            return load_mentions()
+        return book
+
+    def _mentions_screen(self) -> str:
+        """The /mentions screen for the session's state (M-148).
+
+        Rendered from the held canon when one stands,
+        and from the shipped example canon while
+        nothing is held.
+        """
+        from ..core import mentions as mentions_module
+        registry = self._mentions_registry()
+        if not registry.list_mentions():
+            return mentions_module.format_mentions_screen()
+        return mentions_module.format_mentions_screen(
+            self.mentions_canon())
+
+    def mentions_status(self) -> dict[str, Any]:
+        """The mention canon account, in plain data (M-148).
+
+        The mentions held this session as plain
+        records, the held canon's record (none until
+        a mention stands held), the session mention
+        canon's pieces as plain records (the shipped
+        example canon - seven mentions at the M-147
+        slice boundary, one of every kind, its seven
+        pinned plans and its one pinned index - until
+        mentions are held), its whole-book record,
+        the plan derived from every mention of the
+        whole canon, the index derived from the
+        whole canon and every index the canon holds
+        as plain records, the mentions in plain
+        words, every plan told in plain words and
+        the index told in plain words, the one
+        screen - rendered from the held canon, or
+        from the shipped example canon when nothing
+        is held yet - and the plain explanation.
+        Reading registers and publishes nothing,
+        reads no file, fetches no page, compiles no
+        context and persists nothing: this layer
+        holds the grammar as data only, and no record
+        here claims a pull was ever run. There is no
+        Part VIII board yet; the screen is where the
+        canon is visible.
+        """
+        from ..core import mentions as mentions_module
+        registry = self._mentions_registry()
+        held_mentions = registry.list_mentions()
+        book = self.mentions_canon()
+        return {
+            "mentions": [e.to_record() for e in held_mentions],
+            "book": (book.to_record() if held_mentions else None),
+            "mentions_canon": {
+                "title": book.title,
+                "mentions": [e.to_record() for e in book.mentions],
+            },
+            "book_record": mentions_module.book_record(book),
+            "plans": [
+                mentions_module.derive_plan(e).to_record()
+                for e in book.mentions],
+            "index": mentions_module.derive_index(book).to_record(),
+            "indexes": [i.to_record() for i in book.indexes],
+            "plain_words": [
+                mentions_module.plain_words(entry)
+                for entry in book.mentions],
+            "plan_plain_words": [
+                mentions_module.plan_plain_words(
+                    mentions_module.derive_plan(entry))
+                for entry in book.mentions],
+            "index_plain_words": mentions_module.index_plain_words(book),
+            "screen": self._mentions_screen(),
+            "explanation": mentions_module.PLAIN_EXPLANATION,
+        }
+
+    def get_mention(self, mention_id: Any):
+        """The one mention an id names (M-148).
+
+        The session's held registry answers when the
+        session holds any mention; otherwise the
+        shipped example mention canon answers (or
+        the canon recorded whole for the session). A
+        held session answers for its own canon alone:
+        an id the held canon holds no mention for
+        raises KeyError, with no silent fall back to
+        the example, exactly as the pure layer
+        answers. Reading registers and publishes
+        nothing.
+        """
+        registry = self._mentions_registry()
+        if registry.list_mentions():
+            return registry.get_mention(mention_id)
+        return self.mentions_canon().mention_for(mention_id)
+
+    def mentions_for_kind(self, kind: Any):
+        """Every mention of one kind (M-148).
+
+        Read off the session's canon - the held
+        registry's canon when the session holds any
+        mention, otherwise the shipped example canon
+        (or the canon recorded whole for the
+        session) - in held order. A held session
+        answers for its own canon alone, with no
+        silent fall back to the example. Reading
+        registers and publishes nothing.
+        """
+        return self.mentions_canon().mentions_for_kind(kind)
+
+    def mention_plan(self, mention_id: Any):
+        """The plan derived for one mention (M-148).
+
+        The plan is derived at call time from the
+        one mention the id names - the held
+        registry's mention when the session holds
+        any mention, otherwise the shipped example
+        canon's mention (or the mention of the canon
+        recorded whole for the session) - so its
+        road, action and pulls are the mention's own
+        derivation, read at call time. Reading
+        registers and publishes nothing, and deriving
+        a plan runs no road.
+        """
+        from ..core.mentions import derive_plan as _derive_plan
+        return _derive_plan(self.get_mention(mention_id))
+
+    def mentions_index(self):
+        """The index derived for the whole canon (M-148).
+
+        The index is derived at call time from the
+        whole canon of mentions - the held registry's
+        mentions when the session holds any mention,
+        otherwise the shipped example canon's
+        mentions (or the mentions of the canon
+        recorded whole for the session) - so its rows
+        are the mentions' plans and its totals are
+        the mentions' own counts, read at call time.
+        Reading registers and publishes nothing.
+        """
+        from ..core.mentions import derive_index as _derive_index
+        return _derive_index(self.mentions_canon())
+
+    def register_mention(self, mention: Any) -> dict[str, Any]:
+        """Hold one mention for the session (M-148).
+
+        The mention is held by the pure registry
+        under its id or the deterministic mention-N
+        id - a record id already standing here
+        refuses, as does a mention whose kind and
+        target already stand here, and a refusal
+        holds nothing new and publishes nothing. A
+        held mention is published as its
+        ``mention_record`` session-news record
+        through the checkpoint road, and its derived
+        plan as its ``plan_record`` session news, so
+        a mention given is news. Returns the held
+        mention, its news record, the plan and its
+        news record, the screen rendered after it
+        landed, and the plain explanation. Holding a
+        mention reads no file, fetches no page,
+        compiles no context and persists nothing: the
+        registry holds the mention as data, and the
+        plan and the index stay derivations read off
+        the held mentions at call time.
+        """
+        from ..core import mentions as mentions_module
+        registry = self._mentions_registry()
+        held = registry.register_mention(mention)
+        record = mentions_module.mention_record(held)
+        self._publish_mentions_record(record)
+        plan = mentions_module.derive_plan(held)
+        plan_record = mentions_module.plan_record(plan, held)
+        self._publish_mentions_record(plan_record)
+        return {
+            "mention": held.to_record(),
+            "record": record,
+            "plan": plan.to_record(),
+            "plan_record": plan_record,
+            "screen": self._mentions_screen(),
+            "explanation": mentions_module.PLAIN_EXPLANATION,
+        }
+
+    def parse_and_register_mentions(
+            self, text: Any, *,
+            source: Any = "prompt text") -> dict[str, Any]:
+        """Parse mentions out of text and hold them (M-148).
+
+        The text is parsed by the pure grammar - the
+        typed forms and the shipped bare form - and
+        every mention found is held by the pure
+        registry, in text order, each published as
+        its ``mention_record`` session news with its
+        derived ``plan_record``. An unknown typed
+        kind in the text refuses plainly, and a
+        mention already standing here refuses, as
+        the pure layers refuse. Returns the held
+        mentions, their news records, the plan news
+        records, the count held, the screen, and the
+        plain explanation. Parsing and holding read
+        no file, fetch no page and pull nothing in:
+        the pull happens only when a prompt is later
+        compiled through the shipped roads
+        themselves.
+        """
+        from ..core import mentions as mentions_module
+        found = mentions_module.parse_mentions(text, source=source)
+        records = []
+        plan_records = []
+        held_records = []
+        for entry in found:
+            outcome = self.register_mention(entry)
+            held_records.append(outcome["mention"])
+            records.append(outcome["record"])
+            plan_records.append(outcome["plan_record"])
+        return {
+            "mentions": held_records,
+            "records": records,
+            "plan_records": plan_records,
+            "count": len(records),
+            "screen": self._mentions_screen(),
+            "explanation": mentions_module.PLAIN_EXPLANATION,
+        }
+
+    def register_mentions_canon(
+            self, canon: Any) -> dict[str, Any]:
+        """Register a whole mention canon for the session (M-148).
+
+        Every mention of the canon is held by the
+        pure registry, in canon order - the first
+        canon held sets the registry's title, a later
+        canon under a different title refuses, as
+        does a canon naming a held mention id or a
+        held kind-and-target. The canon's plans and
+        indexes are derivations, not holdings, and
+        are not held. Every mention is published as
+        its ``mention_record`` session news, in canon
+        order, and the canon's derived index as its
+        ``index_record`` session news. Returns the
+        held canon, its mentions, their news records,
+        the index news record, the count of mentions
+        held, the screen, and the explanation.
+        Registering reads no file, fetches no page,
+        compiles no context and persists nothing.
+        """
+        from ..core import mentions as mentions_module
+        validated = mentions_module.build_canon(canon)
+        registry = self._mentions_registry()
+        registry.register_canon(validated)
+        records = [
+            mentions_module.mention_record(entry)
+            for entry in validated.mentions]
+        for record in records:
+            self._publish_mentions_record(record)
+        index_record = mentions_module.index_record(
+            mentions_module.derive_index(validated))
+        self._publish_mentions_record(index_record)
+        return {
+            "book": validated.to_record(),
+            "mentions": [e.to_record() for e in validated.mentions],
+            "records": records,
+            "index_record": index_record,
+            "count": len(records),
+            "screen": self._mentions_screen(),
+            "explanation": mentions_module.PLAIN_EXPLANATION,
+        }
+
+    def record_mentions_canon(
+            self, canon: Any = None) -> dict[str, Any]:
+        """Record a whole mention canon for the session (M-148).
+
+        With no canon named, the shipped example
+        mention canon is recorded through the pure
+        layer - seven mentions at the M-147 slice
+        boundary, one of every kind, its seven pinned
+        plans and its one pinned index. A canon
+        loaded from a file (the pure layer's
+        ``load_mentions_file`` road) may be passed
+        instead, so a real mention canon is recorded
+        as it stands. Every mention is held and
+        published as its ``mention_record`` session
+        news, in canon order, and the canon's derived
+        index as its ``index_record`` session news;
+        the canon is remembered whole as the
+        session's - its held plans and index and all
+        - and the same canon recorded twice refuses -
+        fingerprinted on its mention ids and title -
+        a canon is recorded once, never duplicated
+        into the session. Returns the held canon, its
+        mentions, their news records, the index news
+        record, the count of mentions held, the
+        screen, and the explanation. Recording reads
+        no file, fetches no page, compiles no context
+        and persists nothing.
+        """
+        from ..core import mentions as mentions_module
+        canon = canon if canon is not None \
+            else mentions_module.load_mentions()
+        validated = mentions_module.build_canon(canon)
+        fingerprint = (tuple(validated.mention_ids()), validated.title)
+        recorded = getattr(self, "_mentions_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._mentions_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this mention canon is already recorded "
+                "for the session; a canon is recorded once")
+        registry = self._mentions_registry()
+        registry.register_canon(validated)
+        recorded.add(fingerprint)
+        self._mentions_held = validated
+        records = [
+            mentions_module.mention_record(entry)
+            for entry in validated.mentions]
+        for record in records:
+            self._publish_mentions_record(record)
+        index_record = mentions_module.index_record(
+            mentions_module.derive_index(validated))
+        self._publish_mentions_record(index_record)
+        return {
+            "book": validated.to_record(),
+            "mentions": [e.to_record() for e in validated.mentions],
+            "records": records,
+            "index_record": index_record,
+            "count": len(records),
+            "screen": mentions_module.format_mentions_screen(
+                validated),
+            "explanation": mentions_module.PLAIN_EXPLANATION,
+        }
+
+    def report_mentions(self) -> dict[str, Any]:
+        """Render the session mention canon, as a report (M-148).
+
+        The canon - the held registry's canon when
+        the session holds any mention, otherwise the
+        shipped example canon (or the canon recorded
+        whole for the session) - is rendered through
+        the pure formatters alone: its mentions, its
+        plans, its index and its one screen.
+        Rendering registers and publishes nothing,
+        reads no file, fetches no page, compiles no
+        context and persists nothing: the agent layer
+        renders the grammar as data. Returns the
+        canon, its mentions, plans and indexes as
+        plain records, the derived index, the
+        rendered mentions and index, the screen, and
+        the plain explanation.
+        """
+        from ..core import mentions as mentions_module
+        book = self.mentions_canon()
+        return {
+            "book": book.to_record(),
+            "mentions": [e.to_record() for e in book.mentions],
+            "plans": [
+                mentions_module.derive_plan(e).to_record()
+                for e in book.mentions],
+            "indexes": [i.to_record() for i in book.indexes],
+            "index": mentions_module.derive_index(book).to_record(),
+            "mentions_text": mentions_module.format_mentions(book),
+            "index_text": mentions_module.format_index(book),
+            "screen": self._mentions_screen(),
+            "explanation": mentions_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_mentions_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one mentions record as session news (M-148).
+
+        The pure layer's ``mention_record``,
+        ``plan_record`` and ``index_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once: a mention under its own mention id, a
+        plan under its whole derived shape (its
+        mention id, kind, target and road), and an
+        index under its whole derived shape (its
+        rows and total), so an index grown by a newly
+        held mention announces again as the new
+        figure it is. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") == "mentions_mention":
+            key = ("mentions_mention", record.get("mention_id"))
+        elif record.get("type") == "mentions_plan":
+            key = ("mentions_plan", record.get("mention_id"),
+                   record.get("kind"), record.get("target"),
+                   record.get("road"))
+        elif record.get("type") == "mentions_index":
+            key = ("mentions_index", record.get("index_id"),
+                   tuple(row.get("mention_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_mentions"))
+        else:
+            return
+        announced = getattr(self, "_mentions_announced", None)
+        if announced is None:
+            announced = set()
+            self._mentions_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
