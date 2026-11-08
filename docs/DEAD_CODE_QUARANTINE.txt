@@ -179,3 +179,7 @@ mythic_agent/agents/llm.py:12922:record_comms_ledger:method
 mythic_agent/agents/llm.py:12973:ask_batched_human_questions:method
 mythic_agent/core/crew_comms.py:695:by_sender:method
 mythic_agent/core/crew_comms.py:701:by_recipient:method
+mythic_agent/agents/llm.py:13261:record_deadlock_watch:method
+mythic_agent/agents/llm.py:13320:report_deadlock:method
+mythic_agent/core/deadlock_watch.py:982:delegations_for:method
+mythic_agent/core/deadlock_watch.py:989:claims_for:method
