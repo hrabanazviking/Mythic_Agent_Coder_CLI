@@ -1,0 +1,111 @@
+schema: mythic.compaction_glassbox/1
+slice: M-151
+part: 7
+part_title: Memory & Context
+canon_note: |
+  Compaction v2, glass-box: when context compacts,
+  the summary is shown, editable, and kept in the
+  journal beside what it replaced; nothing the
+  coder "forgets" is unrecoverable. A compaction
+  glass-box book holds one record per compaction,
+  in held order: each record names what was
+  compacted (the replaced material, kept whole or
+  by journal reference), the summary that replaced
+  it - held as its versions, in order, the current
+  summary the last of them - its source among the
+  shipped compaction roads, and its journal
+  position, beside what it replaced. The PANEL is
+  derived from the whole book: its rows are the
+  records carried whole, in journal order (journal
+  position first, then record id), and its totals
+  are the records' own counts, and a stored panel
+  that disagrees with its derived shape is
+  refused. An edit appends a new summary version
+  and keeps every earlier one - never a silent
+  rewrite. This file is ONE EXAMPLE BOOK, in the
+  shape a real book file takes: the M-150 slice
+  boundary - three compactions, one of each
+  shipped road, one holding its material by journal
+  reference alone and one carrying an edited
+  summary, with the one panel of the book. A real
+  book is a new file in this same shape - it is
+  never this file edited in place. This layer
+  holds compactions as data only: it compacts no
+  live context, calls no model, archives no message
+  and persists nothing.
+guide:
+  title: "Compaction glass-box at the M-150 slice boundary"
+records:
+- record_id: compact-pruner-boundary
+  title: "The pruner's first pass"
+  source: context-pruner
+  journal_ref: journal/session-boundary#12
+  journal_position: 12
+  replaced:
+  - "user: Name the task and open the workspace."
+  - "assistant: The task is named and the workspace stands open."
+  - "user: Read the first file and say what it holds."
+  summary_versions:
+  - "The opening turns stand archived: the task was named, the workspace opened, and the first file read."
+- record_id: compact-archiver-boundary
+  title: "Older turns archived whole"
+  source: history-archiver
+  journal_ref: journal/session-boundary#27
+  journal_position: 27
+  replaced_ref: journal/session-boundary#27-archive
+  summary_versions:
+  - "Older complete turns stand archived whole at the journal reference this record names."
+- record_id: compact-summarizer-boundary
+  title: "Low-priority turns condensed"
+  source: context-summarizer
+  journal_ref: journal/session-boundary#41
+  journal_position: 41
+  replaced:
+  - "user: A low-priority aside about naming."
+  - "assistant: The aside stands answered in one line."
+  summary_versions:
+  - "Two low-priority turns condensed into a recap."
+  - "Two low-priority turns condensed: a naming aside, answered in one line and closed."
+panels:
+- panel_id: panel-m150-boundary
+  rows:
+  - record_id: compact-pruner-boundary
+    title: "The pruner's first pass"
+    source: context-pruner
+    journal_ref: journal/session-boundary#12
+    journal_position: 12
+    replaced_count: 3
+    version_count: 1
+    summary: "The opening turns stand archived: the task was named, the workspace opened, and the first file read."
+  - record_id: compact-archiver-boundary
+    title: "Older turns archived whole"
+    source: history-archiver
+    journal_ref: journal/session-boundary#27
+    journal_position: 27
+    replaced_count: 0
+    version_count: 1
+    summary: "Older complete turns stand archived whole at the journal reference this record names."
+  - record_id: compact-summarizer-boundary
+    title: "Low-priority turns condensed"
+    source: context-summarizer
+    journal_ref: journal/session-boundary#41
+    journal_position: 41
+    replaced_count: 2
+    version_count: 2
+    summary: "Two low-priority turns condensed: a naming aside, answered in one line and closed."
+  total_records: 3
+  total_replaced: 5
+  total_versions: 4
+  source_counts:
+  - source: context-pruner
+    records: 1
+  - source: history-archiver
+    records: 1
+  - source: context-summarizer
+    records: 1
+  account:
+  - "The panel holds 3 compaction records: context-pruner 1, history-archiver 1, context-summarizer 1."
+  - "Together they replaced 5 pieces of context, kept whole or by journal reference beside what they replaced - nothing the coder forgets is unrecoverable."
+  - "1 of them carries an edited summary: every version is held, in order, the original first."
+  - "Summaries are shown and editable as data: an edit adds a new version and keeps every earlier version - never a silent rewrite."
+  - "The panel is read off the held records at call time - it is derived, never stored loose."
