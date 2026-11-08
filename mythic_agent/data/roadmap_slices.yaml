@@ -907,7 +907,7 @@ slices:
   part: 6
   title: Interrupts with grace
   summary: pausing one member, the whole crew, or one slice — each leaves its worktree and journal consistent.
-  status: queued
+  status: done
 - id: M-145
   part: 6
   title: Crew on schedule
