@@ -1,0 +1,132 @@
+schema: mythic.solo_mode/1
+slice: M-142
+part: 6
+part_title: The Crew
+solo_note: |
+  Solo mode dignity: with the crew off, the single
+  coder loses nothing - crew is an amplifier, never
+  a requirement. A solo mode book holds one
+  capability record per capability the single coder
+  holds, in held order: each record names the
+  capability in plain words and the work it is -
+  and may name the crew member who amplifies it
+  when the crew is on, with the gain that
+  amplification brings; the gain and its amplifier
+  stand together or not at all. A record names no
+  parity, because parity is derived from the book
+  itself: every record in the book is a capability
+  held solo. An amplification report of one member
+  is derived from the records that member
+  amplifies - its capability ids, capability words,
+  count and account read off the records - and a
+  stored report that disagrees with the derived one
+  is refused. The parity ledger is derived from the
+  whole book: its rows are the per-member reports in
+  the order the records first name each amplifying
+  member, its totals are the records' own counts
+  (every capability held, those amplified, those
+  standing unamplified) and its account is read off
+  the rows and totals; a stored ledger that
+  disagrees refuses. This file is ONE EXAMPLE SOLO
+  MODE BOOK, in the shape a real solo mode file
+  takes: the M-141 slice boundary - the eight
+  capabilities the single coder holds on this road,
+  seven of them amplified by four crew members when
+  the crew is on and one standing unamplified, with
+  the one parity ledger of it. A real solo mode
+  book is a new file in this same shape - it is
+  never this file edited in place. This layer holds
+  capabilities as data only: it disables no crew,
+  spawns no agent, runs nothing and persists
+  nothing.
+guide:
+  title: "Solo mode book at the M-141 slice boundary"
+entries:
+- capability_id: cap-planning
+  capability: planning
+  title: Plan the work
+  detail: Breaking a slice into steps, ordering them and knowing what done looks like before touching a file.
+  amplifier: architect
+  gain: A second head on the shape of the work - parallel plans to weigh against the single coder's own.
+- capability_id: cap-editing
+  capability: editing
+  title: Edit the code
+  detail: Writing and changing the code itself, file by file, in the worktree the work lives in.
+  amplifier: forge_worker
+  gain: More hands on the tools at once - parallel edits across worktrees the single coder would walk one by one.
+- capability_id: cap-testing
+  capability: testing
+  title: Run the tests
+  detail: Running the suite, reading its failures plainly and knowing green from red.
+  amplifier: auditor
+  gain: A second runner and a second reader of the failures while the single coder fixes the first.
+- capability_id: cap-reviewing
+  capability: reviewing
+  title: Review the change
+  detail: Reading the finished change against the road it serves and naming what is wrong with it.
+  amplifier: auditor
+  gain: Eyes that did not write the change - scrutiny the single coder gives it alone, doubled.
+- capability_id: cap-remembering
+  capability: remembering
+  title: Keep the memory
+  detail: Holding the project's map, its decisions and its lessons where the next session can find them.
+  amplifier: scribe
+  gain: A dedicated keeper of the record while the single coder's hands stay on the work.
+- capability_id: cap-costing
+  capability: costing
+  title: Watch the cost
+  detail: Reading what a run spends and keeping the ledger the efficiency work reads.
+  amplifier: scribe
+  gain: A ledger kept as the work runs, not reconstructed by the single coder afterwards.
+- capability_id: cap-shipping
+  capability: shipping
+  title: Ship the slice
+  detail: Banking the finished slice - merging it, pushing it and verifying the remote moved.
+  amplifier: forge_worker
+  gain: Another pair of hands on the banking road while the single coder starts the next slice.
+- capability_id: cap-judging
+  capability: judging
+  title: Decide what ships
+  detail: The call itself - what is good enough, what waits, and what is refused.
+ledgers:
+- ledger_id: ledger-m141-boundary
+  rows:
+  - member: architect
+    capability_ids: [cap-planning]
+    capabilities: [planning]
+    amplifications: 1
+    account:
+    - "architect amplifies 1 of the single coder's capabilities when the crew is on: planning."
+    - "The crew is an amplifier, never a requirement."
+    - "With the crew off, the single coder holds every one of these alone and loses nothing."
+  - member: forge_worker
+    capability_ids: [cap-editing, cap-shipping]
+    capabilities: [editing, shipping]
+    amplifications: 2
+    account:
+    - "forge_worker amplifies 2 of the single coder's capabilities when the crew is on: editing, shipping."
+    - "The crew is an amplifier, never a requirement."
+    - "With the crew off, the single coder holds every one of these alone and loses nothing."
+  - member: auditor
+    capability_ids: [cap-testing, cap-reviewing]
+    capabilities: [testing, reviewing]
+    amplifications: 2
+    account:
+    - "auditor amplifies 2 of the single coder's capabilities when the crew is on: testing, reviewing."
+    - "The crew is an amplifier, never a requirement."
+    - "With the crew off, the single coder holds every one of these alone and loses nothing."
+  - member: scribe
+    capability_ids: [cap-remembering, cap-costing]
+    capabilities: [remembering, costing]
+    amplifications: 2
+    account:
+    - "scribe amplifies 2 of the single coder's capabilities when the crew is on: remembering, costing."
+    - "The crew is an amplifier, never a requirement."
+    - "With the crew off, the single coder holds every one of these alone and loses nothing."
+  total_capabilities: 8
+  total_amplified: 7
+  total_plain: 1
+  account:
+  - "With the crew off, the single coder holds all 8 capability(ies) and loses nothing."
+  - "Crew members amplify 7 capability(ies) through 4 member(s); 1 capability(ies) stand unamplified."
+  - "Crew is an amplifier, never a requirement."
