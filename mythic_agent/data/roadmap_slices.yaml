@@ -886,7 +886,7 @@ slices:
   title: Cost court
   summary: crew runs report cost per member per slice; the Scribe keeps the ledger that Part XI's efficiency
     work reads.
-  status: queued
+  status: done
 - id: M-141
   part: 6
   title: The Mythic Coder building itself
