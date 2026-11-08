@@ -913,7 +913,7 @@ slices:
   title: Crew on schedule
   summary: formations can be attached to Part V's scheduled jobs (a dawn Auditor sweep over yesterday's
     commits).
-  status: queued
+  status: done
 - id: M-146
   part: 6
   title: Part VI gate
