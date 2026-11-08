@@ -20834,6 +20834,470 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+# -- M-147: context budget made visible --
+
+    def _context_budget_registry(self):
+        """The held context budget registry (M-147).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer context budget panel
+        item by item, beside the session crew
+        schedule registry (M-145) and never in it: the
+        context budget panel is one book of context
+        items - one thing in the context, its kind,
+        title, source, the reason it is there and its
+        tokens - held against one budget under the
+        book this slice names. It is created on first
+        use, so an agent whose ``__init__`` never ran
+        still holds exactly one. The attribute is
+        named ``_context_budget_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_context_budget_store", None)
+        if registry is None:
+            from ..core.context_budget import ContextBudgetRegistry
+            registry = ContextBudgetRegistry()
+            self._context_budget_store = registry
+        return registry
+
+    def context_budget_panel(self):
+        """The session's context budget panel, as data (M-147).
+
+        The held registry's panel when the session
+        holds any context item - the items the
+        session has actually gathered (items held
+        one by one, before any whole panel stands
+        recorded, stand under a session context
+        budget panel composed here in the agent
+        layer, with the budget the session named
+        when holding them or the shipped example's
+        budget while none is named, so a later whole
+        panel recorded under its own title is never
+        refused by a shim title at the registry) -
+        otherwise the panel recorded whole through
+        :meth:`record_context_budget_panel`, or the
+        shipped example context budget panel until
+        one is recorded. Reading registers and
+        publishes nothing.
+        """
+        from ..core.context_budget import (
+            ContextBudgetPanel,
+            load_context_budget,
+        )
+        registry = self._context_budget_registry()
+        if registry.list_items():
+            try:
+                book = registry.panel()
+            except ValueError:
+                budget = registry.budget_tokens
+                if budget is None:
+                    budget = load_context_budget().budget_tokens
+                return ContextBudgetPanel(
+                    title="Session context budget panel",
+                    budget_tokens=budget,
+                    items=registry.list_items())
+            held = getattr(self, "_context_budget_held", None)
+            if held is not None and held.title == book.title \
+                    and held.item_ids() == book.item_ids():
+                return held
+            return book
+        book = getattr(self, "_context_budget_held", None)
+        if book is None:
+            return load_context_budget()
+        return book
+
+    def _context_budget_screen(self) -> str:
+        """The /contextbudget screen for the session's state (M-147).
+
+        Rendered from the held panel when one stands,
+        and from the shipped example panel while
+        nothing is held.
+        """
+        from ..core import context_budget as budget_module
+        registry = self._context_budget_registry()
+        if not registry.list_items():
+            return budget_module.format_context_budget_screen()
+        return budget_module.format_context_budget_screen(
+            self.context_budget_panel())
+
+    def context_budget_status(self) -> dict[str, Any]:
+        """The context budget account, in plain data (M-147).
+
+        The context items held this session as plain
+        records, the held panel's record (none until
+        an item stands held), the session context
+        budget panel's pieces as plain records (the
+        shipped example panel - seven items at the
+        M-146 slice boundary, one of every kind, and
+        its one pinned meter and panel - until items
+        are held), its whole-book record, the meter
+        derived from the whole panel and every meter
+        the panel holds as plain records, the panel
+        derived from the whole book and every panel
+        the book holds, the items in plain words and
+        the meter and panel told in plain words, the
+        one screen - rendered from the held panel, or
+        from the shipped example panel when nothing
+        is held yet - and the plain explanation.
+        Reading registers and publishes nothing,
+        compiles no context, assembles no prompt,
+        calls no model and persists nothing: this
+        layer holds the account as data only, and no
+        record here claims a live context was ever
+        assembled from it. There is no Part VIII
+        board yet; the screen is where the context
+        budget account is visible.
+        """
+        from ..core import context_budget as budget_module
+        registry = self._context_budget_registry()
+        held_items = registry.list_items()
+        book = self.context_budget_panel()
+        return {
+            "items": [e.to_record() for e in held_items],
+            "book": (book.to_record() if held_items else None),
+            "context_budget": {
+                "title": book.title,
+                "budget_tokens": book.budget_tokens,
+                "items": [e.to_record() for e in book.items],
+            },
+            "book_record": budget_module.book_record(book),
+            "meter": budget_module.derive_meter(book).to_record(),
+            "meters": [m.to_record() for m in book.meters],
+            "panel": budget_module.derive_panel(book).to_record(),
+            "panels": [p.to_record() for p in book.panels],
+            "plain_words": [
+                budget_module.plain_words(entry) for entry in book.items],
+            "meter_plain_words": budget_module.meter_plain_words(book),
+            "panel_plain_words": budget_module.panel_plain_words(book),
+            "screen": self._context_budget_screen(),
+            "explanation": budget_module.PLAIN_EXPLANATION,
+        }
+
+    def get_context_budget_item(self, item_id: Any):
+        """The one context item an id names (M-147).
+
+        The session's held registry answers when the
+        session holds any context item; otherwise
+        the shipped example context budget panel
+        answers (or the panel recorded whole for the
+        session). A held session answers for its own
+        panel alone: an id the held panel holds no
+        item for raises KeyError, with no silent fall
+        back to the example, exactly as the pure
+        layer answers. Reading registers and
+        publishes nothing.
+        """
+        registry = self._context_budget_registry()
+        if registry.list_items():
+            return registry.get_item(item_id)
+        return self.context_budget_panel().item_for(item_id)
+
+    def context_budget_items_for_kind(self, kind: Any):
+        """Every context item of one kind (M-147).
+
+        Read off the session's panel - the held
+        registry's panel when the session holds any
+        context item, otherwise the shipped example
+        panel (or the panel recorded whole for the
+        session) - in held order. A held session
+        answers for its own panel alone, with no
+        silent fall back to the example. Reading
+        registers and publishes nothing.
+        """
+        return self.context_budget_panel().items_for_kind(kind)
+
+    def context_budget_meter(self):
+        """The meter derived for the whole panel (M-147).
+
+        The meter is derived at call time from the
+        whole panel of context items - the held
+        registry's items when the session holds any
+        item, otherwise the shipped example panel's
+        items (or the items of the panel recorded
+        whole for the session) - so its total,
+        per-kind subtotals, headroom, over-budget
+        state and usage are the items' own figures,
+        read at call time. Reading registers and
+        publishes nothing.
+        """
+        from ..core.context_budget import derive_meter as _derive_meter
+        registry = self._context_budget_registry()
+        if registry.list_items():
+            if registry.budget_tokens is not None:
+                return registry.meter()
+            return _derive_meter(self.context_budget_panel())
+        return _derive_meter(self.context_budget_panel())
+
+    def context_budget_view(self):
+        """The panel derived for the whole book (M-147).
+
+        The panel is derived at call time from the
+        whole book of context items - the held
+        registry's items when the session holds any
+        item, otherwise the shipped example panel's
+        items (or the items of the panel recorded
+        whole for the session) - so its rows are the
+        items themselves with their shares and its
+        account is read off the rows, at call time.
+        Reading registers and publishes nothing.
+        """
+        from ..core.context_budget import derive_panel as _derive_panel
+        registry = self._context_budget_registry()
+        if registry.list_items():
+            if registry.budget_tokens is not None:
+                return registry.panel_view()
+            return _derive_panel(self.context_budget_panel())
+        return _derive_panel(self.context_budget_panel())
+
+    def register_context_budget_item(
+            self, item: Any, budget_tokens: Any = None) -> dict[str, Any]:
+        """Hold one context item for the session (M-147).
+
+        The item is held by the pure registry under
+        its id or the deterministic item-N id - a
+        record id already standing here refuses, and
+        a refusal holds nothing new and publishes
+        nothing. *budget_tokens*, when named, names
+        the budget the held items account against
+        (a different budget already named refuses).
+        A held item is published as its
+        ``item_record`` session-news record through
+        the checkpoint road, and the meter derived
+        from the items now held as its
+        ``meter_record`` session news, so an item
+        given is news. Returns the held item, its
+        news record, the meter and its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding an item compiles
+        no context, assembles no prompt, calls no
+        model and persists nothing: the registry
+        holds the item as data, and the meter and
+        the panel stay derivations read off the held
+        items at call time.
+        """
+        from ..core import context_budget as budget_module
+        registry = self._context_budget_registry()
+        if budget_tokens is not None:
+            registry.set_budget(budget_tokens)
+        held = registry.register_item(item)
+        record = budget_module.item_record(held)
+        self._publish_context_budget_record(record)
+        if registry.budget_tokens is not None:
+            meter = registry.meter()
+        else:
+            meter = budget_module.derive_meter(
+                registry.list_items(),
+                budget_module.load_context_budget().budget_tokens)
+        meter_record = budget_module.meter_record(meter)
+        self._publish_context_budget_record(meter_record)
+        return {
+            "item": held.to_record(),
+            "record": record,
+            "meter": meter.to_record(),
+            "meter_record": meter_record,
+            "screen": self._context_budget_screen(),
+            "explanation": budget_module.PLAIN_EXPLANATION,
+        }
+
+    def register_context_budget_panel(
+            self, panel: Any) -> dict[str, Any]:
+        """Register a whole context budget panel for the session (M-147).
+
+        Every item of the panel is held by the pure
+        registry, in panel order - the first panel
+        held sets the registry's title and budget, a
+        later panel under a different title or
+        against a different budget refuses, as does
+        a panel naming a held item id. The panel's
+        meters and panels are derivations, not
+        holdings, and are not held. Every item is
+        published as its ``item_record`` session
+        news, in panel order, and the panel's
+        derived meter as its ``meter_record`` and
+        its derived panel as its ``panel_record``
+        session news. Returns the held panel, its
+        items, their news records, the meter and
+        panel news records, the count of items held,
+        the screen, and the explanation. Registering
+        compiles no context, assembles no prompt,
+        calls no model and persists nothing.
+        """
+        from ..core import context_budget as budget_module
+        validated = budget_module.build_budget_panel(panel)
+        registry = self._context_budget_registry()
+        registry.register_panel(validated)
+        records = [
+            budget_module.item_record(entry)
+            for entry in validated.items]
+        for record in records:
+            self._publish_context_budget_record(record)
+        meter_record = budget_module.meter_record(
+            budget_module.derive_meter(validated))
+        self._publish_context_budget_record(meter_record)
+        panel_record = budget_module.panel_record(
+            budget_module.derive_panel(validated))
+        self._publish_context_budget_record(panel_record)
+        return {
+            "book": validated.to_record(),
+            "items": [e.to_record() for e in validated.items],
+            "records": records,
+            "meter_record": meter_record,
+            "panel_record": panel_record,
+            "count": len(records),
+            "screen": self._context_budget_screen(),
+            "explanation": budget_module.PLAIN_EXPLANATION,
+        }
+
+    def record_context_budget_panel(
+            self, panel: Any = None) -> dict[str, Any]:
+        """Record a whole context budget panel for the session (M-147).
+
+        With no panel named, the shipped example
+        context budget panel is recorded through the
+        pure layer - seven items at the M-146 slice
+        boundary, one of every kind, and its one
+        pinned meter and panel. A panel loaded from
+        a file (the pure layer's
+        ``load_context_budget_file`` road) may be
+        passed instead, so a real context budget
+        panel is recorded as it stands. Every item
+        is held and published as its ``item_record``
+        session news, in panel order, and the
+        panel's derived meter as its ``meter_record``
+        and its derived panel as its
+        ``panel_record`` session news; the panel is
+        remembered whole as the session's - its held
+        meter and panel and all - and the same panel
+        recorded twice refuses - fingerprinted on
+        its item ids and title - a panel is recorded
+        once, never duplicated into the session.
+        Returns the held panel, its items, their
+        news records, the meter and panel news
+        records, the count of items held, the
+        screen, and the explanation. Recording
+        compiles no context, assembles no prompt,
+        calls no model and persists nothing.
+        """
+        from ..core import context_budget as budget_module
+        panel = panel if panel is not None \
+            else budget_module.load_context_budget()
+        validated = budget_module.build_budget_panel(panel)
+        fingerprint = (tuple(validated.item_ids()), validated.title)
+        recorded = getattr(self, "_context_budget_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._context_budget_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this context budget panel is already recorded "
+                "for the session; a panel is recorded once")
+        registry = self._context_budget_registry()
+        registry.register_panel(validated)
+        recorded.add(fingerprint)
+        self._context_budget_held = validated
+        records = [
+            budget_module.item_record(entry)
+            for entry in validated.items]
+        for record in records:
+            self._publish_context_budget_record(record)
+        meter_record = budget_module.meter_record(
+            budget_module.derive_meter(validated))
+        self._publish_context_budget_record(meter_record)
+        panel_record = budget_module.panel_record(
+            budget_module.derive_panel(validated))
+        self._publish_context_budget_record(panel_record)
+        return {
+            "book": validated.to_record(),
+            "items": [e.to_record() for e in validated.items],
+            "records": records,
+            "meter_record": meter_record,
+            "panel_record": panel_record,
+            "count": len(records),
+            "screen": budget_module.format_context_budget_screen(
+                validated),
+            "explanation": budget_module.PLAIN_EXPLANATION,
+        }
+
+    def report_context_budget(self) -> dict[str, Any]:
+        """Render the session context budget panel, as a report (M-147).
+
+        The panel - the held registry's panel when
+        the session holds any context item,
+        otherwise the shipped example panel (or the
+        panel recorded whole for the session) - is
+        rendered through the pure formatters alone:
+        its items, its meter, its panel and its one
+        screen. Rendering registers and publishes
+        nothing, compiles no context, assembles no
+        prompt, calls no model and persists nothing:
+        the agent layer renders the account as data.
+        Returns the panel, its items, meters and
+        panels as plain records, the derived meter
+        and panel, the rendered items, meter and
+        panel, the screen, and the plain explanation.
+        """
+        from ..core import context_budget as budget_module
+        book = self.context_budget_panel()
+        return {
+            "book": book.to_record(),
+            "items": [e.to_record() for e in book.items],
+            "meters": [m.to_record() for m in book.meters],
+            "panels": [p.to_record() for p in book.panels],
+            "meter": budget_module.derive_meter(book).to_record(),
+            "panel": budget_module.derive_panel(book).to_record(),
+            "items_text": budget_module.format_items(book),
+            "meter_text": budget_module.format_meter(book),
+            "panel_text": budget_module.format_panel(book),
+            "screen": self._context_budget_screen(),
+            "explanation": budget_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_context_budget_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one context budget record as session news (M-147).
+
+        The pure layer's ``item_record``,
+        ``meter_record`` and ``panel_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once: an item under its own item id, a meter
+        under its whole derived shape (its budget,
+        totals and headroom), and a panel under its
+        whole derived shape (its rows and totals),
+        so a meter or panel grown by a newly held
+        item announces again as the new figure it
+        is. A foreign record type is never published
+        on this road.
+        """
+        if record.get("type") == "context_budget_item":
+            key = ("context_budget_item", record.get("item_id"))
+        elif record.get("type") == "context_budget_meter":
+            key = ("context_budget_meter", record.get("meter_id"),
+                   record.get("budget_tokens"),
+                   record.get("total_tokens"),
+                   record.get("total_items"),
+                   record.get("headroom_tokens"))
+        elif record.get("type") == "context_budget_panel":
+            key = ("context_budget_panel", record.get("panel_id"),
+                   tuple(row.get("item_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_tokens"),
+                   record.get("total_items"))
+        else:
+            return
+        announced = getattr(self, "_context_budget_announced", None)
+        if announced is None:
+            announced = set()
+            self._context_budget_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):

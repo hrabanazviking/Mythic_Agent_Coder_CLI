@@ -707,3 +707,450 @@ def test_panel_from_compiled_duck_typed_and_counted():
     assert bare.items[0].kind == "note"
     with pytest.raises(ValueError):
         panel_from_compiled([{"name": "x", "content": "y"}])
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-147 agent layer: the agent holds a
+# ContextBudgetRegistry for the session (session
+# state only, no new setting), items are held by
+# being registered - published as their item_record
+# session news with the derived meter_record, and a
+# whole panel's derived panel_record, through the
+# checkpoint road, deduped per id - the report road
+# renders the held panel (or the shipped example
+# when unheld) through the pure formatters, and the
+# /contextbudget surface rides both roads on the
+# pure parser + formatters. Status, get, kind,
+# meter and panel reads register and publish
+# nothing, answer from the held registry first and
+# from the shipped example only while nothing is
+# held - a held session never falls back to the
+# example. The meter and the panel derive at call
+# time from the held items, never held. This layer
+# compiles no context, assembles no prompt, calls
+# no model and persists nothing - and there is no
+# Part VIII board yet, so the screen is where the
+# context budget account is visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _budget_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_budget_book(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data"
+           / "context_budget.yaml").read_text(encoding="utf-8")
+    path = tmp_path / "context_budget.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestContextBudgetAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.context_budget_status()
+        assert status["items"] == []
+        assert status["book"] is None
+        assert status["context_budget"]["title"] == (
+            "Context budget panel at the M-146 slice boundary")
+        assert status["context_budget"]["budget_tokens"] == 8000
+        assert [e["item_id"]
+                for e in status["context_budget"]["items"]] == [
+            "ctx-system-prompt", "ctx-instructions",
+            "ctx-file-crew-schedules", "ctx-map-crew",
+            "ctx-note-slice", "ctx-history-turns",
+            "ctx-tool-result-tests"]
+        assert status["book_record"]["type"] == "context_budget_book"
+        assert status["book_record"]["item_count"] == 7
+        assert status["book_record"]["total_tokens"] == 5660
+        assert status["meter"]["total_tokens"] == 5660
+        assert status["meter"]["headroom_tokens"] == 2340
+        assert [m["meter_id"] for m in status["meters"]] == [
+            "meter-m146-boundary"]
+        assert [p["panel_id"] for p in status["panels"]] == [
+            "panel-m146-boundary"]
+        assert status["panel"]["total_items"] == 7
+        assert "crew_schedules.py" in status["plain_words"][2]
+        assert "5660 of 8000" in status["meter_plain_words"]
+        assert "What's in the context and why:" in (
+            status["panel_plain_words"])
+        assert "Context budget made visible (M-147)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        assert agent._context_budget_registry() is \
+            agent._context_budget_registry()
+        assert agent._context_budget_store is \
+            agent._context_budget_registry()
+
+    def test_reads_register_and_publish_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.context_budget_status()
+        item = agent.get_context_budget_item("ctx-system-prompt")
+        assert item.kind == "system"
+        meter = agent.context_budget_meter()
+        assert meter.total_tokens == 5660
+        view = agent.context_budget_view()
+        assert view.total_items == 7
+        assert [e.item_id for e in
+                agent.context_budget_items_for_kind("file")] == [
+            "ctx-file-crew-schedules"]
+        assert agent.context_budget_panel().title == (
+            "Context budget panel at the M-146 slice boundary")
+        registry = agent._context_budget_registry()
+        assert registry.list_items() == ()
+        for kind in ("context_budget_item", "context_budget_meter",
+                     "context_budget_panel"):
+            assert _budget_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_unheld_reads_raise(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_context_budget_item("ctx-nope")
+
+    def test_status_after_register_shows_the_held_pieces(self, agent):
+        agent.register_context_budget_item(_item(), budget_tokens=8000)
+        status = agent.context_budget_status()
+        assert [e["item_id"] for e in status["items"]] == [
+            "ctx-file-crew-schedules"]
+        assert status["book"]["item_count"] == 1
+        # The held panel answers now, not the example:
+        # items held one by one stand under a session
+        # context budget panel, and it holds no meters
+        # or panels - both stay derivations.
+        assert status["context_budget"]["title"] == (
+            "Session context budget panel")
+        assert status["meters"] == []
+        assert status["panels"] == []
+        assert status["meter"]["total_tokens"] == 1520
+        assert status["panel"]["total_items"] == 1
+        assert "ctx-file-crew-schedules" in status["screen"]
+
+    def test_held_session_never_falls_back_to_the_example(self, agent):
+        agent.register_context_budget_item(_item(), budget_tokens=8000)
+        with pytest.raises(KeyError):
+            agent.get_context_budget_item("ctx-system-prompt")
+        assert agent.context_budget_items_for_kind("system") == ()
+        assert agent.context_budget_panel().item_ids() == (
+            "ctx-file-crew-schedules",)
+        assert agent.get_context_budget_item(
+            "ctx-file-crew-schedules").kind == "file"
+        assert agent.context_budget_meter().total_tokens == 1520
+        assert agent.context_budget_view().total_items == 1
+
+
+class TestContextBudgetAgentRegister:
+    def test_register_item_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_context_budget_item(
+            _item(), budget_tokens=8000)
+        assert outcome["item"]["item_id"] == "ctx-file-crew-schedules"
+        assert outcome["record"]["type"] == "context_budget_item"
+        assert outcome["meter_record"]["type"] == "context_budget_meter"
+        events = _budget_events(store, session_id, "context_budget_item")
+        assert len(events) == 1
+        assert events[0]["item_id"] == "ctx-file-crew-schedules"
+        meters = _budget_events(store, session_id, "context_budget_meter")
+        assert len(meters) == 1
+        assert meters[0]["total_tokens"] == 1520
+        # The same records are never published twice.
+        agent._publish_context_budget_record(outcome["record"])
+        agent._publish_context_budget_record(outcome["meter_record"])
+        assert len(_budget_events(
+            store, session_id, "context_budget_item")) == 1
+        assert len(_budget_events(
+            store, session_id, "context_budget_meter")) == 1
+        # Foreign record types are refused on this road.
+        from mythic_agent.core.crew_schedules import (
+            attachment_record as _attachment_record,
+            load_crew_schedules,
+        )
+        from mythic_agent.core.solo_mode import (
+            capability_record as _solo_capability_record,
+            load_solo_mode,
+        )
+        agent._publish_context_budget_record(book_record(
+            load_context_budget()))
+        agent._publish_context_budget_record(_attachment_record(
+            load_crew_schedules().entries[0]))
+        agent._publish_context_budget_record(_solo_capability_record(
+            load_solo_mode().entries[0]))
+        for kind in ("context_budget_book", "crew_schedule_attachment",
+                     "solo_capability"):
+            assert _budget_events(store, session_id, kind) == []
+        assert len(_budget_events(
+            store, session_id, "context_budget_item")) == 1
+        agent.close()
+
+    def test_duplicate_item_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_context_budget_item(_item(), budget_tokens=8000)
+        with pytest.raises(ValueError):
+            agent.register_context_budget_item(_item())
+        with pytest.raises(ValueError):
+            agent.register_context_budget_item(
+                _item(), budget_tokens=9000)
+        assert len(_budget_events(
+            store, session_id, "context_budget_item")) == 1
+        agent.close()
+
+    def test_register_item_without_id_gets_an_item_id(self, agent):
+        outcome = agent.register_context_budget_item({
+            "kind": "note", "title": "A held note",
+            "source": "session notes", "reason": "Held for the session.",
+            "tokens": 42}, budget_tokens=8000)
+        assert outcome["item"]["item_id"] == "item-1"
+        assert agent.get_context_budget_item("item-1").kind == "note"
+
+    def test_register_panel_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_context_budget_panel(load_context_budget())
+        assert outcome["count"] == 7
+        assert outcome["book"]["item_count"] == 7
+        events = _budget_events(store, session_id, "context_budget_item")
+        assert [e["item_id"] for e in events] == [
+            "ctx-system-prompt", "ctx-instructions",
+            "ctx-file-crew-schedules", "ctx-map-crew",
+            "ctx-note-slice", "ctx-history-turns",
+            "ctx-tool-result-tests"]
+        meters = _budget_events(store, session_id, "context_budget_meter")
+        assert len(meters) == 1
+        assert meters[0]["total_tokens"] == 5660
+        panels = _budget_events(store, session_id, "context_budget_panel")
+        assert len(panels) == 1
+        assert panels[0]["total_items"] == 7
+        assert agent.context_budget_panel().title == (
+            "Context budget panel at the M-146 slice boundary")
+        # The registry holds items, never meters or
+        # panels: both are derived at call time.
+        assert agent.context_budget_panel().meters == ()
+        assert agent.context_budget_meter().usage_percent == 70.8
+        assert agent.context_budget_view().total_tokens == 5660
+        agent.close()
+
+    def test_register_panel_twice_refuses(self, agent):
+        agent.register_context_budget_panel(load_context_budget())
+        with pytest.raises(ValueError):
+            agent.register_context_budget_panel(load_context_budget())
+
+    def test_record_panel_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_context_budget_panel()
+        assert outcome["count"] == 7
+        assert outcome["book"]["item_count"] == 7
+        events = _budget_events(store, session_id, "context_budget_item")
+        assert [e["item_id"] for e in events] == [
+            "ctx-system-prompt", "ctx-instructions",
+            "ctx-file-crew-schedules", "ctx-map-crew",
+            "ctx-note-slice", "ctx-history-turns",
+            "ctx-tool-result-tests"]
+        assert len(_budget_events(
+            store, session_id, "context_budget_meter")) == 1
+        assert len(_budget_events(
+            store, session_id, "context_budget_panel")) == 1
+        assert agent.context_budget_panel().title == (
+            "Context budget panel at the M-146 slice boundary")
+        # The recorded panel stands whole: its held
+        # meter and panel still answer.
+        assert agent.context_budget_panel().meters[0].meter_id == (
+            "meter-m146-boundary")
+        assert agent.context_budget_panel().panels[0].panel_id == (
+            "panel-m146-boundary")
+        assert agent.context_budget_meter().total_tokens == 5660
+        agent.close()
+
+    def test_record_same_panel_twice_refuses(self, agent):
+        agent.record_context_budget_panel()
+        with pytest.raises(ValueError):
+            agent.record_context_budget_panel()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_budget_book(tmp_path)
+        book = load_context_budget_file(path)
+        outcome = agent.record_context_budget_panel(book)
+        assert outcome["count"] == 7
+        assert agent.context_budget_panel().title == (
+            "Context budget panel at the M-146 slice boundary")
+        assert agent.get_context_budget_item(
+            "ctx-tool-result-tests").kind == "tool_result"
+        assert agent.context_budget_view().row_for(
+            "ctx-map-crew").kind == "map_section"
+
+    def test_one_by_one_holdings_stand_under_a_session_panel(self, agent):
+        agent.register_context_budget_item(_item(), budget_tokens=8000)
+        # Held one by one, the items stand under a
+        # session context budget panel composed in
+        # the agent layer - never under a recorded
+        # panel title.
+        assert agent.context_budget_panel().title == (
+            "Session context budget panel")
+        agent.register_context_budget_item(_items()[1])
+        assert [e.item_id
+                for e in agent.context_budget_panel().items] == [
+            "ctx-file-crew-schedules", "ctx-system-prompt"]
+        # A whole panel recorded now would re-hold
+        # the same item ids: the registry refuses it,
+        # as it refuses any duplicate.
+        with pytest.raises(ValueError):
+            agent.record_context_budget_panel()
+
+
+class TestContextBudgetAgentReport:
+    def test_report_renders_the_example_when_unheld(self, agent):
+        outcome = agent.report_context_budget()
+        assert outcome["book"]["title"] == (
+            "Context budget panel at the M-146 slice boundary")
+        assert outcome["book"]["item_count"] == 7
+        assert "ctx-tool-result-tests" in outcome["items_text"]
+        assert "Context meter: 5660 of 8000" in outcome["meter_text"]
+        assert "What's in the context and why:" in outcome["panel_text"]
+        assert "Context budget made visible (M-147)" in outcome["screen"]
+        assert outcome["explanation"] == PLAIN_EXPLANATION
+
+    def test_report_renders_the_held_panel_only(self, agent):
+        agent.register_context_budget_item(_item(), budget_tokens=8000)
+        outcome = agent.report_context_budget()
+        assert outcome["book"]["item_count"] == 1
+        assert "ctx-file-crew-schedules" in outcome["items_text"]
+        assert "ctx-system-prompt" not in outcome["items_text"]
+        assert "ctx-system-prompt" not in outcome["panel_text"]
+
+    def test_report_registers_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.report_context_budget()
+        registry = agent._context_budget_registry()
+        assert registry.list_items() == ()
+        for kind in ("context_budget_item", "context_budget_meter",
+                     "context_budget_panel"):
+            assert _budget_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_no_live_compile_assemble_model_or_persist_road(self, agent):
+        # This layer holds the account as data: it
+        # compiles no context, assembles no prompt,
+        # calls no model, persists nothing - and
+        # there is no Part VIII board yet. Holding a
+        # panel changes no live context assembly: a
+        # ContextBuilder's built messages are the
+        # same before and after a panel is held.
+        assert not hasattr(agent, "compile_context_budget")
+        assert not hasattr(agent, "assemble_context_budget")
+        assert not hasattr(agent, "persist_context_budget")
+        assert not hasattr(agent, "context_budget_board")
+        from mythic_agent.agents.context import ContextBuilder
+        builder = ContextBuilder(max_tokens=4000)
+        builder.add_system("You are the coder.")
+        builder.add_turn("user", "Build the slice.")
+        before = builder.build()
+        agent.record_context_budget_panel()
+        assert builder.build() == before
+
+
+class TestContextBudgetTerminalSurface:
+    def test_show_item_kind_meter_and_panel(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/contextbudget")
+        assert "Context budget made visible (M-147)" in text
+        _, _, text = _slash(agent, "/contextbudget item ctx-system-prompt")
+        assert "ctx-system-prompt: system - System prompt" in text
+        _, _, text = _slash(agent, "/contextbudget kind file")
+        assert "ctx-file-crew-schedules" in text
+        assert "ctx-system-prompt" not in text
+        _, _, text = _slash(agent, "/contextbudget meter")
+        assert "Context meter: 5660 of 8000 tokens" in text
+        _, _, text = _slash(agent, "/contextbudget panel")
+        assert "What's in the context and why:" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/contextbudget [show|item <item-id>|"
+                "kind <kind>|meter|panel]") in text
+        _, _, text = _slash(agent, "/contextbudget dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/contextbudget item ctx-nope")
+        assert "no context item in the panel" in text
+
+
+@pytest.fixture()
+def budget_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _budget_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestContextBudgetCommand:
+    def test_show_is_default(self, budget_handler, agent):
+        budget_handler._handle_contextbudget("")
+        assert "Context budget made visible (M-147)" in (
+            _budget_published_text(budget_handler))
+
+    def test_item_kind_meter_and_panel(
+            self, budget_handler, agent):
+        budget_handler._handle_contextbudget("item ctx-system-prompt")
+        assert "System prompt" in _budget_published_text(budget_handler)
+        budget_handler._handle_contextbudget("kind file")
+        assert "ctx-file-crew-schedules" in _budget_published_text(
+            budget_handler)
+        budget_handler._handle_contextbudget("meter")
+        assert "Context meter: 5660 of 8000" in _budget_published_text(
+            budget_handler)
+        budget_handler._handle_contextbudget("panel")
+        assert "What's in the context and why:" in _budget_published_text(
+            budget_handler)
+
+    def test_bad_grammar_is_published(self, budget_handler, agent):
+        budget_handler._handle_contextbudget("dance party")
+        assert USAGE in _budget_published_text(budget_handler)
+
+
+class TestChatScreenRoutingContextBudget:
+    def test_contextbudget_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command(
+            "/contextbudget item ctx-system-prompt", _FakeLog())
+        assert calls == [("/contextbudget", "item ctx-system-prompt")]
