@@ -530,3 +530,408 @@ def test_no_live_roads_in_pure_layer():
     record = render_report(_profile(), _FACTS, title="T").to_record()
     assert "generated" not in record
     assert record["facts"] == list(_FACTS)
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-136 agent layer: the agent holds a
+# VoiceRegistry for the session (session state
+# only, no new setting), voices are held by being
+# registered - published as their profile_record
+# session news through the checkpoint road, deduped
+# per member - reports are rendered in a member's
+# voice and published as ONE character_voice_report
+# session event, deduped per whole report shape,
+# and the /voices surface rides both roads on the
+# pure parser + formatters. Status, get, report and
+# book reads register and publish nothing, answer
+# from the held registry first and from the shipped
+# example only while nothing is held - a held
+# session never falls back to the example. This
+# layer generates nothing live, persists nothing,
+# calls no model and claims no board - Part VIII
+# does not exist yet, so the screen is where the
+# voices are visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _voice_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+class TestCharacterVoicesAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.character_voices_status()
+        assert status["profiles"] == []
+        assert status["book"] is None
+        assert status["voices"]["title"] == (
+            "Character voices at the M-135 slice boundary")
+        assert [p["member"] for p in status["voices"]["profiles"]] == [
+            "auditor", "skald", "scribe", "guardian"]
+        assert [p["register"] for p in status["voices"]["profiles"]] == [
+            "plain", "warm", "wry", "grim"]
+        assert status["book_record"]["type"] == "character_voice_book"
+        assert status["book_record"]["profile_count"] == 4
+        assert [r["report_id"] for r in status["reports"]] == [
+            "sizing-told-at-the-fire"]
+        assert status["reports"][0]["facts"][0] == (
+            "The sizing book held four task shapes at the "
+            "M-134 slice boundary.")
+        assert "Come and hear how it went:" in status["plain_words"]
+        assert "Agent character voices (M-136)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        assert agent._character_voices_registry() is \
+            agent._character_voices_registry()
+        assert agent._character_voices_store is \
+            agent._character_voices_registry()
+
+    def test_reads_register_and_publish_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.character_voices_status()
+        profile = agent.get_voice_profile("skald")
+        assert profile.voice_name == "The Hearth Voice"
+        assert profile.register == "warm"
+        report = agent.voice_report("sizing-told-at-the-fire")
+        assert report.member == "skald"
+        assert report.facts[2] == (
+            "The wide census sweep derived six pairs of "
+            "hands, the honest crew's cap.")
+        assert agent.character_voices().title == (
+            "Character voices at the M-135 slice boundary")
+        registry = agent._character_voices_registry()
+        assert registry.list_profiles() == ()
+        for kind in ("character_voice_profile",
+                     "character_voice_report"):
+            assert _voice_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_unheld_get_raises_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_voice_profile("no-such-member")
+        with pytest.raises(KeyError):
+            agent.voice_report("no-such-report")
+
+    def test_status_after_register_shows_the_held_pieces(self, agent):
+        agent.register_voice_profile(_profile())
+        status = agent.character_voices_status()
+        assert [p["member"] for p in status["profiles"]] == ["auditor"]
+        assert status["book"]["profile_count"] == 1
+        # The held book answers now, not the example:
+        # the session voices are the held voice alone.
+        assert [p["member"] for p in status["voices"]["profiles"]] == [
+            "auditor"]
+        assert status["voices"]["title"] == "Session voice book"
+        assert "The Plain Ledger" in status["screen"]
+
+    def test_held_session_never_falls_back_to_the_example(self, agent):
+        agent.register_voice_profile(_profile())
+        with pytest.raises(KeyError):
+            agent.get_voice_profile("skald")
+        with pytest.raises(KeyError):
+            agent.voice_report("sizing-told-at-the-fire")
+        assert agent.character_voices().member_ids() == ("auditor",)
+        assert agent.get_voice_profile("auditor").voice_name == (
+            "The Plain Ledger")
+
+class TestCharacterVoicesAgentRegister:
+    def test_register_profile_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_voice_profile(_profile())
+        assert outcome["profile"]["member"] == "auditor"
+        assert outcome["record"]["type"] == "character_voice_profile"
+        events = _voice_events(store, session_id, "character_voice_profile")
+        assert len(events) == 1
+        assert events[0]["member"] == "auditor"
+        # The same record is never published twice.
+        agent._publish_character_voices_record(outcome["record"])
+        assert len(_voice_events(
+            store, session_id, "character_voice_profile")) == 1
+        # Foreign record types are refused on this road.
+        from mythic_agent.core.crew_members import (
+            casting_record,
+            load_casting,
+        )
+        from mythic_agent.core.crew_memory import (
+            entry_record as _memory_entry_record,
+            load_crew_memory,
+        )
+        from mythic_agent.core.crew_sizing import (
+            case_record as _sizing_case_record,
+            load_crew_sizing,
+        )
+        from mythic_agent.core.review_panels import (
+            load_review_panel,
+            review_record,
+        )
+        from mythic_agent.core.stand_ups import (
+            entry_record as _stand_up_entry_record,
+            load_stand_up,
+        )
+        agent._publish_character_voices_record(_sizing_case_record(
+            load_crew_sizing().cases[0]))
+        agent._publish_character_voices_record({
+            "type": "crew_sizing_recommendation_set"})
+        agent._publish_character_voices_record(_stand_up_entry_record(
+            load_stand_up().entries[0]))
+        memory = load_crew_memory()
+        agent._publish_character_voices_record(_memory_entry_record(
+            memory.entry_for("broken-checkpoint-chain")))
+        panel = load_review_panel()
+        agent._publish_character_voices_record(review_record(
+            panel.reviews[0]))
+        agent._publish_character_voices_record(casting_record(
+            load_casting().members[0]))
+        for kind in ("crew_sizing_case",
+                     "crew_sizing_recommendation_set", "stand_up_entry",
+                     "crew_memory_entry", "panel_review", "crew_member"):
+            assert _voice_events(store, session_id, kind) == []
+        assert len(_voice_events(
+            store, session_id, "character_voice_profile")) == 1
+        agent.close()
+
+    def test_duplicate_member_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_voice_profile(_profile())
+        with pytest.raises(ValueError):
+            agent.register_voice_profile(_profile(
+                profile_id="voice-other", voice_name="Another Voice"))
+        assert len(_voice_events(
+            store, session_id, "character_voice_profile")) == 1
+        agent.close()
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_voice_book()
+        assert outcome["count"] == 4
+        assert outcome["book"]["profile_count"] == 4
+        events = _voice_events(store, session_id, "character_voice_profile")
+        assert [e["member"] for e in events] == [
+            "auditor", "skald", "scribe", "guardian"]
+        assert agent.character_voices().title == (
+            "Character voices at the M-135 slice boundary")
+        assert agent.get_voice_profile(
+            "guardian").voice_name == "The Watch Voice"
+        # The recorded book stands whole: its example
+        # report still answers on the report road.
+        assert agent.voice_report(
+            "sizing-told-at-the-fire").member == "skald"
+        agent.close()
+
+    def test_record_same_book_twice_refuses(self, agent):
+        agent.record_voice_book()
+        with pytest.raises(ValueError):
+            agent.record_voice_book()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_voices(tmp_path, _book_data())
+        book = load_character_voices_file(path)
+        outcome = agent.record_voice_book(book)
+        assert outcome["count"] == 4
+        assert agent.get_voice_profile(
+            "scribe").voice_name == "The Dry Quill"
+        assert agent.voice_report("night-count").facts == _FACTS
+
+    def test_one_by_one_voices_stand_under_a_session_book(
+            self, agent):
+        agent.register_voice_profile(_profile(
+            profile_id="voice-cartographer", member="cartographer",
+            voice_name="The Map Voice", markers=["as mapped"],
+            greeting="The map:", sign_off="Mapped."))
+        # Held one by one, the voices stand under a
+        # session voice book composed in the agent
+        # layer - never under a recorded book's title.
+        assert agent.character_voices().title == "Session voice book"
+        # A later whole book under its own title is
+        # never refused by the shim title.
+        book = build_book(_book_data_mapped())
+        outcome = agent.record_voice_book(book)
+        assert outcome["count"] == 4
+        assert agent.character_voices().title == "A voice book"
+
+
+def _book_data_mapped():
+    data = _book_data()
+    data["schema"] = CHARACTER_VOICES_SCHEMA
+    return {
+        "schema": data["schema"], "slice": CHARACTER_VOICES_SLICE,
+        "guide": data["guide"], "profiles": data["profiles"],
+        "reports": data["reports"]}
+
+class TestCharacterVoicesAgentReport:
+    def test_report_publishes_one_event_with_facts_verbatim(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.report_character_voices(
+            "skald", list(_FACTS), "A short count")
+        assert outcome["record"]["type"] == "character_voice_report"
+        # The facts published are the facts given,
+        # byte for byte, in their own field.
+        assert outcome["record"]["facts"] == list(_FACTS)
+        assert outcome["record"]["flavour_open"] == (
+            "Come and hear how it went:")
+        assert outcome["record"]["flavour_close"] == (
+            "And the fire keeps the tale.")
+        assert outcome["report"]["facts"] == list(_FACTS)
+        events = _voice_events(store, session_id, "character_voice_report")
+        # ONE event holds the whole report.
+        assert len(events) == 1
+        assert events[0]["facts"] == list(_FACTS)
+        assert events[0]["member"] == "skald"
+        # Reporting the same report again publishes
+        # nothing new.
+        agent.report_character_voices("skald", list(_FACTS), "A short count")
+        assert len(_voice_events(
+            store, session_id, "character_voice_report")) == 1
+        agent.close()
+
+    def test_changed_report_announces_again(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.report_character_voices("skald", list(_FACTS), "A short count")
+        assert len(_voice_events(
+            store, session_id, "character_voice_report")) == 1
+        # A changed report is a new report shape: it
+        # announces again as the new report it is.
+        agent.report_character_voices(
+            "skald", ["The count stood at five."], "A short count")
+        events = _voice_events(store, session_id, "character_voice_report")
+        assert len(events) == 2
+        assert events[1]["facts"] == ["The count stood at five."]
+        agent.close()
+
+    def test_report_in_a_held_voice_and_marker_fact_refuses(
+            self, agent):
+        agent.register_voice_profile(_profile(
+            profile_id="voice-skald", member="skald",
+            voice_name="The Hearth Voice", register="warm",
+            markers=["by the fire"], greeting="Hear this:",
+            sign_off="The fire keeps it."))
+        outcome = agent.report_character_voices(
+            "skald", ["A plain fact."], "One fact")
+        assert outcome["report"]["flavour_open"] == "Hear this:"
+        # A held session answers for its own book
+        # alone: the example's auditor is not held.
+        with pytest.raises(KeyError):
+            agent.report_character_voices(
+                "auditor", ["A plain fact."], "One fact")
+        # A fact carrying the teller's marker refuses
+        # at the agent layer too.
+        with pytest.raises(ValueError):
+            agent.report_character_voices(
+                "skald", ["Told by the fire tonight."], "One fact")
+
+    def test_no_generate_persist_or_model_road(self, agent):
+        # This layer holds the voices as data: it
+        # generates nothing live, persists nothing and
+        # calls no model - and there is no Part VIII
+        # board yet.
+        assert not hasattr(agent, "generate_voice_report")
+        assert not hasattr(agent, "render_voice_live")
+        assert not hasattr(agent, "persist_character_voices")
+        assert not hasattr(agent, "character_voices_board")
+
+class TestCharacterVoicesTerminalSurface:
+    def test_show_profile_report_register_and_registers(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/voices")
+        assert "Agent character voices (M-136)" in text
+        _, _, text = _slash(agent, "/voices profile skald")
+        assert "The Hearth Voice" in text
+        _, _, text = _slash(
+            agent, "/voices report sizing-told-at-the-fire")
+        assert "Come and hear how it went:" in text
+        assert "The wide census sweep derived six pairs of" in text
+        _, _, text = _slash(agent, "/voices warm")
+        assert "skald" in text
+        assert "guardian" not in text
+        _, _, text = _slash(agent, "/voices registers")
+        assert text == "Voice registers: plain, warm, wry, grim"
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/voices [show|profile <member-id>|report <report-id>|"
+                "plain|warm|wry|grim|registers]") in text
+        _, _, text = _slash(agent, "/voices dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/voices profile missing-member")
+        assert "no voice in the book for member" in text
+
+
+@pytest.fixture()
+def voices_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _voices_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestCharacterVoicesCommand:
+    def test_show_is_default(self, voices_handler, agent):
+        voices_handler._handle_voices("")
+        assert "Agent character voices (M-136)" in \
+            _voices_published_text(voices_handler)
+
+    def test_profile_report_register_and_registers(
+            self, voices_handler, agent):
+        voices_handler._handle_voices("profile skald")
+        assert "The Hearth Voice" in _voices_published_text(voices_handler)
+        voices_handler._handle_voices("report sizing-told-at-the-fire")
+        assert "Come and hear how it went:" in \
+            _voices_published_text(voices_handler)
+        voices_handler._handle_voices("warm")
+        assert "skald" in _voices_published_text(voices_handler)
+        voices_handler._handle_voices("registers")
+        assert "Voice registers: plain, warm, wry, grim" in \
+            _voices_published_text(voices_handler)
+
+    def test_bad_grammar_is_published(self, voices_handler, agent):
+        voices_handler._handle_voices("dance party")
+        assert USAGE in _voices_published_text(voices_handler)
+
+
+class TestChatScreenRoutingVoices:
+    def test_voices_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/voices registers", _FakeLog())
+        assert calls == [("/voices", "registers")]

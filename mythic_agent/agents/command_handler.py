@@ -305,6 +305,8 @@ class CommandHandler:
                 self._handle_standup(args)
             elif cmd == "/crewsize":
                 self._handle_crewsize(args)
+            elif cmd == "/voices":
+                self._handle_voices(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -4252,6 +4254,69 @@ class CommandHandler:
                 text = format_shapes(primary.crew_sizing(), target)
             else:
                 text = primary.crew_sizing_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_voices(self, args: str):
+        """M-136: /voices - agent character voices.
+
+        ``/voices`` shows the voice book held this
+        session (the shipped example book - four
+        members of the house cast at the M-135 slice
+        boundary, one in each register - when none is
+        held yet); ``/voices profile <member-id>``
+        shows one member's voice; ``/voices report
+        <report-id>`` shows one report; ``/voices
+        plain`` / ``warm`` / ``wry`` / ``grim`` show
+        one register's voices; ``/voices registers``
+        lists the four registers. Reading registers
+        and publishes nothing as session news: voices
+        are held only when they are given through the
+        agent layer, and held voices are published as
+        a character_voice_profile session event, each
+        voice report as ONE character_voice_report
+        session event. This road generates nothing,
+        persists nothing, calls no model and claims
+        no board: the registry holds the voices as
+        data, and there is no Part VIII board yet -
+        this surface is where the voices are visible.
+        The registry is session state held by the
+        agent; it is not a stored setting.
+        """
+        from ..core.character_voices import (
+            format_profile,
+            format_profiles,
+            format_registers,
+            format_report,
+            parse_voice_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_voice_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "registers":
+                text = format_registers()
+            elif action == "profile":
+                text = format_profile(primary.get_voice_profile(target))
+            elif action == "report":
+                text = format_report(primary.voice_report(target))
+            elif action == "register":
+                text = format_profiles(primary.character_voices(), target)
+            else:
+                text = primary.character_voices_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

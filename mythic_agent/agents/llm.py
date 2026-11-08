@@ -16728,6 +16728,342 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-136: agent character voices --
+
+    def _character_voices_registry(self):
+        """The held voice registry (M-136).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer voice book profile by
+        profile, beside the session sizing registry
+        (M-135) and never in it: the voice book is the
+        house cast's written characters in how they
+        report, held under the book this slice names.
+        It is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named
+        ``_character_voices_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_character_voices_store", None)
+        if registry is None:
+            from ..core.character_voices import VoiceRegistry
+            registry = VoiceRegistry()
+            self._character_voices_store = registry
+        return registry
+
+    def character_voices(self):
+        """The session's voice book, as data (M-136).
+
+        The held registry's book when the session
+        holds any voice - the voices the session has
+        actually gathered (voices held one by one,
+        before any whole book stands recorded, stand
+        under a session voice book composed here in
+        the agent layer, so a later whole book
+        recorded under its own title is never refused
+        by a shim title) - otherwise the book recorded
+        whole through :meth:`record_voice_book`, or
+        the shipped example voice book until one is
+        recorded. Reading registers and publishes
+        nothing.
+        """
+        from ..core.character_voices import (
+            VoiceBook,
+            load_character_voices,
+        )
+        registry = self._character_voices_registry()
+        if registry.list_profiles():
+            try:
+                book = registry.book()
+            except ValueError:
+                return VoiceBook(
+                    title="Session voice book",
+                    profiles=registry.list_profiles())
+            held = getattr(self, "_character_voices_held", None)
+            if held is not None and held.title == book.title \
+                    and held.member_ids() == book.member_ids():
+                return held
+            return book
+        book = getattr(self, "_character_voices_held", None)
+        if book is None:
+            return load_character_voices()
+        return book
+
+    def character_voices_status(self) -> dict[str, Any]:
+        """The character voices, in plain data (M-136).
+
+        The profiles held this session as plain
+        records, the held book's record (none until a
+        voice stands held), the session voice book's
+        pieces as plain records (the shipped example
+        book - four members of the house cast at the
+        M-135 slice boundary, one in each register -
+        until voices are held), its whole-book record,
+        every report the book holds as plain records
+        and in plain words, the one screen - rendered
+        from the held book, or from the shipped
+        example book when nothing is held yet - and
+        the plain explanation. Reading registers and
+        publishes nothing, generates nothing, persists
+        nothing and calls no model: this layer holds
+        the voices as data only. There is no Part VIII
+        board yet; the screen is where the voices are
+        visible.
+        """
+        from ..core import character_voices as voices_module
+        registry = self._character_voices_registry()
+        held_profiles = registry.list_profiles()
+        book = self.character_voices()
+        if held_profiles:
+            screen = voices_module.format_character_voices_screen(book)
+        else:
+            screen = voices_module.format_character_voices_screen()
+        return {
+            "profiles": [p.to_record() for p in held_profiles],
+            "book": (book.to_record() if held_profiles else None),
+            "voices": {
+                "title": book.title,
+                "profiles": [p.to_record() for p in book.profiles],
+            },
+            "book_record": voices_module.book_record(book),
+            "reports": [r.to_record() for r in book.reports],
+            "plain_words": voices_module.report_plain_words(book),
+            "screen": screen,
+            "explanation": voices_module.PLAIN_EXPLANATION,
+        }
+
+    def get_voice_profile(self, member: Any):
+        """The one voice a member holds (M-136).
+
+        The session's held registry answers when the
+        session holds any voice; otherwise the shipped
+        example voice book answers (or the book
+        recorded whole for the session). A held
+        session answers for its own book alone: a
+        member the held book holds no voice for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._character_voices_registry()
+        if registry.list_profiles():
+            return registry.get_profile(member)
+        return self.character_voices().profile_for(member)
+
+    def voice_report(self, report_id: Any):
+        """The one report an id names (M-136).
+
+        The session's voice book answers: the book
+        composed or recorded for the session when the
+        session holds any voice, otherwise the shipped
+        example book. A held session answers for its
+        own book alone: a report id the held book does
+        not hold raises KeyError, with no silent fall
+        back to the example - voices held one by one
+        hold no reports at all, because a report is a
+        rendering, never a holding. Reading registers
+        and publishes nothing.
+        """
+        return self.character_voices().report_for(report_id)
+
+    def register_voice_profile(
+            self, profile: Any) -> dict[str, Any]:
+        """Hold one voice profile for the session (M-136).
+
+        The profile is held by the pure registry under
+        its id or the deterministic voice-N id - a
+        second voice for a member already holding one
+        refuses, and a refusal holds nothing new and
+        publishes nothing. A held profile is published
+        as its ``profile_record`` session-news record
+        through the checkpoint road, so a voice given
+        is news with its register attached. Returns
+        the held profile, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a voice generates
+        nothing, persists nothing and calls no model:
+        the registry holds the voice as data, and a
+        report stays a rendering derived at call time.
+        """
+        from ..core import character_voices as voices_module
+        registry = self._character_voices_registry()
+        held = registry.register_profile(profile)
+        record = voices_module.profile_record(held)
+        self._publish_character_voices_record(record)
+        return {
+            "profile": held.to_record(),
+            "record": record,
+            "screen": voices_module.format_character_voices_screen(
+                self.character_voices()),
+            "explanation": voices_module.PLAIN_EXPLANATION,
+        }
+
+    def record_voice_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole voice book for the session (M-136).
+
+        With no book named, the shipped example voice
+        book is recorded through the pure layer - four
+        members of the house cast at the M-135 slice
+        boundary, one in each register. A book loaded
+        from a file (the pure layer's
+        ``load_character_voices_file`` road) may be
+        passed instead, so a real voice book is
+        recorded as it stands. Every profile is held
+        and published as its ``profile_record``
+        session news, in book order; the book is
+        remembered whole as the session's - reports
+        and all - and the same book recorded twice
+        refuses - fingerprinted on its member ids and
+        title - a book is recorded once, never
+        duplicated into the session. Returns the held
+        book, its profiles, their news records, the
+        count of profiles held, the screen, and the
+        explanation. Recording generates nothing,
+        persists nothing and calls no model.
+        """
+        from ..core import character_voices as voices_module
+        book = book if book is not None \
+            else voices_module.load_character_voices()
+        validated = voices_module.build_book(book)
+        fingerprint = (tuple(validated.member_ids()), validated.title)
+        recorded = getattr(self, "_character_voices_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._character_voices_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this voice book is already recorded for "
+                "the session; a book is recorded once")
+        registry = self._character_voices_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._character_voices_held = validated
+        records = [
+            voices_module.profile_record(profile)
+            for profile in validated.profiles]
+        for record in records:
+            self._publish_character_voices_record(record)
+        return {
+            "book": validated.to_record(),
+            "profiles": [p.to_record() for p in validated.profiles],
+            "records": records,
+            "count": len(records),
+            "screen": voices_module.format_character_voices_screen(
+                validated),
+            "explanation": voices_module.PLAIN_EXPLANATION,
+        }
+
+    def report_character_voices(
+            self, member: Any, facts: Any,
+            title: Any) -> dict[str, Any]:
+        """Report facts in one member's voice, as news (M-136).
+
+        The report is rendered by the pure layer in
+        the member's voice - the held registry's voice
+        when the session holds any voice, otherwise
+        the shipped example book's voice (or the voice
+        of the book recorded whole for the session) -
+        and published as ONE ``character_voice_report``
+        session event holding the whole report: its
+        facts byte for byte as they were given, framed
+        by the voice's greeting and sign-off, the facts
+        and the flavour in separate fields. A held
+        session answers for its own book alone, and a
+        fact carrying the teller's own marker refuses
+        here too, exactly as the pure layer refuses.
+        The announcement is deduped per whole report
+        shape (member + title + facts): reporting the
+        same report again publishes nothing new, and a
+        changed report announces again as the new
+        report it is. Returns the report, its news
+        record, the screen, and the plain explanation.
+        Reporting generates nothing live, persists
+        nothing and calls no model: the agent layer
+        renders, it never rewrites.
+        """
+        from ..core import character_voices as voices_module
+        registry = self._character_voices_registry()
+        if registry.list_profiles():
+            report = registry.render_report(member, facts, title=title)
+        else:
+            report = voices_module.render_report(
+                self.character_voices().profile_for(member),
+                facts, title=title)
+        record = voices_module.report_record(report)
+        self._publish_character_voices_report_record(record)
+        if registry.list_profiles():
+            screen = voices_module.format_character_voices_screen(
+                self.character_voices())
+        else:
+            screen = voices_module.format_character_voices_screen()
+        return {
+            "report": report.to_record(),
+            "record": record,
+            "screen": screen,
+            "explanation": voices_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_character_voices_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one voice profile as session news (M-136).
+
+        The pure layer's ``profile_record`` is journaled
+        through the same checkpoint road every sibling
+        slice uses, when a session is attached. Each
+        member's voice is announced at most once,
+        under its own member. A foreign record type is
+        never published on this road.
+        """
+        if record.get("type") != "character_voice_profile":
+            return
+        announced = getattr(self, "_character_voices_announced", None)
+        if announced is None:
+            announced = set()
+            self._character_voices_announced = announced
+        key = ("character_voice_profile", record.get("member"))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_character_voices_report_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one whole voice report as news (M-136).
+
+        The report is journaled through the same
+        checkpoint road, when a session is attached -
+        ONE event holding the whole report, its facts
+        verbatim and its flavour around them, so the
+        human is told once. Each report shape is
+        announced at most once: the announcement is
+        keyed by the report's whole shape (its member,
+        its title and its facts, byte for byte), so a
+        changed report announces again as the new
+        report it is. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") != "character_voice_report":
+            return
+        announced = getattr(
+            self, "_character_voices_report_announced", None)
+        if announced is None:
+            announced = set()
+            self._character_voices_report_announced = announced
+        key = (
+            record.get("member"),
+            record.get("title"),
+            tuple(record.get("facts", [])))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
