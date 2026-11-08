@@ -23040,6 +23040,442 @@ class Agent:
             self._checkpoint(record)
 
 
+    # -- M-152: retrieval over the code graph --
+
+    def _graph_retrieval_registry(self):
+        """The held graph-retrieval registry (M-152).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer retrieval bundles one
+        by one, beside the session compaction
+        glass-box registry (M-151) and never in it:
+        the retrieval book is one book of bundles -
+        each bundle's query, the seeds it grew from,
+        and the connected pieces the graph grew from
+        those seeds, with their provenance. It is
+        created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly
+        one. The attribute is named
+        ``_graph_retrieval_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_graph_retrieval_store", None)
+        if registry is None:
+            from ..core.graph_retrieval import GraphRetrievalRegistry
+            registry = GraphRetrievalRegistry()
+            self._graph_retrieval_store = registry
+        return registry
+
+    def graph_retrieval_book(self):
+        """The session's graph-retrieval book, as data (M-152).
+
+        The held registry's book when the session
+        holds any bundle - the retrievals the session
+        has actually gathered (bundles held one by
+        one, before any whole book stands recorded,
+        stand under a session graph-retrieval book
+        composed here in the agent layer, so a later
+        whole book recorded under its own title is
+        never refused by a shim title at the
+        registry) - otherwise the book recorded whole
+        through :meth:`record_graph_retrieval_book`,
+        or the shipped example graph-retrieval book
+        until one is recorded. Reading registers and
+        publishes nothing.
+        """
+        from ..core.graph_retrieval import (
+            RetrievalBook, load_graph_retrieval)
+        registry = self._graph_retrieval_registry()
+        if registry.list_bundles():
+            try:
+                book = registry.book()
+            except ValueError:
+                return RetrievalBook(
+                    title="Session graph retrieval",
+                    bundles=registry.list_bundles())
+            held = getattr(self, "_graph_retrieval_held", None)
+            if held is not None and held.title == book.title \
+                    and held.bundle_ids() == book.bundle_ids():
+                return held
+            return book
+        book = getattr(self, "_graph_retrieval_held", None)
+        if book is None:
+            return load_graph_retrieval()
+        return book
+
+    def _graph_retrieval_screen(self) -> str:
+        """The /graphsearch screen for the session's state (M-152).
+
+        Rendered from the held book when one stands,
+        and from the shipped example book while
+        nothing is held.
+        """
+        from ..core import graph_retrieval as graph_module
+        registry = self._graph_retrieval_registry()
+        if not registry.list_bundles():
+            return graph_module.format_graph_retrieval_screen()
+        return graph_module.format_graph_retrieval_screen(
+            self.graph_retrieval_book())
+
+    def graph_retrieval_status(self) -> dict[str, Any]:
+        """The graph-retrieval account, in plain data (M-152).
+
+        The bundles held this session as plain
+        records, the held book's record (none until a
+        bundle stands held), the session
+        graph-retrieval book's pieces as plain records
+        (the shipped example book - one retrieval at
+        the M-151 slice boundary, its semantic seed
+        grown one hop into six connected pieces, with
+        its one pinned panel - until bundles are
+        held), its whole-book record, the panel
+        derived from the book's latest bundle and
+        every panel the book holds as plain records,
+        the latest bundle's pieces in plain words and
+        the panel told in plain words, the one screen
+        - rendered from the held book, or from the
+        shipped example book when nothing is held yet
+        - and the plain explanation. Reading registers
+        and publishes nothing, calls no model: this
+        layer holds retrievals as data only. There is
+        no Part VIII board yet; the screen is where
+        the retrieval is visible.
+        """
+        from ..core import graph_retrieval as graph_module
+        registry = self._graph_retrieval_registry()
+        held_bundles = registry.list_bundles()
+        book = self.graph_retrieval_book()
+        latest = book.bundles[-1]
+        return {
+            "bundles": [b.to_record() for b in held_bundles],
+            "book": (book.to_record() if held_bundles else None),
+            "graph_retrieval": {
+                "title": book.title,
+                "bundles": [b.to_record() for b in book.bundles],
+            },
+            "book_record": graph_module.book_record(book),
+            "panel": graph_module.derive_panel(latest).to_record(),
+            "panels": [p.to_record() for p in book.panels],
+            "plain_words": [
+                graph_module.plain_words(node)
+                for node in latest.nodes],
+            "panel_plain_words": graph_module.panel_plain_words(book),
+            "screen": self._graph_retrieval_screen(),
+            "explanation": graph_module.PLAIN_EXPLANATION,
+        }
+
+    def get_graph_retrieval_bundle(self, bundle_id: Any):
+        """The one bundle an id names (M-152).
+
+        The session's held registry answers when the
+        session holds any bundle; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held
+        session answers for its own book alone: an id
+        the held book holds no bundle for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._graph_retrieval_registry()
+        if registry.list_bundles():
+            return registry.get_bundle(bundle_id)
+        return self.graph_retrieval_book().bundle_for(bundle_id)
+
+    def get_graph_retrieval_node(self, node_id: Any):
+        """The one connected piece an id names (M-152).
+
+        Read off the session's book - the held
+        registry's book when the session holds any
+        bundle, otherwise the shipped example book
+        (or the book recorded whole for the session) -
+        searching its bundles in held order. A held
+        session answers for its own book alone: an id
+        no held bundle names raises KeyError, with no
+        silent fall back to the example. Reading
+        registers and publishes nothing.
+        """
+        book = self.graph_retrieval_book()
+        for bundle in book.bundles:
+            try:
+                return bundle.node_for(node_id)
+            except KeyError:
+                continue
+        raise KeyError(f"no piece in the book: {node_id!r}")
+
+    def graph_retrieval_seeds(self):
+        """The latest bundle's seeds, in held order (M-152).
+
+        Read off the session's book - the held
+        registry's book when the session holds any
+        bundle, otherwise the shipped example book
+        (or the book recorded whole for the session).
+        Reading registers and publishes nothing.
+        """
+        return self.graph_retrieval_book().bundles[-1].seeds
+
+    def graph_retrieval_panel(self):
+        """The panel derived for the latest bundle (M-152).
+
+        The panel is derived at call time from the
+        session book's latest bundle - the held
+        registry's latest when the session holds any
+        bundle, otherwise the shipped example book's
+        bundle (or the latest bundle of the book
+        recorded whole for the session) - so its rows
+        are the pieces carried whole, in ranked order,
+        and its totals are the pieces' own counts,
+        read at call time. Reading registers and
+        publishes nothing.
+        """
+        from ..core.graph_retrieval import derive_panel as _derive_panel
+        return _derive_panel(self.graph_retrieval_book().bundles[-1])
+
+    def register_graph_retrieval_bundle(
+            self, bundle: Any) -> dict[str, Any]:
+        """Hold one retrieval bundle for the session (M-152).
+
+        The bundle is held by the pure registry under
+        its id or the deterministic retrieval-N id - a
+        bundle id already standing here refuses, and a
+        refusal holds nothing new and publishes
+        nothing. A held bundle is published as its
+        ``bundle_record`` session-news record through
+        the checkpoint road, and the panel derived
+        from it as its ``panel_record`` session news,
+        so a retrieval named into the session is news.
+        Returns the held bundle, its news record, the
+        panel and its news record, the screen rendered
+        after it landed, and the plain explanation.
+        Holding a bundle calls no model and edits no
+        code: the registry holds the bundle as data,
+        and the panel stays a derivation read off the
+        held bundle at call time.
+        """
+        from ..core import graph_retrieval as graph_module
+        registry = self._graph_retrieval_registry()
+        held = registry.register_bundle(bundle)
+        bundle_news = graph_module.bundle_record(held)
+        self._publish_graph_retrieval_record(bundle_news)
+        panel = graph_module.derive_panel(held)
+        panel_news = graph_module.panel_record(panel)
+        self._publish_graph_retrieval_record(panel_news)
+        return {
+            "bundle": held.to_record(),
+            "bundle_news": bundle_news,
+            "panel": panel.to_record(),
+            "panel_record": panel_news,
+            "screen": self._graph_retrieval_screen(),
+            "explanation": graph_module.PLAIN_EXPLANATION,
+        }
+
+    def run_graph_retrieval(
+            self, query: Any, depth: int = 1) -> dict[str, Any]:
+        """Run one retrieval over the session workspace (M-152).
+
+        The shipped symbol graph is built over the
+        session's own workspace (``project_root``)
+        through its own build road, the semantic
+        corpus is built over the same workspace
+        through its own road, and the pure layer's
+        ``retrieve`` marries them: seeds from the
+        query's symbol mentions and the semantic
+        scores, expanded through the graph into
+        connected code. The bundle is held and
+        published exactly as a registered bundle is.
+        A query naming nothing the graph or the
+        semantic road can grow refuses honestly,
+        holding and publishing nothing. Running a
+        retrieval reads the workspace as data: it
+        calls no model, edits no file and assembles
+        no live context.
+        """
+        from ..core import graph_retrieval as graph_module
+        from ..context.semantic import build_corpus
+        from ..context.symbol_graph import build_symbol_graph
+        graph = build_symbol_graph(self.project_root)
+        docs, _warnings = build_corpus(self.project_root)
+        bundle = graph_module.retrieve(
+            graph, query, docs=docs, depth=depth)
+        outcome = self.register_graph_retrieval_bundle(bundle)
+        outcome["query"] = bundle.query
+        return outcome
+
+    def register_graph_retrieval_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole graph-retrieval book for the session (M-152).
+
+        Every bundle of the book is held by the pure
+        registry, in book order - the first book held
+        sets the registry's title, a later book under
+        a different title refuses, as does a book
+        naming a held bundle id. The book's panels are
+        derivations, not holdings, and are not held.
+        Every bundle is published as its
+        ``bundle_record`` session news, in book order,
+        and the latest bundle's derived panel as its
+        ``panel_record`` session news. Returns the
+        held book, its bundles, their news records,
+        the panel news record, the count of bundles
+        held, the screen, and the explanation.
+        Registering calls no model.
+        """
+        from ..core import graph_retrieval as graph_module
+        validated = graph_module.build_book(book)
+        registry = self._graph_retrieval_registry()
+        registry.register_book(validated)
+        bundles = [
+            graph_module.bundle_record(bundle)
+            for bundle in validated.bundles]
+        for bundle_news in bundles:
+            self._publish_graph_retrieval_record(bundle_news)
+        panel_news = graph_module.panel_record(
+            graph_module.derive_panel(validated.bundles[-1]))
+        self._publish_graph_retrieval_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "bundles": [b.to_record() for b in validated.bundles],
+            "bundles_news": bundles,
+            "panel_record": panel_news,
+            "count": len(bundles),
+            "screen": self._graph_retrieval_screen(),
+            "explanation": graph_module.PLAIN_EXPLANATION,
+        }
+
+    def record_graph_retrieval_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole graph-retrieval book for the session (M-152).
+
+        With no book named, the shipped example
+        graph-retrieval book is recorded through the
+        pure layer - one retrieval at the M-151 slice
+        boundary, its semantic seed grown one hop into
+        six connected pieces, with its one pinned
+        panel. A book loaded from a file (the pure
+        layer's ``load_graph_retrieval_file`` road)
+        may be passed instead, so a real
+        graph-retrieval book is recorded as it stands.
+        Every bundle is held and published as its
+        ``bundle_record`` session news, in book
+        order, and the latest bundle's derived panel
+        as its ``panel_record`` session news; the book
+        is remembered whole as the session's - its
+        held panel and all - and the same book
+        recorded twice refuses - fingerprinted on its
+        bundle ids and title - a book is recorded
+        once, never duplicated into the session.
+        Returns the held book, its bundles, their news
+        records, the panel news record, the count of
+        bundles held, the screen, and the explanation.
+        Recording calls no model.
+        """
+        from ..core import graph_retrieval as graph_module
+        book = book if book is not None \
+            else graph_module.load_graph_retrieval()
+        validated = graph_module.build_book(book)
+        fingerprint = (tuple(validated.bundle_ids()), validated.title)
+        recorded = getattr(self, "_graph_retrieval_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._graph_retrieval_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this graph-retrieval book is already recorded "
+                "for the session; a book is recorded once")
+        registry = self._graph_retrieval_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._graph_retrieval_held = validated
+        bundles = [
+            graph_module.bundle_record(bundle)
+            for bundle in validated.bundles]
+        for bundle_news in bundles:
+            self._publish_graph_retrieval_record(bundle_news)
+        panel_news = graph_module.panel_record(
+            graph_module.derive_panel(validated.bundles[-1]))
+        self._publish_graph_retrieval_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "bundles": [b.to_record() for b in validated.bundles],
+            "bundles_news": bundles,
+            "panel_record": panel_news,
+            "count": len(bundles),
+            "screen": graph_module.format_graph_retrieval_screen(
+                validated),
+            "explanation": graph_module.PLAIN_EXPLANATION,
+        }
+
+    def report_graph_retrieval(self) -> dict[str, Any]:
+        """Render the session graph-retrieval book, as a report (M-152).
+
+        The book - the held registry's book when the
+        session holds any bundle, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone: its pieces, its
+        panel and its one screen. Rendering registers
+        and publishes nothing, calls no model: the
+        agent layer renders the retrieval as data.
+        Returns the book, its bundles and panels as
+        plain records, the derived panel, the rendered
+        pieces and panel, the screen, and the plain
+        explanation.
+        """
+        from ..core import graph_retrieval as graph_module
+        book = self.graph_retrieval_book()
+        return {
+            "book": book.to_record(),
+            "bundles": [b.to_record() for b in book.bundles],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": graph_module.derive_panel(
+                book.bundles[-1]).to_record(),
+            "nodes_text": graph_module.format_nodes(book),
+            "panel_text": graph_module.format_panel(book),
+            "screen": self._graph_retrieval_screen(),
+            "explanation": graph_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_graph_retrieval_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one graph-retrieval record as session news (M-152).
+
+        The pure layer's ``bundle_record`` and
+        ``panel_record`` are journaled through the
+        same checkpoint road every sibling slice
+        uses, when a session is attached. Each record
+        is announced at most once per shape: a bundle
+        under its own bundle id and piece and seed
+        counts, so a bundle grown by newly held seeds
+        announces again as the new figure it is, and
+        a panel under its whole derived shape (its
+        rows and totals), so a panel grown by a newly
+        held bundle announces again as the new figure
+        it is. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") == "graph_retrieval_bundle":
+            key = ("graph_retrieval_bundle", record.get("bundle_id"),
+                   record.get("total_nodes"),
+                   record.get("total_seeds"))
+        elif record.get("type") == "graph_retrieval_panel":
+            key = ("graph_retrieval_panel", record.get("panel_id"),
+                   tuple(row.get("node_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_nodes"))
+        else:
+            return
+        announced = getattr(self, "_graph_retrieval_announced", None)
+        if announced is None:
+            announced = set()
+            self._graph_retrieval_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
