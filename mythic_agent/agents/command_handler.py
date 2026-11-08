@@ -319,6 +319,8 @@ class CommandHandler:
                 self._handle_dogfood(args)
             elif cmd == "/solo":
                 self._handle_solo(args)
+            elif cmd == "/templates":
+                self._handle_templates(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -4728,6 +4730,74 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_templates(self, args: str):
+        """M-143: /templates - crew templates.
+
+        ``/templates`` shows the crew template book
+        held this session (the shipped example book -
+        four template records at the M-142 slice
+        boundary, the roadmap's four named formations,
+        and its pinned index - when none is held yet);
+        ``/templates template <template>`` shows one
+        formation record, summoned by name;
+        ``/templates member <member-id>`` shows the
+        formations one member stands in; ``/templates
+        roster <template>`` shows one formation's
+        derived roster; ``/templates index`` shows the
+        template index derived from the whole book.
+        Reading registers and publishes nothing as
+        session news: records are held only when they
+        are given through the agent layer, and held
+        records are published as crew_template,
+        crew_formation_roster and crew_template_index
+        session events. This road summons no crew,
+        spawns no agent, runs no agent, calls no model,
+        persists nothing and claims no board: the
+        registry holds the templates as data, no record
+        here claims a crew was ever summoned or run,
+        and there is no Part VIII board yet - this
+        surface is where the crew templates are
+        visible. The registry is session state held by
+        the agent; it is not a stored setting.
+        """
+        from ..core.crew_templates import (
+            format_index,
+            format_roster,
+            format_template,
+            format_templates,
+            parse_crew_templates_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_crew_templates_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "template":
+                text = format_template(primary.get_crew_template(target))
+            elif action == "member":
+                text = format_templates(primary.crew_templates(), target)
+            elif action == "roster":
+                text = format_roster(primary.crew_template_roster(target))
+            elif action == "index":
+                text = format_index(primary.crew_template_index())
+            else:
+                text = primary.crew_templates_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
 
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.
