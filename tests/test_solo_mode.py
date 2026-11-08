@@ -429,3 +429,468 @@ def test_builders_from_field_words():
     assert isinstance(ledger, ParityLedger)
     book = build_book(load_solo_mode())
     assert isinstance(book, SoloBook)
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-142 agent layer: the agent holds a
+# SoloRegistry for the session (session state
+# only, no new setting), capability records are
+# held by being registered - published as their
+# capability_record session news through the
+# checkpoint road, deduped per capability id - the
+# report road renders the held book (or the shipped
+# example when unheld) through the pure formatters,
+# and the /solo surface rides both roads on the
+# pure parser + formatters. Status, get, report
+# and ledger reads register and publish nothing,
+# answer from the held registry first and from the
+# shipped example only while nothing is held - a
+# held session never falls back to the example.
+# Reports and the parity ledger derive at call
+# time from the held records, never held. This
+# layer disables no crew, spawns no agent, runs no
+# agent, calls no model and persists nothing - and
+# there is no Part VIII board yet, so the screen is
+# where the solo mode is visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _solo_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _book_dict(**overrides):
+    data = {
+        "schema": SOLO_MODE_SCHEMA,
+        "guide": {"title": "A small solo mode book"},
+        "entries": [_cap_dict(c) for c in _caps()],
+    }
+    data.update(overrides)
+    return data
+
+
+def _write_solo_book(tmp_path, data):
+    path = tmp_path / "solo_mode.yaml"
+    path.write_text(yaml.safe_dump(data), encoding="utf-8")
+    return path
+
+
+class TestSoloModeAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.solo_mode_status()
+        assert status["capabilities"] == []
+        assert status["book"] is None
+        assert status["solo_mode"]["title"] == (
+            "Solo mode book at the M-141 slice boundary")
+        assert [c["capability_id"] for c in status["solo_mode"]["capabilities"]] == [
+            "cap-planning", "cap-editing", "cap-testing",
+            "cap-reviewing", "cap-remembering", "cap-costing",
+            "cap-shipping", "cap-judging"]
+        assert status["book_record"]["type"] == "solo_book"
+        assert status["book_record"]["capability_count"] == 8
+        assert status["book_record"]["ledger_count"] == 1
+        assert [r["member"] for r in status["reports"]] == [
+            "architect", "forge_worker", "auditor", "scribe"]
+        assert [r["amplifications"] for r in status["reports"]] == [1, 2, 2, 2]
+        assert [led["ledger_id"] for led in status["ledgers"]] == [
+            "ledger-m141-boundary"]
+        assert status["ledger"]["total_capabilities"] == 8
+        assert status["ledger"]["total_amplified"] == 7
+        assert status["ledger"]["total_plain"] == 1
+        assert "planning -" in status["plain_words"][0]
+        assert "architect - 1 amplification(s)" in status["report_plain_words"]
+        assert "Parity ledger:" in status["ledger_plain_words"]
+        assert "Solo mode dignity (M-142)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        assert agent._solo_mode_registry() is agent._solo_mode_registry()
+        assert agent._solo_mode_store is agent._solo_mode_registry()
+
+    def test_reads_register_and_publish_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.solo_mode_status()
+        cap = agent.get_solo_capability("cap-editing")
+        assert cap.amplifier == "forge_worker"
+        report = agent.solo_mode_report("auditor")
+        assert report.amplifications == 2
+        assert agent.solo_mode_report("architect").amplifications == 1
+        ledger = agent.parity_ledger()
+        assert ledger.total_capabilities == 8
+        assert ledger.total_amplified == 7
+        assert agent.solo_mode().title == (
+            "Solo mode book at the M-141 slice boundary")
+        registry = agent._solo_mode_registry()
+        assert registry.list_capabilities() == ()
+        assert _solo_events(store, session_id, "solo_capability") == []
+        agent.close()
+
+    def test_unheld_reads_raise(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_solo_capability("no-such-capability")
+        with pytest.raises(KeyError):
+            agent.solo_mode_report("guardian")
+
+    def test_status_after_register_shows_the_held_pieces(self, agent):
+        agent.register_solo_capability(_cap())
+        status = agent.solo_mode_status()
+        assert [c["capability_id"] for c in status["capabilities"]] == [
+            "cap-editing"]
+        assert status["book"]["capability_count"] == 1
+        # The held book answers now, not the example:
+        # records held one by one stand under a session
+        # solo mode book, and it holds no ledgers - the
+        # ledger stays a derivation.
+        assert status["solo_mode"]["title"] == "Session solo mode book"
+        assert status["ledgers"] == []
+        assert status["ledger"]["total_capabilities"] == 1
+        assert status["ledger"]["total_amplified"] == 1
+        assert "cap-editing" in status["screen"]
+
+    def test_held_session_never_falls_back_to_the_example(self, agent):
+        agent.register_solo_capability(_cap())
+        with pytest.raises(KeyError):
+            agent.get_solo_capability("cap-planning")
+        with pytest.raises(KeyError):
+            agent.solo_mode_report("scribe")
+        assert agent.solo_mode().capability_ids() == ("cap-editing",)
+        assert agent.get_solo_capability(
+            "cap-editing").amplifier == "forge_worker"
+        report = agent.solo_mode_report("forge_worker")
+        assert report.amplifications == 1
+        assert agent.parity_ledger().total_capabilities == 1
+
+class TestSoloModeAgentRegister:
+    def test_register_capability_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_solo_capability(_cap())
+        assert outcome["capability"]["capability_id"] == "cap-editing"
+        assert outcome["record"]["type"] == "solo_capability"
+        events = _solo_events(store, session_id, "solo_capability")
+        assert len(events) == 1
+        assert events[0]["capability_id"] == "cap-editing"
+        # The same record is never published twice.
+        agent._publish_solo_mode_record(outcome["record"])
+        assert len(_solo_events(
+            store, session_id, "solo_capability")) == 1
+        # Foreign record types are refused on this road.
+        from mythic_agent.core.character_voices import (
+            load_character_voices,
+            profile_record,
+        )
+        from mythic_agent.core.cost_court import (
+            entry_record as _court_entry_record,
+            load_cost_court,
+        )
+        from mythic_agent.core.crew_members import (
+            casting_record,
+            load_casting,
+        )
+        from mythic_agent.core.crew_memory import (
+            entry_record as _memory_entry_record,
+            load_crew_memory,
+        )
+        from mythic_agent.core.crew_replay import (
+            load_crew_replay,
+            step_record as _replay_step_record,
+        )
+        from mythic_agent.core.crew_sizing import (
+            case_record as _sizing_case_record,
+            load_crew_sizing,
+        )
+        from mythic_agent.core.dogfood import (
+            entry_record as _dogfood_entry_record,
+            load_dogfood,
+        )
+        from mythic_agent.core.external_agents import (
+            load_external_agents,
+            seat_record as _external_seat_record,
+        )
+        from mythic_agent.core.failure_fostering import (
+            load_failure_fostering,
+            report_record as _foster_report_record,
+        )
+        from mythic_agent.core.review_panels import (
+            load_review_panel,
+            review_record,
+        )
+        from mythic_agent.core.stand_ups import (
+            entry_record as _stand_up_entry_record,
+            load_stand_up,
+        )
+        caps = _caps()
+        agent._publish_solo_mode_record(report_record(
+            derive_report(caps, "auditor"), caps))
+        agent._publish_solo_mode_record(ledger_record(
+            derive_ledger(caps), caps))
+        agent._publish_solo_mode_record(book_record(load_solo_mode()))
+        agent._publish_solo_mode_record(_dogfood_entry_record(
+            load_dogfood().entries[0]))
+        agent._publish_solo_mode_record(_court_entry_record(
+            load_cost_court().entries[0]))
+        agent._publish_solo_mode_record(_foster_report_record(
+            load_failure_fostering().reports[0]))
+        agent._publish_solo_mode_record(_replay_step_record(
+            load_crew_replay().steps[0]))
+        agent._publish_solo_mode_record(profile_record(
+            load_character_voices().profiles[0]))
+        agent._publish_solo_mode_record(_sizing_case_record(
+            load_crew_sizing().cases[0]))
+        agent._publish_solo_mode_record(_stand_up_entry_record(
+            load_stand_up().entries[0]))
+        memory = load_crew_memory()
+        agent._publish_solo_mode_record(_memory_entry_record(
+            memory.entry_for("broken-checkpoint-chain")))
+        panel = load_review_panel()
+        agent._publish_solo_mode_record(review_record(panel.reviews[0]))
+        agent._publish_solo_mode_record(casting_record(
+            load_casting().members[0]))
+        agent._publish_solo_mode_record(_external_seat_record(
+            load_external_agents().seats[0]))
+        for kind in ("solo_amplification_report", "solo_parity_ledger",
+                     "solo_book", "dogfood_entry", "cost_court_entry",
+                     "failure_report", "crew_replay_step",
+                     "character_voice_profile", "crew_sizing_case",
+                     "stand_up_entry", "crew_memory_entry",
+                     "panel_review", "crew_member", "external_seat"):
+            assert _solo_events(store, session_id, kind) == []
+        assert len(_solo_events(
+            store, session_id, "solo_capability")) == 1
+        agent.close()
+
+    def test_duplicate_capability_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_solo_capability(_cap())
+        with pytest.raises(ValueError):
+            agent.register_solo_capability(_cap())
+        assert len(_solo_events(
+            store, session_id, "solo_capability")) == 1
+        agent.close()
+
+    def test_register_capability_without_id_gets_a_solo_id(self, agent):
+        outcome = agent.register_solo_capability({
+            "capability": "editing", "title": "Edit the code",
+            "detail": "Writing and changing the code itself.",
+            "amplifier": "forge_worker",
+            "gain": "More hands on the tools at once."})
+        assert outcome["capability"]["capability_id"] == "solo-1"
+        assert agent.get_solo_capability("solo-1").capability == "editing"
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_solo_book(load_solo_mode())
+        assert outcome["count"] == 8
+        assert outcome["book"]["capability_count"] == 8
+        events = _solo_events(store, session_id, "solo_capability")
+        assert [e["capability_id"] for e in events] == [
+            "cap-planning", "cap-editing", "cap-testing",
+            "cap-reviewing", "cap-remembering", "cap-costing",
+            "cap-shipping", "cap-judging"]
+        assert agent.solo_mode().title == (
+            "Solo mode book at the M-141 slice boundary")
+        assert agent.get_solo_capability(
+            "cap-judging").amplifier is None
+        # The registry holds records, never reports or
+        # ledgers: both are derived at call time.
+        assert agent.solo_mode().ledgers == ()
+        assert agent.solo_mode_report("auditor").amplifications == 2
+        assert agent.solo_mode_report("architect").amplifications == 1
+        assert agent.parity_ledger().total_capabilities == 8
+        agent.close()
+
+    def test_register_book_twice_refuses(self, agent):
+        agent.register_solo_book(load_solo_mode())
+        with pytest.raises(ValueError):
+            agent.register_solo_book(load_solo_mode())
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_solo_book()
+        assert outcome["count"] == 8
+        assert outcome["book"]["capability_count"] == 8
+        events = _solo_events(store, session_id, "solo_capability")
+        assert [e["capability_id"] for e in events] == [
+            "cap-planning", "cap-editing", "cap-testing",
+            "cap-reviewing", "cap-remembering", "cap-costing",
+            "cap-shipping", "cap-judging"]
+        assert agent.solo_mode().title == (
+            "Solo mode book at the M-141 slice boundary")
+        # The recorded book stands whole: its held
+        # ledger still answers.
+        assert agent.solo_mode().ledgers[0].ledger_id == (
+            "ledger-m141-boundary")
+        assert agent.parity_ledger().total_capabilities == 8
+        agent.close()
+
+    def test_record_same_book_twice_refuses(self, agent):
+        agent.record_solo_book()
+        with pytest.raises(ValueError):
+            agent.record_solo_book()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_solo_book(tmp_path, _book_dict())
+        book = load_solo_mode_file(path)
+        outcome = agent.record_solo_book(book)
+        assert outcome["count"] == 4
+        assert agent.solo_mode().title == "A small solo mode book"
+        assert agent.get_solo_capability(
+            "cap-judging").amplifier is None
+        assert agent.solo_mode_report("auditor").amplifications == 2
+
+    def test_one_by_one_holdings_stand_under_a_session_book(self, agent):
+        agent.register_solo_capability(_cap())
+        # Held one by one, the records stand under a
+        # session solo mode book composed in the agent
+        # layer - never under a recorded book title.
+        assert agent.solo_mode().title == "Session solo mode book"
+        agent.register_solo_capability(_caps()[1])
+        assert [c.capability_id for c in agent.solo_mode().entries] == [
+            "cap-editing", "cap-testing"]
+        # A whole book recorded now would re-hold the
+        # same capability ids: the registry refuses it,
+        # as it refuses any duplicate.
+        with pytest.raises(ValueError):
+            agent.record_solo_book()
+
+class TestSoloModeAgentReport:
+    def test_report_renders_the_example_when_unheld(self, agent):
+        outcome = agent.report_solo_mode()
+        assert outcome["book"]["title"] == (
+            "Solo mode book at the M-141 slice boundary")
+        assert outcome["book"]["capability_count"] == 8
+        assert "cap-judging" in outcome["capabilities_text"]
+        assert "architect - 1 amplification(s)" in outcome["report_text"]
+        assert "Parity ledger:" in outcome["ledger_text"]
+        assert "Solo mode dignity (M-142)" in outcome["screen"]
+        assert outcome["explanation"] == PLAIN_EXPLANATION
+
+    def test_report_renders_the_held_book_only(self, agent):
+        agent.register_solo_capability(_cap())
+        outcome = agent.report_solo_mode()
+        assert outcome["book"]["capability_count"] == 1
+        assert "cap-editing" in outcome["capabilities_text"]
+        assert "cap-planning" not in outcome["capabilities_text"]
+        assert "auditor" not in outcome["report_text"]
+
+    def test_report_registers_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.report_solo_mode()
+        registry = agent._solo_mode_registry()
+        assert registry.list_capabilities() == ()
+        assert _solo_events(store, session_id, "solo_capability") == []
+        agent.close()
+
+    def test_no_live_crew_model_or_persist_road(self, agent):
+        # This layer holds the solo mode as data: it
+        # disables no crew, spawns no agent, runs no
+        # agent, calls no model, persists nothing - and
+        # there is no Part VIII board yet.
+        assert not hasattr(agent, "generate_solo_mode")
+        assert not hasattr(agent, "persist_solo_mode")
+        assert not hasattr(agent, "spawn_solo_crew")
+        assert not hasattr(agent, "disable_solo_crew")
+        assert not hasattr(agent, "run_live_crew")
+        assert not hasattr(agent, "solo_mode_board")
+
+
+class TestSoloModeTerminalSurface:
+    def test_show_capability_member_report_and_ledger(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/solo")
+        assert "Solo mode dignity (M-142)" in text
+        _, _, text = _slash(agent, "/solo capability cap-editing")
+        assert "cap-editing: editing" in text
+        _, _, text = _slash(agent, "/solo member auditor")
+        assert "cap-testing" in text
+        assert "cap-reviewing" in text
+        assert "cap-editing" not in text
+        _, _, text = _slash(agent, "/solo report auditor")
+        assert "auditor - 2 amplification(s)" in text
+        _, _, text = _slash(agent, "/solo ledger")
+        assert "Parity ledger:" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/solo [show|capability <capability-id>|member <member-id>|"
+                "report <member-id>|ledger]") in text
+        _, _, text = _slash(agent, "/solo dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/solo capability missing-cap")
+        assert "no capability record in the book" in text
+
+@pytest.fixture()
+def solo_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _solo_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestSoloModeCommand:
+    def test_show_is_default(self, solo_handler, agent):
+        solo_handler._handle_solo("")
+        assert "Solo mode dignity (M-142)" in _solo_published_text(solo_handler)
+
+    def test_capability_member_report_and_ledger(self, solo_handler, agent):
+        solo_handler._handle_solo("capability cap-editing")
+        assert "forge_worker" in _solo_published_text(solo_handler)
+        solo_handler._handle_solo("member scribe")
+        assert "cap-remembering" in _solo_published_text(solo_handler)
+        solo_handler._handle_solo("report auditor")
+        assert "auditor - 2 amplification(s)" in _solo_published_text(solo_handler)
+        solo_handler._handle_solo("ledger")
+        assert "Parity ledger:" in _solo_published_text(solo_handler)
+
+    def test_bad_grammar_is_published(self, solo_handler, agent):
+        solo_handler._handle_solo("dance party")
+        assert USAGE in _solo_published_text(solo_handler)
+
+
+class TestChatScreenRoutingSolo:
+    def test_solo_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/solo capability cap-editing", _FakeLog())
+        assert calls == [("/solo", "capability cap-editing")]

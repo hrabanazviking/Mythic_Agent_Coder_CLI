@@ -19065,6 +19065,393 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-142: solo mode --
+
+    def _solo_mode_registry(self):
+        """The held solo mode registry (M-142).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer solo mode book record
+        by record, beside the session dogfood registry
+        (M-141) and never in it: the solo mode book is
+        one book of capability records - one capability
+        the single coder holds, the member who
+        amplifies it when the crew is on and the gain
+        that amplification brings - held under the
+        book this slice names. It is created on first
+        use, so an agent whose ``__init__`` never ran
+        still holds exactly one. The attribute is
+        named ``_solo_mode_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_solo_mode_store", None)
+        if registry is None:
+            from ..core.solo_mode import SoloRegistry
+            registry = SoloRegistry()
+            self._solo_mode_store = registry
+        return registry
+
+    def solo_mode(self):
+        """The session's solo mode book, as data (M-142).
+
+        The held registry's book when the session
+        holds any capability record - the records the
+        session has actually gathered (records held
+        one by one, before any whole book stands
+        recorded, stand under a session solo mode book
+        composed here in the agent layer, so a later
+        whole book recorded under its own title is
+        never refused by a shim title at the registry)
+        - otherwise the book recorded whole through
+        :meth:`record_solo_book`, or the shipped
+        example solo mode book until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.solo_mode import SoloBook, load_solo_mode
+        registry = self._solo_mode_registry()
+        if registry.list_capabilities():
+            try:
+                book = registry.book()
+            except ValueError:
+                return SoloBook(
+                    title="Session solo mode book",
+                    entries=registry.list_capabilities())
+            held = getattr(self, "_solo_mode_held", None)
+            if held is not None and held.title == book.title \
+                    and held.capability_ids() == book.capability_ids():
+                return held
+            return book
+        book = getattr(self, "_solo_mode_held", None)
+        if book is None:
+            return load_solo_mode()
+        return book
+
+    def _solo_mode_screen(self) -> str:
+        """The /solo screen for the session's state (M-142).
+
+        Rendered from the held book when one stands,
+        and from the shipped example book while
+        nothing is held.
+        """
+        from ..core import solo_mode as solo_mode_module
+        registry = self._solo_mode_registry()
+        if not registry.list_capabilities():
+            return solo_mode_module.format_solo_mode_screen()
+        return solo_mode_module.format_solo_mode_screen(self.solo_mode())
+
+    def solo_mode_status(self) -> dict[str, Any]:
+        """The solo mode, in plain data (M-142).
+
+        The capability records held this session as
+        plain records, the held book's record (none
+        until a capability record stands held), the
+        session solo mode book's pieces as plain
+        records (the shipped example book - eight
+        capability records at the M-141 slice boundary
+        and its one pinned parity ledger - until
+        records are held), its whole-book record,
+        every report the book derives as plain
+        records, every ledger the book holds as plain
+        records and the ledger derived from the whole
+        book, the records in plain words and the
+        reports and ledger told in plain words, the
+        one screen - rendered from the held book, or
+        from the shipped example book when nothing is
+        held yet - and the plain explanation. Reading
+        registers and publishes nothing, disables no
+        crew, spawns no agent, runs no agent, calls no
+        model and persists nothing: this layer holds
+        the solo mode as data only, and no record here
+        claims a crew was ever switched off or on.
+        There is no Part VIII board yet; the screen is
+        where the solo mode is visible.
+        """
+        from ..core import solo_mode as solo_mode_module
+        registry = self._solo_mode_registry()
+        held_caps = registry.list_capabilities()
+        book = self.solo_mode()
+        members: list = []
+        for entry in book.entries:
+            if entry.amplifier is not None \
+                    and entry.amplifier not in members:
+                members.append(entry.amplifier)
+        reports = [
+            solo_mode_module.derive_report(book.entries, member)
+            for member in members]
+        ledger = solo_mode_module.derive_ledger(book.entries)
+        return {
+            "capabilities": [c.to_record() for c in held_caps],
+            "book": (book.to_record() if held_caps else None),
+            "solo_mode": {
+                "title": book.title,
+                "capabilities": [c.to_record() for c in book.entries],
+            },
+            "book_record": solo_mode_module.book_record(book),
+            "reports": [r.to_record() for r in reports],
+            "ledgers": [led.to_record() for led in book.ledgers],
+            "ledger": ledger.to_record(),
+            "plain_words": [
+                solo_mode_module.plain_words(entry) for entry in book.entries],
+            "report_plain_words": solo_mode_module.report_plain_words(book),
+            "ledger_plain_words": solo_mode_module.ledger_plain_words(book),
+            "screen": self._solo_mode_screen(),
+            "explanation": solo_mode_module.PLAIN_EXPLANATION,
+        }
+
+    def get_solo_capability(self, capability_id: Any):
+        """The one capability record an id names (M-142).
+
+        The session's held registry answers when the
+        session holds any capability record; otherwise
+        the shipped example solo mode book answers (or
+        the book recorded whole for the session). A
+        held session answers for its own book alone: a
+        record the held book holds no record for
+        raises KeyError, with no silent fall back to
+        the example, exactly as the pure layer
+        answers. Reading registers and publishes
+        nothing.
+        """
+        registry = self._solo_mode_registry()
+        if registry.list_capabilities():
+            return registry.get_capability(capability_id)
+        return self.solo_mode().capability_for(capability_id)
+
+    def solo_mode_report(self, member: Any):
+        """The report derived for one member (M-142).
+
+        The report is derived at call time from the
+        capability records that member amplifies - the
+        held registry's records when the session holds
+        any capability record, otherwise the shipped
+        example book's records (or the records of the
+        book recorded whole for the session) - so its
+        counts and account are the records' own shape,
+        read at call time. A held session answers for
+        its own book alone: a member the held book
+        holds no amplification for raises KeyError,
+        with no silent fall back to the example.
+        Reading registers and publishes nothing.
+        """
+        from ..core.solo_mode import derive_report as _derive_report
+        registry = self._solo_mode_registry()
+        if registry.list_capabilities():
+            return registry.report_for(member)
+        return _derive_report(self.solo_mode(), member)
+
+    def parity_ledger(self):
+        """The parity ledger derived for the whole book (M-142).
+
+        The ledger is derived at call time from the
+        whole book of capability records - the held
+        registry's records when the session holds any
+        capability record, otherwise the shipped
+        example book's records (or the records of the
+        book recorded whole for the session) - so its
+        rows are the per-member reports of those
+        records and its totals are the records' own
+        counts, read at call time. Reading registers
+        and publishes nothing.
+        """
+        from ..core.solo_mode import derive_ledger as _derive_ledger
+        registry = self._solo_mode_registry()
+        if registry.list_capabilities():
+            return registry.ledger()
+        return _derive_ledger(self.solo_mode().entries)
+
+    def register_solo_capability(
+            self, capability: Any) -> dict[str, Any]:
+        """Hold one capability record for the session (M-142).
+
+        The record is held by the pure registry under
+        its id or the deterministic solo-N id - a
+        record id already standing here refuses, and
+        a refusal holds nothing new and publishes
+        nothing. A held record is published as its
+        ``capability_record`` session-news record
+        through the checkpoint road, so a record given
+        is news. Returns the held record, its news
+        record, the screen rendered after it landed,
+        and the plain explanation. Holding a record
+        disables no crew, spawns no agent, runs no
+        agent, calls no model and persists nothing:
+        the registry holds the record as data, and a
+        report or ledger stays a derivation read off
+        the held records at call time.
+        """
+        from ..core import solo_mode as solo_mode_module
+        registry = self._solo_mode_registry()
+        held = registry.register_capability(capability)
+        record = solo_mode_module.capability_record(held)
+        self._publish_solo_mode_record(record)
+        return {
+            "capability": held.to_record(),
+            "record": record,
+            "screen": self._solo_mode_screen(),
+            "explanation": solo_mode_module.PLAIN_EXPLANATION,
+        }
+
+    def register_solo_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole solo mode book for the session (M-142).
+
+        Every capability record of the book is held by
+        the pure registry, in book order - the first
+        book held sets the registry's title, a later
+        book under a different title refuses, as does
+        a book naming a held record id. The book's
+        reports and its ledger are derivations, not
+        holdings, and are not held. Every record is
+        published as its ``capability_record`` session
+        news, in book order. Returns the held book,
+        its records, their news records, the count of
+        records held, the screen, and the explanation.
+        Registering disables no crew, spawns no agent,
+        runs no agent, calls no model and persists
+        nothing.
+        """
+        from ..core import solo_mode as solo_mode_module
+        validated = solo_mode_module.build_book(book)
+        registry = self._solo_mode_registry()
+        registry.register_book(validated)
+        records = [
+            solo_mode_module.capability_record(entry)
+            for entry in validated.entries]
+        for record in records:
+            self._publish_solo_mode_record(record)
+        return {
+            "book": validated.to_record(),
+            "capabilities": [e.to_record() for e in validated.entries],
+            "records": records,
+            "count": len(records),
+            "screen": self._solo_mode_screen(),
+            "explanation": solo_mode_module.PLAIN_EXPLANATION,
+        }
+
+    def record_solo_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole solo mode book for the session (M-142).
+
+        With no book named, the shipped example solo
+        mode book is recorded through the pure layer -
+        eight capability records at the M-141 slice
+        boundary and its one pinned parity ledger. A
+        book loaded from a file (the pure layer's
+        ``load_solo_mode_file`` road) may be passed
+        instead, so a real solo mode book is recorded
+        as it stands. Every record is held and
+        published as its ``capability_record`` session
+        news, in book order; the book is remembered
+        whole as the session's - its held ledger and
+        all - and the same book recorded twice
+        refuses - fingerprinted on its capability ids
+        and title - a book is recorded once, never
+        duplicated into the session. Returns the held
+        book, its records, their news records, the
+        count of records held, the screen, and the
+        explanation. Recording disables no crew,
+        spawns no agent, runs no agent, calls no
+        model and persists nothing.
+        """
+        from ..core import solo_mode as solo_mode_module
+        book = book if book is not None \
+            else solo_mode_module.load_solo_mode()
+        validated = solo_mode_module.build_book(book)
+        fingerprint = (tuple(validated.capability_ids()), validated.title)
+        recorded = getattr(self, "_solo_mode_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._solo_mode_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this solo mode book is already recorded for "
+                "the session; a book is recorded once")
+        registry = self._solo_mode_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._solo_mode_held = validated
+        records = [
+            solo_mode_module.capability_record(entry)
+            for entry in validated.entries]
+        for record in records:
+            self._publish_solo_mode_record(record)
+        return {
+            "book": validated.to_record(),
+            "capabilities": [e.to_record() for e in validated.entries],
+            "records": records,
+            "count": len(records),
+            "screen": solo_mode_module.format_solo_mode_screen(validated),
+            "explanation": solo_mode_module.PLAIN_EXPLANATION,
+        }
+
+    def report_solo_mode(self) -> dict[str, Any]:
+        """Render the session solo mode book, as a report (M-142).
+
+        The book - the held registry's book when the
+        session holds any capability record, otherwise
+        the shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone: its capability
+        records, its reports, its ledger and its one
+        screen. Rendering registers and publishes
+        nothing, disables no crew, spawns no agent,
+        runs no agent, calls no model and persists
+        nothing: the agent layer renders the solo mode
+        as data. Returns the book, its records, reports
+        and ledgers as plain records, the rendered
+        records, reports and ledger, the screen, and
+        the plain explanation.
+        """
+        from ..core import solo_mode as solo_mode_module
+        book = self.solo_mode()
+        members: list = []
+        for entry in book.entries:
+            if entry.amplifier is not None \
+                    and entry.amplifier not in members:
+                members.append(entry.amplifier)
+        reports = [
+            solo_mode_module.derive_report(book.entries, member)
+            for member in members]
+        return {
+            "book": book.to_record(),
+            "capabilities": [e.to_record() for e in book.entries],
+            "reports": [r.to_record() for r in reports],
+            "ledgers": [led.to_record() for led in book.ledgers],
+            "ledger": solo_mode_module.derive_ledger(
+                book.entries).to_record(),
+            "capabilities_text": solo_mode_module.format_capabilities(book),
+            "report_text": solo_mode_module.format_report(book),
+            "ledger_text": solo_mode_module.format_ledger(book),
+            "screen": self._solo_mode_screen(),
+            "explanation": solo_mode_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_solo_mode_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one capability record as session news (M-142).
+
+        The pure layer's ``capability_record`` is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once, under its own capability id. A foreign
+        record type is never published on this road.
+        """
+        if record.get("type") != "solo_capability":
+            return
+        announced = getattr(self, "_solo_mode_announced", None)
+        if announced is None:
+            announced = set()
+            self._solo_mode_announced = announced
+        key = ("solo_capability", record.get("capability_id"))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
