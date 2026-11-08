@@ -13839,6 +13839,472 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-129: heterogeneous crews --
+
+    def _hetero_crew_registry(self):
+        """The held heterogeneous-crew registry (M-129).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer assignments, budgets and
+        readings in the order they were given, beside
+        the session merge-discipline registry (M-128)
+        and never in it: the crew's routes are the
+        coordinator's evidence, held under the
+        heterogeneity this slice names. It is created
+        on first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named ``_hetero_crew_store``,
+        never the method's own name (the M-108
+        lesson).
+        """
+        registry = getattr(self, "_hetero_crew_store", None)
+        if registry is None:
+            from ..core.heterogeneous_crews import (
+                HeterogeneousCrewRegistry,
+            )
+            registry = HeterogeneousCrewRegistry()
+            self._hetero_crew_store = registry
+        return registry
+
+    def hetero_status(self) -> dict[str, Any]:
+        """The heterogeneous crew, in plain data (M-129).
+
+        The assignments, budgets and readings held
+        this session as plain records, the session
+        plan's evidence as plain records (the shipped
+        example plan - four assignments, two budgets
+        and two readings among the M-121 casting, kept
+        by the architect - until a plan is recorded),
+        the derived report as its one report record,
+        the one screen - rendered from the held
+        registry, or from the shipped example plan
+        when nothing is held yet - and the plain
+        explanation. Reading registers and publishes
+        nothing, spawns no crew, calls no provider
+        and performs no routing or billing: this
+        layer holds the crew as data only. There is
+        no Part VIII board yet; the screen is where
+        the verdicts are visible.
+        """
+        from ..core import heterogeneous_crews
+
+        registry = self._hetero_crew_registry()
+        held_assignments = registry.list_assignments()
+        held_budgets = registry.list_budgets()
+        held_readings = registry.list_readings()
+        plan = self.heterogeneous_crew()
+        held = held_assignments or held_budgets or held_readings
+        screen = heterogeneous_crews.format_hetero_screen(registry) \
+            if held \
+            else heterogeneous_crews.format_hetero_screen()
+        return {
+            "assignments": [
+                a.to_record() for a in held_assignments],
+            "budgets": [b.to_record() for b in held_budgets],
+            "readings": [r.to_record() for r in held_readings],
+            "plan": {
+                "keeper": plan.keeper,
+                "assignments": [
+                    a.to_record() for a in plan.assignments],
+                "budgets": [b.to_record() for b in plan.budgets],
+                "readings": [
+                    r.to_record() for r in plan.readings],
+            },
+            "report": heterogeneous_crews.report_record(
+                self.hetero_report()),
+            "screen": screen,
+            "explanation": heterogeneous_crews.PLAIN_EXPLANATION,
+        }
+
+    def get_hetero_assignment(self, assignment_id: Any):
+        """The one held assignment an id names (M-129).
+
+        An assignment the session does not hold raises
+        KeyError, exactly as the pure registry answers.
+        """
+        return self._hetero_crew_registry().get_assignment(
+            assignment_id)
+
+    def get_hetero_budget(self, budget_id: Any):
+        """The one held budget an id names (M-129).
+
+        A budget the session does not hold raises
+        KeyError, exactly as the pure registry answers.
+        """
+        return self._hetero_crew_registry().get_budget(budget_id)
+
+    def get_hetero_reading(self, reading_id: Any):
+        """The one held usage reading an id names (M-129).
+
+        A reading the session does not hold raises
+        KeyError, exactly as the pure registry answers.
+        """
+        return self._hetero_crew_registry().get_reading(reading_id)
+
+    def find_hetero_verdicts(self, member: Any):
+        """Every verdict on one member's route (M-129).
+
+        The session's held registry answers when the
+        session holds any evidence; otherwise the
+        shipped example plan answers. A member held
+        in no verdict in the answering set raises
+        KeyError. Reading registers and publishes
+        nothing.
+        """
+        from ..core.crew_members import normalize_member_id
+        from ..core.heterogeneous_crews import (
+            load_heterogeneous_crew,
+        )
+
+        wanted = normalize_member_id(member)
+        registry = self._hetero_crew_registry()
+        if registry.list_assignments() or registry.list_budgets() \
+                or registry.list_readings():
+            found = registry.for_member(wanted)
+        else:
+            found = load_heterogeneous_crew().report().for_member(
+                wanted)
+        if not found:
+            raise KeyError(
+                f"no verdict stands on the member's route: "
+                f"{wanted!r}")
+        return found
+
+    def heterogeneous_crew(self):
+        """The session's crew plan, as data (M-129).
+
+        The plan the session recorded through
+        :meth:`record_heterogeneous_crew`, or the
+        shipped example plan until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.heterogeneous_crews import (
+            load_heterogeneous_crew,
+        )
+
+        plan = getattr(self, "_hetero_crew_held", None)
+        if plan is None:
+            return load_heterogeneous_crew()
+        return plan
+
+    def hetero_report(self):
+        """The report the plan's evidence yields (M-129).
+
+        Derived by the pure layer from what the
+        session holds - the held registry when the
+        session holds any evidence, otherwise the
+        shipped example plan - every verdict the
+        evidence holds, in judgement order:
+        unknown-route verdicts, then missing-budget
+        verdicts, then over-budget verdicts, with
+        every route's state beside them. Reading
+        registers and publishes nothing: publishing
+        is :meth:`report_hetero`' road.
+        """
+        from ..core.heterogeneous_crews import (
+            load_heterogeneous_crew,
+        )
+
+        registry = self._hetero_crew_registry()
+        if registry.list_assignments() or registry.list_budgets() \
+                or registry.list_readings():
+            return registry.report()
+        return load_heterogeneous_crew().report()
+
+    def register_hetero_assignment(
+            self, assignment: Any) -> dict[str, Any]:
+        """Hold one assignment for the session (M-129).
+
+        The assignment is held by the pure registry
+        under its id or a fresh deterministic one - a
+        supplied id already held refuses, a member
+        assigned twice refuses, and a refusal holds
+        nothing new and publishes nothing - and a
+        held assignment is published as its
+        ``assignment_record`` session-news record
+        through the checkpoint road, so evidence
+        given is news with its shape attached.
+        Returns the held assignment, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding an assignment
+        spawns no crew and calls no provider: the
+        registry holds the evidence as data.
+        """
+        from ..core import heterogeneous_crews
+
+        registry = self._hetero_crew_registry()
+        held = registry.register_assignment(assignment)
+        record = heterogeneous_crews.assignment_record(held)
+        self._publish_hetero_record(record)
+        return {
+            "assignment": held.to_record(),
+            "record": record,
+            "screen": heterogeneous_crews.format_hetero_screen(
+                registry),
+            "explanation": heterogeneous_crews.PLAIN_EXPLANATION,
+        }
+
+    def register_hetero_budget(
+            self, budget: Any) -> dict[str, Any]:
+        """Hold one Part V budget for the session (M-129).
+
+        The budget is held by the pure registry under
+        its own M-107 budget id - a budget naming no
+        id refuses, an id already held refuses, and a
+        refusal holds nothing new. Budgets are the
+        M-107 layer's own records, so holding one
+        publishes no session news on this slice's
+        roads: the news this slice publishes is its
+        assignments, readings, verdicts and reports.
+        Returns the held budget, the screen rendered
+        after it landed, and the plain explanation.
+        """
+        from ..core import heterogeneous_crews
+
+        registry = self._hetero_crew_registry()
+        held = registry.register_budget(budget)
+        return {
+            "budget": held.to_record(),
+            "screen": heterogeneous_crews.format_hetero_screen(
+                registry),
+            "explanation": heterogeneous_crews.PLAIN_EXPLANATION,
+        }
+
+    def register_hetero_reading(
+            self, reading: Any) -> dict[str, Any]:
+        """Hold one usage reading for the session (M-129).
+
+        The reading is held by the pure registry
+        under its id or a fresh deterministic one - a
+        supplied id already held refuses, two
+        readings for one member refuse, and a refusal
+        holds nothing new and publishes nothing - and
+        a held reading is published as its
+        ``reading_record`` session-news record
+        through the checkpoint road. Returns the held
+        reading, its news record, the screen rendered
+        after it landed, and the plain explanation.
+        Holding a reading bills nothing: the registry
+        holds the evidence as data.
+        """
+        from ..core import heterogeneous_crews
+
+        registry = self._hetero_crew_registry()
+        held = registry.register_reading(reading)
+        record = heterogeneous_crews.reading_record(held)
+        self._publish_hetero_record(record)
+        return {
+            "reading": held.to_record(),
+            "record": record,
+            "screen": heterogeneous_crews.format_hetero_screen(
+                registry),
+            "explanation": heterogeneous_crews.PLAIN_EXPLANATION,
+        }
+
+    def record_heterogeneous_crew(
+            self, plan: Any = None) -> dict[str, Any]:
+        """Record a whole crew plan for the session (M-129).
+
+        With no plan named, the shipped example plan
+        is recorded through the pure layer - four
+        assignments, two budgets and two readings
+        among the M-121 casting, kept by the
+        architect. A plan loaded from a file (the
+        pure layer's ``load_heterogeneous_crew_file``
+        road) may be passed instead, so a real crew
+        plan is recorded as it stands. Every budget,
+        assignment and reading is held in plan order;
+        every assignment and reading is published as
+        its ``assignment_record`` / ``reading_record``
+        session news, deduped per evidence id (the
+        budgets are the M-107 layer's own records and
+        are held without news, exactly as
+        :meth:`register_hetero_budget` holds one);
+        the plan is remembered as the session's plan,
+        and the same plan recorded twice refuses - a
+        plan is recorded once, never duplicated into
+        the session. Returns the held assignments,
+        budgets and readings, their news records, the
+        count of evidence held, the screen, and the
+        explanation. Recording spawns no crew, calls
+        no provider and bills nothing.
+        """
+        from ..core import heterogeneous_crews
+
+        plan = plan if plan is not None \
+            else heterogeneous_crews.load_heterogeneous_crew()
+        fingerprint = (
+            tuple((a.member, a.provider, a.model, a.budget_id)
+                  for a in plan.assignments),
+            tuple((b.budget_id, b.scope, b.token_limit,
+                    b.cost_limit, b.time_limit_seconds,
+                    b.command_limit) for b in plan.budgets),
+            tuple((r.member, r.usage.tokens_used,
+                    r.usage.cost_used, r.usage.time_used_seconds,
+                    r.usage.commands_used)
+                  for r in plan.readings))
+        recorded = getattr(self, "_hetero_crew_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._hetero_crew_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this crew plan is already recorded for "
+                "the session; a plan is recorded once")
+        registry = self._hetero_crew_registry()
+        assignments, budgets, readings = registry.register_plan(plan)
+        recorded.add(fingerprint)
+        self._hetero_crew_held = plan
+        records = [
+            heterogeneous_crews.assignment_record(a)
+            for a in assignments]
+        records += [
+            heterogeneous_crews.reading_record(r) for r in readings]
+        for record in records:
+            self._publish_hetero_record(record)
+        return {
+            "assignments": [a.to_record() for a in assignments],
+            "budgets": [b.to_record() for b in budgets],
+            "readings": [r.to_record() for r in readings],
+            "records": records,
+            "count": len(assignments) + len(budgets) + len(readings),
+            "screen": heterogeneous_crews.format_hetero_screen(
+                registry),
+            "explanation": heterogeneous_crews.PLAIN_EXPLANATION,
+        }
+
+    def report_hetero(self) -> dict[str, Any]:
+        """Report the crew's verdicts to the coordinator (M-129).
+
+        The report is derived from what the session
+        holds by :meth:`hetero_report` - every verdict
+        the evidence holds, in judgement order - and
+        published as session news: each verdict as its
+        ``verdict_record``, then the report itself as
+        ONE ``report_record`` session event holding
+        every verdict and every route, never one
+        report per verdict. The announcements are
+        deduped: reporting again while the same
+        evidence is held publishes nothing new, and a
+        report grown by newly held evidence announces
+        as the new report it is. Returns the report,
+        its news record, the count of verdicts, the
+        verdicts screen, and the plain explanation.
+        Reporting spawns no crew and calls no
+        provider: the coordinator acts on the verdicts
+        through later roads.
+        """
+        from ..core import heterogeneous_crews
+
+        report = self.hetero_report()
+        for verdict in report.verdicts:
+            self._publish_hetero_verdict_record(
+                heterogeneous_crews.verdict_record(verdict))
+        record = heterogeneous_crews.report_record(report)
+        self._publish_hetero_report_record(record)
+        return {
+            "report": report.to_record(),
+            "record": record,
+            "count": len(report.verdicts),
+            "screen": heterogeneous_crews.format_verdicts(report),
+            "explanation": heterogeneous_crews.PLAIN_EXPLANATION,
+        }
+
+    def _publish_hetero_record(self, record: dict[str, Any]) -> None:
+        """Publish one piece of crew evidence as session news (M-129).
+
+        The pure layer's ``assignment_record`` and
+        ``reading_record`` are journaled through the
+        same checkpoint road every sibling slice uses,
+        when a session is attached. Each piece of
+        evidence is announced at most once, under its
+        own id. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") == "hetero_assignment":
+            key = ("hetero_assignment", record.get("assignment_id"))
+        elif record.get("type") == "hetero_reading":
+            key = ("hetero_reading", record.get("reading_id"))
+        else:
+            return
+        announced = getattr(self, "_hetero_announced", None)
+        if announced is None:
+            announced = set()
+            self._hetero_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_hetero_verdict_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one verdict as session news (M-129).
+
+        The pure layer's ``verdict_record`` is
+        journaled through the same checkpoint road,
+        when a session is attached. Each verdict is
+        announced at most once: the announcement is
+        keyed by the verdict's whole shape (kind,
+        member, provider, model, title), so the same
+        judgement derived again from the same evidence
+        is not news twice. A foreign record type is
+        never published on this road.
+        """
+        if record.get("type") != "hetero_verdict":
+            return
+        announced = getattr(self, "_hetero_verdict_announced", None)
+        if announced is None:
+            announced = set()
+            self._hetero_verdict_announced = announced
+        key = (
+            record.get("kind"), record.get("member"),
+            record.get("provider"), record.get("model"),
+            record.get("title"))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_hetero_report_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one hetero report as session news (M-129).
+
+        The pure layer's ``report_record`` is journaled
+        through the same checkpoint road, when a
+        session is attached - ONE event holding every
+        verdict and every route, so the coordinator is
+        told once. Each report is announced at most
+        once: the announcement is keyed by the
+        report's verdicts and routes, so a report
+        grown by newly held evidence announces again
+        as the new report it is. A foreign record type
+        is never published on this road.
+        """
+        if record.get("type") != "hetero_report":
+            return
+        announced = getattr(self, "_hetero_report_announced", None)
+        if announced is None:
+            announced = set()
+            self._hetero_report_announced = announced
+        key = (
+            tuple(
+                (v.get("kind"), v.get("member"),
+                 v.get("provider"), v.get("model"),
+                 v.get("title"))
+                for v in record.get("verdicts", [])),
+            tuple(
+                (route.get("member"), route.get("provider"),
+                 route.get("model"), route.get("budget_status"))
+                for route in record.get("routes", [])))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""

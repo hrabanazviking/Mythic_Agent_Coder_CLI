@@ -291,6 +291,8 @@ class CommandHandler:
                 self._handle_deadlock(args)
             elif cmd == "/merge":
                 self._handle_merge(args)
+            elif cmd == "/hetero":
+                self._handle_hetero(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -3741,6 +3743,70 @@ class CommandHandler:
             else:
                 text = format_verdicts(
                     primary.find_verdicts(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_hetero(self, args: str):
+        """M-129: /hetero - heterogeneous crews.
+
+        ``/hetero`` shows the verdicts of the crew
+        plan held this session (the shipped example
+        plan - four assignments, two budgets and two
+        readings among the M-121 casting, yielding
+        exactly three verdicts, one of each kind -
+        when none is held yet); ``/hetero show
+        <member>`` (or a bare member id) shows one
+        member's verdicts; ``/hetero routes`` shows
+        every route's state; ``/hetero kinds`` shows
+        the verdict kinds. Reading registers and
+        publishes nothing as session news: evidence
+        is held only when it is given through the
+        agent layer, and held evidence is published
+        as a hetero_assignment / hetero_reading
+        session event, each verdict as a
+        hetero_verdict session event and each report
+        as ONE hetero_report session event. This
+        road spawns no crew, calls no real provider
+        and performs no routing or billing: the
+        registry holds the evidence as data, and
+        there is no Part VIII board yet - this
+        surface is where the verdicts are visible.
+        The registry is session state held by the
+        agent; it is not a stored setting.
+        """
+        from ..core.heterogeneous_crews import (
+            format_kinds,
+            format_routes,
+            format_verdicts,
+            parse_hetero_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_hetero_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "kinds":
+                text = format_kinds()
+            elif action == "routes":
+                text = format_routes(primary.hetero_report())
+            elif target is None:
+                text = primary.hetero_status()["screen"]
+            else:
+                text = format_verdicts(
+                    primary.find_hetero_verdicts(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
