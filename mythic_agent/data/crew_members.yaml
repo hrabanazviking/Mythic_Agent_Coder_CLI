@@ -1,0 +1,77 @@
+schema: mythic.crew_members/1
+slice: M-121
+part: 6
+part_title: Agents as files
+casting_note: |
+  The crew as data: every crew member is one record in this
+  file - a name, an office (the shipped offices of
+  mythic_agent/core/role_routing.py), a model route (null
+  means the member rides the session default, exactly as the
+  shipped role_routes config does today: it names no office),
+  the tools the member works with (names from the shipped
+  tool vocabulary), a posture (a shipped permission-profile
+  id), and the character file that carries the member's
+  voice, in default_agent_characters/. These eight records
+  are the first castings: they are the existing characters,
+  the same names DEFAULT_SUBAGENTS ships in code, now held
+  as data. A new crew member is a new record in a file like
+  this one - or a new file in this shape - never a code
+  change. The character prose itself stays in the character
+  files; this file names them, it does not copy them.
+members:
+- id: polymath
+  name: "Alfhild Nýxra Gridhex"
+  office: polymath
+  model_route: null
+  tools: [read_file, write_file, run_command, list_dir, replace_file_content, grep_search, delegate_task]
+  posture: trusted-forge
+  character: "default_agent_characters/Alfhild_Nyxra_Gridhex.md"
+- id: architect
+  name: "Architect - Rúnhild Svartdóttir"
+  office: architect
+  model_route: null
+  tools: [read_file, list_dir, grep_search, knowledge_db_semantic_search]
+  posture: read-only-scout
+  character: "default_agent_characters/Architect-Runhild_Svartdottir.md"
+- id: auditor
+  name: "Auditor - Sólrún Hvítmynd"
+  office: auditor
+  model_route: null
+  tools: [read_file, list_dir, grep_search, run_command]
+  posture: read-only-scout
+  character: "default_agent_characters/Auditor-Solrun_Hvitmynd.md"
+- id: cartographer
+  name: "Cartographer - Védis Eikleið"
+  office: cartographer
+  model_route: null
+  tools: [read_file, list_dir, grep_search, knowledge_db_semantic_search, knowledge_db_sql_query]
+  posture: read-only-scout
+  character: "default_agent_characters/Cartographer-Vedis_Eikleidh.md"
+- id: forge_worker
+  name: "Forge Worker - Eldra Járnsdóttir"
+  office: forge_worker
+  model_route: null
+  tools: [read_file, write_file, run_command, list_dir, replace_file_content, grep_search]
+  posture: trusted-forge
+  character: "default_agent_characters/Forge_Worker-Eldra_Jarnsdottir.md"
+- id: scribe
+  name: "Scribe - Eirwyn Rúnblóm"
+  office: scribe
+  model_route: null
+  tools: [read_file, write_file, list_dir, replace_file_content, core_memory_append]
+  posture: trusted-forge
+  character: "default_agent_characters/Scribe-Eirwyn_Runblom.md"
+- id: skald
+  name: "Skald - Sigrún Ljósbrá"
+  office: skald
+  model_route: null
+  tools: [read_file, list_dir, grep_search]
+  posture: read-only-scout
+  character: "default_agent_characters/Skald-Sigrun_Ljosbra.md"
+- id: guardian
+  name: "Thor Guardian"
+  office: guardian
+  model_route: null
+  tools: [read_file, list_dir, grep_search, run_command]
+  posture: read-only-scout
+  character: "default_agent_characters/Thor_Guardian.md"

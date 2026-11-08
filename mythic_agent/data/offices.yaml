@@ -1,0 +1,131 @@
+schema: mythic.offices/1
+slice: M-122
+part: 6
+part_title: Agents as files
+formal_note: |
+  The six offices formalised: the roadmap for this slice
+  names six working offices - Skald, Architect, Forge
+  Worker, Auditor, Cartographer, Scribe - and this file
+  holds each one as validated data: its duties, the tools
+  it works with, what it takes in, what it produces, and
+  its hand-off contracts (who it hands work to, with what
+  artifact, under what condition). Every office id here is
+  a shipped office of mythic_agent/core/role_routing.py,
+  composed with by name - this file invents no office.
+  Two shipped crew offices are NOT among the six and are
+  not formalised here: polymath and guardian remain crew
+  offices (the M-121 casting casts members into them)
+  without a formal charter in this file, and primary is
+  the lead session itself, never a working office. Each
+  office's title and purpose are the role-routing layer's
+  own words, and its tools are exactly the tools the
+  M-121 casting gives the member holding that office -
+  the formalisation describes the shipped crew, it does
+  not re-cast it. Offices are held in the roadmap's own
+  order for this slice.
+offices:
+- id: skald
+  title: "Skald"
+  focus: "intent & vision"
+  purpose: "High-level vision, philosophy, elegant naming and framing concepts."
+  duties:
+  - "State the intent behind a piece of work in plain words before any design or building starts."
+  - "Hold the vision of the finished thing and name what success looks like."
+  - "Frame and name new concepts so the whole crew uses one word for one thing."
+  tools: [read_file, list_dir, grep_search]
+  inputs: [a request in plain words, recalled records from the Scribe]
+  outputs: [an intent brief, a research brief]
+  handoffs:
+  - to: architect
+    artifact: "the intent brief - what is wanted, why, and what done looks like"
+    condition: "the intent is stated plainly enough that the Architect can design from it without guessing"
+  - to: cartographer
+    artifact: "the research brief - the questions the work needs answered before design"
+    condition: "the questions are named explicitly, not implied"
+- id: architect
+  title: "Architect"
+  focus: "design"
+  purpose: "Boundaries, domain ownership, overall structure and refactoring strategy — the deep thinker."
+  duties:
+  - "Turn an intent brief into a design: boundaries, parts, and how the parts meet."
+  - "Decide which existing roads a design composes with instead of building a second one."
+  - "Hold the overall structure as work lands, and name when a change breaks it."
+  tools: [read_file, list_dir, grep_search, knowledge_db_semantic_search]
+  inputs: [an intent brief from the Skald, a map and findings from the Cartographer]
+  outputs: [a design plan, a mapping request]
+  handoffs:
+  - to: forge_worker
+    artifact: "the design plan - the parts to build, their order, and the checks each part must pass"
+    condition: "the plan is complete enough to build from without a further design decision"
+  - to: cartographer
+    artifact: "the mapping request - the relationships and dependencies the design still needs charted"
+    condition: "the uncharted ground is named explicitly"
+- id: forge_worker
+  title: "Forge Worker"
+  focus: "build"
+  purpose: "Writing clean working code, tests, boilerplate and mechanical implementation — the fast hand for edits."
+  duties:
+  - "Build exactly what the design plan names, as complete working slices."
+  - "Write and run the tests that prove each built part does what the plan says."
+  - "Send broken or unclear work back with the problem named, never silently patched over."
+  tools: [read_file, write_file, run_command, list_dir, replace_file_content, grep_search]
+  inputs: [a design plan from the Architect, a located-code briefing from the Cartographer, verification findings from the Auditor]
+  outputs: [a built change with its tests, a change summary]
+  handoffs:
+  - to: auditor
+    artifact: "the built change with its tests - what was built and how it was checked"
+    condition: "the change is complete and its tests have been run, with the results stated"
+  - to: scribe
+    artifact: "the change summary - what changed, where, and why"
+    condition: "the summary is written when the change is handed over, not reconstructed later"
+- id: auditor
+  title: "Auditor"
+  focus: "verify"
+  purpose: "Finding bugs, checking invariants, running tests and exposing contradictions with reality."
+  duties:
+  - "Check built work against the design and the intent, and run its tests independently."
+  - "Hunt for bugs, broken invariants, and claims that do not match reality."
+  - "Give a plain verdict: what passed, what failed, and what must be repaired."
+  tools: [read_file, list_dir, grep_search, run_command]
+  inputs: [a built change with its tests from the Forge Worker]
+  outputs: [verification findings, a verification verdict]
+  handoffs:
+  - to: forge_worker
+    artifact: "the verification findings - each failure named with the evidence for it"
+    condition: "every failed check is named; a pass with unnamed failures is never handed over"
+  - to: scribe
+    artifact: "the verification verdict - the plain outcome of the checks"
+    condition: "the verdict is recorded whether the work passed or failed"
+- id: cartographer
+  title: "Cartographer"
+  focus: "map & research"
+  purpose: "Mapping relationships, data flows and dependencies; the crew's scout for searches and overviews."
+  duties:
+  - "Map how the parts of a codebase relate: data flows, dependencies, and callers."
+  - "Research the questions an intent or a design raises and report what is actually there."
+  - "Keep the map honest: chart what exists, never what was hoped for."
+  tools: [read_file, list_dir, grep_search, knowledge_db_semantic_search, knowledge_db_sql_query]
+  inputs: [a research brief from the Skald, a mapping request from the Architect]
+  outputs: [a map and findings, a located-code briefing]
+  handoffs:
+  - to: architect
+    artifact: "the map and findings - the charted relationships and the answers to the research brief"
+    condition: "the findings name their evidence; uncharted ground is marked as uncharted"
+  - to: forge_worker
+    artifact: "the located-code briefing - where the work will land and what already lives there"
+    condition: "every location named in the briefing has been read, not guessed"
+- id: scribe
+  title: "Scribe"
+  focus: "memory & docs"
+  purpose: "Writing and maintaining documentation, changelogs and task summaries; preserving continuity."
+  duties:
+  - "Write down what was decided, built, and verified, in the project's own records."
+  - "Keep documentation and changelogs matching the work as it actually landed."
+  - "Hold the crew's memory so a later session can pick the work up without guessing."
+  tools: [read_file, write_file, list_dir, replace_file_content, core_memory_append]
+  inputs: [a change summary from the Forge Worker, a verification verdict from the Auditor]
+  outputs: [a written record, a recalled record]
+  handoffs:
+  - to: skald
+    artifact: "the recalled record - the relevant prior decisions and outcomes, when new intent is being framed"
+    condition: "the record is recalled from what was written, never reconstructed from memory of memory"

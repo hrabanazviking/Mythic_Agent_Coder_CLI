@@ -728,96 +728,96 @@ slices:
   title: Multi-repo workspaces
   summary: several repos under one session with per-repo policies; cross-repo changes are one change set,
     reviewed whole.
-  status: queued
+  status: done
 - id: M-114
   part: 5
   title: Remote and SSH work
   summary: run the coder against a project on another machine (Mimir, purplelongship) through one connection
     — files and commands stay on that machine.
-  status: queued
+  status: done
 - id: M-115
   part: 5
   title: Offline and degraded grace
   summary: provider down, LSP down, net down — each failure narrows the coder honestly and says what it
     lost.
-  status: queued
+  status: done
 - id: M-116
   part: 5
   title: Approval by phone-sized moments
   summary: 'approvals are single, complete questions with full context (Volmarr''s law for his own Muse,
     applied to his coder): what, where, what it does, one tap.'
-  status: queued
+  status: done
 - id: M-117
   part: 5
   title: Safety regression suite
   summary: every doctrine rule above as a test; the suite is a release gate, not documentation.
-  status: queued
+  status: done
 - id: M-118
   part: 5
   title: Third-party red-team pack
   summary: crafted prompt-injection and tool-abuse attempts (from files, web pages, issues) the coder
     must refuse or defang — run in CI.
-  status: queued
+  status: done
 - id: M-119
   part: 5
   title: Policy as code
   summary: project policies in a checked-in file (postures, jails, hooks) so a team's rules travel with
     the repo.
-  status: queued
+  status: done
 - id: M-120
   part: 5
   title: Part V gate
   summary: an overnight-style autonomous run on the benchmark pack under Trusted Forge — sandbox on, budgets
     on, audit trail complete, zero doctrine violations.
-  status: queued
+  status: done
 - id: M-121
   part: 6
   title: Agents as files
   summary: crew members defined in data (name, office, model route, tools, posture, character) — the existing
     characters become the first castings; new members are files, not code.
-  status: queued
+  status: done
 - id: M-122
   part: 6
   title: The six offices formalised
   summary: Skald (intent & vision), Architect (design), Forge Worker (build), Auditor (verify), Cartographer
     (map & research), Scribe (memory & docs) — duties, tools, and hand-off contracts per office.
-  status: queued
+  status: done
 - id: M-123
   part: 6
   title: Custom offices
   summary: user-defined roles beyond the six (a "Gatekeeper" for security review, a "Benchmarker") with
     the same contract machinery.
-  status: queued
+  status: done
 - id: M-124
   part: 6
   title: Parallel worktrees
   summary: each building crew member works in its own git worktree on its own branch (the house law from
     bitter experience); the coordinator merges — never two writers in one tree.
-  status: queued
+  status: done
 - id: M-125
   part: 6
   title: Task dealing
   summary: a plan's slices are dealt to the crew by office fit and current load; the dealing is visible
     on the board (Part VIII) and re-dealable by the human.
-  status: queued
+  status: done
 - id: M-126
   part: 6
   title: Crew comms
   summary: structured hand-offs (findings, diffs, questions) between members; a member's question to the
     human is batched and asked once, with full context.
-  status: queued
+  status: done
 - id: M-127
   part: 6
   title: Cycle and deadlock detection grown
   summary: delegation cycles, merge conflicts between members, and duplicated work are caught by the coordinator,
     not by the human.
-  status: queued
+  status: done
 - id: M-128
   part: 6
   title: Merge discipline
   summary: member branches merge in slice order with tests at each merge; a red merge stops the line,
     not the whole crew.
-  status: queued
+  status: done
 - id: M-129
   part: 6
   title: Heterogeneous crews
