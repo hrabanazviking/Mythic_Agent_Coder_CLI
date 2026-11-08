@@ -335,6 +335,8 @@ class CommandHandler:
                 self._handle_memory_map(args)
             elif cmd == "/glassbox":
                 self._handle_glassbox(args)
+            elif cmd == "/graphsearch":
+                self._handle_graphsearch(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -5281,6 +5283,67 @@ class CommandHandler:
                 text = format_panel(primary.compaction_glassbox_book())
             else:
                 text = primary.compaction_glassbox_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_graphsearch(self, args: str):
+        """M-152: /graphsearch - retrieval over the code graph.
+
+        ``/graphsearch`` shows the graph retrieval
+        held this session (the shipped example book -
+        one retrieval at the M-151 slice boundary,
+        its semantic seed grown one hop into six
+        connected pieces, with its one pinned panel -
+        when none is held yet); ``/graphsearch node
+        <node-id>`` shows one connected piece;
+        ``/graphsearch seeds`` shows the latest
+        bundle's seeds; ``/graphsearch panel`` shows
+        the panel derived from the latest bundle,
+        its rows in ranked order. Reading registers
+        and publishes nothing as session news:
+        bundles are held only when they are given
+        through the agent's graph-retrieval roads or
+        run over the workspace, and every bundle
+        held for the session is journaled as a
+        graph_retrieval_bundle session event and
+        every derived panel as a
+        graph_retrieval_panel session event. This
+        surface calls no model and edits no code,
+        and there is no Part VIII board yet, so the
+        retrieval is visible on this surface, not
+        on a board.
+        """
+        from ..core.graph_retrieval import (
+            format_node,
+            format_panel,
+            format_seeds,
+            parse_graphsearch_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_graphsearch_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "node":
+                text = format_node(primary.get_graph_retrieval_node(target))
+            elif action == "seeds":
+                text = format_seeds(primary.graph_retrieval_book())
+            elif action == "panel":
+                text = format_panel(primary.graph_retrieval_book())
+            else:
+                text = primary.graph_retrieval_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
