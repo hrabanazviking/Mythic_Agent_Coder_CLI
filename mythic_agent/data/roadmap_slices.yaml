@@ -961,7 +961,7 @@ slices:
   title: Session memory across days
   summary: resumable sessions carry their memory map, open slices, and standing decisions; `--resume`
     restores the *situation*, not just the transcript.
-  status: queued
+  status: done
 - id: M-154
   part: 7
   title: Cross-project memory
