@@ -223,3 +223,9 @@ mythic_agent/agents/llm.py:15131:report_swarm_digest:method
 mythic_agent/core/research_swarms.py:255:_check_short_text:function
 mythic_agent/core/research_swarms.py:684:assignment_for:method
 mythic_agent/core/research_swarms.py:1141:assignments_for:method
+mythic_agent/agents/llm.py:15351:get_panel_review:method
+mythic_agent/agents/llm.py:15436:hold_panel_change:method
+mythic_agent/agents/llm.py:15467:register_panel_review:method
+mythic_agent/agents/llm.py:15500:record_review_panel:method
+mythic_agent/agents/llm.py:15566:report_panel_outcome:method
+mythic_agent/core/review_panels.py:629:review_for:method
