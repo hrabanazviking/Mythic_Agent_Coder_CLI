@@ -23475,6 +23475,459 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-153: session memory across days --
+
+    def _session_memory_registry(self):
+        """The held session-memory registry (M-153).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer situation records one
+        by one, beside the session graph-retrieval
+        registry (M-152) and never in it: the session
+        memory book is one book of situations - each
+        situation's carried memory map, open slices
+        and standing decisions, restored as the
+        situation and never as a transcript replay.
+        It is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly
+        one. The attribute is named
+        ``_session_memory_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_session_memory_store", None)
+        if registry is None:
+            from ..core.session_memory import SessionMemoryRegistry
+            registry = SessionMemoryRegistry()
+            self._session_memory_store = registry
+        return registry
+
+    def session_memory_book(self):
+        """The session's session-memory book, as data (M-153).
+
+        The held registry's book when the session
+        holds any situation - the situations the
+        session has actually gathered (situations held
+        one by one, before any whole book stands
+        recorded, stand under a session session-memory
+        book composed here in the agent layer, so a
+        later whole book recorded under its own title
+        is never refused by a shim title at the
+        registry) - otherwise the book recorded whole
+        through :meth:`record_session_memory_book`,
+        or the shipped example session-memory book
+        until one is recorded. Reading registers and
+        publishes nothing.
+        """
+        from ..core.session_memory import (
+            SessionMemoryBook, load_session_memory)
+        registry = self._session_memory_registry()
+        if registry.list_situations():
+            try:
+                book = registry.book()
+            except ValueError:
+                return SessionMemoryBook(
+                    title="Session memory across days",
+                    situations=registry.list_situations())
+            held = getattr(self, "_session_memory_held", None)
+            if held is not None and held.title == book.title \
+                    and held.situation_ids() == book.situation_ids():
+                return held
+            return book
+        book = getattr(self, "_session_memory_held", None)
+        if book is None:
+            return load_session_memory()
+        return book
+
+    def _session_memory_screen(self) -> str:
+        """The /daymemory screen for the session's state (M-153).
+
+        Rendered from the held book when one stands,
+        and from the shipped example book while
+        nothing is held.
+        """
+        from ..core import session_memory as memory_module
+        registry = self._session_memory_registry()
+        if not registry.list_situations():
+            return memory_module.format_session_memory_screen()
+        return memory_module.format_session_memory_screen(
+            self.session_memory_book())
+
+    def session_memory_status(self) -> dict[str, Any]:
+        """The session-memory account, in plain data (M-153).
+
+        The situations held this session as plain
+        records, the held book's record (none until a
+        situation stands held), the session
+        session-memory book's pieces as plain records
+        (the shipped example book - one situation at
+        the M-152 slice boundary, its session paused
+        at the end of its day with three map facts,
+        two open slices and two standing decisions
+        carried, and its one pinned panel - until
+        situations are held), its whole-book record,
+        the panel derived from the book's latest
+        situation and every panel the book holds as
+        plain records, the latest situation in plain
+        words and the panel told in plain words, the
+        one screen - rendered from the held book, or
+        from the shipped example book when nothing is
+        held yet - and the plain explanation. Reading
+        registers and publishes nothing, calls no
+        model and resumes no live session: this layer
+        holds situations as data only. There is no
+        Part VIII board yet; the screen is where the
+        situation is visible.
+        """
+        from ..core import session_memory as memory_module
+        registry = self._session_memory_registry()
+        held_situations = registry.list_situations()
+        book = self.session_memory_book()
+        latest = book.situations[-1]
+        return {
+            "situations": [s.to_record() for s in held_situations],
+            "book": (book.to_record() if held_situations else None),
+            "session_memory": {
+                "title": book.title,
+                "situations": [s.to_record() for s in book.situations],
+            },
+            "book_record": memory_module.book_record(book),
+            "panel": memory_module.derive_panel(latest).to_record(),
+            "panels": [p.to_record() for p in book.panels],
+            "plain_words": memory_module.plain_words(latest),
+            "panel_plain_words": memory_module.panel_plain_words(book),
+            "screen": self._session_memory_screen(),
+            "explanation": memory_module.PLAIN_EXPLANATION,
+        }
+
+    def get_session_situation(self, situation_id: Any):
+        """The one situation an id names (M-153).
+
+        The session's held registry answers when the
+        session holds any situation; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held
+        session answers for its own book alone: an id
+        the held book holds no situation for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._session_memory_registry()
+        if registry.list_situations():
+            return registry.get_situation(situation_id)
+        return self.session_memory_book().situation_for(situation_id)
+
+    def get_session_memory_note(self, note_id: Any):
+        """The one carried memory note an id names (M-153).
+
+        Read off the session's book - the held
+        registry's book when the session holds any
+        situation, otherwise the shipped example book
+        (or the book recorded whole for the session) -
+        searching its situations in held order. A held
+        session answers for its own book alone: an id
+        no held situation names raises KeyError, with
+        no silent fall back to the example. Reading
+        registers and publishes nothing.
+        """
+        book = self.session_memory_book()
+        for situation in book.situations:
+            try:
+                return situation.note_for(note_id)
+            except KeyError:
+                continue
+        raise KeyError(f"no memory note in the book: {note_id!r}")
+
+    def session_memory_panel(self):
+        """The panel derived for the latest situation (M-153).
+
+        The panel is derived at call time from the
+        session book's latest situation - the held
+        registry's latest when the session holds any
+        situation, otherwise the shipped example
+        book's situation (or the latest situation of
+        the book recorded whole for the session) - so
+        its rows are the pieces carried whole, in
+        panel order, and its totals are the pieces'
+        own counts, read at call time. Reading
+        registers and publishes nothing.
+        """
+        from ..core.session_memory import derive_panel as _derive_panel
+        return _derive_panel(self.session_memory_book().situations[-1])
+
+    def register_session_situation(
+            self, situation: Any) -> dict[str, Any]:
+        """Hold one session situation for the session (M-153).
+
+        The situation is held by the pure registry
+        under its id or the deterministic situation-N
+        id - a situation id already standing here
+        refuses, and a refusal holds nothing new and
+        publishes nothing. A held situation is
+        published as its ``situation_record``
+        session-news record through the checkpoint
+        road, and the panel derived from it as its
+        ``panel_record`` session news, so a situation
+        named into the session is news. Returns the
+        held situation, its news record, the panel
+        and its news record, the screen rendered
+        after it landed, and the plain explanation.
+        Holding a situation calls no model and resumes
+        no live session: the registry holds the
+        situation as data, and the panel stays a
+        derivation read off the held situation at
+        call time.
+        """
+        from ..core import session_memory as memory_module
+        registry = self._session_memory_registry()
+        held = registry.register_situation(situation)
+        situation_news = memory_module.situation_record(held)
+        self._publish_session_memory_record(situation_news)
+        panel = memory_module.derive_panel(held)
+        panel_news = memory_module.panel_record(panel)
+        self._publish_session_memory_record(panel_news)
+        return {
+            "situation": held.to_record(),
+            "situation_news": situation_news,
+            "panel": panel.to_record(),
+            "panel_record": panel_news,
+            "screen": self._session_memory_screen(),
+            "explanation": memory_module.PLAIN_EXPLANATION,
+        }
+
+    def restore_session_situation(
+            self, session_id: Any = None,
+            saved_on: Any = None) -> dict[str, Any]:
+        """Restore one stored session's situation (M-153).
+
+        The shipped session store's own export of the
+        named session (or of this agent's attached
+        session, when none is named) is read through
+        the pure layer's ``situation_from_export``
+        road: the store's own id and message
+        validation judges the export, the transcript
+        is counted and never carried, and the carried
+        pieces are composed from the shipped roads -
+        the session's project memory map book (the
+        M-150 road) read onto carried notes and
+        standing decisions, and the shipped roadmap's
+        next ten queued slices (the M-017 road) read
+        onto open slices. The situation is held and
+        published exactly as a registered situation
+        is. With no session store attached, or no
+        session named and none attached, the restore
+        refuses honestly, holding and publishing
+        nothing. Restoring reads the stored session
+        as data: it attaches and resumes no live
+        session, replays no transcript, calls no
+        model and checkpoints nothing of its own -
+        the held situation's news rides the ordinary
+        checkpoint road, as every sibling slice's
+        news does.
+        """
+        from ..core import session_memory as memory_module
+        store = self._session_store
+        target = session_id if session_id is not None \
+            else self.session_id
+        if store is None or not target:
+            raise ValueError(
+                "no stored session is attached to restore "
+                "a situation from")
+        export = store.export(target)
+        map_book = self.project_memory_map_book()
+        notes = memory_module.notes_from_memory_map(map_book)
+        decisions = memory_module.decisions_from_memory_map(
+            map_book)
+        open_slices = memory_module.open_slices_from_roadmap(limit=10)
+        situation = memory_module.situation_from_export(
+            export, memory=notes, open_slices=open_slices,
+            decisions=decisions, saved_on=saved_on,
+            situation_id=f"situation-{target[:8]}")
+        outcome = self.register_session_situation(situation)
+        outcome["session_id"] = target
+        return outcome
+
+    def register_session_memory_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole session-memory book for the session (M-153).
+
+        Every situation of the book is held by the
+        pure registry, in book order - the first book
+        held sets the registry's title, a later book
+        under a different title refuses, as does a
+        book naming a held situation id. The book's
+        panels are derivations, not holdings, and are
+        not held. Every situation is published as its
+        ``situation_record`` session news, in book
+        order, and the latest situation's derived
+        panel as its ``panel_record`` session news.
+        Returns the held book, its situations, their
+        news records, the panel news record, the
+        count of situations held, the screen, and the
+        explanation. Registering calls no model and
+        resumes no live session.
+        """
+        from ..core import session_memory as memory_module
+        validated = memory_module.build_book(book)
+        registry = self._session_memory_registry()
+        registry.register_book(validated)
+        situations = [
+            memory_module.situation_record(situation)
+            for situation in validated.situations]
+        for situation_news in situations:
+            self._publish_session_memory_record(situation_news)
+        panel_news = memory_module.panel_record(
+            memory_module.derive_panel(validated.situations[-1]))
+        self._publish_session_memory_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "situations": [
+                s.to_record() for s in validated.situations],
+            "situations_news": situations,
+            "panel_record": panel_news,
+            "count": len(situations),
+            "screen": self._session_memory_screen(),
+            "explanation": memory_module.PLAIN_EXPLANATION,
+        }
+
+    def record_session_memory_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole session-memory book for the session (M-153).
+
+        With no book named, the shipped example
+        session-memory book is recorded through the
+        pure layer - one situation at the M-152 slice
+        boundary, its session paused at the end of
+        its day with three map facts, two open slices
+        and two standing decisions carried, with its
+        one pinned panel. A book loaded from a file
+        (the pure layer's ``load_session_memory_file``
+        road) may be passed instead, so a real
+        session-memory book is recorded as it stands.
+        Every situation is held and published as its
+        ``situation_record`` session news, in book
+        order, and the latest situation's derived
+        panel as its ``panel_record`` session news;
+        the book is remembered whole as the session's
+        - its held panel and all - and the same book
+        recorded twice refuses - fingerprinted on its
+        situation ids and title - a book is recorded
+        once, never duplicated into the session.
+        Returns the held book, its situations, their
+        news records, the panel news record, the
+        count of situations held, the screen, and the
+        explanation. Recording calls no model.
+        """
+        from ..core import session_memory as memory_module
+        book = book if book is not None \
+            else memory_module.load_session_memory()
+        validated = memory_module.build_book(book)
+        fingerprint = (tuple(validated.situation_ids()), validated.title)
+        recorded = getattr(self, "_session_memory_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._session_memory_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this session memory book is already recorded "
+                "for the session; a book is recorded once")
+        registry = self._session_memory_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._session_memory_held = validated
+        situations = [
+            memory_module.situation_record(situation)
+            for situation in validated.situations]
+        for situation_news in situations:
+            self._publish_session_memory_record(situation_news)
+        panel_news = memory_module.panel_record(
+            memory_module.derive_panel(validated.situations[-1]))
+        self._publish_session_memory_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "situations": [
+                s.to_record() for s in validated.situations],
+            "situations_news": situations,
+            "panel_record": panel_news,
+            "count": len(situations),
+            "screen": memory_module.format_session_memory_screen(
+                validated),
+            "explanation": memory_module.PLAIN_EXPLANATION,
+        }
+
+    def report_session_memory(self) -> dict[str, Any]:
+        """Render the session session-memory book, as a report (M-153).
+
+        The book - the held registry's book when the
+        session holds any situation, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone: its latest
+        situation, its panel and its one screen.
+        Rendering registers and publishes nothing,
+        calls no model and resumes no live session:
+        the agent layer renders the situation as
+        data. Returns the book, its situations and
+        panels as plain records, the derived panel,
+        the rendered situation and panel, the screen,
+        and the plain explanation.
+        """
+        from ..core import session_memory as memory_module
+        book = self.session_memory_book()
+        return {
+            "book": book.to_record(),
+            "situations": [s.to_record() for s in book.situations],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": memory_module.derive_panel(
+                book.situations[-1]).to_record(),
+            "situation_text": memory_module.format_situation(
+                book.situations[-1]),
+            "panel_text": memory_module.format_panel(book),
+            "screen": self._session_memory_screen(),
+            "explanation": memory_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_session_memory_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one session-memory record as session news (M-153).
+
+        The pure layer's ``situation_record`` and
+        ``panel_record`` are journaled through the
+        same checkpoint road every sibling slice uses,
+        when a session is attached. Each record is
+        announced at most once per shape: a situation
+        under its own situation id and piece counts,
+        so a situation grown by newly held pieces
+        announces again as the new figure it is, and
+        a panel under its whole derived shape (its
+        rows and totals), so a panel grown by a newly
+        held situation announces again as the new
+        figure it is. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") == "session_memory_situation":
+            key = ("session_memory_situation",
+                   record.get("situation_id"),
+                   record.get("total_memory"),
+                   record.get("total_slices"),
+                   record.get("total_decisions"))
+        elif record.get("type") == "session_memory_panel":
+            key = ("session_memory_panel", record.get("panel_id"),
+                   tuple(row.get("item_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_items"))
+        else:
+            return
+        announced = getattr(self, "_session_memory_announced", None)
+        if announced is None:
+            announced = set()
+            self._session_memory_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
