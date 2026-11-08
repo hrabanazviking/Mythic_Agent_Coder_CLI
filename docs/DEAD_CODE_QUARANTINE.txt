@@ -203,3 +203,14 @@ mythic_agent/agents/llm.py:14177:report_hetero:method
 mythic_agent/core/heterogeneous_crews.py:1232:assignments_for:method
 mythic_agent/core/heterogeneous_crews.py:1239:budget_for:method
 mythic_agent/core/heterogeneous_crews.py:1247:readings_for:method
+mythic_agent/agents/llm.py:14383:get_veto_case:method
+mythic_agent/agents/llm.py:14392:get_veto_check:method
+mythic_agent/agents/llm.py:14401:get_veto_result:method
+mythic_agent/agents/llm.py:14479:register_veto_case:method
+mythic_agent/agents/llm.py:14511:register_veto_check:method
+mythic_agent/agents/llm.py:14542:register_veto_result:method
+mythic_agent/agents/llm.py:14573:record_auditor_ledger:method
+mythic_agent/agents/llm.py:14641:report_veto:method
+mythic_agent/core/auditor_veto.py:1265:case_for:method
+mythic_agent/core/auditor_veto.py:1273:checks_for:method
+mythic_agent/core/auditor_veto.py:1279:results_for:method

@@ -829,7 +829,7 @@ slices:
   title: The Auditor's veto
   summary: no slice is "done" until the Auditor's checks pass; the veto is a real gate in the engine,
     not a custom.
-  status: queued
+  status: done
 - id: M-131
   part: 6
   title: Research swarms
