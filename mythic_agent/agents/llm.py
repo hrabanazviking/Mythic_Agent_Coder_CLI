@@ -19451,6 +19451,446 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-143: crew templates --
+
+    def _crew_templates_registry(self):
+        """The held crew template registry (M-143).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer crew template book
+        record by record, beside the session solo mode
+        registry (M-142) and never in it: the crew
+        template book is one book of saved formation
+        records - one saved formation, summonable by
+        name, its seats naming members of the shipped
+        casting - held under the book this slice
+        names. It is created on first use, so an agent
+        whose ``__init__`` never ran still holds
+        exactly one. The attribute is named
+        ``_crew_templates_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_crew_templates_store", None)
+        if registry is None:
+            from ..core.crew_templates import TemplateRegistry
+            registry = TemplateRegistry()
+            self._crew_templates_store = registry
+        return registry
+
+    def crew_templates(self):
+        """The session's crew template book, as data (M-143).
+
+        The held registry's book when the session
+        holds any template record - the records the
+        session has actually gathered (records held
+        one by one, before any whole book stands
+        recorded, stand under a session crew template
+        book composed here in the agent layer, so a
+        later whole book recorded under its own title
+        is never refused by a shim title at the
+        registry) - otherwise the book recorded whole
+        through :meth:`record_crew_template_book`, or
+        the shipped example crew template book until
+        one is recorded. Reading registers and
+        publishes nothing.
+        """
+        from ..core.crew_templates import (
+            CrewTemplateBook,
+            load_crew_templates,
+        )
+        registry = self._crew_templates_registry()
+        if registry.list_templates():
+            try:
+                book = registry.book()
+            except ValueError:
+                return CrewTemplateBook(
+                    title="Session crew template book",
+                    entries=registry.list_templates())
+            held = getattr(self, "_crew_templates_held", None)
+            if held is not None and held.title == book.title \
+                    and held.template_ids() == book.template_ids():
+                return held
+            return book
+        book = getattr(self, "_crew_templates_held", None)
+        if book is None:
+            return load_crew_templates()
+        return book
+
+    def _crew_templates_screen(self) -> str:
+        """The /templates screen for the session's state (M-143).
+
+        Rendered from the held book when one stands,
+        and from the shipped example book while
+        nothing is held.
+        """
+        from ..core import crew_templates as templates_module
+        registry = self._crew_templates_registry()
+        if not registry.list_templates():
+            return templates_module.format_crew_templates_screen()
+        return templates_module.format_crew_templates_screen(
+            self.crew_templates())
+
+    def crew_templates_status(self) -> dict[str, Any]:
+        """The crew templates, in plain data (M-143).
+
+        The template records held this session as
+        plain records, the held book's record (none
+        until a template record stands held), the
+        session crew template book's pieces as plain
+        records (the shipped example book - four
+        template records at the M-142 slice boundary,
+        the roadmap's four named formations, and its
+        one pinned index - until records are held),
+        its whole-book record, every roster the book
+        derives as plain records, every index the book
+        holds as plain records and the index derived
+        from the whole book, the records in plain
+        words and the rosters and index told in plain
+        words, the one screen - rendered from the held
+        book, or from the shipped example book when
+        nothing is held yet - and the plain
+        explanation. Reading registers and publishes
+        nothing, summons no crew, spawns no agent,
+        runs no agent, calls no model and persists
+        nothing: this layer holds the templates as
+        data only, and no record here claims a crew
+        was ever summoned or run. There is no Part
+        VIII board yet; the screen is where the crew
+        templates are visible.
+        """
+        from ..core import crew_templates as templates_module
+        registry = self._crew_templates_registry()
+        held_templates = registry.list_templates()
+        book = self.crew_templates()
+        return {
+            "templates": [t.to_record() for t in held_templates],
+            "book": (book.to_record() if held_templates else None),
+            "crew_templates": {
+                "title": book.title,
+                "templates": [t.to_record() for t in book.entries],
+            },
+            "book_record": templates_module.book_record(book),
+            "rosters": [
+                templates_module.derive_roster(entry).to_record()
+                for entry in book.entries],
+            "indexes": [i.to_record() for i in book.indexes],
+            "index": templates_module.derive_index(
+                book.entries).to_record(),
+            "plain_words": [
+                templates_module.plain_words(entry)
+                for entry in book.entries],
+            "roster_plain_words": templates_module.roster_plain_words(
+                book),
+            "index_plain_words": templates_module.index_plain_words(
+                book),
+            "screen": self._crew_templates_screen(),
+            "explanation": templates_module.PLAIN_EXPLANATION,
+        }
+
+    def get_crew_template(self, name: Any):
+        """The one formation record a name summons (M-143).
+
+        The session's held registry answers when the
+        session holds any template record; otherwise
+        the shipped example crew template book answers
+        (or the book recorded whole for the session).
+        A name is a template id or a formation word. A
+        held session answers for its own book alone: a
+        name the held book holds no formation for
+        raises KeyError, with no silent fall back to
+        the example, exactly as the pure layer
+        answers. Reading registers and publishes
+        nothing.
+        """
+        registry = self._crew_templates_registry()
+        if registry.list_templates():
+            return registry.resolve_template(name)
+        return self.crew_templates().resolve_template(name)
+
+    def crew_template_roster(self, name: Any):
+        """The roster derived for one formation (M-143).
+
+        The roster is derived at call time from the
+        formation record the name resolves to - the
+        held registry's record when the session holds
+        any template record, otherwise the shipped
+        example book's record (or the record of the
+        book recorded whole for the session) - so its
+        members, size and account are the record's own
+        seats, read at call time. A held session
+        answers for its own book alone: a name the
+        held book holds no formation for raises
+        KeyError, with no silent fall back to the
+        example. Reading registers and publishes
+        nothing.
+        """
+        from ..core.crew_templates import derive_roster as _derive_roster
+        registry = self._crew_templates_registry()
+        if registry.list_templates():
+            return registry.roster_for(name)
+        return _derive_roster(
+            self.crew_templates().resolve_template(name))
+
+    def crew_template_index(self):
+        """The template index derived for the whole book (M-143).
+
+        The index is derived at call time from the
+        whole book of template records - the held
+        registry's records when the session holds any
+        template record, otherwise the shipped example
+        book's records (or the records of the book
+        recorded whole for the session) - so its rows
+        are the per-formation rosters of those records
+        and its totals are the records' own counts,
+        read at call time. Reading registers and
+        publishes nothing.
+        """
+        from ..core.crew_templates import derive_index as _derive_index
+        registry = self._crew_templates_registry()
+        if registry.list_templates():
+            return registry.index()
+        return _derive_index(self.crew_templates().entries)
+
+    def register_crew_template(
+            self, template: Any) -> dict[str, Any]:
+        """Hold one template record for the session (M-143).
+
+        The record is held by the pure registry under
+        its id or the deterministic template-N id - a
+        record id or formation word already standing
+        here refuses, and a refusal holds nothing new
+        and publishes nothing. A held record is
+        published as its ``template_record``
+        session-news record through the checkpoint
+        road, and its derived roster as its
+        ``roster_record`` session news, so a formation
+        given is news. Returns the held record, its
+        news record, its roster and roster news
+        record, the screen rendered after it landed,
+        and the plain explanation. Holding a record
+        summons no crew, spawns no agent, runs no
+        agent, calls no model and persists nothing:
+        the registry holds the record as data, and a
+        roster or the index stays a derivation read
+        off the held records at call time.
+        """
+        from ..core import crew_templates as templates_module
+        registry = self._crew_templates_registry()
+        held = registry.register_template(template)
+        record = templates_module.template_record(held)
+        self._publish_crew_templates_record(record)
+        roster = templates_module.derive_roster(held)
+        roster_record = templates_module.roster_record(roster)
+        self._publish_crew_templates_record(roster_record)
+        return {
+            "template": held.to_record(),
+            "record": record,
+            "roster": roster.to_record(),
+            "roster_record": roster_record,
+            "screen": self._crew_templates_screen(),
+            "explanation": templates_module.PLAIN_EXPLANATION,
+        }
+
+    def register_crew_template_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole crew template book for the session (M-143).
+
+        Every template record of the book is held by
+        the pure registry, in book order - the first
+        book held sets the registry's title, a later
+        book under a different title refuses, as does
+        a book naming a held record id or formation
+        word. The book's rosters and its index are
+        derivations, not holdings, and are not held.
+        Every record is published as its
+        ``template_record`` session news with its
+        derived ``roster_record``, in book order, and
+        the book's derived index as its
+        ``index_record`` session news. Returns the
+        held book, its records, their news records,
+        the roster and index news records, the count
+        of records held, the screen, and the
+        explanation. Registering summons no crew,
+        spawns no agent, runs no agent, calls no model
+        and persists nothing.
+        """
+        from ..core import crew_templates as templates_module
+        validated = templates_module.build_book(book)
+        registry = self._crew_templates_registry()
+        registry.register_book(validated)
+        records = [
+            templates_module.template_record(entry)
+            for entry in validated.entries]
+        roster_records = [
+            templates_module.roster_record(
+                templates_module.derive_roster(entry))
+            for entry in validated.entries]
+        for record, roster_record in zip(records, roster_records):
+            self._publish_crew_templates_record(record)
+            self._publish_crew_templates_record(roster_record)
+        index_record = templates_module.index_record(
+            templates_module.derive_index(validated.entries))
+        self._publish_crew_templates_record(index_record)
+        return {
+            "book": validated.to_record(),
+            "templates": [e.to_record() for e in validated.entries],
+            "records": records,
+            "roster_records": roster_records,
+            "index_record": index_record,
+            "count": len(records),
+            "screen": self._crew_templates_screen(),
+            "explanation": templates_module.PLAIN_EXPLANATION,
+        }
+
+    def record_crew_template_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole crew template book for the session (M-143).
+
+        With no book named, the shipped example crew
+        template book is recorded through the pure
+        layer - four template records at the M-142
+        slice boundary, the roadmap's four named
+        formations, and its one pinned index. A book
+        loaded from a file (the pure layer's
+        ``load_crew_templates_file`` road) may be
+        passed instead, so a real crew template book
+        is recorded as it stands. Every record is held
+        and published as its ``template_record``
+        session news with its derived
+        ``roster_record``, in book order, and the
+        book's derived index as its ``index_record``
+        session news; the book is remembered whole as
+        the session's - its held index and all - and
+        the same book recorded twice refuses -
+        fingerprinted on its template ids and title -
+        a book is recorded once, never duplicated into
+        the session. Returns the held book, its
+        records, their news records, the roster and
+        index news records, the count of records held,
+        the screen, and the explanation. Recording
+        summons no crew, spawns no agent, runs no
+        agent, calls no model and persists nothing.
+        """
+        from ..core import crew_templates as templates_module
+        book = book if book is not None \
+            else templates_module.load_crew_templates()
+        validated = templates_module.build_book(book)
+        fingerprint = (tuple(validated.template_ids()), validated.title)
+        recorded = getattr(self, "_crew_templates_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._crew_templates_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this crew template book is already recorded for "
+                "the session; a book is recorded once")
+        registry = self._crew_templates_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._crew_templates_held = validated
+        records = [
+            templates_module.template_record(entry)
+            for entry in validated.entries]
+        roster_records = [
+            templates_module.roster_record(
+                templates_module.derive_roster(entry))
+            for entry in validated.entries]
+        for record, roster_record in zip(records, roster_records):
+            self._publish_crew_templates_record(record)
+            self._publish_crew_templates_record(roster_record)
+        index_record = templates_module.index_record(
+            templates_module.derive_index(validated.entries))
+        self._publish_crew_templates_record(index_record)
+        return {
+            "book": validated.to_record(),
+            "templates": [e.to_record() for e in validated.entries],
+            "records": records,
+            "roster_records": roster_records,
+            "index_record": index_record,
+            "count": len(records),
+            "screen": templates_module.format_crew_templates_screen(
+                validated),
+            "explanation": templates_module.PLAIN_EXPLANATION,
+        }
+
+    def report_crew_templates(self) -> dict[str, Any]:
+        """Render the session crew template book, as a report (M-143).
+
+        The book - the held registry's book when the
+        session holds any template record, otherwise
+        the shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone: its template
+        records, its rosters, its index and its one
+        screen. Rendering registers and publishes
+        nothing, summons no crew, spawns no agent,
+        runs no agent, calls no model and persists
+        nothing: the agent layer renders the templates
+        as data. Returns the book, its records, rosters
+        and indexes as plain records, the derived
+        index, the rendered records, rosters and
+        index, the screen, and the plain explanation.
+        """
+        from ..core import crew_templates as templates_module
+        book = self.crew_templates()
+        return {
+            "book": book.to_record(),
+            "templates": [e.to_record() for e in book.entries],
+            "rosters": [
+                templates_module.derive_roster(e).to_record()
+                for e in book.entries],
+            "indexes": [i.to_record() for i in book.indexes],
+            "index": templates_module.derive_index(
+                book.entries).to_record(),
+            "templates_text": templates_module.format_templates(book),
+            "roster_text": templates_module.format_roster(book),
+            "index_text": templates_module.format_index(book),
+            "screen": self._crew_templates_screen(),
+            "explanation": templates_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_crew_templates_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one crew template record as session news (M-143).
+
+        The pure layer's ``template_record``,
+        ``roster_record`` and ``index_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once: a template under its own template id, a
+        roster under its formation, and the index
+        under its whole derived shape (its rows and
+        totals), so an index grown by a newly held
+        formation announces again as the new index it
+        is. A foreign record type is never published
+        on this road.
+        """
+        if record.get("type") == "crew_template":
+            key = ("crew_template", record.get("template_id"))
+        elif record.get("type") == "crew_formation_roster":
+            key = ("crew_formation_roster",
+                   record.get("roster_id") or record.get("template"))
+        elif record.get("type") == "crew_template_index":
+            key = ("crew_template_index", record.get("index_id"),
+                   tuple(row.get("template")
+                         for row in record.get("rows", [])),
+                   record.get("total_templates"),
+                   record.get("total_slots"),
+                   record.get("total_members"))
+        else:
+            return
+        announced = getattr(self, "_crew_templates_announced", None)
+        if announced is None:
+            announced = set()
+            self._crew_templates_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
