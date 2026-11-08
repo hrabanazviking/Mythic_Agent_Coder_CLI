@@ -817,7 +817,7 @@ slices:
   title: Merge discipline
   summary: member branches merge in slice order with tests at each merge; a red merge stops the line,
     not the whole crew.
-  status: queued
+  status: done
 - id: M-129
   part: 6
   title: Heterogeneous crews
