@@ -847,7 +847,7 @@ slices:
   title: Crew memory
   summary: shared project memory (Part VII) with per-member notebooks; a member's hard-won fact is findable
     by all.
-  status: queued
+  status: done
 - id: M-134
   part: 6
   title: Stand-ups

@@ -229,3 +229,9 @@ mythic_agent/agents/llm.py:15467:register_panel_review:method
 mythic_agent/agents/llm.py:15500:record_review_panel:method
 mythic_agent/agents/llm.py:15566:report_panel_outcome:method
 mythic_agent/core/review_panels.py:629:review_for:method
+mythic_agent/agents/llm.py:15828:register_memory_entry:method
+mythic_agent/agents/llm.py:15862:record_member_notebook:method
+mythic_agent/agents/llm.py:15899:record_crew_memory:method
+mythic_agent/agents/llm.py:15956:report_crew_memory:method
+mythic_agent/core/crew_memory.py:554:entries_for:method
+mythic_agent/core/crew_memory.py:839:entries_for:method
