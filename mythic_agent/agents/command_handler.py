@@ -325,6 +325,8 @@ class CommandHandler:
                 self._handle_interrupts(args)
             elif cmd == "/crewschedules":
                 self._handle_crewschedules(args)
+            elif cmd == "/contextbudget":
+                self._handle_contextbudget(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -4944,6 +4946,73 @@ class CommandHandler:
                 text = format_index(primary.crew_schedule_index())
             else:
                 text = primary.crew_schedules_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_contextbudget(self, args: str):
+        """M-147: /contextbudget - context budget made visible.
+
+        ``/contextbudget`` shows the context budget
+        panel held this session (the shipped example
+        panel - seven items at the M-146 slice
+        boundary, one of every kind, and its pinned
+        meter and panel - when none is held yet);
+        ``/contextbudget item <item-id>`` shows one
+        context item; ``/contextbudget kind <kind>``
+        shows the items of one kind;
+        ``/contextbudget meter`` shows the meter
+        derived from the whole panel;
+        ``/contextbudget panel`` shows the panel
+        derived from the whole book. Reading registers
+        and publishes nothing as session news: items
+        are held only when they are given through the
+        agent layer, and held items are published as
+        context_budget_item, context_budget_meter and
+        context_budget_panel session events. This
+        road compiles no context, assembles no prompt,
+        calls no model, persists nothing and claims
+        no board: the registry holds the items as
+        data, holding a panel changes no live context
+        assembly, and there is no Part VIII board yet
+        - this surface is where the context budget
+        account is visible. The registry is session
+        state held by the agent; it is not a stored
+        setting.
+        """
+        from ..core.context_budget import (
+            format_item,
+            format_items,
+            format_meter,
+            format_panel,
+            parse_context_budget_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_context_budget_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "item":
+                text = format_item(primary.get_context_budget_item(target))
+            elif action == "kind":
+                text = format_items(primary.context_budget_panel(), target)
+            elif action == "meter":
+                text = format_meter(primary.context_budget_meter())
+            elif action == "panel":
+                text = format_panel(primary.context_budget_view())
+            else:
+                text = primary.context_budget_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
