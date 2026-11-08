@@ -682,3 +682,386 @@ def test_module_purity():
     assert "os.system" not in source
     assert "agents.llm" not in source
     assert "import os" not in source
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-129 agent layer: the agent holds a
+# HeterogeneousCrewRegistry for the session
+# (session state only, no new setting), a plan is
+# recorded by being registered - published as its
+# assignment_record / reading_record session news
+# through the checkpoint road, deduped per
+# evidence id (the budgets are the M-107 layer's
+# own records and are held without news) - the
+# verdicts are published as verdict_record session
+# news and the report as ONE report_record session
+# event holding every verdict and route, deduped
+# per report, and the /hetero surface rides both
+# roads on the pure parser + formatters. Status,
+# find, plan and report reads register and publish
+# nothing. This layer spawns no live crew, calls
+# no real provider, performs no routing or billing
+# and builds no board - Part VIII does not exist
+# yet, so the screen is where the verdicts are
+# visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _hetero_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+class TestHeteroAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.hetero_status()
+        assert status["assignments"] == []
+        assert status["budgets"] == []
+        assert status["readings"] == []
+        assert status["plan"]["keeper"] == "architect"
+        assert len(status["plan"]["assignments"]) == 4
+        assert len(status["plan"]["budgets"]) == 2
+        assert len(status["plan"]["readings"]) == 2
+        assert status["report"]["type"] == "hetero_report"
+        assert status["report"]["count"] == 3
+        assert status["report"]["heterogeneous"] is True
+        assert "Heterogeneous crews: 3 verdicts stand" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        assert agent._hetero_crew_registry() is \
+            agent._hetero_crew_registry()
+        assert agent._hetero_crew_store is \
+            agent._hetero_crew_registry()
+
+    def test_reads_register_and_publish_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.hetero_status()
+        found = agent.find_hetero_verdicts("scribe")
+        assert [v.kind for v in found] == ["missing_budget"]
+        assert agent.heterogeneous_crew().keeper == "architect"
+        report = agent.hetero_report()
+        assert [v.kind for v in report.verdicts] == [
+            "unknown_route", "missing_budget", "over_budget"]
+        registry = agent._hetero_crew_registry()
+        assert registry.list_assignments() == ()
+        assert registry.list_budgets() == ()
+        assert registry.list_readings() == ()
+        for kind in ("hetero_assignment", "hetero_reading",
+                     "hetero_verdict", "hetero_report"):
+            assert _hetero_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_unheld_evidence_raises_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_hetero_assignment("assignment-1")
+        with pytest.raises(KeyError):
+            agent.get_hetero_budget("arch-budget")
+        with pytest.raises(KeyError):
+            agent.get_hetero_reading("reading-1")
+
+    def test_find_unknown_member_raises_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.find_hetero_verdicts("nobody")
+
+    def test_status_after_register_shows_the_held_evidence(
+            self, agent):
+        agent.register_hetero_budget(_budget())
+        agent.register_hetero_assignment(_assignment())
+        status = agent.hetero_status()
+        assert [a["member"] for a in status["assignments"]] == [
+            "architect"]
+        assert [b["budget_id"] for b in status["budgets"]] == [
+            "arch-budget"]
+        assert "Heterogeneous crews: clean." in status["screen"]
+        assert len(status["plan"]["assignments"]) == 4
+
+
+class TestHeteroAgentRegister:
+    def test_register_assignment_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_hetero_assignment(_assignment())
+        assert outcome["assignment"]["member"] == "architect"
+        assert outcome["assignment"]["assignment_id"] == "assignment-1"
+        assert outcome["record"]["type"] == "hetero_assignment"
+        assert outcome["record"]["news"] is True
+        assert agent.get_hetero_assignment(
+            "assignment-1").provider == "anthropic"
+        events = _hetero_events(store, session_id, "hetero_assignment")
+        assert len(events) == 1
+        assert events[0]["member"] == "architect"
+        # Deduped per assignment id: no second event.
+        agent._publish_hetero_record(outcome["record"])
+        assert len(_hetero_events(
+            store, session_id, "hetero_assignment")) == 1
+        # Foreign record types are never published on these roads.
+        agent._publish_hetero_record(
+            {"type": "crew_delegation", "assignment_id": "assignment-9"})
+        agent._publish_hetero_record(
+            {"type": "hetero_verdict", "reading_id": "reading-9"})
+        agent._publish_hetero_verdict_record(
+            {"type": "hetero_report", "verdicts": []})
+        agent._publish_hetero_report_record(
+            {"type": "hetero_verdict", "verdicts": [], "routes": []})
+        assert len(_hetero_events(
+            store, session_id, "hetero_assignment")) == 1
+        assert _hetero_events(store, session_id, "hetero_reading") == []
+        assert _hetero_events(store, session_id, "hetero_verdict") == []
+        assert _hetero_events(store, session_id, "hetero_report") == []
+        agent.close()
+
+    def test_register_reading_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_hetero_reading(_reading())
+        assert outcome["reading"]["member"] == "architect"
+        assert outcome["reading"]["reading_id"] == "reading-1"
+        assert outcome["record"]["type"] == "hetero_reading"
+        assert outcome["record"]["news"] is True
+        assert agent.get_hetero_reading(
+            "reading-1").usage.tokens_used == 10
+        events = _hetero_events(store, session_id, "hetero_reading")
+        assert len(events) == 1
+        assert events[0]["member"] == "architect"
+        agent.close()
+
+    def test_register_budget_holds_without_news(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_hetero_budget(_budget())
+        assert outcome["budget"]["budget_id"] == "arch-budget"
+        assert agent.get_hetero_budget(
+            "arch-budget").token_limit == 200000
+        # Budgets are the M-107 layer's own records:
+        # holding one publishes no session news here.
+        assert _hetero_events(store, session_id, "budget") == []
+        assert _hetero_events(
+            store, session_id, "hetero_assignment") == []
+        agent.close()
+
+    def test_record_plan_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_heterogeneous_crew()
+        assert outcome["count"] == 8
+        assert [a["assignment_id"] for a in outcome["assignments"]] == \
+            [f"assignment-{n}" for n in range(1, 5)]
+        assert [r["reading_id"] for r in outcome["readings"]] == \
+            [f"reading-{n}" for n in range(1, 3)]
+        assert [b["budget_id"] for b in outcome["budgets"]] == [
+            "arch-budget", "forge-budget"]
+        assert agent.get_hetero_assignment(
+            "assignment-1").member == "architect"
+        assert agent.get_hetero_reading(
+            "reading-1").member == "architect"
+        status = agent.hetero_status()
+        assert len(status["assignments"]) == 4
+        assert len(status["budgets"]) == 2
+        assert len(status["readings"]) == 2
+        assert [v.kind for v in agent.hetero_report().verdicts] == [
+            "unknown_route", "missing_budget", "over_budget"]
+        assert len(_hetero_events(
+            store, session_id, "hetero_assignment")) == 4
+        assert len(_hetero_events(
+            store, session_id, "hetero_reading")) == 2
+        agent.close()
+
+    def test_record_same_plan_twice_refuses(self, agent):
+        agent.record_heterogeneous_crew()
+        with pytest.raises(ValueError):
+            agent.record_heterogeneous_crew()
+        registry = agent._hetero_crew_registry()
+        assert len(registry.list_assignments()) == 4
+        assert len(registry.list_readings()) == 2
+
+    def test_plan_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        outcome = agent.record_heterogeneous_crew(
+            load_heterogeneous_crew_file(
+                _write_plan(tmp_path, _plan_data())))
+        assert outcome["count"] == 3
+        assert agent.get_hetero_assignment(
+            "assignment-1").member == "architect"
+        assert agent.heterogeneous_crew().keeper == "architect"
+        assert agent.hetero_report().is_clean is True
+
+    def test_find_prefers_the_held_evidence(self, agent):
+        agent.register_hetero_assignment(_assignment(
+            member="scribe", provider="ollama", model="llama9.9",
+            budget_id=None))
+        found = agent.find_hetero_verdicts("scribe")
+        assert [v.kind for v in found] == ["unknown_route"]
+        # Held session, member held in no held verdict: KeyError,
+        # no silent fall back to the example plan - the
+        # forge_worker is in the example's over-budget verdict.
+        with pytest.raises(KeyError):
+            agent.find_hetero_verdicts("forge_worker")
+
+
+class TestHeteroAgentReport:
+    def test_report_publishes_one_report_event_for_all_verdicts(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.record_heterogeneous_crew()
+        outcome = agent.report_hetero()
+        assert outcome["count"] == 3
+        assert outcome["record"]["type"] == "hetero_report"
+        assert outcome["record"]["count"] == 3
+        assert "Heterogeneous crews: 3 verdicts stand" in \
+            outcome["screen"]
+        verdicts = _hetero_events(store, session_id, "hetero_verdict")
+        assert len(verdicts) == 3
+        reports = _hetero_events(store, session_id, "hetero_report")
+        # ONE report event holds all three verdicts.
+        assert len(reports) == 1
+        assert reports[0]["count"] == 3
+        assert len(reports[0]["verdicts"]) == 3
+        assert len(reports[0]["routes"]) == 4
+        # Reporting again on the same evidence publishes
+        # nothing new.
+        agent.report_hetero()
+        assert len(_hetero_events(
+            store, session_id, "hetero_verdict")) == 3
+        assert len(_hetero_events(
+            store, session_id, "hetero_report")) == 1
+        # Newly held evidence grows the report: a new report.
+        agent.register_hetero_assignment(_assignment(
+            member="polymath", provider="ollama", model="llama9.9",
+            budget_id=None))
+        outcome = agent.report_hetero()
+        assert outcome["count"] == 4
+        assert len(_hetero_events(
+            store, session_id, "hetero_report")) == 2
+        agent.close()
+
+    def test_report_with_clean_evidence_publishes_a_clean_report_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_hetero_budget(_budget())
+        agent.register_hetero_assignment(_assignment())
+        outcome = agent.report_hetero()
+        assert outcome["count"] == 0
+        assert outcome["record"]["clean"] is True
+        assert outcome["screen"].startswith(
+            "Heterogeneous crews: clean.")
+        assert _hetero_events(store, session_id, "hetero_verdict") == []
+        reports = _hetero_events(store, session_id, "hetero_report")
+        assert len(reports) == 1
+        assert reports[0]["clean"] is True
+        agent.report_hetero()
+        assert len(_hetero_events(
+            store, session_id, "hetero_report")) == 1
+        agent.close()
+
+    def test_no_spawn_or_provider_road_for_hetero(self, agent):
+        # This layer holds the crew as data: it spawns
+        # no live crew, calls no real provider,
+        # performs no routing or billing and builds no
+        # board - Part VIII does not exist yet.
+        assert not hasattr(agent, "spawn_hetero_crew")
+        assert not hasattr(agent, "call_provider")
+        assert not hasattr(agent, "hetero_board")
+
+
+class TestHeteroTerminalSurface:
+    def test_show_routes_and_kinds(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/hetero")
+        assert "Heterogeneous crews: 3 verdicts stand" in text
+        _, _, text = _slash(agent, "/hetero show scribe")
+        assert "Heterogeneous crews: 1 verdicts stand" in text
+        assert "missing_budget" in text
+        _, _, text = _slash(agent, "/hetero routes")
+        assert "architect: claude-sonnet-4-5 on anthropic " \
+            "(remote, context 200000); budget within." in text
+        _, _, text = _slash(agent, "/hetero kinds")
+        assert text.startswith("Verdict kinds:")
+
+    def test_bare_member_shows_theirs(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/hetero forge_worker")
+        assert "over_budget" in text
+        _, _, text = _slash(agent, "/hetero cartographer")
+        assert "unknown_route" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert "/hetero [show|show <member>|routes|kinds]" in text
+        _, _, text = _slash(agent, "/hetero dance")
+        assert "no verdict stands on the member" in text
+        _, _, text = _slash(agent, "/hetero dance party")
+        assert text == USAGE
+
+
+@pytest.fixture()
+def hetero_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _hetero_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestHeteroCommand:
+    def test_show_is_default(self, hetero_handler, agent):
+        hetero_handler._handle_hetero("")
+        assert "Heterogeneous crews: 3 verdicts stand" in \
+            _hetero_published_text(hetero_handler)
+
+    def test_show_one_routes_and_kinds(self, hetero_handler, agent):
+        hetero_handler._handle_hetero("show scribe")
+        assert "missing_budget" in _hetero_published_text(hetero_handler)
+        hetero_handler._handle_hetero("routes")
+        assert "budget exceeded" in \
+            _hetero_published_text(hetero_handler)
+        hetero_handler._handle_hetero("kinds")
+        assert "Verdict kinds:" in _hetero_published_text(hetero_handler)
+
+    def test_bad_grammar_is_published(self, hetero_handler, agent):
+        hetero_handler._handle_hetero("dance party")
+        assert USAGE in _hetero_published_text(hetero_handler)
+
+
+class TestChatScreenRoutingHetero:
+    def test_hetero_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/hetero kinds", _FakeLog())
+        assert calls == [("/hetero", "kinds")]
