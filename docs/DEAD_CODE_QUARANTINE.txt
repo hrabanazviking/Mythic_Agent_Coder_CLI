@@ -337,3 +337,11 @@ mythic_agent/agents/llm.py:22867:register_compaction_glassbox_book:method
 mythic_agent/agents/llm.py:22909:record_compaction_glassbox_book:method
 mythic_agent/agents/llm.py:22974:report_compaction_glassbox:method
 mythic_agent/core/compaction_glassbox.py:1093:row_for:method
+mythic_agent/agents/llm.py:23168:get_graph_retrieval_bundle:method
+mythic_agent/agents/llm.py:23207:graph_retrieval_seeds:method
+mythic_agent/agents/llm.py:23273:run_graph_retrieval:method
+mythic_agent/agents/llm.py:23305:register_graph_retrieval_book:method
+mythic_agent/agents/llm.py:23346:record_graph_retrieval_book:method
+mythic_agent/agents/llm.py:23409:report_graph_retrieval:method
+mythic_agent/core/graph_retrieval.py:1014:seed_ids:method
+mythic_agent/core/graph_retrieval.py:1281:row_for:method

@@ -955,7 +955,7 @@ slices:
   title: Retrieval over the code graph
   summary: vector RAG (existing) married to Part III's symbol graph — retrieval returns *connected* code,
     not confetti.
-  status: queued
+  status: done
 - id: M-153
   part: 7
   title: Session memory across days
