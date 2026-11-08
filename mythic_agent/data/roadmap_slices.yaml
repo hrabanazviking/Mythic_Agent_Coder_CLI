@@ -811,7 +811,7 @@ slices:
   title: Cycle and deadlock detection grown
   summary: delegation cycles, merge conflicts between members, and duplicated work are caught by the coordinator,
     not by the human.
-  status: queued
+  status: done
 - id: M-128
   part: 6
   title: Merge discipline
