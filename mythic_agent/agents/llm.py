@@ -14771,6 +14771,464 @@ class Agent:
             self._checkpoint(record)
 
 
+    # -- M-131: research swarms --
+
+    def _research_swarm_registry(self):
+        """The held research-swarm registry (M-131).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer question, assignments
+        and findings in the order they were given,
+        beside the session Auditor's-veto registry
+        (M-130) and never in it: the swarm is the
+        coordinator's fan-out, held under the
+        research this slice names. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named ``_research_swarm_store``,
+        never the method's own name (the M-108
+        lesson).
+        """
+        registry = getattr(self, "_research_swarm_store", None)
+        if registry is None:
+            from ..core.research_swarms import (
+                ResearchSwarmRegistry,
+            )
+            registry = ResearchSwarmRegistry()
+            self._research_swarm_store = registry
+        return registry
+
+    def _held_swarm_question(self, registry):
+        """The held swarm question, or None (M-131).
+
+        The pure registry raises KeyError when no
+        question is held; the agent layer reads that
+        as no question held yet, so the status and
+        screen roads can speak plainly about a swarm
+        whose pieces arrived before its question.
+        """
+        try:
+            return registry.question()
+        except KeyError:
+            return None
+
+    def _swarm_screen(self, registry):
+        """The swarm screen for the held registry (M-131).
+
+        The full pure-layer screen is rendered from
+        the held registry once its question is held.
+        While pieces are held without a question, the
+        screen is the findings view of the pieces held
+        so far - an honest partial screen, never the
+        shipped example standing in for evidence the
+        session does not hold.
+        """
+        from ..core import research_swarms
+
+        if self._held_swarm_question(registry) is not None:
+            return research_swarms.format_swarm_screen(registry)
+        partial = research_swarms.ResearchSwarm(
+            assignments=registry.list_assignments(),
+            findings=registry.list_findings(),
+            leader="")
+        return research_swarms.format_findings(partial)
+
+    def swarm_status(self) -> dict[str, Any]:
+        """The research swarm, in plain data (M-131).
+
+        The question, assignments and findings held
+        this session as plain records (no question
+        record until one is held), the session swarm's
+        pieces as plain records (the shipped example
+        swarm - one cartographer-led question, three
+        assignments and three findings - until a swarm
+        is recorded), the derived digest as its one
+        digest record (None while pieces are held
+        without a question, since no digest can be
+        derived from a swarm whose question is not
+        held), the one screen - rendered from the held
+        registry, or from the shipped example swarm
+        when nothing is held yet - and the plain
+        explanation. Reading registers and publishes
+        nothing, runs no research, calls no model and
+        spawns no crew: this layer holds the swarm as
+        data only. There is no Part VIII board yet;
+        the screen is where the digest is visible.
+        """
+        from ..core import research_swarms
+
+        registry = self._research_swarm_registry()
+        held_question = self._held_swarm_question(registry)
+        held_assignments = registry.list_assignments()
+        held_findings = registry.list_findings()
+        swarm = self.research_swarm()
+        held = (held_question is not None or held_assignments
+                or held_findings)
+        if held and held_question is not None:
+            screen = research_swarms.format_swarm_screen(
+                registry)
+            digest = research_swarms.digest_record(
+                self.swarm_digest())
+        elif held:
+            screen = self._swarm_screen(registry)
+            digest = None
+        else:
+            screen = research_swarms.format_swarm_screen()
+            digest = research_swarms.digest_record(
+                self.swarm_digest())
+        return {
+            "question": (
+                held_question.to_record()
+                if held_question is not None else None),
+            "assignments": [
+                a.to_record() for a in held_assignments],
+            "findings": [f.to_record() for f in held_findings],
+            "swarm": {
+                "leader": swarm.leader,
+                "question": (
+                    swarm.question.to_record()
+                    if swarm.question is not None else None),
+                "assignments": [
+                    a.to_record() for a in swarm.assignments],
+                "findings": [
+                    f.to_record() for f in swarm.findings],
+            },
+            "digest": digest,
+            "screen": screen,
+            "explanation": research_swarms.PLAIN_EXPLANATION,
+        }
+
+    def get_swarm_assignment(self, assignment_id: Any):
+        """The one held assignment an id names (M-131).
+
+        An assignment the session does not hold raises
+        KeyError, exactly as the pure registry answers.
+        """
+        return self._research_swarm_registry().get_assignment(
+            assignment_id)
+
+    def get_swarm_finding(self, finding_id: Any):
+        """The one held finding an id names (M-131).
+
+        A finding the session does not hold raises
+        KeyError, exactly as the pure registry answers.
+        """
+        return self._research_swarm_registry().get_finding(
+            finding_id)
+
+    def find_swarm_findings(self, member: Any):
+        """Every finding one member returned (M-131).
+
+        The session's held registry answers when the
+        session holds any piece of the swarm; otherwise
+        the shipped example swarm answers. A member
+        holding no finding in the answering set raises
+        KeyError. Reading registers and publishes
+        nothing.
+        """
+        from ..core.crew_members import normalize_member_id
+        from ..core.research_swarms import (
+            load_research_swarm,
+        )
+
+        wanted = normalize_member_id(member)
+        registry = self._research_swarm_registry()
+        held = (self._held_swarm_question(registry) is not None
+                or registry.list_assignments()
+                or registry.list_findings())
+        if held:
+            found = registry.findings_for(wanted)
+        else:
+            found = tuple(
+                finding for finding
+                in load_research_swarm().findings
+                if finding.member == wanted)
+        if not found:
+            raise KeyError(
+                f"no finding from the member: {wanted!r}")
+        return found
+
+    def research_swarm(self):
+        """The session's research swarm, as data (M-131).
+
+        The swarm the session recorded through
+        :meth:`record_research_swarm`, or the shipped
+        example swarm until one is recorded. Reading
+        registers and publishes nothing.
+        """
+        from ..core.research_swarms import (
+            load_research_swarm,
+        )
+
+        swarm = getattr(self, "_research_swarm_held", None)
+        if swarm is None:
+            return load_research_swarm()
+        return swarm
+
+    def swarm_digest(self):
+        """The digest the swarm's findings yield (M-131).
+
+        Derived by the pure layer from what the
+        session holds - the held registry when the
+        session holds any piece of the swarm,
+        otherwise the shipped example swarm. A
+        registry holding pieces but no question
+        answers exactly as the pure registry answers:
+        KeyError, since no digest can be derived from
+        a swarm whose question is not held. Reading
+        registers and publishes nothing: publishing
+        is :meth:`report_swarm_digest`' road.
+        """
+        from ..core.research_swarms import (
+            digest_swarm,
+            load_research_swarm,
+        )
+
+        registry = self._research_swarm_registry()
+        held = (self._held_swarm_question(registry) is not None
+                or registry.list_assignments()
+                or registry.list_findings())
+        if held:
+            return registry.digest()
+        return digest_swarm(load_research_swarm())
+
+    def register_swarm_assignment(
+            self, assignment: Any) -> dict[str, Any]:
+        """Hold one swarm assignment for the session (M-131).
+
+        The assignment is held by the pure registry
+        under its id or a fresh deterministic one - a
+        supplied id already held refuses, a member
+        dealt twice refuses, and a refusal holds
+        nothing new and publishes nothing - and a
+        held assignment is published as its
+        ``assignment_record`` session-news record
+        through the checkpoint road, so evidence
+        given is news with its shape attached.
+        Returns the held assignment, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding an assignment runs
+        no research and spawns no crew: the registry
+        holds the swarm as data.
+        """
+        from ..core import research_swarms
+
+        registry = self._research_swarm_registry()
+        held = registry.register_assignment(assignment)
+        record = research_swarms.assignment_record(held)
+        self._publish_swarm_record(record)
+        return {
+            "assignment": held.to_record(),
+            "record": record,
+            "screen": self._swarm_screen(registry),
+            "explanation": research_swarms.PLAIN_EXPLANATION,
+        }
+
+    def register_swarm_finding(
+            self, finding: Any) -> dict[str, Any]:
+        """Hold one swarm finding for the session (M-131).
+
+        The finding is held by the pure registry
+        under its id or a fresh deterministic one - a
+        supplied id already held refuses, a finding
+        from a member who holds no assignment refuses,
+        two findings from one member refuse, and a
+        refusal holds nothing new and publishes
+        nothing - and a held finding is published as
+        its ``finding_record`` session-news record
+        through the checkpoint road. Returns the held
+        finding, its news record, the screen rendered
+        after it landed, and the plain explanation.
+        Holding a finding runs no research and calls
+        no model: the registry holds the swarm as
+        data.
+        """
+        from ..core import research_swarms
+
+        registry = self._research_swarm_registry()
+        held = registry.register_finding(finding)
+        record = research_swarms.finding_record(held)
+        self._publish_swarm_record(record)
+        return {
+            "finding": held.to_record(),
+            "record": record,
+            "screen": self._swarm_screen(registry),
+            "explanation": research_swarms.PLAIN_EXPLANATION,
+        }
+
+    def record_research_swarm(
+            self, swarm: Any = None) -> dict[str, Any]:
+        """Record a whole research swarm for the session (M-131).
+
+        With no swarm named, the shipped example
+        swarm is recorded through the pure layer -
+        one cartographer-led question, three
+        assignments and three findings. A swarm
+        loaded from a file (the pure layer's
+        ``load_research_swarm_file`` road) may be
+        passed instead, so a real swarm is recorded
+        as it stands. The question, every assignment
+        and every finding is held in swarm order and
+        published as its ``question_record`` /
+        ``assignment_record`` / ``finding_record``
+        session news, deduped per piece id; the swarm
+        is remembered as the session's swarm, and the
+        same swarm recorded twice refuses - a swarm
+        is recorded once, never duplicated into the
+        session. Returns the held question,
+        assignments and findings, their news records,
+        the count of pieces held, the screen, and the
+        explanation. Recording runs no research,
+        calls no model and spawns no crew.
+        """
+        from ..core import research_swarms
+
+        swarm = swarm if swarm is not None \
+            else research_swarms.load_research_swarm()
+        fingerprint = (
+            (swarm.question.text, swarm.question.leader)
+            if swarm.question is not None else None,
+            tuple((a.member, a.focus, a.brief)
+                  for a in swarm.assignments),
+            tuple((f.member, f.summary, tuple(f.sources))
+                  for f in swarm.findings))
+        recorded = getattr(self, "_research_swarm_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._research_swarm_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this research swarm is already recorded for "
+                "the session; a swarm is recorded once")
+        registry = self._research_swarm_registry()
+        held_swarm = registry.register_swarm(swarm)
+        recorded.add(fingerprint)
+        self._research_swarm_held = swarm
+        records = [
+            research_swarms.question_record(held_swarm.question)]
+        records += [
+            research_swarms.assignment_record(a)
+            for a in held_swarm.assignments]
+        records += [
+            research_swarms.finding_record(f)
+            for f in held_swarm.findings]
+        for record in records:
+            self._publish_swarm_record(record)
+        return {
+            "question": held_swarm.question.to_record(),
+            "assignments": [
+                a.to_record() for a in held_swarm.assignments],
+            "findings": [
+                f.to_record() for f in held_swarm.findings],
+            "records": records,
+            "count": len(records),
+            "screen": research_swarms.format_swarm_screen(
+                registry),
+            "explanation": research_swarms.PLAIN_EXPLANATION,
+        }
+
+    def report_swarm_digest(self) -> dict[str, Any]:
+        """Report the swarm's digest as session news (M-131).
+
+        The digest is derived from what the session
+        holds by :meth:`swarm_digest` and published
+        as ONE ``digest_record`` session event - the
+        swarm's one digested answer, with its sources
+        and its completeness, never one event per
+        finding. The announcement is deduped:
+        reporting again while the same findings are
+        held publishes nothing new, and a digest grown
+        by a newly held finding announces as the new
+        digest it is. Returns the digest, its news
+        record, its completeness, the digest screen,
+        and the plain explanation. Reporting runs no
+        research, calls no model and spawns no crew:
+        the human acts on the digest through later
+        roads.
+        """
+        from ..core import research_swarms
+
+        digest = self.swarm_digest()
+        record = research_swarms.digest_record(digest)
+        self._publish_swarm_digest_record(record)
+        registry = self._research_swarm_registry()
+        if self._held_swarm_question(registry) is not None:
+            screen = research_swarms.format_digest(registry)
+        else:
+            screen = research_swarms.format_digest()
+        return {
+            "digest": digest.to_record(),
+            "record": record,
+            "complete": digest.complete,
+            "screen": screen,
+            "explanation": research_swarms.PLAIN_EXPLANATION,
+        }
+
+    def _publish_swarm_record(self, record: dict[str, Any]) -> None:
+        """Publish one piece of the swarm as session news (M-131).
+
+        The pure layer's ``question_record``,
+        ``assignment_record`` and ``finding_record``
+        are journaled through the same checkpoint
+        road every sibling slice uses, when a session
+        is attached. Each piece is announced at most
+        once, under its own id. A foreign record type
+        is never published on this road.
+        """
+        if record.get("type") == "swarm_question":
+            key = ("swarm_question", record.get("question_id"))
+        elif record.get("type") == "swarm_assignment":
+            key = ("swarm_assignment", record.get("assignment_id"))
+        elif record.get("type") == "swarm_finding":
+            key = ("swarm_finding", record.get("finding_id"))
+        else:
+            return
+        announced = getattr(self, "_swarm_announced", None)
+        if announced is None:
+            announced = set()
+            self._swarm_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_swarm_digest_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one swarm digest as session news (M-131).
+
+        The pure layer's ``digest_record`` is
+        journaled through the same checkpoint road,
+        when a session is attached - ONE event holding
+        the whole digested answer, so the human is
+        told once. Each digest is announced at most
+        once: the announcement is keyed by the
+        digest's whole shape (question, answer,
+        sources, completeness, who is still out), so
+        a digest grown by a newly held finding
+        announces again as the new digest it is. A
+        foreign record type is never published on
+        this road.
+        """
+        if record.get("type") != "swarm_digest":
+            return
+        announced = getattr(self, "_swarm_digest_announced", None)
+        if announced is None:
+            announced = set()
+            self._swarm_digest_announced = announced
+        key = (
+            record.get("question"), record.get("answer"),
+            tuple(record.get("sources", [])),
+            record.get("complete"),
+            tuple(record.get("missing", [])))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
