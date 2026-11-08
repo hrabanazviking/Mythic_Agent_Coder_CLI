@@ -823,7 +823,7 @@ slices:
   title: Heterogeneous crews
   summary: members on different models/providers (a Claude Architect, a local-LLM Forge Worker) — routing
     from Part II, budgets from Part V.
-  status: queued
+  status: done
 - id: M-130
   part: 6
   title: The Auditor's veto
