@@ -339,6 +339,8 @@ class CommandHandler:
                 self._handle_graphsearch(args)
             elif cmd == "/daymemory":
                 self._handle_daymemory(args)
+            elif cmd == "/crossmemory":
+                self._handle_crossmemory(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -5418,6 +5420,77 @@ class CommandHandler:
                 text = format_panel(primary.session_memory_book())
             else:
                 text = primary.session_memory_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_crossmemory(self, args: str):
+        """M-154: /crossmemory - cross-project memory.
+
+        ``/crossmemory`` shows the cross-project book
+        held this session (the shipped example book -
+        three lessons at the M-153 slice boundary, one
+        accepted into a sibling project, one on offer
+        and one declined, with its one pinned panel -
+        when none is held yet); ``/crossmemory lesson
+        <lesson-id>`` shows one shared lesson with its
+        provenance whole; ``/crossmemory offers``
+        shows the book's offers in held order;
+        ``/crossmemory accepted <project>`` shows the
+        lessons standing accepted into one target
+        project; ``/crossmemory panel`` shows the
+        exchange panel derived from the whole book,
+        its rows in panel order. Reading registers and
+        publishes nothing as session news: lessons and
+        offers are held only when they are given
+        through the agent's cross-project roads or
+        offered onward from the session's memory map,
+        and every lesson held for the session is
+        journaled as a cross_project_lesson session
+        event, every offer as a cross_project_offer
+        session event and every derived panel as a
+        cross_project_panel session event. This
+        surface calls no model, writes no project's
+        files and enters nothing into any project's
+        memory, and there is no Part VIII board yet,
+        so the exchange is visible on this surface,
+        not on a board.
+        """
+        from ..core.cross_project_memory import (
+            format_accepted,
+            format_lesson,
+            format_offers,
+            format_panel,
+            parse_cross_project_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_cross_project_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "lesson":
+                text = format_lesson(
+                    primary.get_cross_project_lesson(target))
+            elif action == "offers":
+                text = format_offers(primary.cross_project_book())
+            elif action == "accepted":
+                text = format_accepted(
+                    primary.cross_project_book(), target)
+            elif action == "panel":
+                text = format_panel(primary.cross_project_book())
+            else:
+                text = primary.cross_project_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
