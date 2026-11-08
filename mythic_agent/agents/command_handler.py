@@ -317,6 +317,8 @@ class CommandHandler:
                 self._handle_costcourt(args)
             elif cmd == "/dogfood":
                 self._handle_dogfood(args)
+            elif cmd == "/solo":
+                self._handle_solo(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -4654,6 +4656,71 @@ class CommandHandler:
                 text = format_ledger(primary.coordinator_ledger())
             else:
                 text = primary.dogfood_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_solo(self, args: str):
+        """M-142: /solo - solo mode dignity.
+
+        ``/solo`` shows the solo mode book held this
+        session (the shipped example book - eight
+        capability records at the M-141 slice boundary
+        and the parity ledger of them - when none is
+        held yet); ``/solo capability
+        <capability-id>`` shows one capability record;
+        ``/solo member <member-id>`` shows the records
+        one member amplifies; ``/solo report
+        <member-id>`` shows one member's amplification
+        report; ``/solo ledger`` shows the parity
+        ledger derived from the whole book. Reading
+        registers and publishes nothing as session
+        news: records are held only when they are
+        given through the agent layer, and held
+        records are published as a solo_capability
+        session event. This road disables no crew,
+        spawns no agent, runs no agent, calls no model,
+        persists nothing and claims no board: the
+        registry holds the solo mode as data, no record
+        here claims a crew was ever switched off or
+        on, and there is no Part VIII board yet - this
+        surface is where the solo mode is visible. The
+        registry is session state held by the agent;
+        it is not a stored setting.
+        """
+        from ..core.solo_mode import (
+            format_capabilities,
+            format_capability,
+            format_ledger,
+            format_report,
+            parse_solo_mode_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_solo_mode_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "capability":
+                text = format_capability(primary.get_solo_capability(target))
+            elif action == "member":
+                text = format_capabilities(primary.solo_mode(), target)
+            elif action == "report":
+                text = format_report(primary.solo_mode_report(target))
+            elif action == "ledger":
+                text = format_ledger(primary.parity_ledger())
+            else:
+                text = primary.solo_mode_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
