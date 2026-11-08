@@ -315,6 +315,8 @@ class CommandHandler:
                 self._handle_foster(args)
             elif cmd == "/costcourt":
                 self._handle_costcourt(args)
+            elif cmd == "/dogfood":
+                self._handle_dogfood(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -4580,6 +4582,78 @@ class CommandHandler:
                 text = format_ledger(primary.scribe_ledger())
             else:
                 text = primary.cost_court_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_dogfood(self, args: str):
+        """M-141: /dogfood - the Mythic Coder building itself.
+
+        ``/dogfood`` shows the dogfood book held this
+        session (the shipped example book - six build
+        records at the M-140 slice boundary and the
+        coordinator's ledger of them - when none is held
+        yet); ``/dogfood entry <entry-id>`` shows
+        one build record; ``/dogfood member
+        <member-id>`` shows one member's records;
+        ``/dogfood slice <slice-id>`` shows one
+        slice's records; ``/dogfood part
+        <part-number>`` shows one part's report;
+        ``/dogfood ledger`` shows the coordinator's
+        ledger derived from the whole book. Reading
+        registers and publishes nothing as session
+        news: records are held only when they are
+        given through the agent layer, and held
+        records are published as a dogfood_entry
+        session event. This road builds nothing live,
+        runs no crew, calls no model, spawns no agent,
+        merges or banks nothing, persists nothing and
+        claims no board: the registry holds the dogfood
+        as data, no build here claims a build happened
+        live, and there is no Part VIII board yet -
+        this surface is where the dogfood is visible.
+        The registry is session state held by the
+        agent; it is not a stored setting.
+        """
+        from ..core.dogfood import (
+            format_entries,
+            format_entry,
+            format_ledger,
+            format_report,
+            parse_dogfood_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_dogfood_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "entry":
+                text = format_entry(primary.get_dogfood_entry(target))
+            elif action == "member":
+                text = format_entries(primary.dogfood(), target)
+            elif action == "slice":
+                held = primary.dogfood().entries_on(target)
+                if held:
+                    text = "\n".join(format_entry(e) for e in held)
+                else:
+                    text = "No build records are held."
+            elif action == "part":
+                text = format_report(primary.dogfood_report(target))
+            elif action == "ledger":
+                text = format_ledger(primary.coordinator_ledger())
+            else:
+                text = primary.dogfood_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

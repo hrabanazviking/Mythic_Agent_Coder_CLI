@@ -18677,6 +18677,394 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+
+    # -- M-141: dogfood --
+
+    def _dogfood_registry(self):
+        """The held dogfood registry (M-141).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer dogfood book record by
+        record, beside the session cost court registry
+        (M-140) and never in it: the dogfood book is one
+        book of build records - the member who built,
+        the slice built and a title naming the build -
+        held under the book this slice names. It is
+        created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_dogfood_store``, never
+        the method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_dogfood_store", None)
+        if registry is None:
+            from ..core.dogfood import DogfoodRegistry
+            registry = DogfoodRegistry()
+            self._dogfood_store = registry
+        return registry
+
+    def dogfood(self):
+        """The session's dogfood book, as data (M-141).
+
+        The held registry's book when the session
+        holds any build record - the records the session
+        has actually gathered (records held one by
+        one, before any whole book stands recorded,
+        stand under a session dogfood book composed
+        here in the agent layer, so a later whole book
+        recorded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book recorded whole through
+        :meth:`record_dogfood_book`, or the shipped
+        example dogfood book until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.dogfood import DogfoodBook, load_dogfood
+        registry = self._dogfood_registry()
+        if registry.list_entries():
+            try:
+                book = registry.book()
+            except ValueError:
+                return DogfoodBook(
+                    title="Session dogfood book",
+                    entries=registry.list_entries())
+            held = getattr(self, "_dogfood_held", None)
+            if held is not None and held.title == book.title \
+                    and held.entry_ids() == book.entry_ids():
+                return held
+            return book
+        book = getattr(self, "_dogfood_held", None)
+        if book is None:
+            return load_dogfood()
+        return book
+
+    def _dogfood_screen(self) -> str:
+        """The /dogfood screen for the session's state (M-141).
+
+        Rendered from the held book when one stands,
+        and from the shipped example book while
+        nothing is held.
+        """
+        from ..core import dogfood as dogfood_module
+        registry = self._dogfood_registry()
+        if not registry.list_entries():
+            return dogfood_module.format_dogfood_screen()
+        return dogfood_module.format_dogfood_screen(self.dogfood())
+
+    def dogfood_status(self) -> dict[str, Any]:
+        """The dogfood, in plain data (M-141).
+
+        The build records held this session as plain
+        records, the held book's record (none until a
+        build record stands held), the session dogfood
+        book's pieces as plain records (the shipped
+        example book - six build records at the M-140
+        slice boundary and the coordinator's one pinned
+        ledger - until records are held), its
+        whole-book record, every report the book
+        derives as plain records, every ledger the
+        book holds as plain records and the ledger
+        derived from the whole book, the records in
+        plain words and the reports and ledger told
+        in plain words, the one screen - rendered
+        from the held book, or from the shipped
+        example book when nothing is held yet - and
+        the plain explanation. Reading registers and
+        publishes nothing, builds nothing live, runs
+        no crew, calls no model, spawns no agent and
+        persists nothing: this layer holds the dogfood
+        as data only, and no build here claims a build
+        happened live. There is no Part VIII board
+        yet; the screen is where the dogfood is
+        visible.
+        """
+        from ..core import dogfood as dogfood_module
+        registry = self._dogfood_registry()
+        held_entries = registry.list_entries()
+        book = self.dogfood()
+        parts: list = []
+        for entry in book.entries:
+            if entry.part not in parts:
+                parts.append(entry.part)
+        reports = [
+            dogfood_module.derive_report(book.entries, part)
+            for part in parts]
+        ledger = dogfood_module.derive_ledger(book.entries)
+        return {
+            "entries": [e.to_record() for e in held_entries],
+            "book": (book.to_record() if held_entries else None),
+            "dogfood": {
+                "title": book.title,
+                "entries": [e.to_record() for e in book.entries],
+            },
+            "book_record": dogfood_module.book_record(book),
+            "reports": [r.to_record() for r in reports],
+            "ledgers": [led.to_record() for led in book.ledgers],
+            "ledger": ledger.to_record(),
+            "plain_words": [
+                dogfood_module.plain_words(entry) for entry in book.entries],
+            "report_plain_words": dogfood_module.report_plain_words(book),
+            "ledger_plain_words": dogfood_module.ledger_plain_words(book),
+            "screen": self._dogfood_screen(),
+            "explanation": dogfood_module.PLAIN_EXPLANATION,
+        }
+
+    def get_dogfood_entry(self, entry_id: Any):
+        """The one build record an id names (M-141).
+
+        The session's held registry answers when the
+        session holds any build record; otherwise the
+        shipped example dogfood book answers (or the
+        book recorded whole for the session). A held
+        session answers for its own book alone: a
+        record the held book holds no record for
+        raises KeyError, with no silent fall back to
+        the example, exactly as the pure layer
+        answers. Reading registers and publishes
+        nothing.
+        """
+        registry = self._dogfood_registry()
+        if registry.list_entries():
+            return registry.get_entry(entry_id)
+        return self.dogfood().entry_for(entry_id)
+
+    def dogfood_report(self, part: Any):
+        """The report derived for one part (M-141).
+
+        The report is derived at call time from the
+        build records of the part - the held registry's
+        records when the session holds any build
+        record, otherwise the shipped example book's
+        records (or the records of the book recorded
+        whole for the session) - so its counts and
+        account are the records' own shape, read at
+        call time; the part itself is read off the
+        shipped roadmap, never stored on a record. A
+        held session answers for its own book alone: a
+        part the held book holds no record for raises
+        KeyError, with no silent fall back to the
+        example. Reading registers and publishes
+        nothing.
+        """
+        from ..core.dogfood import derive_report as _derive_report
+        registry = self._dogfood_registry()
+        if registry.list_entries():
+            return registry.report_for(part)
+        return _derive_report(self.dogfood(), part)
+
+    def coordinator_ledger(self):
+        """The coordinator's ledger derived for the whole book (M-141).
+
+        The ledger is derived at call time from the
+        whole book of build records - the held
+        registry's records when the session holds any
+        build record, otherwise the shipped example
+        book's records (or the records of the book
+        recorded whole for the session) - so its rows
+        are the per-part reports of those records and
+        its totals are the rows' own sums, read at
+        call time; the keeper is always the
+        coordinator. Reading registers and publishes
+        nothing.
+        """
+        from ..core.dogfood import derive_ledger as _derive_ledger
+        registry = self._dogfood_registry()
+        if registry.list_entries():
+            return registry.ledger()
+        return _derive_ledger(self.dogfood().entries)
+
+    def register_dogfood_entry(
+            self, entry: Any) -> dict[str, Any]:
+        """Hold one build record for the session (M-141).
+
+        The record is held by the pure registry under
+        its id or the deterministic dogfood-N id - a
+        record id already standing here refuses, and
+        a refusal holds nothing new and publishes
+        nothing. A held record is published as its
+        ``entry_record`` session-news record through
+        the checkpoint road, so a record given is
+        news with its derived part attached. Returns
+        the held record, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a record builds nothing
+        live, runs no crew, calls no model, spawns no
+        agent, merges or banks nothing and persists
+        nothing: the registry holds the record as
+        data, and a report or ledger stays a
+        derivation read off the held records at call
+        time.
+        """
+        from ..core import dogfood as dogfood_module
+        registry = self._dogfood_registry()
+        held = registry.register_entry(entry)
+        record = dogfood_module.entry_record(held)
+        self._publish_dogfood_record(record)
+        return {
+            "entry": held.to_record(),
+            "record": record,
+            "screen": self._dogfood_screen(),
+            "explanation": dogfood_module.PLAIN_EXPLANATION,
+        }
+
+    def register_dogfood_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole dogfood book for the session (M-141).
+
+        Every build record of the book is held by the
+        pure registry, in book order - the first book
+        held sets the registry's title, a later book
+        under a different title refuses, as does a
+        book naming a held record id. The book's
+        reports and its ledger are derivations, not
+        holdings, and are not held. Every record is
+        published as its ``entry_record`` session
+        news, in book order. Returns the held book,
+        its records, their news records, the count of
+        records held, the screen, and the explanation.
+        Registering builds nothing live, runs no crew,
+        calls no model, spawns no agent, merges or
+        banks nothing and persists nothing.
+        """
+        from ..core import dogfood as dogfood_module
+        validated = dogfood_module.build_book(book)
+        registry = self._dogfood_registry()
+        registry.register_book(validated)
+        records = [
+            dogfood_module.entry_record(entry)
+            for entry in validated.entries]
+        for record in records:
+            self._publish_dogfood_record(record)
+        return {
+            "book": validated.to_record(),
+            "entries": [e.to_record() for e in validated.entries],
+            "records": records,
+            "count": len(records),
+            "screen": self._dogfood_screen(),
+            "explanation": dogfood_module.PLAIN_EXPLANATION,
+        }
+
+    def record_dogfood_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole dogfood book for the session (M-141).
+
+        With no book named, the shipped example dogfood
+        book is recorded through the pure layer - six
+        build records at the M-140 slice boundary and
+        the coordinator's one pinned ledger. A book loaded
+        from a file (the pure layer's
+        ``load_dogfood_file`` road) may be passed
+        instead, so a real dogfood book is recorded as
+        it stands. Every record is held and published
+        as its ``entry_record`` session news, in book
+        order; the book is remembered whole as the
+        session's - its held ledger and all - and the
+        same book recorded twice refuses -
+        fingerprinted on its entry ids and title - a
+        book is recorded once, never duplicated into
+        the session. Returns the held book, its
+        records, their news records, the count of
+        records held, the screen, and the explanation.
+        Recording builds nothing live, runs no crew,
+        calls no model, spawns no agent, merges or
+        banks nothing and persists nothing.
+        """
+        from ..core import dogfood as dogfood_module
+        book = book if book is not None \
+            else dogfood_module.load_dogfood()
+        validated = dogfood_module.build_book(book)
+        fingerprint = (tuple(validated.entry_ids()), validated.title)
+        recorded = getattr(self, "_dogfood_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._dogfood_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this dogfood book is already recorded for "
+                "the session; a book is recorded once")
+        registry = self._dogfood_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._dogfood_held = validated
+        records = [
+            dogfood_module.entry_record(entry)
+            for entry in validated.entries]
+        for record in records:
+            self._publish_dogfood_record(record)
+        return {
+            "book": validated.to_record(),
+            "entries": [e.to_record() for e in validated.entries],
+            "records": records,
+            "count": len(records),
+            "screen": dogfood_module.format_dogfood_screen(validated),
+            "explanation": dogfood_module.PLAIN_EXPLANATION,
+        }
+
+    def report_dogfood(self) -> dict[str, Any]:
+        """Render the session dogfood book, as a report (M-141).
+
+        The book - the held registry's book when the
+        session holds any build record, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone: its build records,
+        its reports, its ledger and its one screen.
+        Rendering registers and publishes nothing,
+        builds nothing live, runs no crew, calls no
+        model, spawns no agent, merges or banks
+        nothing and persists nothing: the agent layer
+        renders the dogfood as data. Returns the book,
+        its records, reports and ledgers as plain records,
+        the rendered records, reports and ledger, the
+        screen, and the plain explanation.
+        """
+        from ..core import dogfood as dogfood_module
+        book = self.dogfood()
+        parts: list = []
+        for entry in book.entries:
+            if entry.part not in parts:
+                parts.append(entry.part)
+        reports = [
+            dogfood_module.derive_report(book.entries, part)
+            for part in parts]
+        return {
+            "book": book.to_record(),
+            "entries": [e.to_record() for e in book.entries],
+            "reports": [r.to_record() for r in reports],
+            "ledgers": [led.to_record() for led in book.ledgers],
+            "ledger": dogfood_module.derive_ledger(
+                book.entries).to_record(),
+            "entries_text": dogfood_module.format_entries(book),
+            "report_text": dogfood_module.format_report(book),
+            "ledger_text": dogfood_module.format_ledger(book),
+            "screen": self._dogfood_screen(),
+            "explanation": dogfood_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_dogfood_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one build record as session news (M-141).
+
+        The pure layer's ``entry_record`` is journaled
+        through the same checkpoint road every sibling
+        slice uses, when a session is attached. Each
+        record is announced at most once, under its
+        own entry id. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") != "dogfood_entry":
+            return
+        announced = getattr(self, "_dogfood_announced", None)
+        if announced is None:
+            announced = set()
+            self._dogfood_announced = announced
+        key = ("dogfood_entry", record.get("entry_id"))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
