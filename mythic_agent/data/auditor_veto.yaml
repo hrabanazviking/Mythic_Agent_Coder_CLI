@@ -1,0 +1,93 @@
+schema: mythic.auditor_veto/1
+slice: M-130
+part: 6
+part_title: Agents as files
+keeper: auditor
+ledger_note: |
+  The Auditor's veto: no slice is "done" until the
+  Auditor's checks pass, as data. The evidence is
+  three lists - the cases (which slices stand
+  before the Auditor, with their titles and their
+  builders, among the shipped M-121 casting), the
+  checks (which checks each slice carries, and
+  whether the gate turns on them) and the results
+  (what the Auditor's run of each check found,
+  passed or failed, with the evidence for it) -
+  and the verdicts are derived from that evidence
+  alone: a required check that failed vetoes its
+  slice (failed_check), and a required check
+  holding no result at all vetoes it too
+  (unproven_check), because a check with no
+  evidence has not passed; a slice passes exactly
+  when every required check it carries holds a
+  passing result, and a check that is not required
+  never vetoes. This file is ONE EXAMPLE VETO
+  LEDGER in the shape a real ledger's file takes:
+  three cases among the shipped Part VI slices,
+  holding exactly one outcome of each kind - M-128
+  (Merge discipline, built by the forge worker)
+  passed with both its required checks proven,
+  M-129 (Heterogeneous crews, built by the scribe)
+  vetoed on its suite-green check, which the
+  Auditor's run failed, and M-127 (Cycle and
+  deadlock detection grown, built by the
+  cartographer) vetoed on its suite-green check,
+  which holds no result at all. A real veto ledger
+  is a new file in this same shape - it is never
+  this file edited in place. This layer holds the
+  audit as data only: it runs no check, executes
+  no test suite, banks nothing and merges nothing
+  itself; the coordinator acts on the verdicts
+  through later roads, and the banking road that
+  will refuse a vetoed slice in code is a later
+  slice (M-205 / M-206), not this one.
+cases:
+- slice_id: M-127
+  title: Cycle and deadlock detection grown
+  builder: cartographer
+- slice_id: M-128
+  title: Merge discipline
+  builder: forge_worker
+- slice_id: M-129
+  title: Heterogeneous crews
+  builder: scribe
+checks:
+- slice_id: M-127
+  name: suite-green
+  required: true
+- slice_id: M-127
+  name: neighbour-suites-green
+  required: true
+- slice_id: M-128
+  name: suite-green
+  required: true
+- slice_id: M-128
+  name: banking-order-kept
+  required: true
+- slice_id: M-129
+  name: suite-green
+  required: true
+- slice_id: M-129
+  name: banking-order-kept
+  required: true
+results:
+- slice_id: M-127
+  check: neighbour-suites-green
+  outcome: passed
+  evidence: "Neighbour suites run on the laptop for M-127: all passed."
+- slice_id: M-128
+  check: suite-green
+  outcome: passed
+  evidence: "Slice suite run on the laptop for M-128: all passed."
+- slice_id: M-128
+  check: banking-order-kept
+  outcome: passed
+  evidence: "Banking record for M-128 shows the slices banked in roadmap order."
+- slice_id: M-129
+  check: suite-green
+  outcome: failed
+  evidence: "Slice suite run on the laptop for M-129: failures stand in the run."
+- slice_id: M-129
+  check: banking-order-kept
+  outcome: passed
+  evidence: "Banking record for M-129 shows the slices banked in roadmap order."
