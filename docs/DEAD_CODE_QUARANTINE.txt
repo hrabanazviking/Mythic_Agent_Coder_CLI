@@ -276,7 +276,15 @@ mythic_agent/agents/llm.py:19263:register_solo_capability:method
 mythic_agent/agents/llm.py:19295:register_solo_book:method
 mythic_agent/agents/llm.py:19332:record_solo_book:method
 mythic_agent/agents/llm.py:19388:report_solo_mode:method
+mythic_agent/agents/llm.py:19655:register_crew_template:method
+mythic_agent/agents/llm.py:19695:register_crew_template_book:method
+mythic_agent/agents/llm.py:19746:record_crew_template_book:method
+mythic_agent/agents/llm.py:19817:report_crew_templates:method
 mythic_agent/core/cost_court.py:872:row_for:method
+mythic_agent/core/crew_templates.py:759:row_for:method
+mythic_agent/core/crew_templates.py:954:template_for:method
+mythic_agent/core/crew_templates.py:962:template_named:method
+mythic_agent/core/crew_templates.py:1260:get_template:method
 mythic_agent/core/dogfood.py:759:row_for:method
 mythic_agent/core/dogfood.py:972:entries_in:method
 mythic_agent/core/solo_mode.py:747:row_for:method
