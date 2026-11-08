@@ -869,7 +869,7 @@ slices:
   part: 6
   title: External agents as crew
   summary: an outside agent (over MCP, Part X) can hold a seat with the same contracts and budgets.
-  status: queued
+  status: done
 - id: M-138
   part: 6
   title: Crew replay

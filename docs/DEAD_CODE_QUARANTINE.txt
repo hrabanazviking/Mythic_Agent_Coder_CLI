@@ -246,3 +246,8 @@ mythic_agent/agents/llm.py:16871:register_voice_profile:method
 mythic_agent/agents/llm.py:16903:record_voice_book:method
 mythic_agent/agents/llm.py:16959:report_character_voices:method
 mythic_agent/core/character_voices.py:768:profile_ids:method
+mythic_agent/agents/llm.py:17221:external_seats_for_transport:method
+mythic_agent/agents/llm.py:17237:register_external_seat:method
+mythic_agent/agents/llm.py:17271:register_external_seat_book:method
+mythic_agent/agents/llm.py:17307:record_external_seat:method
+mythic_agent/agents/llm.py:17364:report_external_agents:method
