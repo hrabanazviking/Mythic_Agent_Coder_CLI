@@ -564,3 +564,442 @@ def test_format_steps_member_filter_empty():
     auditor_steps = format_steps(book, "auditor")
     assert "step-decision" in auditor_steps
     assert "step-map" not in auditor_steps
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-138 agent layer: the agent holds a
+# ReplayRegistry for the session (session state
+# only, no new setting), steps are held by being
+# registered - published as their step_record
+# session news through the checkpoint road, deduped
+# per step id - the report road renders the held
+# book (or the shipped example when unheld) through
+# the pure formatters, and the /replay surface rides
+# both roads on the pure parser + formatters. Status,
+# get, step-at and trace reads register and publish
+# nothing, answer from the held registry first and
+# from the shipped example only while nothing is
+# held - a held session never falls back to the
+# example. This layer reads no live journal,
+# re-executes no step, spawns no agent, persists
+# nothing, calls no model and claims no board -
+# Part VIII does not exist yet, so the screen is
+# where the replay is visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _replay_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+class TestCrewReplayAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.crew_replay_status()
+        assert status["steps"] == []
+        assert status["book"] is None
+        assert status["replay"]["title"] == (
+            "Crew replay at the M-137 slice boundary")
+        assert [s["step_id"] for s in status["replay"]["steps"]] == [
+            "step-map", "step-diff", "step-ask",
+            "step-decision", "step-note"]
+        assert status["book_record"]["type"] == "crew_replay_book"
+        assert status["book_record"]["step_count"] == 5
+        assert [t["trace_id"] for t in status["traces"]] == [
+            "trace-replay-decision"]
+        assert status["traces"][0]["steps"] == [1, 2, 3, 4]
+        assert "cartographer handed findings" in status["plain_words"][0]
+        assert "step-decision - decision by auditor" in \
+            status["trace_plain_words"]
+        assert "Crew replay (M-138)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        assert agent._crew_replay_registry() is \
+            agent._crew_replay_registry()
+        assert agent._crew_replay_store is \
+            agent._crew_replay_registry()
+
+    def test_reads_register_and_publish_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.crew_replay_status()
+        step = agent.get_replay_step("step-ask")
+        assert step.recipient == "human"
+        assert step.kind == "question"
+        assert agent.replay_step_at(4).step_id == "step-decision"
+        trace = agent.replay_trace("step-decision")
+        assert trace.member == "auditor"
+        assert trace.steps == (1, 2, 3, 4)
+        assert "rests on 4 hand-offs" in trace.account[-1]
+        assert agent.replay_trace(5).steps == (5,)
+        assert agent.crew_replay().title == (
+            "Crew replay at the M-137 slice boundary")
+        registry = agent._crew_replay_registry()
+        assert registry.list_steps() == ()
+        assert _replay_events(store, session_id, "crew_replay_step") == []
+        agent.close()
+
+    def test_unheld_get_at_and_trace_raise_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_replay_step("no-such-step")
+        with pytest.raises(KeyError):
+            agent.replay_step_at(9)
+        with pytest.raises(KeyError):
+            agent.replay_trace("no-such-step")
+
+    def test_status_after_register_shows_the_held_pieces(self, agent):
+        agent.register_replay_step(_step())
+        status = agent.crew_replay_status()
+        assert [s["step_id"] for s in status["steps"]] == ["step-map"]
+        assert status["book"]["step_count"] == 1
+        # The held book answers now, not the example:
+        # steps held one by one stand under a session
+        # replay book, and it holds no traces.
+        assert status["replay"]["title"] == "Session replay book"
+        assert [s["step_id"] for s in status["replay"]["steps"]] == [
+            "step-map"]
+        assert status["traces"] == []
+        assert "Run traffic mapped" in status["screen"]
+
+    def test_held_session_never_falls_back_to_the_example(self, agent):
+        agent.register_replay_step(_step())
+        with pytest.raises(KeyError):
+            agent.get_replay_step("step-diff")
+        with pytest.raises(KeyError):
+            agent.replay_step_at(2)
+        with pytest.raises(KeyError):
+            agent.replay_trace("step-decision")
+        assert agent.crew_replay().step_ids() == ("step-map",)
+        assert agent.get_replay_step("step-map").sender == "cartographer"
+        assert agent.replay_trace("step-map").steps == (1,)
+
+
+class TestCrewReplayAgentRegister:
+    def test_register_step_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_replay_step(_step())
+        assert outcome["step"]["step_id"] == "step-map"
+        assert outcome["record"]["type"] == "crew_replay_step"
+        events = _replay_events(store, session_id, "crew_replay_step")
+        assert len(events) == 1
+        assert events[0]["step_id"] == "step-map"
+        # The same record is never published twice.
+        agent._publish_crew_replay_record(outcome["record"])
+        assert len(_replay_events(
+            store, session_id, "crew_replay_step")) == 1
+        # Foreign record types are refused on this road.
+        from mythic_agent.core.character_voices import (
+            load_character_voices,
+            profile_record,
+        )
+        from mythic_agent.core.crew_members import (
+            casting_record,
+            load_casting,
+        )
+        from mythic_agent.core.crew_memory import (
+            entry_record as _memory_entry_record,
+            load_crew_memory,
+        )
+        from mythic_agent.core.crew_sizing import (
+            case_record as _sizing_case_record,
+            load_crew_sizing,
+        )
+        from mythic_agent.core.external_agents import (
+            book_record as _external_book_record,
+            check_record as _external_check_record,
+            check_seat,
+            load_external_agents,
+            seat_record as _external_seat_record,
+        )
+        from mythic_agent.core.review_panels import (
+            load_review_panel,
+            review_record,
+        )
+        from mythic_agent.core.stand_ups import (
+            entry_record as _stand_up_entry_record,
+            load_stand_up,
+        )
+        agent._publish_crew_replay_record(profile_record(
+            load_character_voices().profiles[0]))
+        agent._publish_crew_replay_record(_sizing_case_record(
+            load_crew_sizing().cases[0]))
+        agent._publish_crew_replay_record({
+            "type": "crew_sizing_recommendation_set"})
+        agent._publish_crew_replay_record(_stand_up_entry_record(
+            load_stand_up().entries[0]))
+        memory = load_crew_memory()
+        agent._publish_crew_replay_record(_memory_entry_record(
+            memory.entry_for("broken-checkpoint-chain")))
+        panel = load_review_panel()
+        agent._publish_crew_replay_record(review_record(panel.reviews[0]))
+        agent._publish_crew_replay_record(casting_record(
+            load_casting().members[0]))
+        external = load_external_agents()
+        agent._publish_crew_replay_record(_external_seat_record(
+            external.seats[0]))
+        agent._publish_crew_replay_record(_external_book_record(external))
+        agent._publish_crew_replay_record(_external_check_record(
+            check_seat(external.seats[0])))
+        book = load_crew_replay()
+        agent._publish_crew_replay_record(book_record(book))
+        agent._publish_crew_replay_record(trace_record(
+            book.trace_for("trace-replay-decision"), book))
+        for kind in ("character_voice_profile", "crew_sizing_case",
+                     "crew_sizing_recommendation_set", "stand_up_entry",
+                     "crew_memory_entry", "panel_review", "crew_member",
+                     "external_seat", "external_seat_book",
+                     "external_seat_check", "crew_replay_book",
+                     "crew_replay_trace"):
+            assert _replay_events(store, session_id, kind) == []
+        assert len(_replay_events(
+            store, session_id, "crew_replay_step")) == 1
+        agent.close()
+
+    def test_duplicate_step_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_replay_step(_step())
+        # The same step again stands at the wrong
+        # journal position now, and its id at the
+        # next position is a duplicate: both refuse.
+        with pytest.raises(ValueError):
+            agent.register_replay_step(_step())
+        with pytest.raises(ValueError):
+            agent.register_replay_step(ReplayStep(
+                step_id="step-map", position=2,
+                handoff=_handoff(title="Same id again")))
+        assert len(_replay_events(
+            store, session_id, "crew_replay_step")) == 1
+        agent.close()
+
+    def test_out_of_order_step_refuses(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        with pytest.raises(ValueError):
+            agent.register_replay_step(ReplayStep(
+                step_id="step-late", position=3,
+                handoff=_handoff(title="Skipped the journal")))
+        assert agent._crew_replay_registry().list_steps() == ()
+        assert _replay_events(store, session_id, "crew_replay_step") == []
+        agent.close()
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_replay_book(load_crew_replay())
+        assert outcome["count"] == 5
+        assert outcome["book"]["step_count"] == 5
+        events = _replay_events(store, session_id, "crew_replay_step")
+        assert [e["step_id"] for e in events] == [
+            "step-map", "step-diff", "step-ask",
+            "step-decision", "step-note"]
+        assert agent.crew_replay().title == (
+            "Crew replay at the M-137 slice boundary")
+        assert agent.get_replay_step(
+            "step-note").slice_id == "M-137"
+        # The registry holds steps, never traces: the
+        # decision's trace is derived at call time.
+        assert agent.crew_replay().traces == ()
+        assert agent.replay_trace("step-decision").steps == (1, 2, 3, 4)
+        agent.close()
+
+    def test_register_book_twice_refuses(self, agent):
+        agent.register_replay_book(load_crew_replay())
+        with pytest.raises(ValueError):
+            agent.register_replay_book(load_crew_replay())
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_replay_book()
+        assert outcome["count"] == 5
+        assert outcome["book"]["step_count"] == 5
+        events = _replay_events(store, session_id, "crew_replay_step")
+        assert [e["step_id"] for e in events] == [
+            "step-map", "step-diff", "step-ask",
+            "step-decision", "step-note"]
+        assert agent.crew_replay().title == (
+            "Crew replay at the M-137 slice boundary")
+        assert agent.get_replay_step(
+            "step-ask").recipient == "human"
+        # The recorded book stands whole: its held
+        # example trace still answers, and a trace for
+        # the kept note derives from its own step.
+        assert agent.crew_replay().traces[0].trace_id == (
+            "trace-replay-decision")
+        assert agent.replay_trace("step-note").steps == (5,)
+        agent.close()
+
+    def test_record_same_book_twice_refuses(self, agent):
+        agent.record_replay_book()
+        with pytest.raises(ValueError):
+            agent.record_replay_book()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_replay(tmp_path, _book_data())
+        book = load_crew_replay_file(path)
+        outcome = agent.record_replay_book(book)
+        assert outcome["count"] == 5
+        assert agent.crew_replay().title == "A replay book"
+        assert agent.get_replay_step(
+            "step-decision").sender == "auditor"
+        assert agent.replay_trace("step-decision").account[0] == (
+            "Step 1: cartographer handed findings "
+            "'Run traffic mapped' to architect (M-138).")
+
+    def test_one_by_one_steps_stand_under_a_session_book(
+            self, agent):
+        agent.register_replay_step(_step())
+        # Held one by one, the steps stand under a
+        # session replay book composed in the agent
+        # layer - never under a recorded book's title.
+        assert agent.crew_replay().title == "Session replay book"
+        assert agent.replay_trace("step-map").steps == (1,)
+        # The journal continues: the next step joins
+        # at the next position, under the same book.
+        agent.register_replay_step(_steps()[1])
+        assert agent.crew_replay().step_ids() == (
+            "step-map", "step-diff")
+        # A whole book recorded now would restart the
+        # journal at position 1: the held order is the
+        # journal order, so it refuses - unlike a seat
+        # book, a replay cannot restart mid-run.
+        with pytest.raises(ValueError):
+            agent.record_replay_book()
+
+
+class TestCrewReplayAgentReport:
+    def test_report_renders_the_example_when_unheld(self, agent):
+        outcome = agent.report_crew_replay()
+        assert outcome["book"]["title"] == (
+            "Crew replay at the M-137 slice boundary")
+        assert outcome["book"]["step_count"] == 5
+        assert "step-map" in outcome["steps_text"]
+        assert "step-note" in outcome["steps_text"]
+        assert "decision by auditor" in outcome["trace_text"]
+        assert "Crew replay (M-138)" in outcome["screen"]
+        assert outcome["explanation"] == PLAIN_EXPLANATION
+
+    def test_report_renders_the_held_book_only(self, agent):
+        agent.register_replay_step(_step())
+        outcome = agent.report_crew_replay()
+        assert outcome["book"]["step_count"] == 1
+        assert "step-map" in outcome["steps_text"]
+        assert "step-note" not in outcome["steps_text"]
+        assert "Nothing here." in outcome["trace_text"]
+
+    def test_report_registers_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.report_crew_replay()
+        registry = agent._crew_replay_registry()
+        assert registry.list_steps() == ()
+        assert _replay_events(store, session_id, "crew_replay_step") == []
+        agent.close()
+
+    def test_no_live_journal_execute_or_model_road(self, agent):
+        # This layer holds the replay as data: it reads
+        # no live journal, re-executes no step, spawns
+        # no agent, persists nothing and calls no model
+        # - and there is no Part VIII board yet.
+        assert not hasattr(agent, "generate_crew_replay")
+        assert not hasattr(agent, "persist_crew_replay")
+        assert not hasattr(agent, "execute_replay")
+        assert not hasattr(agent, "rerun_replay")
+        assert not hasattr(agent, "spawn_replay")
+        assert not hasattr(agent, "read_live_journal")
+        assert not hasattr(agent, "crew_replay_board")
+
+
+class TestCrewReplayTerminalSurface:
+    def test_show_step_and_trace(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/replay")
+        assert "Crew replay (M-138)" in text
+        _, _, text = _slash(agent, "/replay step step-map")
+        assert "step-map: cartographer -> architect" in text
+        assert "[findings]" in text
+        _, _, text = _slash(agent, "/replay trace step-decision")
+        assert "decision by auditor" in text
+        assert "rests on 4 hand-offs" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert "/replay [show|step <step-id>|trace <step-id>]" in text
+        _, _, text = _slash(agent, "/replay dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/replay step missing-step")
+        assert "no step in the book" in text
+
+
+@pytest.fixture()
+def replay_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _replay_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestCrewReplayCommand:
+    def test_show_is_default(self, replay_handler, agent):
+        replay_handler._handle_replay("")
+        assert "Crew replay (M-138)" in \
+            _replay_published_text(replay_handler)
+
+    def test_step_and_trace(self, replay_handler, agent):
+        replay_handler._handle_replay("step step-map")
+        assert "cartographer -> architect" in _replay_published_text(
+            replay_handler)
+        replay_handler._handle_replay("trace step-decision")
+        assert "decision by auditor" in _replay_published_text(
+            replay_handler)
+
+    def test_bad_grammar_is_published(self, replay_handler, agent):
+        replay_handler._handle_replay("dance party")
+        assert USAGE in _replay_published_text(replay_handler)
+
+
+class TestChatScreenRoutingReplay:
+    def test_replay_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/replay step step-map", _FakeLog())
+        assert calls == [("/replay", "step step-map")]
