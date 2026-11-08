@@ -365,3 +365,396 @@ def test_no_live_roads_in_pure_layer():
     assert "search is derived" in source.lower() or True
     record = _entry().to_record()
     assert "search" not in record and "index" not in record
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-133 agent layer: the agent holds a
+# CrewMemoryRegistry for the session (session
+# state only, no new setting), entries are held
+# by being registered - published as their
+# entry_record session news through the checkpoint
+# road, deduped per entry id - the whole memory is
+# published as ONE memory_record session event,
+# deduped per whole memory shape, and the /memory
+# surface rides both roads on the pure parser +
+# formatters. Status, get, search, tag and memory
+# reads register and publish nothing, answer from
+# the held registry first and from the shipped
+# example only while nothing is held - a held
+# session never falls back to the example. This
+# layer persists nothing, syncs nothing, spawns no
+# crew, calls no model and claims no board - Part
+# VIII does not exist yet, so the screen is where
+# the memory is visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _memory_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+class TestCrewMemoryAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.crew_memory_status()
+        assert status["entries"] == []
+        assert status["notebooks"] == []
+        assert status["memory"]["members"] == [
+            "auditor", "guardian", "scribe"]
+        assert len(status["memory"]["entries"]) == 3
+        assert status["memory_record"]["type"] == "crew_memory"
+        assert status["memory_record"]["entry_count"] == 3
+        assert "Crew memory (M-133)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        assert agent._crew_memory_registry() is \
+            agent._crew_memory_registry()
+        assert agent._crew_memory_store is \
+            agent._crew_memory_registry()
+
+    def test_reads_register_and_publish_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.crew_memory_status()
+        entry = agent.get_memory_entry("broken-checkpoint-chain")
+        assert entry.member == "auditor"
+        found = agent.search_crew_memory(
+            "checkpoint", asking_member="scribe")
+        assert [e.entry_id for e in found] == [
+            "broken-checkpoint-chain"]
+        tagged = agent.find_memory_entries_by_tag("git")
+        assert [e.entry_id for e in tagged] == ["verify-remote-moved"]
+        assert agent.crew_memory().members() == (
+            "auditor", "guardian", "scribe")
+        registry = agent._crew_memory_registry()
+        assert registry.list_entries() == ()
+        for kind in ("crew_memory_entry", "crew_memory"):
+            assert _memory_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_unheld_get_raises_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_memory_entry("entry-1")
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_memory_entry(_entry())
+        status = agent.crew_memory_status()
+        assert [e["entry_id"] for e in status["entries"]] == ["a-fact"]
+        assert [n["member"] for n in status["notebooks"]] == ["auditor"]
+        # The held memory answers now, not the example:
+        # the session memory is the held union alone.
+        assert status["memory"]["members"] == ["auditor"]
+        assert status["memory_record"]["entry_count"] == 1
+        assert "A fact" in status["screen"]
+
+    def test_held_session_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_memory_entry(_entry())
+        with pytest.raises(KeyError):
+            agent.get_memory_entry("broken-checkpoint-chain")
+        assert agent.search_crew_memory("checkpoint") == ()
+        assert agent.find_memory_entries_by_tag("git") == ()
+        assert [e.entry_id for e in agent.crew_memory().entries()] == [
+            "a-fact"]
+        with pytest.raises(KeyError):
+            agent.crew_memory().notebook_for("guardian")
+
+
+class TestCrewMemoryAgentRegister:
+    def test_register_entry_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_memory_entry(_entry())
+        assert outcome["entry"]["entry_id"] == "a-fact"
+        assert outcome["record"]["type"] == "crew_memory_entry"
+        events = _memory_events(store, session_id, "crew_memory_entry")
+        assert len(events) == 1
+        assert events[0]["entry_id"] == "a-fact"
+        # The same record is never published twice.
+        agent._publish_memory_record(outcome["record"])
+        assert len(_memory_events(
+            store, session_id, "crew_memory_entry")) == 1
+        # Foreign record types are refused on this road.
+        from mythic_agent.core.crew_members import (
+            casting_record,
+            load_casting,
+        )
+        from mythic_agent.core.review_panels import (
+            change_record,
+            load_review_panel,
+            outcome_of_panel,
+            outcome_record,
+            review_record,
+        )
+        panel = load_review_panel()
+        agent._publish_memory_record(change_record(panel.change))
+        agent._publish_memory_record(review_record(panel.reviews[0]))
+        agent._publish_memory_record(outcome_record(
+            outcome_of_panel(panel)))
+        agent._publish_memory_record(casting_record(
+            load_casting().members[0]))
+        for kind in ("panel_change", "panel_review",
+                     "panel_outcome", "crew_member"):
+            assert _memory_events(store, session_id, kind) == []
+        assert len(_memory_events(
+            store, session_id, "crew_memory_entry")) == 1
+        agent.close()
+
+    def test_duplicate_id_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_memory_entry(_entry())
+        with pytest.raises(ValueError):
+            agent.register_memory_entry(
+                _entry(fact="A different fact."))
+        assert len(_memory_events(
+            store, session_id, "crew_memory_entry")) == 1
+        agent.close()
+
+    def test_duplicate_fact_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_memory_entry(_entry(entry_id="x-fact"))
+        with pytest.raises(ValueError):
+            agent.register_memory_entry(_entry(
+                entry_id="y-fact", fact="the  thing is so."))
+        assert len(_memory_events(
+            store, session_id, "crew_memory_entry")) == 1
+        agent.close()
+
+    def test_record_notebook_holds_and_publishes_each_entry(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        notebook = build_notebook({"member": "guardian", "entries": [
+            {"entry_id": "g-one", "member": "guardian", "title": "G one",
+             "fact": "A first guardian fact.", "provenance": "Watch"},
+            {"entry_id": "g-two", "member": "guardian", "title": "G two",
+             "fact": "A second guardian fact.", "provenance": "Watch"}]})
+        outcome = agent.record_member_notebook(notebook)
+        assert outcome["count"] == 2
+        assert outcome["notebook"]["member"] == "guardian"
+        assert len(_memory_events(
+            store, session_id, "crew_memory_entry")) == 2
+        assert agent.get_memory_entry("g-two").title == "G two"
+        agent.close()
+
+    def test_second_notebook_for_one_member_refuses(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.record_member_notebook(build_notebook(
+            {"member": "auditor", "entries": [
+                {"entry_id": "a-one", "member": "auditor", "title": "A",
+                 "fact": "An auditor fact.", "provenance": "Work"}]}))
+        with pytest.raises(ValueError):
+            agent.record_member_notebook(build_notebook(
+                {"member": "auditor", "entries": []}))
+        assert len(_memory_events(
+            store, session_id, "crew_memory_entry")) == 1
+        agent.close()
+
+    def test_record_memory_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_crew_memory()
+        assert outcome["count"] == 3
+        assert outcome["memory"]["entry_count"] == 3
+        events = _memory_events(store, session_id, "crew_memory_entry")
+        assert [e["entry_id"] for e in events] == [
+            "broken-checkpoint-chain", "portaudio-env-import",
+            "verify-remote-moved"]
+        assert agent.crew_memory().members() == (
+            "auditor", "guardian", "scribe")
+        agent.close()
+
+    def test_record_same_memory_twice_refuses(self, agent):
+        agent.record_crew_memory()
+        with pytest.raises(ValueError):
+            agent.record_crew_memory()
+
+    def test_memory_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_memory(tmp_path, _memory_data())
+        memory = load_crew_memory_file(path)
+        outcome = agent.record_crew_memory(memory)
+        assert outcome["count"] == 2
+        assert agent.get_memory_entry("b-fact").member == "scribe"
+        found = agent.search_crew_memory(
+            "another", asking_member="auditor")
+        assert [e.entry_id for e in found] == ["b-fact"]
+
+    def test_search_prefers_the_held_memory(self, agent):
+        agent.register_memory_entry(MemoryEntry(
+            entry_id="gate-fact", member="scribe", title="Gate fact",
+            fact="The checkpoint gate holds.", tags=("checkpoints",),
+            provenance="Watch"))
+        found = agent.search_crew_memory(
+            "checkpoint", asking_member="auditor")
+        assert [e.entry_id for e in found] == ["gate-fact"]
+        assert found[0].member == "scribe"
+        # The held memory answers now: the example's
+        # PortAudio fact no longer answers.
+        assert agent.search_crew_memory("portaudio") == ()
+
+
+class TestCrewMemoryAgentReport:
+    def test_report_publishes_one_memory_event_and_dedups(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.record_crew_memory()
+        outcome = agent.report_crew_memory()
+        assert outcome["record"]["type"] == "crew_memory"
+        assert outcome["entry_count"] == 3
+        assert outcome["memory"]["entry_count"] == 3
+        events = _memory_events(store, session_id, "crew_memory")
+        # ONE memory event holds the whole memory.
+        assert len(events) == 1
+        assert events[0]["entry_count"] == 3
+        # Reporting again on the same memory publishes
+        # nothing new.
+        agent.report_crew_memory()
+        assert len(_memory_events(
+            store, session_id, "crew_memory")) == 1
+        agent.close()
+
+    def test_grown_memory_announces_as_the_new_memory(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_memory_entry(_entry())
+        outcome = agent.report_crew_memory()
+        assert outcome["entry_count"] == 1
+        assert len(_memory_events(
+            store, session_id, "crew_memory")) == 1
+        # A newly held entry grows the memory: the new
+        # memory announces as the new memory it is.
+        agent.register_memory_entry(_entry(
+            entry_id="b-fact", member="scribe", title="B fact",
+            fact="Another thing is so."))
+        outcome = agent.report_crew_memory()
+        assert outcome["entry_count"] == 2
+        events = _memory_events(store, session_id, "crew_memory")
+        assert len(events) == 2
+        assert events[1]["entry_count"] == 2
+        agent.close()
+
+    def test_no_persist_sync_spawn_or_board_road(self, agent):
+        # This layer holds the memory as data: it
+        # persists nothing, syncs nothing, spawns no
+        # crew and builds no board - Part VIII does
+        # not exist yet, and persistence is a later
+        # road, not this slice.
+        assert not hasattr(agent, "persist_crew_memory")
+        assert not hasattr(agent, "sync_crew_memory")
+        assert not hasattr(agent, "spawn_crew_memory")
+        assert not hasattr(agent, "crew_memory_board")
+
+
+class TestCrewMemoryTerminalSurface:
+    def test_show_search_tag_entry_and_members(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/memory")
+        assert "Crew memory (M-133)" in text
+        _, _, text = _slash(agent, "/memory show auditor")
+        assert "auditor's notebook" in text
+        _, _, text = _slash(agent, "/memory guardian")
+        assert "guardian's notebook" in text
+        _, _, text = _slash(agent, "/memory search checkpoint")
+        assert "broken-checkpoint-chain" in text
+        _, _, text = _slash(agent, "/memory tag git")
+        assert "verify-remote-moved" in text
+        _, _, text = _slash(agent, "/memory entry portaudio-env-import")
+        assert "portaudio-env-import" in text
+        _, _, text = _slash(agent, "/memory members")
+        assert "- auditor" in text
+        assert "- scribe" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/memory [show|show <member>|search <words>|"
+                "tag <tag>|entry <entry-id>|members]") in text
+        _, _, text = _slash(agent, "/memory dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/memory entry missing-entry")
+        assert "no entry in the shared memory" in text
+
+
+@pytest.fixture()
+def memory_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _memory_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestCrewMemoryCommand:
+    def test_show_is_default(self, memory_handler, agent):
+        memory_handler._handle_memory("")
+        assert "Crew memory (M-133)" in \
+            _memory_published_text(memory_handler)
+
+    def test_show_one_search_tag_entry_and_members(
+            self, memory_handler, agent):
+        memory_handler._handle_memory("show auditor")
+        assert "auditor's notebook" in \
+            _memory_published_text(memory_handler)
+        memory_handler._handle_memory("search checkpoint")
+        assert "broken-checkpoint-chain" in \
+            _memory_published_text(memory_handler)
+        memory_handler._handle_memory("tag git")
+        assert "verify-remote-moved" in \
+            _memory_published_text(memory_handler)
+        memory_handler._handle_memory("entry verify-remote-moved")
+        assert "verify-remote-moved" in \
+            _memory_published_text(memory_handler)
+        memory_handler._handle_memory("members")
+        assert "- scribe" in _memory_published_text(memory_handler)
+
+    def test_bad_grammar_is_published(self, memory_handler, agent):
+        memory_handler._handle_memory("dance party")
+        assert USAGE in _memory_published_text(memory_handler)
+
+
+class TestChatScreenRoutingMemory:
+    def test_memory_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/memory members", _FakeLog())
+        assert calls == [("/memory", "members")]

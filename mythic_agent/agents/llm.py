@@ -15666,6 +15666,387 @@ class Agent:
 
 
 
+    # -- M-133: crew memory --
+
+    def _crew_memory_registry(self):
+        """The held crew-memory registry (M-133).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer notebooks entry by
+        entry, beside the session review-panel
+        registry (M-132) and never in it: the memory
+        is what the crew has learned, held under the
+        memory this slice names. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named ``_crew_memory_store``,
+        never the method's own name (the M-108
+        lesson).
+        """
+        registry = getattr(self, "_crew_memory_store", None)
+        if registry is None:
+            from ..core.crew_memory import (
+                CrewMemoryRegistry,
+            )
+            registry = CrewMemoryRegistry()
+            self._crew_memory_store = registry
+        return registry
+
+    def crew_memory(self):
+        """The session's crew memory, as data (M-133).
+
+        The held registry's union view when the
+        session holds any entry - the memory the
+        session has actually gathered - otherwise
+        the memory recorded whole through
+        :meth:`record_crew_memory`, or the shipped
+        example memory until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.crew_memory import load_crew_memory
+
+        registry = self._crew_memory_registry()
+        if registry.list_entries():
+            return registry.memory()
+        memory = getattr(self, "_crew_memory_held", None)
+        if memory is None:
+            return load_crew_memory()
+        return memory
+
+    def crew_memory_status(self) -> dict[str, Any]:
+        """The crew memory, in plain data (M-133).
+
+        The entries and notebooks held this session
+        as plain records, the session memory's pieces
+        as plain records (the shipped example memory
+        - the auditor's broken-checkpoint-chain fact,
+        the guardian's portaudio-env-import fact and
+        the scribe's verify-remote-moved fact - until
+        entries are held), its whole-memory record,
+        the one screen - rendered from the held
+        registry, or from the shipped example memory
+        when nothing is held yet - and the plain
+        explanation. Reading registers and publishes
+        nothing, persists nothing, syncs nothing and
+        spawns no crew: this layer holds the memory
+        as data only. There is no Part VIII board
+        yet; the screen is where the memory is
+        visible.
+        """
+        from ..core import crew_memory as crew_memory_module
+
+        registry = self._crew_memory_registry()
+        held_entries = registry.list_entries()
+        held_notebooks = registry.list_notebooks()
+        memory = self.crew_memory()
+        if held_entries:
+            screen = crew_memory_module.format_memory_screen(
+                registry)
+        else:
+            screen = crew_memory_module.format_memory_screen()
+        return {
+            "entries": [e.to_record() for e in held_entries],
+            "notebooks": [
+                n.to_record() for n in held_notebooks],
+            "memory": {
+                "members": list(memory.members()),
+                "entries": [
+                    e.to_record() for e in memory.entries()],
+                "notebooks": [
+                    n.to_record() for n in memory.notebooks],
+            },
+            "memory_record": crew_memory_module.memory_record(
+                memory),
+            "screen": screen,
+            "explanation": crew_memory_module.PLAIN_EXPLANATION,
+        }
+
+    def get_memory_entry(self, entry_id: Any):
+        """The one entry an id names (M-133).
+
+        The session's held registry answers when the
+        session holds any entry; otherwise the
+        shipped example memory answers. A held
+        session answers for its own memory alone: an
+        entry the held memory does not hold raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        from ..core.crew_memory import load_crew_memory
+
+        registry = self._crew_memory_registry()
+        if registry.list_entries():
+            return registry.get_entry(entry_id)
+        return load_crew_memory().entry_for(entry_id)
+
+    def search_crew_memory(
+            self, query: Any, asking_member: Any = None):
+        """Search the shared memory, findable by all (M-133).
+
+        The session's held registry answers when the
+        session holds any entry; otherwise the
+        shipped example memory answers. The asking
+        member, when named, is validated and then
+        deliberately does not narrow the search: a
+        fact recorded by one member is found when
+        queried as another. Reading registers and
+        publishes nothing.
+        """
+        from ..core.crew_memory import (
+            load_crew_memory,
+            search_memory,
+        )
+
+        registry = self._crew_memory_registry()
+        if registry.list_entries():
+            return registry.search(
+                query, asking_member=asking_member)
+        return search_memory(
+            load_crew_memory(), query,
+            asking_member=asking_member)
+
+    def find_memory_entries_by_tag(self, tag: Any):
+        """Every entry carrying one tag (M-133).
+
+        The session's held registry answers when the
+        session holds any entry; otherwise the
+        shipped example memory answers. Reading
+        registers and publishes nothing.
+        """
+        from ..core.crew_memory import (
+            find_entries,
+            load_crew_memory,
+        )
+
+        registry = self._crew_memory_registry()
+        if registry.list_entries():
+            return registry.find_by_tag(tag)
+        return find_entries(load_crew_memory(), tag)
+
+    def register_memory_entry(
+            self, entry: Any) -> dict[str, Any]:
+        """Hold one memory entry for the session (M-133).
+
+        The entry is held by the pure registry in
+        its member's notebook, under its id or the
+        deterministic entry-N id - a duplicate entry
+        id anywhere refuses, the same fact already
+        standing in that member's notebook refuses,
+        and a refusal holds nothing new and publishes
+        nothing - and a held entry is published as
+        its ``entry_record`` session-news record
+        through the checkpoint road, so a fact given
+        is news with its shape attached. Returns the
+        held entry, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding an entry persists
+        nothing and calls no model: the registry
+        holds the memory as data.
+        """
+        from ..core import crew_memory as crew_memory_module
+
+        registry = self._crew_memory_registry()
+        held = registry.register_entry(entry)
+        record = crew_memory_module.entry_record(held)
+        self._publish_memory_record(record)
+        return {
+            "entry": held.to_record(),
+            "record": record,
+            "screen": crew_memory_module.format_memory_screen(
+                registry),
+            "explanation": crew_memory_module.PLAIN_EXPLANATION,
+        }
+
+    def record_member_notebook(
+            self, notebook: Any) -> dict[str, Any]:
+        """Record one member's notebook for the session (M-133).
+
+        The notebook is held whole by the pure
+        registry - a member who already holds a
+        notebook here refuses, a duplicate entry id
+        anywhere refuses, the same fact twice in the
+        notebook refuses, and a refusal holds nothing
+        new and publishes nothing - and every held
+        entry is published as its ``entry_record``
+        session-news record through the checkpoint
+        road, in notebook order. Returns the held
+        notebook, its entries, their news records,
+        the count of entries held, the screen, and
+        the plain explanation. Recording persists
+        nothing and spawns no crew.
+        """
+        from ..core import crew_memory as crew_memory_module
+
+        registry = self._crew_memory_registry()
+        held = registry.register_notebook(notebook)
+        records = [
+            crew_memory_module.entry_record(entry)
+            for entry in held.entries]
+        for record in records:
+            self._publish_memory_record(record)
+        return {
+            "notebook": held.to_record(),
+            "entries": [e.to_record() for e in held.entries],
+            "records": records,
+            "count": len(records),
+            "screen": crew_memory_module.format_memory_screen(
+                registry),
+            "explanation": crew_memory_module.PLAIN_EXPLANATION,
+        }
+
+    def record_crew_memory(
+            self, memory: Any = None) -> dict[str, Any]:
+        """Record a whole crew memory for the session (M-133).
+
+        With no memory named, the shipped example
+        memory is recorded through the pure layer -
+        the auditor's, guardian's and scribe's
+        notebooks, three facts findable by all. A
+        memory loaded from a file (the pure layer's
+        ``load_crew_memory_file`` road) may be passed
+        instead, so a real memory is recorded as it
+        stands. Every entry is held and published as
+        its ``entry_record`` session news, in shared
+        order; the memory is remembered as the
+        session's, and the same memory recorded twice
+        refuses - fingerprinted on its entry ids - a
+        memory is recorded once, never duplicated
+        into the session. Returns the held memory,
+        its entries, their news records, the count of
+        entries held, the screen, and the explanation.
+        Recording persists nothing, syncs nothing and
+        spawns no crew.
+        """
+        from ..core import crew_memory as crew_memory_module
+
+        memory = memory if memory is not None \
+            else crew_memory_module.load_crew_memory()
+        fingerprint = tuple(
+            entry.entry_id for entry in memory.entries())
+        recorded = getattr(self, "_crew_memory_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._crew_memory_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this crew memory is already recorded for "
+                "the session; a memory is recorded once")
+        registry = self._crew_memory_registry()
+        held_memory = registry.register_memory(memory)
+        recorded.add(fingerprint)
+        self._crew_memory_held = memory
+        records = [
+            crew_memory_module.entry_record(entry)
+            for entry in held_memory.entries()]
+        for record in records:
+            self._publish_memory_record(record)
+        return {
+            "memory": held_memory.to_record(),
+            "entries": [
+                e.to_record() for e in held_memory.entries()],
+            "records": records,
+            "count": len(records),
+            "screen": crew_memory_module.format_memory_screen(
+                registry),
+            "explanation": crew_memory_module.PLAIN_EXPLANATION,
+        }
+
+    def report_crew_memory(self) -> dict[str, Any]:
+        """Report the crew memory as session news (M-133).
+
+        The memory the session holds - the held
+        registry's union view, or the session memory
+        (the shipped example until one is recorded) -
+        is published as ONE ``memory_record`` session
+        event holding the whole memory, never one
+        event per entry. The announcement is deduped
+        per whole memory shape: reporting again while
+        the same memory is held publishes nothing
+        new, and a memory grown by a newly held entry
+        announces as the new memory it is. Returns
+        the memory, its news record, its entry count,
+        the screen, and the plain explanation.
+        Reporting persists nothing, syncs nothing and
+        spawns no crew: the human acts on the memory
+        through later roads.
+        """
+        from ..core import crew_memory as crew_memory_module
+
+        memory = self.crew_memory()
+        record = crew_memory_module.memory_record(memory)
+        self._publish_memory_report_record(record)
+        registry = self._crew_memory_registry()
+        if registry.list_entries():
+            screen = crew_memory_module.format_memory_screen(
+                registry)
+        else:
+            screen = crew_memory_module.format_memory_screen()
+        return {
+            "memory": memory.to_record(),
+            "record": record,
+            "entry_count": len(memory.entries()),
+            "screen": screen,
+            "explanation": crew_memory_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_memory_record(self, record: dict[str, Any]) -> None:
+        """Publish one memory entry as session news (M-133).
+
+        The pure layer's ``entry_record`` is journaled
+        through the same checkpoint road every sibling
+        slice uses, when a session is attached. Each
+        entry is announced at most once, under its own
+        id. A foreign record type is never published
+        on this road.
+        """
+        if record.get("type") != "crew_memory_entry":
+            return
+        announced = getattr(self, "_memory_announced", None)
+        if announced is None:
+            announced = set()
+            self._memory_announced = announced
+        key = ("crew_memory_entry", record.get("entry_id"))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_memory_report_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one whole crew memory as session news (M-133).
+
+        The pure layer's ``memory_record`` is journaled
+        through the same checkpoint road, when a session
+        is attached - ONE event holding the whole shared
+        memory, so the human is told once. Each memory
+        is announced at most once: the announcement is
+        keyed by the memory's whole shape (its members,
+        its entry ids, its entry count), so a memory
+        grown by a newly held entry announces again as
+        the new memory it is. A foreign record type is
+        never published on this road.
+        """
+        if record.get("type") != "crew_memory":
+            return
+        announced = getattr(
+            self, "_memory_report_announced", None)
+        if announced is None:
+            announced = set()
+            self._memory_report_announced = announced
+        key = (
+            tuple(record.get("members", [])),
+            tuple(record.get("entry_ids", [])),
+            record.get("entry_count"))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):

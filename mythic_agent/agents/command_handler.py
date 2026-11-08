@@ -299,6 +299,8 @@ class CommandHandler:
                 self._handle_swarm(args)
             elif cmd == "/panel":
                 self._handle_panel(args)
+            elif cmd == "/memory":
+                self._handle_memory(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -4036,6 +4038,85 @@ class CommandHandler:
                     format_review(review)
                     for review
                     in primary.find_panel_reviews(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_memory(self, args: str):
+        """M-133: /memory - crew memory.
+
+        ``/memory`` shows the memory held this
+        session (the shipped example memory - the
+        auditor's broken-checkpoint-chain fact, the
+        guardian's portaudio-env-import fact and the
+        scribe's verify-remote-moved fact - when
+        none is held yet); ``/memory show <member>``
+        (or a bare member id) shows one member's
+        notebook; ``/memory search <words>`` searches
+        every notebook at once; ``/memory tag
+        <tag>`` shows the entries carrying one tag;
+        ``/memory entry <entry-id>`` shows one
+        entry; ``/memory members`` lists the
+        notebook holders. Reading registers and
+        publishes nothing as session news: entries
+        are held only when they are given through
+        the agent layer, and held entries are
+        published as a crew_memory_entry session
+        event, each memory report as ONE crew_memory
+        session event. This road persists nothing,
+        syncs nothing, calls no model and spawns no
+        crew: the registry holds the memory as data,
+        and there is no Part VIII board yet - this
+        surface is where the memory is visible. The
+        registry is session state held by the agent;
+        it is not a stored setting.
+        """
+        from ..core.crew_memory import (
+            format_entry,
+            format_notebook,
+            parse_memory_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_memory_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "members":
+                memory = primary.crew_memory()
+                text = "\n".join(
+                    f"- {member}" for member in memory.members()) \
+                    if memory.members() \
+                    else "No notebooks are held yet."
+            elif action == "search":
+                found = primary.search_crew_memory(target)
+                text = "\n".join(
+                    format_entry(entry) for entry in found) \
+                    if found else "No facts match that search."
+            elif action == "tag":
+                found = primary.find_memory_entries_by_tag(target)
+                text = "\n".join(
+                    format_entry(entry) for entry in found) \
+                    if found else "No facts match that search."
+            elif action == "entry":
+                text = format_entry(
+                    primary.get_memory_entry(target))
+            elif target is None:
+                text = primary.crew_memory_status()["screen"]
+            else:
+                text = format_notebook(
+                    primary.crew_memory().notebook_for(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
