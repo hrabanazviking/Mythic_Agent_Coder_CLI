@@ -16047,6 +16047,351 @@ class Agent:
             self._checkpoint(record)
 
 
+    # -- M-134: stand-ups --
+
+    def _stand_up_registry(self):
+        """The held stand-up registry (M-134).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer report entry by
+        entry, beside the session crew-memory
+        registry (M-133) and never in it: the
+        stand-up is the coordinator's own account of
+        where the work stands, held under the
+        stand-up this slice names. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named ``_stand_up_store``,
+        never the method's own name (the M-108
+        lesson).
+        """
+        registry = getattr(self, "_stand_up_store", None)
+        if registry is None:
+            from ..core.stand_ups import (
+                StandUpRegistry,
+            )
+            registry = StandUpRegistry()
+            self._stand_up_store = registry
+        return registry
+
+    def stand_up(self):
+        """The session's stand-up report, as data (M-134).
+
+        The held registry's report when the session
+        holds any entry - the stand-up the session
+        has actually gathered - otherwise the report
+        recorded whole through
+        :meth:`record_stand_up_report`, or the shipped
+        example stand-up until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.stand_ups import load_stand_up
+
+        registry = self._stand_up_registry()
+        if registry.list_entries():
+            return registry.report()
+        report = getattr(self, "_stand_up_held", None)
+        if report is None:
+            return load_stand_up()
+        return report
+
+    def stand_up_status(self) -> dict[str, Any]:
+        """The stand-up, in plain data (M-134).
+
+        The entries held this session as plain
+        records, the held report's record (none
+        until a report stands held), the session
+        stand-up's pieces as plain records (the
+        shipped example stand-up - five items at the
+        M-133 boundary across done, doing, blocked
+        and needs-you - until entries are held), its
+        whole-report record, its derived digest and
+        digest record, the one screen - rendered
+        from the held registry, or from the shipped
+        example stand-up when nothing is held yet -
+        and the plain explanation. Reading registers
+        and publishes nothing, schedules nothing,
+        sends nothing, posts nothing and persists
+        nothing: this layer holds the stand-up as
+        data only. There is no Part VIII board yet;
+        the screen is where the digest is visible.
+        """
+        from ..core import stand_ups as stand_ups_module
+
+        registry = self._stand_up_registry()
+        held_entries = registry.list_entries()
+        held_report = None
+        if held_entries:
+            held_report = registry.report()
+        report = self.stand_up()
+        digest = stand_ups_module.digest_stand_up(report)
+        if held_entries:
+            screen = stand_ups_module.format_stand_up_screen(
+                registry)
+        else:
+            screen = stand_ups_module.format_stand_up_screen()
+        return {
+            "entries": [e.to_record() for e in held_entries],
+            "report": (
+                held_report.to_record()
+                if held_report is not None else None),
+            "stand_up": {
+                "title": report.title,
+                "boundary": report.boundary,
+                "entries": [
+                    e.to_record() for e in report.entries],
+            },
+            "report_record": stand_ups_module.report_record(
+                report),
+            "digest": digest.to_record(),
+            "digest_record": stand_ups_module.digest_record(
+                digest, report),
+            "screen": screen,
+            "explanation": stand_ups_module.PLAIN_EXPLANATION,
+        }
+
+    def get_stand_up_entry(self, entry_id: Any):
+        """The one entry an id names (M-134).
+
+        The session's held registry answers when the
+        session holds any entry; otherwise the
+        shipped example stand-up answers. A held
+        session answers for its own stand-up alone:
+        an entry the held report does not hold
+        raises KeyError, with no silent fall back to
+        the example, exactly as the pure layer
+        answers. Reading registers and publishes
+        nothing.
+        """
+        from ..core.stand_ups import load_stand_up
+
+        registry = self._stand_up_registry()
+        if registry.list_entries():
+            return registry.get_entry(entry_id)
+        return load_stand_up().entry_for(entry_id)
+
+    def stand_up_digest(self):
+        """The digest the stand-up's entries yield (M-134).
+
+        Derived by the pure layer from what the
+        session holds - the held registry's report
+        when the session holds any entry, otherwise
+        the session stand-up (the shipped example
+        until one is recorded) - grouping its
+        entries by state into done, doing, blocked
+        and needs-you, in report order. Reading
+        registers and publishes nothing: publishing
+        is :meth:`report_stand_up`' road.
+        """
+        from ..core.stand_ups import digest_stand_up
+
+        return digest_stand_up(self.stand_up())
+
+    def register_stand_up_entry(
+            self, entry: Any) -> dict[str, Any]:
+        """Hold one stand-up entry for the session (M-134).
+
+        The entry is held by the pure registry under
+        its id or the deterministic entry-N id - a
+        duplicate entry id refuses, and a refusal
+        holds nothing new and publishes nothing. An
+        entry held on its own stands under a session
+        stand-up (title ``Session stand-up``,
+        boundary ``session``) opened for it, until a
+        whole report is recorded; a whole report
+        recorded first lends its own title and
+        boundary to the entries held after it. A
+        held entry is published as its
+        ``entry_record`` session-news record through
+        the checkpoint road, so progress given is
+        news with its shape attached. Returns the
+        held entry, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding an entry schedules
+        nothing, sends nothing, posts nothing,
+        persists nothing and calls no model: the
+        registry holds the stand-up as data.
+        """
+        from ..core import stand_ups as stand_ups_module
+
+        registry = self._stand_up_registry()
+        held = registry.register_entry(entry)
+        try:
+            registry.report()
+        except ValueError:
+            registry.register_report(stand_ups_module.StandUpReport(
+                title="Session stand-up", boundary="session",
+                entries=()))
+        record = stand_ups_module.entry_record(held)
+        self._publish_stand_up_record(record)
+        return {
+            "entry": held.to_record(),
+            "record": record,
+            "screen": stand_ups_module.format_stand_up_screen(
+                registry),
+            "explanation": stand_ups_module.PLAIN_EXPLANATION,
+        }
+
+    def record_stand_up_report(
+            self, report: Any = None) -> dict[str, Any]:
+        """Record a whole stand-up report for the session (M-134).
+
+        With no report named, the shipped example
+        stand-up is recorded through the pure layer -
+        five items at the M-133 boundary across done,
+        doing, blocked and needs-you. A report loaded
+        from a file (the pure layer's
+        ``load_stand_up_file`` road) may be passed
+        instead, so a real stand-up is recorded as it
+        stands. Every entry is held and published as
+        its ``entry_record`` session news, in report
+        order; the report is remembered as the
+        session's, and the same report recorded twice
+        refuses - fingerprinted on its entry ids and
+        boundary - a report is recorded once, never
+        duplicated into the session. Returns the held
+        report, its entries, their news records, the
+        count of entries held, the screen, and the
+        explanation. Recording schedules nothing,
+        sends nothing, posts nothing and persists
+        nothing.
+        """
+        from ..core import stand_ups as stand_ups_module
+
+        report = report if report is not None \
+            else stand_ups_module.load_stand_up()
+        fingerprint = (
+            tuple(e.entry_id for e in report.entries),
+            report.boundary)
+        recorded = getattr(self, "_stand_up_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._stand_up_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this stand-up report is already recorded "
+                "for the session; a report is recorded once")
+        registry = self._stand_up_registry()
+        held_report = registry.register_report(report)
+        recorded.add(fingerprint)
+        self._stand_up_held = report
+        records = [
+            stand_ups_module.entry_record(entry)
+            for entry in held_report.entries]
+        for record in records:
+            self._publish_stand_up_record(record)
+        return {
+            "report": held_report.to_record(),
+            "entries": [
+                e.to_record() for e in held_report.entries],
+            "records": records,
+            "count": len(records),
+            "screen": stand_ups_module.format_stand_up_screen(
+                registry),
+            "explanation": stand_ups_module.PLAIN_EXPLANATION,
+        }
+
+    def report_stand_up(self) -> dict[str, Any]:
+        """Report the stand-up digest as session news (M-134).
+
+        The digest of the stand-up the session holds
+        - derived from the held registry's report, or
+        from the session report (the shipped example
+        until one is recorded) - is published as ONE
+        ``digest_record`` session event holding the
+        whole digest, never one event per entry. The
+        announcement is deduped per whole digest
+        shape: reporting again while the same digest
+        stands publishes nothing new, and a digest
+        changed by a newly held entry announces as
+        the new digest it is. Returns the report, its
+        digest, the digest's news record, its entry
+        count, the screen, and the plain explanation.
+        Reporting schedules nothing, sends nothing,
+        posts nothing and persists nothing: the human
+        acts on the digest through later roads.
+        """
+        from ..core import stand_ups as stand_ups_module
+
+        report = self.stand_up()
+        digest = stand_ups_module.digest_stand_up(report)
+        record = stand_ups_module.digest_record(digest, report)
+        self._publish_stand_up_report_record(record)
+        registry = self._stand_up_registry()
+        if registry.list_entries():
+            screen = stand_ups_module.format_stand_up_screen(
+                registry)
+        else:
+            screen = stand_ups_module.format_stand_up_screen()
+        return {
+            "report": report.to_record(),
+            "digest": digest.to_record(),
+            "record": record,
+            "entry_count": digest.total(),
+            "screen": screen,
+            "explanation": stand_ups_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_stand_up_record(self, record: dict[str, Any]) -> None:
+        """Publish one stand-up entry as session news (M-134).
+
+        The pure layer's ``entry_record`` is journaled
+        through the same checkpoint road every sibling
+        slice uses, when a session is attached. Each
+        entry is announced at most once, under its own
+        id. A foreign record type is never published
+        on this road.
+        """
+        if record.get("type") != "stand_up_entry":
+            return
+        announced = getattr(self, "_stand_up_announced", None)
+        if announced is None:
+            announced = set()
+            self._stand_up_announced = announced
+        key = ("stand_up_entry", record.get("entry_id"))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_stand_up_report_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one whole stand-up digest as session news (M-134).
+
+        The pure layer's ``digest_record`` is journaled
+        through the same checkpoint road, when a session
+        is attached - ONE event holding the whole derived
+        digest, so the human is told once. Each digest
+        is announced at most once: the announcement is
+        keyed by the digest's whole shape (its title,
+        its boundary, and the entry ids standing in
+        each of its four sections), so a digest changed
+        by a newly held entry announces again as the
+        new digest it is. A foreign record type is
+        never published on this road.
+        """
+        if record.get("type") != "stand_up_digest":
+            return
+        announced = getattr(
+            self, "_stand_up_report_announced", None)
+        if announced is None:
+            announced = set()
+            self._stand_up_report_announced = announced
+        key = (
+            record.get("title"), record.get("boundary"),
+            tuple(record.get("done", [])),
+            tuple(record.get("doing", [])),
+            tuple(record.get("blocked", [])),
+            tuple(record.get("needs_you", [])))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):

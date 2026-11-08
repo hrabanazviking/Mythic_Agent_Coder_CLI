@@ -408,3 +408,342 @@ def test_no_live_roads_in_pure_layer():
         assert banned not in source
     record = _entry().to_record()
     assert "digest" not in record and "sections" not in record
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-134 agent layer: the agent holds a
+# StandUpRegistry for the session (session state
+# only, no new setting), entries are held by
+# being registered - published as their
+# entry_record session news through the checkpoint
+# road, deduped per entry id - the whole report's
+# digest is published as ONE digest_record session
+# event, deduped per whole digest shape, and the
+# /standup surface rides both roads on the pure
+# parser + formatters. Status, get, digest and
+# stand-up reads register and publish nothing,
+# answer from the held registry first and from
+# the shipped example only while nothing is held
+# - a held session never falls back to the
+# example. This layer schedules nothing, sends
+# nothing, posts nothing, persists nothing, calls
+# no model and claims no board - Part VIII does
+# not exist yet, so the screen is where the
+# digest is visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _stand_up_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+class TestStandUpAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.stand_up_status()
+        assert status["entries"] == []
+        assert status["report"] is None
+        assert status["stand_up"]["title"] == (
+            "Stand-up at the M-133 slice boundary")
+        assert status["stand_up"]["boundary"] == "M-133"
+        assert len(status["stand_up"]["entries"]) == 5
+        assert status["report_record"]["type"] == "stand_up_report"
+        assert status["report_record"]["entry_count"] == 5
+        assert status["digest"]["counts"] == {
+            "done": 2, "doing": 1, "blocked": 1, "needs_you": 1}
+        assert status["digest_record"]["type"] == "stand_up_digest"
+        assert "Stand-ups (M-134)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        assert agent._stand_up_registry() is             agent._stand_up_registry()
+        assert agent._stand_up_store is             agent._stand_up_registry()
+
+    def test_reads_register_and_publish_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.stand_up_status()
+        entry = agent.get_stand_up_entry("m-133-memory-banked")
+        assert entry.member == "scribe"
+        digest = agent.stand_up_digest()
+        assert digest.done == (
+            "m-133-memory-banked", "m-132-panels-banked")
+        assert digest.needs_you == ("hall-posting-needs-word",)
+        assert agent.stand_up().boundary == "M-133"
+        registry = agent._stand_up_registry()
+        assert registry.list_entries() == ()
+        for kind in ("stand_up_entry", "stand_up_digest"):
+            assert _stand_up_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_unheld_get_raises_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_stand_up_entry("entry-1")
+        with pytest.raises(KeyError):
+            agent.get_stand_up_entry("no-such-entry")
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_stand_up_entry(_entry())
+        status = agent.stand_up_status()
+        assert [e["entry_id"] for e in status["entries"]] == ["an-item"]
+        assert status["report"]["entry_count"] == 1
+        # The held stand-up answers now, not the example:
+        # the session stand-up is the held entries alone.
+        assert [e["entry_id"] for e in status["stand_up"]["entries"]] == [
+            "an-item"]
+        assert status["digest"]["counts"] == {
+            "done": 0, "doing": 1, "blocked": 0, "needs_you": 0}
+        assert "An item" in status["screen"]
+
+    def test_held_session_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_stand_up_entry(_entry())
+        with pytest.raises(KeyError):
+            agent.get_stand_up_entry("m-133-memory-banked")
+        assert [e.entry_id for e in agent.stand_up().entries] == [
+            "an-item"]
+        assert agent.stand_up_digest().doing == ("an-item",)
+        assert agent.stand_up_digest().done == ()
+
+
+class TestStandUpAgentRegister:
+    def test_register_entry_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_stand_up_entry(_entry())
+        assert outcome["entry"]["entry_id"] == "an-item"
+        assert outcome["record"]["type"] == "stand_up_entry"
+        events = _stand_up_events(store, session_id, "stand_up_entry")
+        assert len(events) == 1
+        assert events[0]["entry_id"] == "an-item"
+        # The same record is never published twice.
+        agent._publish_stand_up_record(outcome["record"])
+        assert len(_stand_up_events(
+            store, session_id, "stand_up_entry")) == 1
+        # Foreign record types are refused on this road.
+        from mythic_agent.core.crew_members import (
+            casting_record,
+            load_casting,
+        )
+        from mythic_agent.core.crew_memory import (
+            entry_record as _memory_entry_record,
+            load_crew_memory,
+            notebook_record,
+        )
+        from mythic_agent.core.review_panels import (
+            load_review_panel,
+            review_record,
+        )
+        memory = load_crew_memory()
+        agent._publish_stand_up_record(_memory_entry_record(
+            memory.entry_for("broken-checkpoint-chain")))
+        agent._publish_stand_up_record(notebook_record(
+            memory.notebook_for("auditor")))
+        panel = load_review_panel()
+        agent._publish_stand_up_record(review_record(panel.reviews[0]))
+        agent._publish_stand_up_record(casting_record(
+            load_casting().members[0]))
+        for kind in ("crew_memory_entry", "member_notebook",
+                     "panel_review", "crew_member"):
+            assert _stand_up_events(store, session_id, kind) == []
+        assert len(_stand_up_events(
+            store, session_id, "stand_up_entry")) == 1
+        agent.close()
+
+    def test_duplicate_id_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_stand_up_entry(_entry())
+        with pytest.raises(ValueError):
+            agent.register_stand_up_entry(
+                _entry(title="Another item"))
+        assert len(_stand_up_events(
+            store, session_id, "stand_up_entry")) == 1
+        agent.close()
+
+    def test_record_report_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_stand_up_report()
+        assert outcome["count"] == 5
+        assert outcome["report"]["entry_count"] == 5
+        events = _stand_up_events(store, session_id, "stand_up_entry")
+        assert [e["entry_id"] for e in events] == [
+            "m-133-memory-banked", "m-134-stand-ups-building",
+            "m-132-panels-banked", "full-suite-portaudio-held",
+            "hall-posting-needs-word"]
+        assert agent.stand_up().boundary == "M-133"
+        assert agent.get_stand_up_entry(
+            "hall-posting-needs-word").status == "needs_you"
+        agent.close()
+
+    def test_record_same_report_twice_refuses(self, agent):
+        agent.record_stand_up_report()
+        with pytest.raises(ValueError):
+            agent.record_stand_up_report()
+
+    def test_report_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_stand_up(tmp_path, _report_data())
+        report = load_stand_up_file(path)
+        outcome = agent.record_stand_up_report(report)
+        assert outcome["count"] == 4
+        assert agent.get_stand_up_entry(
+            "word-item").member == "cartographer"
+        assert agent.stand_up_digest().needs_you == ("word-item",)
+
+
+class TestStandUpAgentReport:
+    def test_digest_report_publishes_one_digest_event_and_dedups(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.record_stand_up_report()
+        outcome = agent.report_stand_up()
+        assert outcome["record"]["type"] == "stand_up_digest"
+        assert outcome["entry_count"] == 5
+        assert outcome["digest"]["counts"] == {
+            "done": 2, "doing": 1, "blocked": 1, "needs_you": 1}
+        events = _stand_up_events(store, session_id, "stand_up_digest")
+        # ONE digest event holds the whole digest.
+        assert len(events) == 1
+        assert events[0]["entry_count"] == 5
+        # Reporting again on the same digest publishes
+        # nothing new.
+        agent.report_stand_up()
+        assert len(_stand_up_events(
+            store, session_id, "stand_up_digest")) == 1
+        agent.close()
+
+    def test_changed_digest_announces_again(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_stand_up_entry(_entry())
+        outcome = agent.report_stand_up()
+        assert outcome["entry_count"] == 1
+        assert len(_stand_up_events(
+            store, session_id, "stand_up_digest")) == 1
+        # A newly held entry changes the digest: the new
+        # digest announces as the new digest it is.
+        agent.register_stand_up_entry(_entry(
+            entry_id="b-item", title="B item", status="done"))
+        outcome = agent.report_stand_up()
+        assert outcome["entry_count"] == 2
+        events = _stand_up_events(store, session_id, "stand_up_digest")
+        assert len(events) == 2
+        assert events[1]["counts"]["done"] == 1
+        agent.close()
+
+    def test_no_schedule_send_post_persist_or_model_road(self, agent):
+        # This layer holds the stand-up as data: it
+        # schedules nothing, sends nothing, posts
+        # nothing, persists nothing and calls no model
+        # - and there is no Part VIII board yet.
+        assert not hasattr(agent, "schedule_stand_up")
+        assert not hasattr(agent, "send_stand_up")
+        assert not hasattr(agent, "post_stand_up")
+        assert not hasattr(agent, "persist_stand_up")
+        assert not hasattr(agent, "stand_up_board")
+
+
+class TestStandUpTerminalSurface:
+    def test_show_digest_sections_entry_and_kinds(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/standup")
+        assert "Stand-ups (M-134)" in text
+        _, _, text = _slash(agent, "/standup digest")
+        assert "Digest at M-133: 5 item(s)" in text
+        _, _, text = _slash(agent, "/standup done")
+        assert "m-133-memory-banked" in text
+        assert "hall-posting-needs-word" not in text
+        _, _, text = _slash(agent, "/standup needs-you")
+        assert "hall-posting-needs-word" in text
+        _, _, text = _slash(agent, "/standup entry m-133-memory-banked")
+        assert "m-133-memory-banked" in text
+        _, _, text = _slash(agent, "/standup kinds")
+        assert text == "Status kinds: done, doing, blocked, needs-you"
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/standup [show|digest|done|doing|blocked|"
+                "needs-you|entry <entry-id>|kinds]") in text
+        _, _, text = _slash(agent, "/standup dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/standup entry missing-entry")
+        assert "no entry in the stand-up" in text
+
+
+@pytest.fixture()
+def standup_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _standup_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestStandUpCommand:
+    def test_show_is_default(self, standup_handler, agent):
+        standup_handler._handle_standup("")
+        assert "Stand-ups (M-134)" in \
+            _standup_published_text(standup_handler)
+
+    def test_digest_section_entry_and_kinds(
+            self, standup_handler, agent):
+        standup_handler._handle_standup("digest")
+        assert "Digest at M-133" in \
+            _standup_published_text(standup_handler)
+        standup_handler._handle_standup("blocked")
+        assert "full-suite-portaudio-held" in \
+            _standup_published_text(standup_handler)
+        standup_handler._handle_standup("entry hall-posting-needs-word")
+        assert "hall-posting-needs-word" in \
+            _standup_published_text(standup_handler)
+        standup_handler._handle_standup("kinds")
+        assert "needs-you" in \
+            _standup_published_text(standup_handler)
+
+    def test_bad_grammar_is_published(self, standup_handler, agent):
+        standup_handler._handle_standup("dance party")
+        assert USAGE in _standup_published_text(standup_handler)
+
+
+class TestChatScreenRoutingStandUp:
+    def test_standup_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/standup kinds", _FakeLog())
+        assert calls == [("/standup", "kinds")]
