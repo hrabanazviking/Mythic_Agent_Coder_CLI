@@ -305,3 +305,9 @@ mythic_agent/agents/llm.py:20758:report_crew_schedules:method
 mythic_agent/core/crew_schedules.py:1051:row_for:method
 mythic_agent/core/crew_schedules.py:1292:attachments_with_standing:method
 mythic_agent/core/part6_gate.py:309:dealt_pairs:method
+mythic_agent/agents/llm.py:20996:context_budget_items_for_kind:method
+mythic_agent/agents/llm.py:21053:register_context_budget_item:method
+mythic_agent/agents/llm.py:21103:register_context_budget_panel:method
+mythic_agent/agents/llm.py:21152:record_context_budget_panel:method
+mythic_agent/agents/llm.py:21222:report_context_budget:method
+mythic_agent/core/context_budget.py:1144:row_for:method

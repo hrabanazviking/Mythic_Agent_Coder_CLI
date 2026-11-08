@@ -925,7 +925,7 @@ slices:
   title: Context budget made visible
   summary: a live meter and a "what's in the context and why" panel — every file, note, and map section
     accounted for in tokens.
-  status: queued
+  status: done
 - id: M-148
   part: 7
   title: The @-mention canon
