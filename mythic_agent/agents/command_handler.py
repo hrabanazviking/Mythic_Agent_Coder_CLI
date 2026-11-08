@@ -337,6 +337,8 @@ class CommandHandler:
                 self._handle_glassbox(args)
             elif cmd == "/graphsearch":
                 self._handle_graphsearch(args)
+            elif cmd == "/daymemory":
+                self._handle_daymemory(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -5344,6 +5346,78 @@ class CommandHandler:
                 text = format_panel(primary.graph_retrieval_book())
             else:
                 text = primary.graph_retrieval_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_daymemory(self, args: str):
+        """M-153: /daymemory - session memory across days.
+
+        ``/daymemory`` shows the session memory held
+        this session (the shipped example book - one
+        situation at the M-152 slice boundary, its
+        session paused at the end of its day with
+        three map facts, two open slices and two
+        standing decisions carried, with its one
+        pinned panel - when none is held yet);
+        ``/daymemory situation <situation-id>`` shows
+        one situation; ``/daymemory memory`` shows the
+        latest situation's carried memory;
+        ``/daymemory slices`` its open slices;
+        ``/daymemory decisions`` its standing
+        decisions; ``/daymemory panel`` shows the
+        panel derived from the latest situation, its
+        rows in panel order. Reading registers and
+        publishes nothing as session news: situations
+        are held only when they are given through the
+        agent's session-memory roads or restored from
+        a stored session, and every situation held for
+        the session is journaled as a
+        session_memory_situation session event and
+        every derived panel as a session_memory_panel
+        session event. This surface calls no model,
+        resumes no live session and replays no
+        transcript, and there is no Part VIII board
+        yet, so the situation is visible on this
+        surface, not on a board.
+        """
+        from ..core.session_memory import (
+            format_decisions,
+            format_memory,
+            format_panel,
+            format_situation,
+            format_slices,
+            parse_session_memory_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_session_memory_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "situation":
+                text = format_situation(
+                    primary.get_session_situation(target))
+            elif action == "memory":
+                text = format_memory(primary.session_memory_book())
+            elif action == "slices":
+                text = format_slices(primary.session_memory_book())
+            elif action == "decisions":
+                text = format_decisions(primary.session_memory_book())
+            elif action == "panel":
+                text = format_panel(primary.session_memory_book())
+            else:
+                text = primary.session_memory_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
