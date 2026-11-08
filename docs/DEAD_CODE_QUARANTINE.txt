@@ -183,3 +183,12 @@ mythic_agent/agents/llm.py:13261:record_deadlock_watch:method
 mythic_agent/agents/llm.py:13320:report_deadlock:method
 mythic_agent/core/deadlock_watch.py:982:delegations_for:method
 mythic_agent/core/deadlock_watch.py:989:claims_for:method
+mythic_agent/agents/llm.py:13514:get_merge_step:method
+mythic_agent/agents/llm.py:13522:get_merge_attempt:method
+mythic_agent/agents/llm.py:13591:register_merge_step:method
+mythic_agent/agents/llm.py:13621:register_merge_attempt:method
+mythic_agent/agents/llm.py:13651:record_merge_discipline:method
+mythic_agent/agents/llm.py:13711:report_merge:method
+mythic_agent/core/merge_discipline.py:1035:line_for:method
+mythic_agent/core/merge_discipline.py:1147:steps_for:method
+mythic_agent/core/merge_discipline.py:1152:merges_for:method
