@@ -749,3 +749,350 @@ def test_module_purity():
     assert "os.system" not in source
     assert "agents.llm" not in source
     assert "import os" not in source
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-128 agent layer: the agent holds a
+# MergeDisciplineRegistry for the session (session
+# state only, no new setting), a plan is recorded
+# by being registered - published as its
+# step_record / attempt_record session news through
+# the checkpoint road, deduped per evidence id -
+# the verdicts are published as verdict_record
+# session news and the report as ONE report_record
+# session event holding every verdict and line,
+# deduped per report, and the /merge surface rides
+# both roads on the pure parser + formatters.
+# Status, find, plan and report reads register and
+# publish nothing. This layer executes no git,
+# performs no real merge, spawns or stops no crew
+# and builds no board - Part VIII does not exist
+# yet, so the screen is where the verdicts are
+# visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _merge_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+class TestMergeAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.merge_status()
+        assert status["steps"] == []
+        assert status["attempts"] == []
+        assert status["plan"]["keeper"] == "forge_worker"
+        assert len(status["plan"]["steps"]) == 7
+        assert len(status["plan"]["merges"]) == 5
+        assert status["report"]["type"] == "merge_report"
+        assert status["report"]["count"] == 3
+        assert "Merge discipline: 3 verdicts stand" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        assert agent._merge_discipline_registry() is \
+            agent._merge_discipline_registry()
+        assert agent._merge_discipline_store is \
+            agent._merge_discipline_registry()
+
+    def test_reads_register_and_publish_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.merge_status()
+        found = agent.find_verdicts("scribe")
+        assert [v.kind for v in found] == [
+            "out_of_order", "missing_test_gate"]
+        assert agent.merge_discipline().keeper == "forge_worker"
+        report = agent.merge_report()
+        assert [v.kind for v in report.verdicts] == [
+            "out_of_order", "missing_test_gate", "line_stopped"]
+        registry = agent._merge_discipline_registry()
+        assert registry.list_steps() == ()
+        assert registry.list_attempts() == ()
+        for kind in ("merge_step", "merge_attempt",
+                     "merge_verdict", "merge_report"):
+            assert _merge_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_unheld_evidence_raises_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_merge_step("step-1")
+        with pytest.raises(KeyError):
+            agent.get_merge_attempt("attempt-1")
+
+    def test_find_unknown_member_raises_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.find_verdicts("nobody")
+
+    def test_status_after_register_shows_the_held_evidence(
+            self, agent):
+        agent.register_merge_step(_step())
+        status = agent.merge_status()
+        assert [s["member"] for s in status["steps"]] == ["scribe"]
+        assert "Merge discipline: clean." in status["screen"]
+        assert len(status["plan"]["steps"]) == 7
+
+
+class TestMergeAgentRegister:
+    def test_register_step_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_merge_step(_step())
+        assert outcome["step"]["member"] == "scribe"
+        assert outcome["step"]["step_id"] == "step-1"
+        assert outcome["record"]["type"] == "merge_step"
+        assert outcome["record"]["news"] is True
+        assert agent.get_merge_step("step-1").slice_id == "M-126"
+        events = _merge_events(store, session_id, "merge_step")
+        assert len(events) == 1
+        assert events[0]["member"] == "scribe"
+        # Deduped per step id: no second event.
+        agent._publish_merge_record(outcome["record"])
+        assert len(_merge_events(store, session_id, "merge_step")) == 1
+        # Foreign record types are never published on these roads.
+        agent._publish_merge_record(
+            {"type": "crew_delegation", "step_id": "step-9"})
+        agent._publish_merge_record(
+            {"type": "merge_verdict", "attempt_id": "attempt-9"})
+        agent._publish_verdict_record(
+            {"type": "merge_report", "verdicts": []})
+        agent._publish_merge_report_record(
+            {"type": "merge_verdict", "verdicts": [], "lines": []})
+        assert len(_merge_events(store, session_id, "merge_step")) == 1
+        assert _merge_events(store, session_id, "merge_attempt") == []
+        assert _merge_events(store, session_id, "merge_verdict") == []
+        assert _merge_events(store, session_id, "merge_report") == []
+        agent.close()
+
+    def test_register_attempt_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_merge_attempt(_attempt())
+        assert outcome["attempt"]["member"] == "scribe"
+        assert outcome["attempt"]["attempt_id"] == "attempt-1"
+        assert outcome["record"]["type"] == "merge_attempt"
+        assert outcome["record"]["news"] is True
+        assert agent.get_merge_attempt("attempt-1").gate == "passed"
+        events = _merge_events(store, session_id, "merge_attempt")
+        assert len(events) == 1
+        assert events[0]["member"] == "scribe"
+        agent.close()
+
+    def test_record_plan_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_merge_discipline()
+        assert outcome["count"] == 12
+        assert [s["step_id"] for s in outcome["steps"]] == \
+            [f"step-{n}" for n in range(1, 8)]
+        assert [a["attempt_id"] for a in outcome["attempts"]] == \
+            [f"attempt-{n}" for n in range(1, 6)]
+        assert agent.get_merge_step("step-1").member == \
+            "forge_worker"
+        assert agent.get_merge_attempt("attempt-1").member == \
+            "forge_worker"
+        status = agent.merge_status()
+        assert len(status["steps"]) == 7
+        assert len(status["attempts"]) == 5
+        assert [v.kind for v in agent.merge_report().verdicts] == [
+            "out_of_order", "missing_test_gate", "line_stopped"]
+        assert len(_merge_events(store, session_id, "merge_step")) == 7
+        assert len(_merge_events(
+            store, session_id, "merge_attempt")) == 5
+        agent.close()
+
+    def test_record_same_plan_twice_refuses(self, agent):
+        agent.record_merge_discipline()
+        with pytest.raises(ValueError):
+            agent.record_merge_discipline()
+        registry = agent._merge_discipline_registry()
+        assert len(registry.list_steps()) == 7
+        assert len(registry.list_attempts()) == 5
+
+    def test_plan_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        outcome = agent.record_merge_discipline(
+            load_merge_discipline_file(
+                _write_plan(tmp_path, _plan_data())))
+        assert outcome["count"] == 3
+        assert agent.get_merge_step("step-1").member == "scribe"
+        assert agent.merge_discipline().keeper == "forge_worker"
+        assert agent.merge_report().is_clean is True
+
+    def test_find_prefers_the_held_evidence(self, agent):
+        agent.register_merge_step(_step())
+        agent.register_merge_step(_step(
+            slice_id="M-133", branch="crew/scribe/m-133"))
+        agent.register_merge_attempt(_attempt(
+            slice_id="M-133", branch="crew/scribe/m-133"))
+        found = agent.find_verdicts("scribe")
+        assert [v.kind for v in found] == ["out_of_order"]
+        # Held session, member held in no held verdict: KeyError,
+        # no silent fall back to the example plan - the
+        # forge_worker is in the example's stopped verdict.
+        with pytest.raises(KeyError):
+            agent.find_verdicts("forge_worker")
+
+
+class TestMergeAgentReport:
+    def test_report_publishes_one_report_event_for_all_verdicts(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.record_merge_discipline()
+        outcome = agent.report_merge()
+        assert outcome["count"] == 3
+        assert outcome["record"]["type"] == "merge_report"
+        assert outcome["record"]["count"] == 3
+        assert "Merge discipline: 3 verdicts stand" in \
+            outcome["screen"]
+        verdicts = _merge_events(store, session_id, "merge_verdict")
+        assert len(verdicts) == 3
+        reports = _merge_events(store, session_id, "merge_report")
+        # ONE report event holds all three verdicts.
+        assert len(reports) == 1
+        assert reports[0]["count"] == 3
+        assert len(reports[0]["verdicts"]) == 3
+        assert len(reports[0]["lines"]) == 4
+        # Reporting again on the same evidence publishes
+        # nothing new.
+        agent.report_merge()
+        assert len(_merge_events(
+            store, session_id, "merge_verdict")) == 3
+        assert len(_merge_events(
+            store, session_id, "merge_report")) == 1
+        # Newly held evidence grows the report: a new report.
+        agent.register_merge_attempt(_attempt(
+            member="auditor", slice_id="M-132",
+            branch="crew/auditor/m-132", gate="missing"))
+        outcome = agent.report_merge()
+        assert outcome["count"] == 4
+        assert len(_merge_events(
+            store, session_id, "merge_report")) == 2
+        agent.close()
+
+    def test_report_with_clean_evidence_publishes_a_clean_report_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_merge_step(_step())
+        outcome = agent.report_merge()
+        assert outcome["count"] == 0
+        assert outcome["record"]["clean"] is True
+        assert outcome["screen"].startswith("Merge discipline: clean.")
+        assert _merge_events(store, session_id, "merge_verdict") == []
+        reports = _merge_events(store, session_id, "merge_report")
+        assert len(reports) == 1
+        assert reports[0]["clean"] is True
+        agent.report_merge()
+        assert len(_merge_events(
+            store, session_id, "merge_report")) == 1
+        agent.close()
+
+    def test_no_merge_or_board_road_for_discipline(self, agent):
+        # This layer holds the merging as data: it
+        # executes no git, performs no real merge,
+        # spawns or stops no crew and builds no board -
+        # Part VIII does not exist yet.
+        assert not hasattr(agent, "perform_merge")
+        assert not hasattr(agent, "run_merge")
+        assert not hasattr(agent, "merge_board")
+
+
+class TestMergeTerminalSurface:
+    def test_show_lines_and_kinds(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/merge")
+        assert "Merge discipline: 3 verdicts stand" in text
+        _, _, text = _slash(agent, "/merge show scribe")
+        assert "Merge discipline: 2 verdicts stand" in text
+        assert "out_of_order" in text
+        _, _, text = _slash(agent, "/merge lines")
+        assert "forge_worker: merged M-125; stopped at M-128." in text
+        _, _, text = _slash(agent, "/merge kinds")
+        assert text.startswith("Verdict kinds:")
+
+    def test_bare_member_shows_theirs(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/merge forge_worker")
+        assert "line_stopped" in text
+        _, _, text = _slash(agent, "/merge scribe")
+        assert "missing_test_gate" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert "/merge [show|show <member>|lines|kinds]" in text
+        _, _, text = _slash(agent, "/merge dance")
+        assert "no verdict stands on the member" in text
+        _, _, text = _slash(agent, "/merge dance party")
+        assert text == USAGE
+
+
+@pytest.fixture()
+def merge_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _merge_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestMergeCommand:
+    def test_show_is_default(self, merge_handler, agent):
+        merge_handler._handle_merge("")
+        assert "Merge discipline: 3 verdicts stand" in \
+            _merge_published_text(merge_handler)
+
+    def test_show_one_lines_and_kinds(self, merge_handler, agent):
+        merge_handler._handle_merge("show scribe")
+        assert "out_of_order" in _merge_published_text(merge_handler)
+        merge_handler._handle_merge("lines")
+        assert "stopped at M-128" in \
+            _merge_published_text(merge_handler)
+        merge_handler._handle_merge("kinds")
+        assert "Verdict kinds:" in _merge_published_text(merge_handler)
+
+    def test_bad_grammar_is_published(self, merge_handler, agent):
+        merge_handler._handle_merge("dance party")
+        assert USAGE in _merge_published_text(merge_handler)
+
+
+class TestChatScreenRoutingMerge:
+    def test_merge_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/merge kinds", _FakeLog())
+        assert calls == [("/merge", "kinds")]

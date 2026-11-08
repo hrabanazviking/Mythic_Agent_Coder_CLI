@@ -289,6 +289,8 @@ class CommandHandler:
                 self._handle_comms(args)
             elif cmd == "/deadlock":
                 self._handle_deadlock(args)
+            elif cmd == "/merge":
+                self._handle_merge(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -3677,6 +3679,68 @@ class CommandHandler:
             else:
                 text = format_findings(
                     primary.find_findings(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_merge(self, args: str):
+        """M-128: /merge - merge discipline.
+
+        ``/merge`` shows the verdicts of the plan
+        held this session (the shipped example plan -
+        seven steps and five merges among the M-121
+        casting, yielding exactly three verdicts, one
+        of each kind - when none is held yet);
+        ``/merge show <member>`` (or a bare member id)
+        shows one member's verdicts; ``/merge lines``
+        shows every line's state; ``/merge kinds``
+        shows the verdict kinds. Reading registers
+        and publishes nothing as session news:
+        evidence is held only when it is given through
+        the agent layer, and held evidence is
+        published as a merge_step / merge_attempt
+        session event, each verdict as a merge_verdict
+        session event and each report as ONE
+        merge_report session event. This road executes
+        no git, performs no merge and spawns or stops
+        no crew: the registry holds the evidence as
+        data, and there is no Part VIII board yet -
+        this surface is where the verdicts are
+        visible. The registry is session state held by
+        the agent; it is not a stored setting.
+        """
+        from ..core.merge_discipline import (
+            format_kinds,
+            format_lines,
+            format_verdicts,
+            parse_merge_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_merge_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "kinds":
+                text = format_kinds()
+            elif action == "lines":
+                text = format_lines(primary.merge_report())
+            elif target is None:
+                text = primary.merge_status()["screen"]
+            else:
+                text = format_verdicts(
+                    primary.find_verdicts(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

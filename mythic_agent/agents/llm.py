@@ -13441,6 +13441,404 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-128: merge discipline --
+
+    def _merge_discipline_registry(self):
+        """The held merge-discipline registry (M-128).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer steps and recorded merges
+        in the order they were given, beside the
+        session deadlock-watch registry (M-127) and
+        never in it: the merging evidence is the
+        coordinator's, held under the discipline this
+        slice names. It is created on first use, so an
+        agent whose ``__init__`` never ran still holds
+        exactly one. The attribute is named
+        ``_merge_discipline_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_merge_discipline_store", None)
+        if registry is None:
+            from ..core.merge_discipline import (
+                MergeDisciplineRegistry,
+            )
+            registry = MergeDisciplineRegistry()
+            self._merge_discipline_store = registry
+        return registry
+
+    def merge_status(self) -> dict[str, Any]:
+        """The merge discipline, in plain data (M-128).
+
+        The steps and recorded merges held this
+        session as plain records, the session plan's
+        evidence as plain records (the shipped
+        example plan - seven steps and five merges
+        among the M-121 casting, kept by the
+        forge_worker - until a plan is recorded), the
+        derived report as its one report record, the
+        one screen - rendered from the held registry,
+        or from the shipped example plan when nothing
+        is held yet - and the plain explanation.
+        Reading registers and publishes nothing,
+        executes no git, performs no merge and spawns
+        or stops no crew: this layer holds the
+        merging as data only. There is no Part VIII
+        board yet; the screen is where the verdicts
+        are visible.
+        """
+        from ..core import merge_discipline
+
+        registry = self._merge_discipline_registry()
+        held_steps = registry.list_steps()
+        held_attempts = registry.list_attempts()
+        plan = self.merge_discipline()
+        screen = merge_discipline.format_merge_screen(registry) \
+            if held_steps or held_attempts \
+            else merge_discipline.format_merge_screen()
+        return {
+            "steps": [s.to_record() for s in held_steps],
+            "attempts": [a.to_record() for a in held_attempts],
+            "plan": {
+                "keeper": plan.keeper,
+                "steps": [s.to_record() for s in plan.steps],
+                "merges": [m.to_record() for m in plan.merges],
+            },
+            "report": merge_discipline.report_record(
+                self.merge_report()),
+            "screen": screen,
+            "explanation": merge_discipline.PLAIN_EXPLANATION,
+        }
+
+    def get_merge_step(self, step_id: Any):
+        """The one held step an id names (M-128).
+
+        A step the session does not hold raises
+        KeyError, exactly as the pure registry answers.
+        """
+        return self._merge_discipline_registry().get_step(step_id)
+
+    def get_merge_attempt(self, attempt_id: Any):
+        """The one held recorded merge an id names (M-128).
+
+        A merge the session does not hold raises
+        KeyError, exactly as the pure registry answers.
+        """
+        return self._merge_discipline_registry().get_attempt(
+            attempt_id)
+
+    def find_verdicts(self, member: Any):
+        """Every verdict on one member's line (M-128).
+
+        The session's held registry answers when the
+        session holds any evidence; otherwise the
+        shipped example plan answers. A member held
+        in no verdict in the answering set raises
+        KeyError. Reading registers and publishes
+        nothing.
+        """
+        from ..core.crew_members import normalize_member_id
+        from ..core.merge_discipline import load_merge_discipline
+
+        wanted = normalize_member_id(member)
+        registry = self._merge_discipline_registry()
+        if registry.list_steps() or registry.list_attempts():
+            found = registry.for_member(wanted)
+        else:
+            found = load_merge_discipline().report().for_member(wanted)
+        if not found:
+            raise KeyError(
+                f"no verdict stands on the member's line: {wanted!r}")
+        return found
+
+    def merge_discipline(self):
+        """The session's merge plan and ledger, as data (M-128).
+
+        The plan the session recorded through
+        :meth:`record_merge_discipline`, or the
+        shipped example plan until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.merge_discipline import load_merge_discipline
+
+        plan = getattr(self, "_merge_discipline_held", None)
+        if plan is None:
+            return load_merge_discipline()
+        return plan
+
+    def merge_report(self):
+        """The report the plan's evidence yields (M-128).
+
+        Derived by the pure layer from what the
+        session holds - the held registry when the
+        session holds any evidence, otherwise the
+        shipped example plan - every verdict the
+        evidence holds, in judgement order:
+        out-of-order verdicts, then missing-gate
+        verdicts, then line-stopped verdicts, with
+        every line's state beside them. Reading
+        registers and publishes nothing: publishing
+        is :meth:`report_merge`' road.
+        """
+        from ..core.merge_discipline import load_merge_discipline
+
+        registry = self._merge_discipline_registry()
+        if registry.list_steps() or registry.list_attempts():
+            return registry.report()
+        return load_merge_discipline().report()
+
+    def register_merge_step(self, step: Any) -> dict[str, Any]:
+        """Hold one merge step for the session (M-128).
+
+        The step is held by the pure registry under
+        its id or a fresh deterministic one - a
+        supplied id already held refuses, a line
+        planning one slice twice refuses, and a
+        refusal holds nothing new and publishes
+        nothing - and a held step is published as its
+        ``step_record`` session-news record through
+        the checkpoint road, so evidence given is
+        news with its shape attached. Returns the held
+        step, its news record, the screen rendered
+        after it landed, and the plain explanation.
+        Holding a step executes no git and performs no
+        merge: the registry holds the evidence as data.
+        """
+        from ..core import merge_discipline
+
+        registry = self._merge_discipline_registry()
+        held = registry.register_step(step)
+        record = merge_discipline.step_record(held)
+        self._publish_merge_record(record)
+        return {
+            "step": held.to_record(),
+            "record": record,
+            "screen": merge_discipline.format_merge_screen(registry),
+            "explanation": merge_discipline.PLAIN_EXPLANATION,
+        }
+
+    def register_merge_attempt(self, attempt: Any) -> dict[str, Any]:
+        """Hold one recorded merge for the session (M-128).
+
+        The merge is held by the pure registry under
+        its id or a fresh deterministic one - a
+        supplied id already held refuses, and a
+        refusal holds nothing new and publishes
+        nothing - and a held merge is published as
+        its ``attempt_record`` session-news record
+        through the checkpoint road, so evidence given
+        is news with its shape attached. Returns the
+        held merge, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a merge executes no git
+        and performs no merge itself: the registry
+        holds the evidence as data.
+        """
+        from ..core import merge_discipline
+
+        registry = self._merge_discipline_registry()
+        held = registry.register_attempt(attempt)
+        record = merge_discipline.attempt_record(held)
+        self._publish_merge_record(record)
+        return {
+            "attempt": held.to_record(),
+            "record": record,
+            "screen": merge_discipline.format_merge_screen(registry),
+            "explanation": merge_discipline.PLAIN_EXPLANATION,
+        }
+
+    def record_merge_discipline(
+            self, plan: Any = None) -> dict[str, Any]:
+        """Record a whole plan and ledger for the session (M-128).
+
+        With no plan named, the shipped example plan
+        is recorded through the pure layer - seven
+        steps and five merges among the M-121 casting,
+        kept by the forge_worker. A plan loaded from a
+        file (the pure layer's
+        ``load_merge_discipline_file`` road) may be
+        passed instead, so a real plan is recorded as
+        it stands. Every step and merge is held in
+        plan order and published as its
+        ``step_record`` / ``attempt_record`` session
+        news, deduped per evidence id, the plan is
+        remembered as the session's plan, and the same
+        plan recorded twice refuses - a plan is
+        recorded once, never duplicated into the
+        session. Returns the held steps, the held
+        merges, their news records, the count of
+        evidence held, the screen, and the
+        explanation. Recording executes no git,
+        performs no merge and spawns or stops no crew.
+        """
+        from ..core import merge_discipline
+
+        plan = plan if plan is not None \
+            else merge_discipline.load_merge_discipline()
+        fingerprint = (
+            tuple((s.member, s.slice_id, s.branch)
+                  for s in plan.steps),
+            tuple((m.member, m.slice_id, m.branch, m.gate,
+                    m.outcome) for m in plan.merges))
+        recorded = getattr(self, "_merge_discipline_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._merge_discipline_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this merge plan is already recorded for "
+                "the session; a plan is recorded once")
+        registry = self._merge_discipline_registry()
+        steps, attempts = registry.register_plan(plan)
+        recorded.add(fingerprint)
+        self._merge_discipline_held = plan
+        records = [
+            merge_discipline.step_record(s) for s in steps]
+        records += [
+            merge_discipline.attempt_record(a) for a in attempts]
+        for record in records:
+            self._publish_merge_record(record)
+        return {
+            "steps": [s.to_record() for s in steps],
+            "attempts": [a.to_record() for a in attempts],
+            "records": records,
+            "count": len(steps) + len(attempts),
+            "screen": merge_discipline.format_merge_screen(registry),
+            "explanation": merge_discipline.PLAIN_EXPLANATION,
+        }
+
+    def report_merge(self) -> dict[str, Any]:
+        """Report the discipline's verdicts to the coordinator (M-128).
+
+        The report is derived from what the session
+        holds by :meth:`merge_report` - every verdict
+        the evidence holds, in judgement order - and
+        published as session news: each verdict as its
+        ``verdict_record``, then the report itself as
+        ONE ``report_record`` session event holding
+        every verdict and every line, never one report
+        per verdict. The announcements are deduped:
+        reporting again while the same evidence is
+        held publishes nothing new, and a report grown
+        by newly held evidence announces as the new
+        report it is. Returns the report, its news
+        record, the count of verdicts, the verdicts
+        screen, and the plain explanation. Reporting
+        executes no git and performs no merge: the
+        coordinator acts on the verdicts through later
+        roads.
+        """
+        from ..core import merge_discipline
+
+        report = self.merge_report()
+        for verdict in report.verdicts:
+            self._publish_verdict_record(
+                merge_discipline.verdict_record(verdict))
+        record = merge_discipline.report_record(report)
+        self._publish_merge_report_record(record)
+        return {
+            "report": report.to_record(),
+            "record": record,
+            "count": len(report.verdicts),
+            "screen": merge_discipline.format_verdicts(report),
+            "explanation": merge_discipline.PLAIN_EXPLANATION,
+        }
+
+    def _publish_merge_record(self, record: dict[str, Any]) -> None:
+        """Publish one piece of merge evidence as session news (M-128).
+
+        The pure layer's ``step_record`` and
+        ``attempt_record`` are journaled through the
+        same checkpoint road every sibling slice uses,
+        when a session is attached. Each piece of
+        evidence is announced at most once, under its
+        own id. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") == "merge_step":
+            key = ("merge_step", record.get("step_id"))
+        elif record.get("type") == "merge_attempt":
+            key = ("merge_attempt", record.get("attempt_id"))
+        else:
+            return
+        announced = getattr(self, "_merge_announced", None)
+        if announced is None:
+            announced = set()
+            self._merge_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_verdict_record(self, record: dict[str, Any]) -> None:
+        """Publish one verdict as session news (M-128).
+
+        The pure layer's ``verdict_record`` is
+        journaled through the same checkpoint road,
+        when a session is attached. Each verdict is
+        announced at most once: the announcement is
+        keyed by the verdict's whole shape (kind,
+        member, slice, branch, title), so the same
+        judgement derived again from the same evidence
+        is not news twice. A foreign record type is
+        never published on this road.
+        """
+        if record.get("type") != "merge_verdict":
+            return
+        announced = getattr(self, "_merge_verdict_announced", None)
+        if announced is None:
+            announced = set()
+            self._merge_verdict_announced = announced
+        key = (
+            record.get("kind"), record.get("member"),
+            record.get("slice_id"), record.get("branch"),
+            record.get("title"))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_merge_report_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one merge report as session news (M-128).
+
+        The pure layer's ``report_record`` is journaled
+        through the same checkpoint road, when a
+        session is attached - ONE event holding every
+        verdict and every line, so the coordinator is
+        told once. Each report is announced at most
+        once: the announcement is keyed by the
+        report's verdicts and lines, so a report grown
+        by newly held evidence announces again as the
+        new report it is. A foreign record type is
+        never published on this road.
+        """
+        if record.get("type") != "merge_report":
+            return
+        announced = getattr(self, "_merge_report_announced", None)
+        if announced is None:
+            announced = set()
+            self._merge_report_announced = announced
+        key = (
+            tuple(
+                (v.get("kind"), v.get("member"),
+                 v.get("slice_id"), v.get("branch"),
+                 v.get("title"))
+                for v in record.get("verdicts", [])),
+            tuple(
+                (line.get("member"),
+                 tuple(line.get("merged", [])),
+                 line.get("stopped_slice"))
+                for line in record.get("lines", [])))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
