@@ -295,6 +295,8 @@ class CommandHandler:
                 self._handle_hetero(args)
             elif cmd == "/veto":
                 self._handle_veto(args)
+            elif cmd == "/swarm":
+                self._handle_swarm(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -3872,6 +3874,82 @@ class CommandHandler:
             else:
                 text = format_verdicts(
                     primary.find_veto_verdicts(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_swarm(self, args: str):
+        """M-131: /swarm - research swarms.
+
+        ``/swarm`` shows the swarm held this session
+        (the shipped example swarm - one
+        cartographer-led question, three assignments
+        and three findings, yielding one complete
+        digest on three sources - when none is held
+        yet); ``/swarm show <member>`` (or a bare
+        member id) shows one member's finding;
+        ``/swarm digest`` shows the digested answer
+        with its sources; ``/swarm sources`` shows
+        the digest's sources; ``/swarm kinds`` shows
+        the focus kinds. Reading registers and
+        publishes nothing as session news: pieces
+        are held only when they are given through
+        the agent layer, and held pieces are
+        published as a swarm_question /
+        swarm_assignment / swarm_finding session
+        event, each digest report as ONE
+        swarm_digest session event. This road runs
+        no research, calls no model and spawns no
+        crew: the registry holds the swarm as data,
+        and there is no Part VIII board yet - this
+        surface is where the digest is visible. The
+        registry is session state held by the agent;
+        it is not a stored setting.
+        """
+        from ..core.research_swarms import (
+            digest_plain_words,
+            format_finding,
+            format_focus_kinds,
+            parse_swarm_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_swarm_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "kinds":
+                text = format_focus_kinds()
+            elif action == "digest":
+                digest = primary.swarm_digest()
+                lines = [digest_plain_words(digest), "Sources:"]
+                lines.extend(
+                    f"- {name}" for name in digest.sources)
+                text = "\n".join(lines)
+            elif action == "sources":
+                digest = primary.swarm_digest()
+                text = "\n".join(
+                    f"- {name}" for name in digest.sources) \
+                    if digest.sources \
+                    else "No sources are cited yet."
+            elif target is None:
+                text = primary.swarm_status()["screen"]
+            else:
+                text = "\n".join(
+                    format_finding(finding)
+                    for finding
+                    in primary.find_swarm_findings(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
