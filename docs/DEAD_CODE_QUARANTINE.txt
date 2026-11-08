@@ -263,4 +263,10 @@ mythic_agent/agents/llm.py:18082:register_failure_report:method
 mythic_agent/agents/llm.py:18114:register_fostering_book:method
 mythic_agent/agents/llm.py:18153:record_fostering_book:method
 mythic_agent/agents/llm.py:18214:report_failure_fostering:method
+mythic_agent/agents/llm.py:18448:cost_report:method
+mythic_agent/agents/llm.py:18491:register_cost_entry:method
+mythic_agent/agents/llm.py:18524:register_cost_book:method
+mythic_agent/agents/llm.py:18560:record_cost_book:method
+mythic_agent/agents/llm.py:18615:report_cost_court:method
+mythic_agent/core/cost_court.py:872:row_for:method
 mythic_agent/terminal.py:1927:_fmt_rsteps:import
