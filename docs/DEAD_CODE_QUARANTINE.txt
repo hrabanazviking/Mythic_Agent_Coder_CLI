@@ -251,3 +251,9 @@ mythic_agent/agents/llm.py:17237:register_external_seat:method
 mythic_agent/agents/llm.py:17271:register_external_seat_book:method
 mythic_agent/agents/llm.py:17307:record_external_seat:method
 mythic_agent/agents/llm.py:17364:report_external_agents:method
+mythic_agent/agents/llm.py:17559:replay_step_at:method
+mythic_agent/agents/llm.py:17597:register_replay_step:method
+mythic_agent/agents/llm.py:17631:register_replay_book:method
+mythic_agent/agents/llm.py:17667:record_replay_book:method
+mythic_agent/agents/llm.py:17722:report_crew_replay:method
+mythic_agent/terminal.py:1927:_fmt_rsteps:import

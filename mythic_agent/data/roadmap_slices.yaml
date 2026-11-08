@@ -874,7 +874,7 @@ slices:
   part: 6
   title: Crew replay
   summary: a crew run's hand-offs replayable from the journal — how a decision happened is auditable.
-  status: queued
+  status: done
 - id: M-139
   part: 6
   title: Failure fostering
