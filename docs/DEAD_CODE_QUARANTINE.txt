@@ -318,3 +318,9 @@ mythic_agent/agents/llm.py:21688:report_mentions:method
 mythic_agent/core/mentions.py:1046:row_for:method
 mythic_agent/core/mentions.py:1267:plan_for:method
 mythic_agent/core/mentions.py:1563:plan_for:method
+mythic_agent/agents/llm.py:21910:instruction_files_for_origin:method
+mythic_agent/agents/llm.py:21992:scan_and_register_instruction_files:method
+mythic_agent/agents/llm.py:22033:register_instruction_files_book:method
+mythic_agent/agents/llm.py:22075:record_instruction_files_book:method
+mythic_agent/agents/llm.py:22138:report_instruction_files:method
+mythic_agent/core/instruction_files.py:968:row_for:method

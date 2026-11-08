@@ -937,7 +937,7 @@ slices:
   title: Instruction files unified
   summary: AGENTS.md (the AAIF standard), RULES.AI.md (ours), CLAUDE.md and kin read in one precedence
     order, shown in the panel with their sources — foreign projects' files are honoured on their own turf.
-  status: queued
+  status: done
 - id: M-150
   part: 7
   title: Project Memory Map (Mythic law)
