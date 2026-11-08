@@ -301,6 +301,8 @@ class CommandHandler:
                 self._handle_panel(args)
             elif cmd == "/memory":
                 self._handle_memory(args)
+            elif cmd == "/standup":
+                self._handle_standup(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -4117,6 +4119,72 @@ class CommandHandler:
             else:
                 text = format_notebook(
                     primary.crew_memory().notebook_for(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_standup(self, args: str):
+        """M-134: /standup - stand-ups.
+
+        ``/standup`` shows the stand-up held this
+        session (the shipped example stand-up - five
+        items at the M-133 slice boundary across
+        done, doing, blocked and needs-you - when
+        none is held yet); ``/standup digest`` shows
+        the digest derived from its entries;
+        ``/standup done`` / ``doing`` / ``blocked`` /
+        ``needs-you`` show one state's section;
+        ``/standup entry <entry-id>`` shows one
+        entry; ``/standup kinds`` lists the four
+        states. Reading registers and publishes
+        nothing as session news: entries are held
+        only when they are given through the agent
+        layer, and held entries are published as a
+        stand_up_entry session event, each digest
+        report as ONE stand_up_digest session event.
+        This road schedules nothing, sends nothing,
+        posts nothing, calls no model and persists
+        nothing: the registry holds the stand-up as
+        data, and there is no Part VIII board yet -
+        this surface is where the digest is visible.
+        The registry is session state held by the
+        agent; it is not a stored setting.
+        """
+        from ..core.stand_ups import (
+            format_digest,
+            format_entries,
+            format_entry,
+            format_status_kinds,
+            parse_stand_up_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_stand_up_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "kinds":
+                text = format_status_kinds()
+            elif action == "digest":
+                text = format_digest(primary.stand_up())
+            elif action == "section":
+                text = format_entries(primary.stand_up(), target)
+            elif action == "entry":
+                text = format_entry(
+                    primary.get_stand_up_entry(target))
+            else:
+                text = primary.stand_up_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
