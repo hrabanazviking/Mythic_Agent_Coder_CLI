@@ -19892,6 +19892,476 @@ class Agent:
             self._checkpoint(record)
 
 
+    # -- M-144: crew interrupts --
+
+    def _crew_interrupts_registry(self):
+        """The held crew interrupt registry (M-144).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer crew interrupt book
+        record by record, beside the session crew
+        template registry (M-143) and never in it: the
+        crew interrupt book is one book of graceful
+        pause records - one member, the whole crew or
+        one slice, each resting on its worktree,
+        journal and pause-point readings - held under
+        the book this slice names. It is created on
+        first use, so an agent whose ``__init__`` never
+        ran still holds exactly one. The attribute is
+        named ``_crew_interrupts_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_crew_interrupts_store", None)
+        if registry is None:
+            from ..core.crew_interrupts import InterruptRegistry
+            registry = InterruptRegistry()
+            self._crew_interrupts_store = registry
+        return registry
+
+    def crew_interrupts(self):
+        """The session's crew interrupt book, as data (M-144).
+
+        The held registry's book when the session
+        holds any interrupt record - the records the
+        session has actually gathered (records held
+        one by one, before any whole book stands
+        recorded, stand under a session crew interrupt
+        book composed here in the agent layer, so a
+        later whole book recorded under its own title
+        is never refused by a shim title at the
+        registry) - otherwise the book recorded whole
+        through :meth:`record_crew_interrupt_book`, or
+        the shipped example crew interrupt book until
+        one is recorded. Reading registers and
+        publishes nothing.
+        """
+        from ..core.crew_interrupts import (
+            CrewInterruptBook,
+            load_crew_interrupts,
+        )
+        registry = self._crew_interrupts_registry()
+        if registry.list_interrupts():
+            try:
+                book = registry.book()
+            except ValueError:
+                return CrewInterruptBook(
+                    title="Session crew interrupt book",
+                    entries=registry.list_interrupts())
+            held = getattr(self, "_crew_interrupts_held", None)
+            if held is not None and held.title == book.title \
+                    and held.interrupt_ids() == book.interrupt_ids():
+                return held
+            return book
+        book = getattr(self, "_crew_interrupts_held", None)
+        if book is None:
+            return load_crew_interrupts()
+        return book
+
+    def _crew_interrupts_screen(self) -> str:
+        """The /interrupts screen for the session's state (M-144).
+
+        Rendered from the held book when one stands,
+        and from the shipped example book while
+        nothing is held.
+        """
+        from ..core import crew_interrupts as interrupts_module
+        registry = self._crew_interrupts_registry()
+        if not registry.list_interrupts():
+            return interrupts_module.format_crew_interrupts_screen()
+        return interrupts_module.format_crew_interrupts_screen(
+            self.crew_interrupts())
+
+    def crew_interrupts_status(self) -> dict[str, Any]:
+        """The crew interrupts, in plain data (M-144).
+
+        The interrupt records held this session as
+        plain records, the held book's record (none
+        until an interrupt record stands held), the
+        session crew interrupt book's pieces as plain
+        records (the shipped example book - four
+        interrupt records at the M-143 slice boundary,
+        the roadmap's three pause scopes, and its one
+        pinned index - until records are held), its
+        whole-book record, every report the book
+        derives as plain records, every index the book
+        holds as plain records and the index derived
+        from the whole book, the records in plain
+        words and the reports and index told in plain
+        words, the one screen - rendered from the held
+        book, or from the shipped example book when
+        nothing is held yet - and the plain
+        explanation. Reading registers and publishes
+        nothing, pauses no member, halts no crew,
+        signals no process, touches no worktree,
+        writes no journal and persists nothing: this
+        layer holds the interrupts as data only, and
+        no record here claims a pause was ever carried
+        out. There is no Part VIII board yet; the
+        screen is where the crew interrupts are
+        visible.
+        """
+        from ..core import crew_interrupts as interrupts_module
+        registry = self._crew_interrupts_registry()
+        held_interrupts = registry.list_interrupts()
+        book = self.crew_interrupts()
+        return {
+            "interrupts": [e.to_record() for e in held_interrupts],
+            "book": (book.to_record() if held_interrupts else None),
+            "crew_interrupts": {
+                "title": book.title,
+                "interrupts": [e.to_record() for e in book.entries],
+            },
+            "book_record": interrupts_module.book_record(book),
+            "reports": [
+                interrupts_module.derive_report(entry).to_record()
+                for entry in book.entries],
+            "indexes": [i.to_record() for i in book.indexes],
+            "index": interrupts_module.derive_index(
+                book.entries).to_record(),
+            "plain_words": [
+                interrupts_module.plain_words(entry)
+                for entry in book.entries],
+            "report_plain_words": interrupts_module.report_plain_words(
+                book),
+            "index_plain_words": interrupts_module.index_plain_words(
+                book),
+            "screen": self._crew_interrupts_screen(),
+            "explanation": interrupts_module.PLAIN_EXPLANATION,
+        }
+
+    def get_crew_interrupt(self, interrupt_id: Any):
+        """The one interrupt record an id names (M-144).
+
+        The session's held registry answers when the
+        session holds any interrupt record; otherwise
+        the shipped example crew interrupt book answers
+        (or the book recorded whole for the session).
+        A held session answers for its own book alone:
+        an id the held book holds no record for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._crew_interrupts_registry()
+        if registry.list_interrupts():
+            return registry.get_interrupt(interrupt_id)
+        return self.crew_interrupts().interrupt_for(interrupt_id)
+
+    def crew_interrupts_for_member(self, member: Any):
+        """Every member pause naming one member (M-144).
+
+        Read off the session's book - the held
+        registry's book when the session holds any
+        interrupt record, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - in held order. A held session
+        answers for its own book alone, with no silent
+        fall back to the example. Reading registers
+        and publishes nothing.
+        """
+        return self.crew_interrupts().interrupts_for_member(member)
+
+    def crew_interrupts_for_slice(self, slice_id: Any):
+        """Every slice pause naming one slice (M-144).
+
+        Read off the session's book - the held
+        registry's book when the session holds any
+        interrupt record, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - in held order. A held session
+        answers for its own book alone, with no silent
+        fall back to the example. Reading registers
+        and publishes nothing.
+        """
+        return self.crew_interrupts().interrupts_for_slice(slice_id)
+
+    def crew_interrupt_report(self, interrupt_id: Any):
+        """The consistency report derived for one pause (M-144).
+
+        The report is derived at call time from the
+        interrupt record the id names - the held
+        registry's record when the session holds any
+        interrupt record, otherwise the shipped
+        example book's record (or the record of the
+        book recorded whole for the session) - so its
+        checks, consistency and account are the
+        record's own readings, read at call time. A
+        held session answers for its own book alone:
+        an id the held book holds no record for raises
+        KeyError, with no silent fall back to the
+        example. Reading registers and publishes
+        nothing.
+        """
+        from ..core.crew_interrupts import derive_report as _derive_report
+        registry = self._crew_interrupts_registry()
+        if registry.list_interrupts():
+            return registry.report_for(interrupt_id)
+        return _derive_report(
+            self.crew_interrupts().interrupt_for(interrupt_id))
+
+    def crew_interrupt_index(self):
+        """The interrupt index derived for the whole book (M-144).
+
+        The index is derived at call time from the
+        whole book of interrupt records - the held
+        registry's records when the session holds any
+        interrupt record, otherwise the shipped example
+        book's records (or the records of the book
+        recorded whole for the session) - so its rows
+        are the per-pause reports of those records and
+        its totals are the records' own derived
+        counts, read at call time. Reading registers
+        and publishes nothing.
+        """
+        from ..core.crew_interrupts import derive_index as _derive_index
+        registry = self._crew_interrupts_registry()
+        if registry.list_interrupts():
+            return registry.index()
+        return _derive_index(self.crew_interrupts().entries)
+
+    def register_crew_interrupt(
+            self, interrupt: Any) -> dict[str, Any]:
+        """Hold one interrupt record for the session (M-144).
+
+        The record is held by the pure registry under
+        its id or the deterministic interrupt-N id - a
+        record id already standing here refuses, and a
+        refusal holds nothing new and publishes
+        nothing. A held record is published as its
+        ``interrupt_record`` session-news record
+        through the checkpoint road, and its derived
+        consistency report as its ``report_record``
+        session news, so a pause given is news.
+        Returns the held record, its news record, its
+        report and report news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a record pauses no
+        member, halts no crew, signals no process,
+        touches no worktree, writes no journal and
+        persists nothing: the registry holds the
+        record as data, and a report or the index
+        stays a derivation read off the held records
+        at call time.
+        """
+        from ..core import crew_interrupts as interrupts_module
+        registry = self._crew_interrupts_registry()
+        held = registry.register_interrupt(interrupt)
+        record = interrupts_module.interrupt_record(held)
+        self._publish_crew_interrupts_record(record)
+        report = interrupts_module.derive_report(held)
+        report_record = interrupts_module.report_record(report)
+        self._publish_crew_interrupts_record(report_record)
+        return {
+            "interrupt": held.to_record(),
+            "record": record,
+            "report": report.to_record(),
+            "report_record": report_record,
+            "screen": self._crew_interrupts_screen(),
+            "explanation": interrupts_module.PLAIN_EXPLANATION,
+        }
+
+    def register_crew_interrupt_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole crew interrupt book for the session (M-144).
+
+        Every interrupt record of the book is held by
+        the pure registry, in book order - the first
+        book held sets the registry's title, a later
+        book under a different title refuses, as does
+        a book naming a held record id. The book's
+        reports and its index are derivations, not
+        holdings, and are not held. Every record is
+        published as its ``interrupt_record`` session
+        news with its derived ``report_record``, in
+        book order, and the book's derived index as
+        its ``index_record`` session news. Returns the
+        held book, its records, their news records,
+        the report and index news records, the count
+        of records held, the screen, and the
+        explanation. Registering pauses no member,
+        halts no crew, signals no process, touches no
+        worktree, writes no journal and persists
+        nothing.
+        """
+        from ..core import crew_interrupts as interrupts_module
+        validated = interrupts_module.build_book(book)
+        registry = self._crew_interrupts_registry()
+        registry.register_book(validated)
+        records = [
+            interrupts_module.interrupt_record(entry)
+            for entry in validated.entries]
+        report_records = [
+            interrupts_module.report_record(
+                interrupts_module.derive_report(entry))
+            for entry in validated.entries]
+        for record, report_record in zip(records, report_records):
+            self._publish_crew_interrupts_record(record)
+            self._publish_crew_interrupts_record(report_record)
+        index_record = interrupts_module.index_record(
+            interrupts_module.derive_index(validated.entries))
+        self._publish_crew_interrupts_record(index_record)
+        return {
+            "book": validated.to_record(),
+            "interrupts": [e.to_record() for e in validated.entries],
+            "records": records,
+            "report_records": report_records,
+            "index_record": index_record,
+            "count": len(records),
+            "screen": self._crew_interrupts_screen(),
+            "explanation": interrupts_module.PLAIN_EXPLANATION,
+        }
+
+    def record_crew_interrupt_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole crew interrupt book for the session (M-144).
+
+        With no book named, the shipped example crew
+        interrupt book is recorded through the pure
+        layer - four interrupt records at the M-143
+        slice boundary, the roadmap's three pause
+        scopes, and its one pinned index. A book
+        loaded from a file (the pure layer's
+        ``load_crew_interrupts_file`` road) may be
+        passed instead, so a real crew interrupt book
+        is recorded as it stands. Every record is held
+        and published as its ``interrupt_record``
+        session news with its derived
+        ``report_record``, in book order, and the
+        book's derived index as its ``index_record``
+        session news; the book is remembered whole as
+        the session's - its held index and all - and
+        the same book recorded twice refuses -
+        fingerprinted on its interrupt ids and title -
+        a book is recorded once, never duplicated into
+        the session. Returns the held book, its
+        records, their news records, the report and
+        index news records, the count of records held,
+        the screen, and the explanation. Recording
+        pauses no member, halts no crew, signals no
+        process, touches no worktree, writes no journal
+        and persists nothing.
+        """
+        from ..core import crew_interrupts as interrupts_module
+        book = book if book is not None \
+            else interrupts_module.load_crew_interrupts()
+        validated = interrupts_module.build_book(book)
+        fingerprint = (tuple(validated.interrupt_ids()), validated.title)
+        recorded = getattr(self, "_crew_interrupts_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._crew_interrupts_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this crew interrupt book is already recorded for "
+                "the session; a book is recorded once")
+        registry = self._crew_interrupts_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._crew_interrupts_held = validated
+        records = [
+            interrupts_module.interrupt_record(entry)
+            for entry in validated.entries]
+        report_records = [
+            interrupts_module.report_record(
+                interrupts_module.derive_report(entry))
+            for entry in validated.entries]
+        for record, report_record in zip(records, report_records):
+            self._publish_crew_interrupts_record(record)
+            self._publish_crew_interrupts_record(report_record)
+        index_record = interrupts_module.index_record(
+            interrupts_module.derive_index(validated.entries))
+        self._publish_crew_interrupts_record(index_record)
+        return {
+            "book": validated.to_record(),
+            "interrupts": [e.to_record() for e in validated.entries],
+            "records": records,
+            "report_records": report_records,
+            "index_record": index_record,
+            "count": len(records),
+            "screen": interrupts_module.format_crew_interrupts_screen(
+                validated),
+            "explanation": interrupts_module.PLAIN_EXPLANATION,
+        }
+
+    def report_crew_interrupts(self) -> dict[str, Any]:
+        """Render the session crew interrupt book, as a report (M-144).
+
+        The book - the held registry's book when the
+        session holds any interrupt record, otherwise
+        the shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone: its interrupt
+        records, its reports, its index and its one
+        screen. Rendering registers and publishes
+        nothing, pauses no member, halts no crew,
+        signals no process, touches no worktree,
+        writes no journal and persists nothing: the
+        agent layer renders the interrupts as data.
+        Returns the book, its records, reports and
+        indexes as plain records, the derived index,
+        the rendered records, reports and index, the
+        screen, and the plain explanation.
+        """
+        from ..core import crew_interrupts as interrupts_module
+        book = self.crew_interrupts()
+        return {
+            "book": book.to_record(),
+            "interrupts": [e.to_record() for e in book.entries],
+            "reports": [
+                interrupts_module.derive_report(e).to_record()
+                for e in book.entries],
+            "indexes": [i.to_record() for i in book.indexes],
+            "index": interrupts_module.derive_index(
+                book.entries).to_record(),
+            "interrupts_text": interrupts_module.format_interrupts(book),
+            "report_text": interrupts_module.format_report(book),
+            "index_text": interrupts_module.format_index(book),
+            "screen": self._crew_interrupts_screen(),
+            "explanation": interrupts_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_crew_interrupts_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one crew interrupt record as session news (M-144).
+
+        The pure layer's ``interrupt_record``,
+        ``report_record`` and ``index_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once: an interrupt under its own interrupt id,
+        a report under its interrupt id, and the index
+        under its whole derived shape (its rows and
+        totals), so an index grown by a newly held
+        pause announces again as the new index it is.
+        A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "crew_interrupt":
+            key = ("crew_interrupt", record.get("interrupt_id"))
+        elif record.get("type") == "crew_interrupt_consistency":
+            key = ("crew_interrupt_consistency",
+                   record.get("interrupt_id"))
+        elif record.get("type") == "crew_interrupt_index":
+            key = ("crew_interrupt_index", record.get("index_id"),
+                   tuple(row.get("interrupt_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_interrupts"),
+                   record.get("total_consistent"),
+                   record.get("total_inconsistent"))
+        else:
+            return
+        announced = getattr(self, "_crew_interrupts_announced", None)
+        if announced is None:
+            announced = set()
+            self._crew_interrupts_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
