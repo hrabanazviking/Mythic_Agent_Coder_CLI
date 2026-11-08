@@ -15228,6 +15228,443 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-132: review panels --
+
+    def _review_panel_registry(self):
+        """The held review-panel registry (M-132).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer change and reviews
+        in the order they were given, beside the
+        session research-swarm registry (M-131) and
+        never in it: the panel is two reviewers'
+        reading of one change, held under the review
+        this slice names. It is created on first
+        use, so an agent whose ``__init__`` never
+        ran still holds exactly one. The attribute
+        is named ``_review_panel_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_review_panel_store", None)
+        if registry is None:
+            from ..core.review_panels import (
+                ReviewPanelRegistry,
+            )
+            registry = ReviewPanelRegistry()
+            self._review_panel_store = registry
+        return registry
+
+    def _held_panel_change(self, registry):
+        """The held panel change, or None (M-132).
+
+        The pure registry raises KeyError when no
+        change is held; the agent layer reads that
+        as no change held yet, so the status and
+        screen roads can speak plainly about a
+        panel whose reviews arrived before its
+        change.
+        """
+        try:
+            return registry.change()
+        except KeyError:
+            return None
+
+    def _panel_screen(self, registry):
+        """The panel screen for the held registry (M-132).
+
+        The full pure-layer screen is rendered from
+        the held registry once its change is held.
+        While reviews are held without a change, the
+        screen is the reviews view of the pieces
+        held so far - an honest partial screen,
+        never the shipped example standing in for
+        evidence the session does not hold.
+        """
+        from ..core import review_panels
+
+        if self._held_panel_change(registry) is not None:
+            return review_panels.format_panel_screen(registry)
+        partial = review_panels.ReviewPanel(
+            reviews=registry.list_reviews())
+        return review_panels.format_reviews(partial)
+
+    def panel_status(self) -> dict[str, Any]:
+        """The review panel, in plain data (M-132).
+
+        The change and reviews held this session as
+        plain records (no change record until one
+        is held), the session panel's pieces as
+        plain records (the shipped example panel -
+        the session-branching restore guard, two
+        reviews on two different models - until a
+        panel is recorded), the derived outcome as
+        its one outcome record (None while pieces
+        are held without a change, since no outcome
+        can be derived from a panel whose change is
+        not held), the one screen - rendered from
+        the held registry, or from the shipped
+        example panel when nothing is held yet -
+        and the plain explanation. Reading registers
+        and publishes nothing, runs no review, calls
+        no model, executes no change and spawns no
+        crew: this layer holds the panel as data
+        only. There is no Part VIII board yet; the
+        screen is where the outcome is visible.
+        """
+        from ..core import review_panels
+
+        registry = self._review_panel_registry()
+        held_change = self._held_panel_change(registry)
+        held_reviews = registry.list_reviews()
+        panel = self.review_panel()
+        held = (held_change is not None or held_reviews)
+        if held and held_change is not None:
+            screen = review_panels.format_panel_screen(
+                registry)
+            outcome = review_panels.outcome_record(
+                self.panel_outcome())
+        elif held:
+            screen = self._panel_screen(registry)
+            outcome = None
+        else:
+            screen = review_panels.format_panel_screen()
+            outcome = review_panels.outcome_record(
+                self.panel_outcome())
+        return {
+            "change": (
+                held_change.to_record()
+                if held_change is not None else None),
+            "reviews": [r.to_record() for r in held_reviews],
+            "panel": {
+                "change": (
+                    panel.change.to_record()
+                    if panel.change is not None else None),
+                "reviews": [
+                    r.to_record() for r in panel.reviews],
+            },
+            "outcome": outcome,
+            "screen": screen,
+            "explanation": review_panels.PLAIN_EXPLANATION,
+        }
+
+    def get_panel_review(self, review_id: Any):
+        """The one held review an id names (M-132).
+
+        A review the session does not hold raises
+        KeyError, exactly as the pure registry
+        answers.
+        """
+        return self._review_panel_registry().get_review(
+            review_id)
+
+    def find_panel_reviews(self, member: Any):
+        """Every review one reviewer returned (M-132).
+
+        The session's held registry answers when the
+        session holds any piece of the panel;
+        otherwise the shipped example panel answers.
+        A reviewer holding no review in the
+        answering set raises KeyError. Reading
+        registers and publishes nothing.
+        """
+        from ..core.crew_members import normalize_member_id
+        from ..core.review_panels import (
+            load_review_panel,
+        )
+
+        wanted = normalize_member_id(member)
+        registry = self._review_panel_registry()
+        held = (self._held_panel_change(registry) is not None
+                or registry.list_reviews())
+        if held:
+            found = registry.reviews_for(wanted)
+        else:
+            found = tuple(
+                review for review
+                in load_review_panel().reviews
+                if review.reviewer == wanted)
+        if not found:
+            raise KeyError(
+                f"no review from the reviewer: {wanted!r}")
+        return found
+
+    def review_panel(self):
+        """The session's review panel, as data (M-132).
+
+        The panel the session recorded through
+        :meth:`record_review_panel`, or the shipped
+        example panel until one is recorded. Reading
+        registers and publishes nothing.
+        """
+        from ..core.review_panels import (
+            load_review_panel,
+        )
+
+        panel = getattr(self, "_review_panel_held", None)
+        if panel is None:
+            return load_review_panel()
+        return panel
+
+    def panel_outcome(self):
+        """The outcome the panel's verdicts yield (M-132).
+
+        Derived by the pure layer from what the
+        session holds - the held registry when the
+        session holds any piece of the panel,
+        otherwise the shipped example panel. A
+        registry holding pieces but no change
+        answers exactly as the pure registry
+        answers: KeyError, since no outcome can be
+        derived from a panel whose change is not
+        held. Reading registers and publishes
+        nothing: publishing is
+        :meth:`report_panel_outcome`' road.
+        """
+        from ..core.review_panels import (
+            load_review_panel,
+            outcome_of_panel,
+        )
+
+        registry = self._review_panel_registry()
+        held = (self._held_panel_change(registry) is not None
+                or registry.list_reviews())
+        if held:
+            return registry.outcome()
+        return outcome_of_panel(load_review_panel())
+
+    def hold_panel_change(
+            self, change: Any) -> dict[str, Any]:
+        """Hold the panel's one change for the session (M-132).
+
+        The change is held by the pure registry
+        under its id or the deterministic change id
+        - a second change refuses, and a refusal
+        holds nothing new and publishes nothing -
+        and a held change is published as its
+        ``change_record`` session-news record
+        through the checkpoint road, so evidence
+        given is news with its shape attached.
+        Returns the held change, its news record,
+        the screen rendered after it landed, and
+        the plain explanation. Holding a change
+        runs no review and executes nothing: the
+        registry holds the panel as data.
+        """
+        from ..core import review_panels
+
+        registry = self._review_panel_registry()
+        held = registry.hold_change(change)
+        record = review_panels.change_record(held)
+        self._publish_panel_record(record)
+        return {
+            "change": held.to_record(),
+            "record": record,
+            "screen": self._panel_screen(registry),
+            "explanation": review_panels.PLAIN_EXPLANATION,
+        }
+
+    def register_panel_review(
+            self, review: Any) -> dict[str, Any]:
+        """Hold one panel review for the session (M-132).
+
+        The review is held by the pure registry
+        under its id or a fresh deterministic one -
+        a supplied id already held refuses, a
+        reviewer reporting twice refuses, a second
+        review riding a model already ridden
+        refuses, a third review refuses, and a
+        refusal holds nothing new and publishes
+        nothing - and a held review is published as
+        its ``review_record`` session-news record
+        through the checkpoint road. Returns the
+        held review, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a review runs no
+        review and calls no model: the registry
+        holds the panel as data.
+        """
+        from ..core import review_panels
+
+        registry = self._review_panel_registry()
+        held = registry.register_review(review)
+        record = review_panels.review_record(held)
+        self._publish_panel_record(record)
+        return {
+            "review": held.to_record(),
+            "record": record,
+            "screen": self._panel_screen(registry),
+            "explanation": review_panels.PLAIN_EXPLANATION,
+        }
+
+    def record_review_panel(
+            self, panel: Any = None) -> dict[str, Any]:
+        """Record a whole review panel for the session (M-132).
+
+        With no panel named, the shipped example
+        panel is recorded through the pure layer -
+        the session-branching restore guard, two
+        reviews on two different models, a
+        disagreement surfaced. A panel loaded from
+        a file (the pure layer's
+        ``load_review_panel_file`` road) may be
+        passed instead, so a real panel is recorded
+        as it stands. The change and every review
+        are held in panel order and published as
+        their ``change_record`` / ``review_record``
+        session news, deduped per piece id; the
+        panel is remembered as the session's panel,
+        and the same panel recorded twice refuses -
+        a panel is recorded once, never duplicated
+        into the session. Returns the held change
+        and reviews, their news records, the count
+        of pieces held, the screen, and the
+        explanation. Recording runs no review,
+        calls no model, executes no change and
+        spawns no crew.
+        """
+        from ..core import review_panels
+
+        panel = panel if panel is not None \
+            else review_panels.load_review_panel()
+        fingerprint = (
+            (panel.change.title, panel.change.summary)
+            if panel.change is not None else None,
+            tuple((r.reviewer, r.provider, r.model,
+                   r.verdict, r.notes)
+                  for r in panel.reviews))
+        recorded = getattr(self, "_review_panel_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._review_panel_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this review panel is already recorded for "
+                "the session; a panel is recorded once")
+        registry = self._review_panel_registry()
+        held_panel = registry.register_panel(panel)
+        recorded.add(fingerprint)
+        self._review_panel_held = panel
+        records = [
+            review_panels.change_record(held_panel.change)]
+        records += [
+            review_panels.review_record(r)
+            for r in held_panel.reviews]
+        for record in records:
+            self._publish_panel_record(record)
+        return {
+            "change": held_panel.change.to_record(),
+            "reviews": [
+                r.to_record() for r in held_panel.reviews],
+            "records": records,
+            "count": len(records),
+            "screen": review_panels.format_panel_screen(
+                registry),
+            "explanation": review_panels.PLAIN_EXPLANATION,
+        }
+
+    def report_panel_outcome(self) -> dict[str, Any]:
+        """Report the panel's outcome as session news (M-132).
+
+        The outcome is derived from what the session
+        holds by :meth:`panel_outcome` and published
+        as ONE ``outcome_record`` session event -
+        the panel's one derived outcome, naming both
+        positions when the reviewers disagree, never
+        one event per review. The announcement is
+        deduped: reporting again while the same
+        reviews are held publishes nothing new, and
+        an outcome grown by a newly held review
+        announces as the new outcome it is. Returns
+        the outcome, its news record, its
+        completeness, the outcome screen, and the
+        plain explanation. Reporting runs no review,
+        calls no model, executes no change and
+        spawns no crew: the human acts on the
+        outcome through later roads.
+        """
+        from ..core import review_panels
+
+        outcome = self.panel_outcome()
+        record = review_panels.outcome_record(outcome)
+        self._publish_panel_outcome_record(record)
+        registry = self._review_panel_registry()
+        if self._held_panel_change(registry) is not None:
+            screen = review_panels.format_outcome(registry)
+        else:
+            screen = review_panels.format_outcome()
+        return {
+            "outcome": outcome.to_record(),
+            "record": record,
+            "complete": outcome.complete,
+            "screen": screen,
+            "explanation": review_panels.PLAIN_EXPLANATION,
+        }
+
+    def _publish_panel_record(self, record: dict[str, Any]) -> None:
+        """Publish one piece of the panel as session news (M-132).
+
+        The pure layer's ``change_record`` and
+        ``review_record`` are journaled through the
+        same checkpoint road every sibling slice
+        uses, when a session is attached. Each piece
+        is announced at most once, under its own id.
+        A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "panel_change":
+            key = ("panel_change", record.get("change_id"))
+        elif record.get("type") == "panel_review":
+            key = ("panel_review", record.get("review_id"))
+        else:
+            return
+        announced = getattr(self, "_panel_announced", None)
+        if announced is None:
+            announced = set()
+            self._panel_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_panel_outcome_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one panel outcome as session news (M-132).
+
+        The pure layer's ``outcome_record`` is
+        journaled through the same checkpoint road,
+        when a session is attached - ONE event
+        holding the whole derived outcome, so the
+        human is told once. Each outcome is
+        announced at most once: the announcement is
+        keyed by the outcome's whole shape (title,
+        kind, verdict, reviewers, verdicts,
+        completeness), so an outcome grown by a
+        newly held review announces again as the
+        new outcome it is. A foreign record type is
+        never published on this road.
+        """
+        if record.get("type") != "panel_outcome":
+            return
+        announced = getattr(
+            self, "_panel_outcome_announced", None)
+        if announced is None:
+            announced = set()
+            self._panel_outcome_announced = announced
+        key = (
+            record.get("title"), record.get("outcome"),
+            record.get("verdict"),
+            tuple(record.get("reviewers", [])),
+            tuple(record.get("verdicts", [])),
+            record.get("complete"))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""

@@ -449,3 +449,370 @@ def test_no_live_roads_in_the_pure_layer():
                  "run_review", "execute_change", "panel_board"):
         assert not hasattr(panels, road)
     assert (ROOT / "mythic_agent" / "data" / PANEL_RESOURCE).exists()
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-132 agent layer: the agent holds a
+# ReviewPanelRegistry for the session (session
+# state only, no new setting), a panel is recorded
+# by being registered - published as its
+# change_record / review_record session news
+# through the checkpoint road, deduped per piece
+# id - the outcome is published as ONE
+# outcome_record session event, deduped per
+# outcome, and the /panel surface rides both
+# roads on the pure parser + formatters. Status,
+# find, panel and outcome reads register and
+# publish nothing. This layer runs no review,
+# calls no model, executes no change, spawns no
+# crew and claims no board - Part VIII does not
+# exist yet, so the screen is where the outcome
+# is visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _panel_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+class TestPanelAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.panel_status()
+        assert status["change"] is None
+        assert status["reviews"] == []
+        assert status["panel"]["change"]["title"] == \
+            "Session-branching restore guard"
+        assert len(status["panel"]["reviews"]) == 2
+        assert status["outcome"]["type"] == "panel_outcome"
+        assert status["outcome"]["outcome"] == "disagreement"
+        assert status["outcome"]["complete"] is True
+        assert "Review panels (M-132)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        assert agent._review_panel_registry() is \
+            agent._review_panel_registry()
+        assert agent._review_panel_store is \
+            agent._review_panel_registry()
+
+    def test_reads_register_and_publish_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.panel_status()
+        found = agent.find_panel_reviews("auditor")
+        assert [r.reviewer for r in found] == ["auditor"]
+        assert agent.review_panel().change.title == \
+            "Session-branching restore guard"
+        outcome = agent.panel_outcome()
+        assert outcome.outcome == "disagreement"
+        assert outcome.complete is True
+        registry = agent._review_panel_registry()
+        assert registry.list_reviews() == ()
+        for kind in ("panel_change", "panel_review",
+                     "panel_outcome"):
+            assert _panel_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_unheld_pieces_raise_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_panel_review("review-1")
+
+    def test_find_reviewer_without_a_review_raises_keyerror(
+            self, agent):
+        with pytest.raises(KeyError):
+            agent.find_panel_reviews("scribe")
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.hold_panel_change(_change())
+        agent.register_panel_review(_review())
+        status = agent.panel_status()
+        assert status["change"]["title"] == "A later change"
+        assert [r["reviewer"] for r in status["reviews"]] == [
+            "auditor"]
+        # One review is held, so the outcome is still
+        # awaiting its second review - the status
+        # says so plainly.
+        assert status["outcome"]["outcome"] == "awaiting"
+        assert status["outcome"]["complete"] is False
+        assert "One review still to come." in status["screen"]
+        assert len(status["panel"]["reviews"]) == 2
+
+
+class TestPanelAgentRegister:
+    def test_hold_change_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.hold_panel_change(_change())
+        assert outcome["change"]["change_id"] == "change-1"
+        assert outcome["record"]["type"] == "panel_change"
+        events = _panel_events(store, session_id, "panel_change")
+        assert len(events) == 1
+        assert events[0]["title"] == "A later change"
+        # The same record is never published twice.
+        agent._publish_panel_record(outcome["record"])
+        assert len(_panel_events(
+            store, session_id, "panel_change")) == 1
+        # A foreign record type is refused on this road.
+        agent._publish_panel_record(outcome_record(
+            outcome_of_panel(load_review_panel())))
+        assert _panel_events(store, session_id, "panel_outcome") \
+            == []
+        agent.close()
+
+    def test_register_review_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.hold_panel_change(_change())
+        outcome = agent.register_panel_review(_review())
+        assert outcome["review"]["review_id"] == "review-1"
+        assert outcome["record"]["type"] == "panel_review"
+        assert len(_panel_events(
+            store, session_id, "panel_change")) == 1
+        assert len(_panel_events(
+            store, session_id, "panel_review")) == 1
+        agent._publish_panel_record(outcome["record"])
+        assert len(_panel_events(
+            store, session_id, "panel_review")) == 1
+        agent.close()
+
+    def test_second_change_refuses(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.hold_panel_change(_change())
+        with pytest.raises(ValueError):
+            agent.hold_panel_change(_change(title="Another"))
+        assert len(_panel_events(
+            store, session_id, "panel_change")) == 1
+        agent.close()
+
+    def test_same_reviewer_twice_refuses_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.hold_panel_change(_change())
+        agent.register_panel_review(_review())
+        with pytest.raises(ValueError):
+            agent.register_panel_review(_review(
+                provider="openai", model="gpt-5",
+                verdict="reject", notes="Second reading."))
+        assert len(_panel_events(
+            store, session_id, "panel_review")) == 1
+        agent.close()
+
+    def test_record_panel_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_review_panel()
+        assert outcome["count"] == 3
+        assert outcome["change"]["title"] == \
+            "Session-branching restore guard"
+        assert len(outcome["reviews"]) == 2
+        assert len(_panel_events(
+            store, session_id, "panel_change")) == 1
+        assert len(_panel_events(
+            store, session_id, "panel_review")) == 2
+        assert agent.review_panel().change.title == \
+            "Session-branching restore guard"
+        agent.close()
+
+    def test_record_same_panel_twice_refuses(self, agent):
+        agent.record_review_panel()
+        with pytest.raises(ValueError):
+            agent.record_review_panel()
+
+    def test_panel_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_panel(tmp_path, _panel_data())
+        panel = load_review_panel_file(path)
+        outcome = agent.record_review_panel(panel)
+        assert outcome["count"] == 2
+        assert agent.review_panel().change.title == \
+            "A later change"
+        assert agent.panel_outcome().outcome == "awaiting"
+        assert agent.panel_outcome().reviewers == ("auditor",)
+
+    def test_find_prefers_the_held_pieces(self, agent):
+        agent.hold_panel_change(_change())
+        agent.register_panel_review(_review())
+        found = agent.find_panel_reviews("auditor")
+        assert [r.notes for r in found] == ["It reads clean."]
+        # The held pieces answer now: the example's
+        # guardian review no longer answers.
+        with pytest.raises(KeyError):
+            agent.find_panel_reviews("guardian")
+
+
+class TestPanelAgentOutcome:
+    def test_outcome_report_publishes_one_outcome_event(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.record_review_panel()
+        outcome = agent.report_panel_outcome()
+        assert outcome["complete"] is True
+        assert outcome["record"]["type"] == "panel_outcome"
+        assert outcome["outcome"]["outcome"] == "disagreement"
+        assert "Disagreement on" in outcome["screen"]
+        outcomes = _panel_events(
+            store, session_id, "panel_outcome")
+        # ONE outcome event holds the whole outcome.
+        assert len(outcomes) == 1
+        assert outcomes[0]["complete"] is True
+        # Reporting again on the same reviews publishes
+        # nothing new.
+        agent.report_panel_outcome()
+        assert len(_panel_events(
+            store, session_id, "panel_outcome")) == 1
+        agent.close()
+
+    def test_grown_outcome_announces_as_the_new_outcome(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.hold_panel_change(_change())
+        agent.register_panel_review(_review())
+        outcome = agent.report_panel_outcome()
+        assert outcome["outcome"]["outcome"] == "awaiting"
+        assert outcome["complete"] is False
+        assert len(_panel_events(
+            store, session_id, "panel_outcome")) == 1
+        # A newly held review grows the outcome: the
+        # new outcome announces as the new outcome
+        # it is.
+        agent.register_panel_review(_review(
+            reviewer="guardian", provider="ollama",
+            model="llama3.1", verdict="request_changes",
+            notes="Name the next step."))
+        outcome = agent.report_panel_outcome()
+        assert outcome["outcome"]["outcome"] == "disagreement"
+        assert outcome["complete"] is True
+        assert len(_panel_events(
+            store, session_id, "panel_outcome")) == 2
+        agent.close()
+
+    def test_no_review_or_execution_road_for_panel(self, agent):
+        # This layer holds the panel as data: it runs
+        # no review, calls no model, executes no
+        # change, spawns no crew and builds no board
+        # - Part VIII does not exist yet, and the
+        # live review is a later road, not this
+        # slice.
+        assert not hasattr(agent, "run_review_panel")
+        assert not hasattr(agent, "execute_panel_change")
+        assert not hasattr(agent, "spawn_review_panel")
+        assert not hasattr(agent, "panel_board")
+
+
+class TestPanelTerminalSurface:
+    def test_show_outcome_verdicts_and_kinds(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/panel")
+        assert "Review panels (M-132)" in text
+        _, _, text = _slash(agent, "/panel show auditor")
+        assert "auditor (anthropic/claude-sonnet-4-5): approve" \
+            in text
+        _, _, text = _slash(agent, "/panel outcome")
+        assert "Disagreement on" in text
+        _, _, text = _slash(agent, "/panel verdicts")
+        assert "- auditor: approve" in text
+        assert "- guardian: request_changes" in text
+        _, _, text = _slash(agent, "/panel kinds")
+        assert text == \
+            "Verdict kinds: approve, request_changes, reject"
+
+    def test_bare_reviewer_shows_theirs(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/panel guardian")
+        assert "guardian (ollama/llama3.1): request_changes" \
+            in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert "/panel [show|show <reviewer>|outcome|verdicts|kinds]" \
+            in text
+        # A bare word parses as a reviewer id (member
+        # ids are slugs, not a fixed list), so an
+        # unknown reviewer answers with the find
+        # road's KeyError; two stray words are a
+        # usage error.
+        _, _, text = _slash(agent, "/panel dance")
+        assert "no review from the reviewer" in text
+        _, _, text = _slash(agent, "/panel dance party")
+        assert text == USAGE
+
+
+@pytest.fixture()
+def panel_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _panel_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestPanelCommand:
+    def test_show_is_default(self, panel_handler, agent):
+        panel_handler._handle_panel("")
+        assert "Review panels (M-132)" in \
+            _panel_published_text(panel_handler)
+
+    def test_show_one_outcome_verdicts_and_kinds(
+            self, panel_handler, agent):
+        panel_handler._handle_panel("show auditor")
+        assert "auditor (anthropic/claude-sonnet-4-5): approve" \
+            in _panel_published_text(panel_handler)
+        panel_handler._handle_panel("outcome")
+        assert "Disagreement on" in \
+            _panel_published_text(panel_handler)
+        panel_handler._handle_panel("verdicts")
+        assert "- guardian: request_changes" in \
+            _panel_published_text(panel_handler)
+        panel_handler._handle_panel("kinds")
+        assert "Verdict kinds:" in \
+            _panel_published_text(panel_handler)
+
+    def test_bad_grammar_is_published(self, panel_handler, agent):
+        panel_handler._handle_panel("dance party")
+        assert USAGE in _panel_published_text(panel_handler)
+
+
+class TestChatScreenRoutingPanel:
+    def test_panel_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/panel kinds", _FakeLog())
+        assert calls == [("/panel", "kinds")]
