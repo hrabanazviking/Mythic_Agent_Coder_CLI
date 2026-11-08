@@ -1,0 +1,148 @@
+schema: mythic.instruction_files/1
+slice: M-149
+part: 7
+part_title: Memory & Context
+canon_note: |
+  Instruction files unified: AGENTS.md (the AAIF
+  standard), RULES.AI.md (ours), CLAUDE.md and kin
+  read in one precedence order, shown in the panel
+  with their sources - foreign projects' files are
+  honoured on their own turf. An instruction-files
+  book holds one entry per instruction file in
+  force, in held order: each entry names its
+  filename in the closed canon this slice names
+  (RULES.AI.md, AGENTS.md, .mythic.md, .mythic,
+  CLAUDE.md, .muserules, .cursorrules,
+  .aider.rules.md - the shipped instruction
+  resolver's own set plus RULES.AI.md, the one
+  filename that set lacks), the origin that
+  filename truly carries (ours, standard or
+  foreign - a filename named with any other origin
+  refuses, so a foreign file is never claimed as
+  ours), its path, its source, its layer and the
+  plain-words reason it stands. An entry names no
+  rank of its own, because the RANK is DERIVED
+  from its filename and layer: the layer ranks
+  first, in the shipped order (system, repo, dir,
+  file), and inside one layer the filenames rank
+  in the canon's precedence order. The PANEL is
+  likewise derived from the whole book: its rows
+  are the entries carried whole with their ranks,
+  in precedence order, and its totals are the
+  entries' own counts, and a stored panel that
+  disagrees with its derived shape is refused.
+  This file is ONE EXAMPLE BOOK, in the shape a
+  real book file takes: the M-148 slice boundary -
+  six files in force across the repo and dir
+  layers, of every origin, with the one panel of
+  the book. A real book is a new file in this same
+  shape - it is never this file edited in place.
+  This layer holds the account as data only: it
+  writes, renames and applies no file itself,
+  beyond the reading the shipped instruction
+  resolver already does when a workspace is
+  scanned, and a scan leaves every file
+  byte-identical.
+guide:
+  title: "Instruction files at the M-148 slice boundary"
+entries:
+- file_id: instr-rules-root
+  filename: RULES.AI.md
+  origin: ours
+  path: RULES.AI.md
+  source: workspace root
+  layer: repo
+  reason: "Our own house rules for this repo, written by us for our own turf; inside the repo layer they outrank every guest file standing beside them."
+- file_id: instr-agents-root
+  filename: AGENTS.md
+  origin: standard
+  path: AGENTS.md
+  source: workspace root
+  layer: repo
+  reason: "The AAIF standard file: the shared tongue every agent tool reads, honoured here as the standard it is."
+- file_id: instr-claude-root
+  filename: CLAUDE.md
+  origin: foreign
+  path: CLAUDE.md
+  source: workspace root
+  layer: repo
+  reason: "A foreign tool's file, read in its own terms on its own turf and never rewritten, renamed or claimed as ours."
+- file_id: instr-mythic-package
+  filename: .mythic.md
+  origin: ours
+  path: mythic_agent/.mythic.md
+  source: mythic_agent package
+  layer: dir
+  reason: "Our own package-level instructions, steering work inside the package directory."
+- file_id: instr-cursor-package
+  filename: .cursorrules
+  origin: foreign
+  path: mythic_agent/.cursorrules
+  source: mythic_agent package
+  layer: dir
+  reason: "A foreign editor's rules file for the package directory, honoured in its own terms on its own turf."
+- file_id: instr-mythic-plain
+  filename: .mythic
+  origin: ours
+  path: tests/.mythic
+  source: tests directory
+  layer: dir
+  reason: "Our own plain instruction file for the tests directory."
+panels:
+- panel_id: panel-m148-boundary
+  rows:
+  - file_id: instr-rules-root
+    filename: RULES.AI.md
+    origin: ours
+    path: RULES.AI.md
+    source: workspace root
+    layer: repo
+    rank: 10
+  - file_id: instr-agents-root
+    filename: AGENTS.md
+    origin: standard
+    path: AGENTS.md
+    source: workspace root
+    layer: repo
+    rank: 11
+  - file_id: instr-claude-root
+    filename: CLAUDE.md
+    origin: foreign
+    path: CLAUDE.md
+    source: workspace root
+    layer: repo
+    rank: 14
+  - file_id: instr-mythic-package
+    filename: .mythic.md
+    origin: ours
+    path: mythic_agent/.mythic.md
+    source: mythic_agent package
+    layer: dir
+    rank: 22
+  - file_id: instr-mythic-plain
+    filename: .mythic
+    origin: ours
+    path: tests/.mythic
+    source: tests directory
+    layer: dir
+    rank: 23
+  - file_id: instr-cursor-package
+    filename: .cursorrules
+    origin: foreign
+    path: mythic_agent/.cursorrules
+    source: mythic_agent package
+    layer: dir
+    rank: 26
+  total_files: 6
+  origin_counts:
+  - origin: ours
+    files: 3
+  - origin: standard
+    files: 1
+  - origin: foreign
+    files: 2
+  account:
+  - "The panel holds 6 instruction file(s) in force: ours 3, standard 1, foreign 2."
+  - "Precedence runs layer first (system, then repo, then dir, then file) and, inside one layer, RULES.AI.md, AGENTS.md, .mythic.md, .mythic, CLAUDE.md, .muserules, .cursorrules, .aider.rules.md."
+  - "Foreign files are honoured on their own turf: read in their own terms, never rewritten, renamed or claimed as ours."
+  - "The panel is read off the held entries at call time - it is derived, never stored loose."
