@@ -1,0 +1,89 @@
+schema: mythic.dogfood/1
+slice: M-141
+part: 6
+part_title: The Crew
+dogfood_note: |
+  The Mythic Coder building itself: the standing
+  dogfood - each part of this road is built by the
+  crew it improves, under the coordinator's
+  discipline (as the October forge proved it can).
+  A dogfood book holds one build record per build
+  of the road, in held order: each record names the
+  member who built and the slice built - and names
+  no part, because a record's part is derived from
+  the shipped roadmap itself, never stored on the
+  record. A report of one part's builds is derived
+  from that part's records - its entry ids, builds,
+  slices, members and account read off the records -
+  and a stored report that disagrees with the
+  derived one is refused. The coordinator's ledger
+  is derived from the whole book: its rows are the
+  per-part reports in the order the records first
+  name each part, its totals are the rows' sums and
+  its account is read off the rows; a stored ledger
+  that disagrees refuses. This file is ONE EXAMPLE
+  DOGFOOD BOOK, in the shape a real dogfood file
+  takes: the M-140 slice boundary - the Part V
+  gate's one build, and Part VI's builds from the
+  crew casting through the cost court, with the
+  coordinator's one ledger of it. A real dogfood
+  book is a new file in this same shape - it is
+  never this file edited in place. This layer holds
+  builds as data only: it builds nothing live, runs
+  no crew and merges nothing.
+guide:
+  title: "Dogfood book at the M-140 slice boundary"
+entries:
+- entry_id: entry-m120-forge
+  member: forge_worker
+  slice_id: M-120
+  title: Part V gate
+- entry_id: entry-m121-architect
+  member: architect
+  slice_id: M-121
+  title: Agents as files
+- entry_id: entry-m138-scribe
+  member: scribe
+  slice_id: M-138
+  title: Crew replay
+- entry_id: entry-m139-forge
+  member: forge_worker
+  slice_id: M-139
+  title: Failure fostering
+- entry_id: entry-m140-forge
+  member: forge_worker
+  slice_id: M-140
+  title: Cost court
+- entry_id: entry-m140-auditor
+  member: auditor
+  slice_id: M-140
+  title: Cost court
+ledgers:
+- ledger_id: ledger-m140-boundary
+  keeper: coordinator
+  rows:
+  - part: 5
+    entry_ids: [entry-m120-forge]
+    builds: 1
+    slices: [M-120]
+    members: [forge_worker]
+    account:
+    - "Part 5 (Autonomy & Safety) was built by the crew it improves in 1 build(s) across 1 slice(s)."
+    - "Builders: forge_worker."
+    - "Every build stands under the coordinator's discipline."
+  - part: 6
+    entry_ids: [entry-m121-architect, entry-m138-scribe, entry-m139-forge, entry-m140-forge, entry-m140-auditor]
+    builds: 5
+    slices: [M-121, M-138, M-139, M-140]
+    members: [architect, scribe, forge_worker, auditor]
+    account:
+    - "Part 6 (The Crew) was built by the crew it improves in 5 build(s) across 4 slice(s)."
+    - "Builders: architect, scribe, forge_worker, auditor."
+    - "Every build stands under the coordinator's discipline."
+  total_builds: 6
+  total_slices: 5
+  total_parts: 2
+  account:
+  - "The coordinator keeps this ledger: 2 part row(s) across 2 part(s)."
+  - "Total: 6 build(s) across 5 slice(s)."
+  - "The standing dogfood: each part of this road is built by the crew it improves."
