@@ -14306,6 +14306,471 @@ class Agent:
             self._checkpoint(record)
 
 
+    # -- M-130: the Auditor's veto --
+
+    def _auditor_veto_registry(self):
+        """The held Auditor's-veto registry (M-130).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer cases, checks and results
+        in the order they were given, beside the
+        session heterogeneous-crew registry (M-129)
+        and never in it: the audit is the
+        coordinator's evidence, held under the veto
+        this slice names. It is created on first use,
+        so an agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_auditor_veto_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_auditor_veto_store", None)
+        if registry is None:
+            from ..core.auditor_veto import (
+                AuditorVetoRegistry,
+            )
+            registry = AuditorVetoRegistry()
+            self._auditor_veto_store = registry
+        return registry
+
+    def veto_status(self) -> dict[str, Any]:
+        """The Auditor's veto, in plain data (M-130).
+
+        The cases, checks and results held this
+        session as plain records, the session ledger's
+        evidence as plain records (the shipped example
+        ledger - three cases, six checks and five
+        results among the Part VI slices, kept by the
+        auditor - until a ledger is recorded), the
+        derived report as its one report record, the
+        one screen - rendered from the held registry,
+        or from the shipped example ledger when nothing
+        is held yet - and the plain explanation.
+        Reading registers and publishes nothing, runs
+        no check and banks nothing: this layer holds
+        the audit as data only. There is no Part VIII
+        board yet; the screen is where the verdicts
+        are visible.
+        """
+        from ..core import auditor_veto
+
+        registry = self._auditor_veto_registry()
+        held_cases = registry.list_cases()
+        held_checks = registry.list_checks()
+        held_results = registry.list_results()
+        ledger = self.auditor_ledger()
+        held = held_cases or held_checks or held_results
+        screen = auditor_veto.format_veto_screen(registry) \
+            if held \
+            else auditor_veto.format_veto_screen()
+        return {
+            "cases": [c.to_record() for c in held_cases],
+            "checks": [c.to_record() for c in held_checks],
+            "results": [r.to_record() for r in held_results],
+            "ledger": {
+                "keeper": ledger.keeper,
+                "cases": [c.to_record() for c in ledger.cases],
+                "checks": [c.to_record() for c in ledger.checks],
+                "results": [
+                    r.to_record() for r in ledger.results],
+            },
+            "report": auditor_veto.report_record(
+                self.veto_report()),
+            "screen": screen,
+            "explanation": auditor_veto.PLAIN_EXPLANATION,
+        }
+
+    def get_veto_case(self, case_id: Any):
+        """The one held case an id names (M-130).
+
+        A case the session does not hold raises
+        KeyError, exactly as the pure registry answers.
+        """
+        return self._auditor_veto_registry().get_case(
+            case_id)
+
+    def get_veto_check(self, check_id: Any):
+        """The one held check an id names (M-130).
+
+        A check the session does not hold raises
+        KeyError, exactly as the pure registry answers.
+        """
+        return self._auditor_veto_registry().get_check(
+            check_id)
+
+    def get_veto_result(self, result_id: Any):
+        """The one held result an id names (M-130).
+
+        A result the session does not hold raises
+        KeyError, exactly as the pure registry answers.
+        """
+        return self._auditor_veto_registry().get_result(
+            result_id)
+
+    def find_veto_verdicts(self, slice_id: Any):
+        """Every verdict on one slice (M-130).
+
+        The session's held registry answers when the
+        session holds any evidence; otherwise the
+        shipped example ledger answers. A slice held
+        in no verdict in the answering set raises
+        KeyError. Reading registers and publishes
+        nothing.
+        """
+        from ..core.auditor_veto import (
+            load_auditor_ledger,
+        )
+        from ..core.worktrees import normalize_slice_id
+
+        wanted = normalize_slice_id(slice_id)
+        registry = self._auditor_veto_registry()
+        if registry.list_cases() or registry.list_checks() \
+                or registry.list_results():
+            found = registry.for_slice(wanted)
+        else:
+            found = load_auditor_ledger().report().for_slice(
+                wanted)
+        if not found:
+            raise KeyError(
+                f"no veto stands on the slice: "
+                f"{wanted!r}")
+        return found
+
+    def auditor_ledger(self):
+        """The session's veto ledger, as data (M-130).
+
+        The ledger the session recorded through
+        :meth:`record_auditor_ledger`, or the shipped
+        example ledger until one is recorded. Reading
+        registers and publishes nothing.
+        """
+        from ..core.auditor_veto import (
+            load_auditor_ledger,
+        )
+
+        ledger = getattr(self, "_auditor_veto_held", None)
+        if ledger is None:
+            return load_auditor_ledger()
+        return ledger
+
+    def veto_report(self):
+        """The report the ledger's evidence yields (M-130).
+
+        Derived by the pure layer from what the
+        session holds - the held registry when the
+        session holds any evidence, otherwise the
+        shipped example ledger - every verdict the
+        evidence holds, in judgement order:
+        failed-check verdicts, then unproven-check
+        verdicts, with every case's gate beside them.
+        Reading registers and publishes nothing:
+        publishing is :meth:`report_veto`' road.
+        """
+        from ..core.auditor_veto import (
+            load_auditor_ledger,
+        )
+
+        registry = self._auditor_veto_registry()
+        if registry.list_cases() or registry.list_checks() \
+                or registry.list_results():
+            return registry.report()
+        return load_auditor_ledger().report()
+
+    def register_veto_case(
+            self, case: Any) -> dict[str, Any]:
+        """Hold one case for the session (M-130).
+
+        The case is held by the pure registry under
+        its id or a fresh deterministic one - a
+        supplied id already held refuses, a slice
+        audited twice refuses, and a refusal holds
+        nothing new and publishes nothing - and a
+        held case is published as its ``case_record``
+        session-news record through the checkpoint
+        road, so evidence given is news with its
+        shape attached. Returns the held case, its
+        news record, the screen rendered after it
+        landed, and the plain explanation. Holding a
+        case runs no check: the registry holds the
+        evidence as data.
+        """
+        from ..core import auditor_veto
+
+        registry = self._auditor_veto_registry()
+        held = registry.register_case(case)
+        record = auditor_veto.case_record(held)
+        self._publish_veto_record(record)
+        return {
+            "case": held.to_record(),
+            "record": record,
+            "screen": auditor_veto.format_veto_screen(
+                registry),
+            "explanation": auditor_veto.PLAIN_EXPLANATION,
+        }
+
+    def register_veto_check(
+            self, check: Any) -> dict[str, Any]:
+        """Hold one check for the session (M-130).
+
+        The check is held by the pure registry under
+        its id or a fresh deterministic one - a
+        supplied id already held refuses, a check
+        carried twice by one slice refuses, and a
+        refusal holds nothing new and publishes
+        nothing - and a held check is published as
+        its ``check_record`` session-news record
+        through the checkpoint road. Returns the held
+        check, its news record, the screen rendered
+        after it landed, and the plain explanation.
+        Holding a check runs nothing: the registry
+        holds the evidence as data.
+        """
+        from ..core import auditor_veto
+
+        registry = self._auditor_veto_registry()
+        held = registry.register_check(check)
+        record = auditor_veto.check_record(held)
+        self._publish_veto_record(record)
+        return {
+            "check": held.to_record(),
+            "record": record,
+            "screen": auditor_veto.format_veto_screen(
+                registry),
+            "explanation": auditor_veto.PLAIN_EXPLANATION,
+        }
+
+    def register_veto_result(
+            self, result: Any) -> dict[str, Any]:
+        """Hold one result for the session (M-130).
+
+        The result is held by the pure registry under
+        its id or a fresh deterministic one - a
+        supplied id already held refuses, two results
+        for one check refuse, and a refusal holds
+        nothing new and publishes nothing - and a
+        held result is published as its
+        ``result_record`` session-news record through
+        the checkpoint road. Returns the held result,
+        its news record, the screen rendered after it
+        landed, and the plain explanation. Holding a
+        result executes no suite: the registry holds
+        the evidence as data.
+        """
+        from ..core import auditor_veto
+
+        registry = self._auditor_veto_registry()
+        held = registry.register_result(result)
+        record = auditor_veto.result_record(held)
+        self._publish_veto_record(record)
+        return {
+            "result": held.to_record(),
+            "record": record,
+            "screen": auditor_veto.format_veto_screen(
+                registry),
+            "explanation": auditor_veto.PLAIN_EXPLANATION,
+        }
+
+    def record_auditor_ledger(
+            self, ledger: Any = None) -> dict[str, Any]:
+        """Record a whole veto ledger for the session (M-130).
+
+        With no ledger named, the shipped example
+        ledger is recorded through the pure layer -
+        three cases, six checks and five results
+        among the Part VI slices, kept by the
+        auditor. A ledger loaded from a file (the
+        pure layer's ``load_auditor_ledger_file``
+        road) may be passed instead, so a real veto
+        ledger is recorded as it stands. Every case,
+        check and result is held in ledger order and
+        published as its ``case_record`` /
+        ``check_record`` / ``result_record`` session
+        news, deduped per evidence id; the ledger is
+        remembered as the session's ledger, and the
+        same ledger recorded twice refuses - a ledger
+        is recorded once, never duplicated into the
+        session. Returns the held cases, checks and
+        results, their news records, the count of
+        evidence held, the screen, and the
+        explanation. Recording runs no check, executes
+        no suite and banks nothing.
+        """
+        from ..core import auditor_veto
+
+        ledger = ledger if ledger is not None \
+            else auditor_veto.load_auditor_ledger()
+        fingerprint = (
+            tuple((c.slice_id, c.title, c.builder)
+                  for c in ledger.cases),
+            tuple((c.slice_id, c.name, c.required)
+                  for c in ledger.checks),
+            tuple((r.slice_id, r.check, r.outcome,
+                    r.evidence)
+                  for r in ledger.results))
+        recorded = getattr(self, "_auditor_veto_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._auditor_veto_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this veto ledger is already recorded for "
+                "the session; a ledger is recorded once")
+        registry = self._auditor_veto_registry()
+        cases, checks, results = registry.register_ledger(ledger)
+        recorded.add(fingerprint)
+        self._auditor_veto_held = ledger
+        records = [
+            auditor_veto.case_record(c) for c in cases]
+        records += [
+            auditor_veto.check_record(c) for c in checks]
+        records += [
+            auditor_veto.result_record(r) for r in results]
+        for record in records:
+            self._publish_veto_record(record)
+        return {
+            "cases": [c.to_record() for c in cases],
+            "checks": [c.to_record() for c in checks],
+            "results": [r.to_record() for r in results],
+            "records": records,
+            "count": len(cases) + len(checks) + len(results),
+            "screen": auditor_veto.format_veto_screen(
+                registry),
+            "explanation": auditor_veto.PLAIN_EXPLANATION,
+        }
+
+    def report_veto(self) -> dict[str, Any]:
+        """Report the vetoes to the coordinator (M-130).
+
+        The report is derived from what the session
+        holds by :meth:`veto_report` - every verdict
+        the evidence holds, in judgement order - and
+        published as session news: each verdict as its
+        ``verdict_record``, then the report itself as
+        ONE ``report_record`` session event holding
+        every verdict and every gate, never one report
+        per verdict. The announcements are deduped:
+        reporting again while the same evidence is
+        held publishes nothing new, and a report grown
+        by newly held evidence announces as the new
+        report it is. Returns the report, its news
+        record, the count of verdicts, the verdicts
+        screen, and the plain explanation. Reporting
+        runs no check and banks nothing: the
+        coordinator acts on the verdicts through later
+        roads.
+        """
+        from ..core import auditor_veto
+
+        report = self.veto_report()
+        for verdict in report.verdicts:
+            self._publish_veto_verdict_record(
+                auditor_veto.verdict_record(verdict))
+        record = auditor_veto.report_record(report)
+        self._publish_veto_report_record(record)
+        return {
+            "report": report.to_record(),
+            "record": record,
+            "count": len(report.verdicts),
+            "screen": auditor_veto.format_verdicts(report),
+            "explanation": auditor_veto.PLAIN_EXPLANATION,
+        }
+
+    def _publish_veto_record(self, record: dict[str, Any]) -> None:
+        """Publish one piece of audit evidence as session news (M-130).
+
+        The pure layer's ``case_record``,
+        ``check_record`` and ``result_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each piece of evidence is announced
+        at most once, under its own id. A foreign
+        record type is never published on this road.
+        """
+        if record.get("type") == "veto_case":
+            key = ("veto_case", record.get("case_id"))
+        elif record.get("type") == "veto_check":
+            key = ("veto_check", record.get("check_id"))
+        elif record.get("type") == "veto_result":
+            key = ("veto_result", record.get("result_id"))
+        else:
+            return
+        announced = getattr(self, "_veto_announced", None)
+        if announced is None:
+            announced = set()
+            self._veto_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_veto_verdict_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one verdict as session news (M-130).
+
+        The pure layer's ``verdict_record`` is
+        journaled through the same checkpoint road,
+        when a session is attached. Each verdict is
+        announced at most once: the announcement is
+        keyed by the verdict's whole shape (kind,
+        slice, check, title), so the same judgement
+        derived again from the same evidence is not
+        news twice. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") != "veto_verdict":
+            return
+        announced = getattr(self, "_veto_verdict_announced", None)
+        if announced is None:
+            announced = set()
+            self._veto_verdict_announced = announced
+        key = (
+            record.get("kind"), record.get("slice_id"),
+            record.get("check"), record.get("title"))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_veto_report_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one veto report as session news (M-130).
+
+        The pure layer's ``report_record`` is journaled
+        through the same checkpoint road, when a
+        session is attached - ONE event holding every
+        verdict and every gate, so the coordinator is
+        told once. Each report is announced at most
+        once: the announcement is keyed by the
+        report's verdicts and gates, so a report
+        grown by newly held evidence announces again
+        as the new report it is. A foreign record type
+        is never published on this road.
+        """
+        if record.get("type") != "veto_report":
+            return
+        announced = getattr(self, "_veto_report_announced", None)
+        if announced is None:
+            announced = set()
+            self._veto_report_announced = announced
+        key = (
+            tuple(
+                (v.get("kind"), v.get("slice_id"),
+                 v.get("check"), v.get("title"))
+                for v in record.get("verdicts", [])),
+            tuple(
+                (gate.get("slice_id"), gate.get("status"),
+                 gate.get("proven"), gate.get("failed"),
+                 gate.get("unproven"))
+                for gate in record.get("gates", [])))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):

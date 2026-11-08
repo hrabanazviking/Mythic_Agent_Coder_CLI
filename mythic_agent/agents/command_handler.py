@@ -293,6 +293,8 @@ class CommandHandler:
                 self._handle_merge(args)
             elif cmd == "/hetero":
                 self._handle_hetero(args)
+            elif cmd == "/veto":
+                self._handle_veto(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -3807,6 +3809,69 @@ class CommandHandler:
             else:
                 text = format_verdicts(
                     primary.find_hetero_verdicts(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_veto(self, args: str):
+        """M-130: /veto - the Auditor's veto.
+
+        ``/veto`` shows the verdicts of the veto
+        ledger held this session (the shipped example
+        ledger - three cases, six checks and five
+        results among the Part VI slices, kept by the
+        auditor, yielding exactly two verdicts, one
+        of each kind - when none is held yet);
+        ``/veto show <slice>`` (or a bare slice id)
+        shows one slice's verdicts; ``/veto gates``
+        shows every case's gate state; ``/veto kinds``
+        shows the verdict kinds. Reading registers and
+        publishes nothing as session news: evidence
+        is held only when it is given through the
+        agent layer, and held evidence is published
+        as a veto_case / veto_check / veto_result
+        session event, each verdict as a veto_verdict
+        session event and each report as ONE
+        veto_report session event. This road runs no
+        check, executes no test suite and banks
+        nothing: the registry holds the evidence as
+        data, and there is no Part VIII board yet -
+        this surface is where the verdicts are
+        visible. The registry is session state held
+        by the agent; it is not a stored setting.
+        """
+        from ..core.auditor_veto import (
+            format_gates,
+            format_kinds,
+            format_verdicts,
+            parse_veto_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_veto_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "kinds":
+                text = format_kinds()
+            elif action == "gates":
+                text = format_gates(primary.veto_report())
+            elif target is None:
+                text = primary.veto_status()["screen"]
+            else:
+                text = format_verdicts(
+                    primary.find_veto_verdicts(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
