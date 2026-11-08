@@ -949,7 +949,7 @@ slices:
   title: Compaction v2, glass-box
   summary: when context compacts, the summary is shown, editable, and kept in the journal beside what
     it replaced; nothing the coder "forgets" is unrecoverable.
-  status: queued
+  status: done
 - id: M-152
   part: 7
   title: Retrieval over the code graph

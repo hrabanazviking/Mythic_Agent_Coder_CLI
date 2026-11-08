@@ -330,3 +330,10 @@ mythic_agent/agents/llm.py:22448:register_project_memory_map_book:method
 mythic_agent/agents/llm.py:22489:record_project_memory_map_book:method
 mythic_agent/agents/llm.py:22550:report_project_memory_map:method
 mythic_agent/core/project_memory_map.py:805:row_for:method
+mythic_agent/agents/llm.py:22756:compaction_records_for_source:method
+mythic_agent/agents/llm.py:22787:register_compaction_record:method
+mythic_agent/agents/llm.py:22827:edit_compaction_summary:method
+mythic_agent/agents/llm.py:22867:register_compaction_glassbox_book:method
+mythic_agent/agents/llm.py:22909:record_compaction_glassbox_book:method
+mythic_agent/agents/llm.py:22974:report_compaction_glassbox:method
+mythic_agent/core/compaction_glassbox.py:1093:row_for:method
