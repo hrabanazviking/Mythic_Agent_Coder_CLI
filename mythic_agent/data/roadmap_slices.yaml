@@ -892,7 +892,7 @@ slices:
   title: The Mythic Coder building itself
   summary: the standing dogfood — each part of this road is built by the crew it improves, under the coordinator's
     discipline (as the October forge proved it can).
-  status: queued
+  status: done
 - id: M-142
   part: 6
   title: Solo mode dignity
