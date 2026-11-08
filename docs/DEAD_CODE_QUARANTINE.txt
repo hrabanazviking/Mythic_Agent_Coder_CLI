@@ -297,3 +297,10 @@ mythic_agent/agents/llm.py:20215:record_crew_interrupt_book:method
 mythic_agent/agents/llm.py:20287:report_crew_interrupts:method
 mythic_agent/core/crew_interrupts.py:1031:row_for:method
 mythic_agent/core/crew_interrupts.py:1244:interrupts_with_scope:method
+mythic_agent/agents/llm.py:20537:crew_schedules_for_template:method
+mythic_agent/agents/llm.py:20595:register_crew_schedule:method
+mythic_agent/agents/llm.py:20636:register_crew_schedule_book:method
+mythic_agent/agents/llm.py:20687:record_crew_schedule_book:method
+mythic_agent/agents/llm.py:20758:report_crew_schedules:method
+mythic_agent/core/crew_schedules.py:1051:row_for:method
+mythic_agent/core/crew_schedules.py:1292:attachments_with_standing:method
