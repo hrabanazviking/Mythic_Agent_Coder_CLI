@@ -1,0 +1,119 @@
+schema: mythic.cross_project_memory/1
+slice: M-154
+part: 7
+part_title: Memory & Context
+canon_note: |
+  Cross-project memory: lessons learned in one
+  project are offerable to other projects - with
+  provenance, never as silent contamination. A
+  cross-project book holds shared lessons in held
+  order, each carrying its provenance whole - the
+  project it was learned in, the context it was
+  learned in, the evidence it stands on, and where
+  in the source project it was read from - and
+  offers in held order, each an explicit state:
+  offered, accepted, declined or withdrawn. A
+  lesson stands in a target project only through
+  an accepted offer, and it stands there with its
+  provenance still whole. The EXCHANGE PANEL is
+  derived from the whole book: its rows are the
+  offers with their lessons carried whole, accepted
+  first, then offered, then declined, then
+  withdrawn, and its totals are the offers' own
+  counts, and a stored panel that disagrees with
+  its derived shape is refused. This file is ONE
+  EXAMPLE BOOK, in the shape a real book file
+  takes: the M-153 slice boundary - three lessons
+  standing at the close of the session-memory day,
+  one of them accepted into a sibling project, one
+  still on offer, and one declined, with the one
+  panel of the book. A real book is a new file in
+  this same shape - it is never this file edited in
+  place. This layer holds lessons and offers as
+  data only: it calls no model, writes no project's
+  files, updates no live memory and persists
+  nothing.
+guide:
+  title: "Cross-project memory at the M-153 slice boundary"
+lessons:
+- lesson_id: lesson-commit-before-answer
+  section: gotcha
+  title: "Commit before the answer is read"
+  detail: "Under WAL with synchronous=FULL, a handler that answers from inside its with db() block answers before the commit is visible to other connections, so a fast client using a just-issued credential races its own grant and gets refused."
+  source_project: samtal
+  context: "Samtal's Gatekeeper morning: four credential-issuing handlers (exchange, login/2fa, ip-ban, device/deny) raced their own grants in one morning."
+  evidence: "The canonical suite's intermittent 401/403/'pending' failures on just-issued credentials, traced to the commit boundary on 2026-10-22."
+  source: "Samtal forge law"
+  ref: samtal-mvp/server.py
+- lesson_id: lesson-reap-at-bank
+  section: gotcha
+  title: "Verify copies are reaped at bank"
+  detail: "A verify copy's purpose ends the moment its slice is banked and the remote is verified; the evidence is kept and the copy is deleted in the same step."
+  source_project: mythic-coder
+  context: "The verify store reached 111 GB across thousands of copies kept 'just in case' before the reap-at-bank rule was set."
+  evidence: "The clearing ledger of 2026-11-06: the store went from 6,809 entries to 162, with 10,062 evidence files preserved and verified."
+  source: PROJECT_MEMORY_MAP.md
+  ref: workspace/.verify-tmp/
+- lesson_id: lesson-bank-incrementally
+  section: architecture
+  title: "Bank incrementally, verify the remote moved"
+  detail: "Each slice banks with an explicit-refspec push and an ls-remote check that the remote HEAD moved; the ship slice is then an audit with behind_by=0, not a merge event."
+  source_project: mythic-coder
+  context: "Project Aesir's wave merges: base-diff patches silently reverted a banked hotfix twice before the rule was set."
+  evidence: "The Aesir Part II retrospective (S-051): every divergence carries a written verdict class or a named road, verified from git objects."
+  source: "Aesir retrospective"
+  ref: AGENTS.md
+offers:
+- offer_id: offer-reap-to-samverk
+  lesson_id: lesson-reap-at-bank
+  target_project: samverk
+  state: accepted
+  note: "Samverk's verify copies stand under the same rule from the day this offer landed."
+- offer_id: offer-commit-to-mythic
+  lesson_id: lesson-commit-before-answer
+  target_project: mythic-coder
+  state: offered
+  note: "Offered to the coder's session-store work; awaiting the coordinator's word."
+- offer_id: offer-bank-to-samtal
+  lesson_id: lesson-bank-incrementally
+  target_project: samtal
+  state: declined
+  note: "Samtal banks through its own forge road already; the lesson stays known if that changes."
+panels:
+- panel_id: panel-m153-boundary
+  rows:
+  - state: accepted
+    lesson_id: lesson-reap-at-bank
+    title: "Verify copies are reaped at bank"
+    detail: "A verify copy's purpose ends the moment its slice is banked and the remote is verified; the evidence is kept and the copy is deleted in the same step."
+    source_project: mythic-coder
+    target_project: samverk
+  - state: offered
+    lesson_id: lesson-commit-before-answer
+    title: "Commit before the answer is read"
+    detail: "Under WAL with synchronous=FULL, a handler that answers from inside its with db() block answers before the commit is visible to other connections, so a fast client using a just-issued credential races its own grant and gets refused."
+    source_project: samtal
+    target_project: mythic-coder
+  - state: declined
+    lesson_id: lesson-bank-incrementally
+    title: "Bank incrementally, verify the remote moved"
+    detail: "Each slice banks with an explicit-refspec push and an ls-remote check that the remote HEAD moved; the ship slice is then an audit with behind_by=0, not a merge event."
+    source_project: mythic-coder
+    target_project: samtal
+  total_items: 3
+  total_accepted: 1
+  total_offered: 1
+  total_declined: 1
+  total_withdrawn: 0
+  state_counts:
+  - state: accepted
+    items: 1
+  - state: offered
+    items: 1
+  - state: declined
+    items: 1
+  account:
+  - "The exchange panel holds 3 offers: accepted 1, offered 1, declined 1, withdrawn 0."
+  - "Offers stand accepted first, then offered, then declined, then withdrawn; within a state, by source project, then lesson title - so two panels of one book diff cleanly, line by line."
+  - "A lesson stands in a target project only through an accepted offer, and it stands there with its provenance whole - where it was learned, in what context, and on what evidence."
+  - "The panel is read off the book at call time - it is derived, never stored loose."
