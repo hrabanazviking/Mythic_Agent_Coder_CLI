@@ -1,0 +1,70 @@
+schema: mythic.external_agents/1
+slice: M-137
+part: 6
+part_title: Agents as files
+externals_note: |
+  External agents as crew: an outside agent,
+  arriving over MCP (the Part X road), can hold
+  a seat with the same contracts and budgets as
+  the internal crew. A seat book holds one seat
+  per outside agent: the agent's own name, the
+  home it arrives from, the transport it rides,
+  the crew member record it sits as - an M-121
+  member, office, posture and tools, validated
+  by the crew layer itself - and the budget that
+  guards it, an M-107 budget validated by the
+  budgets layer itself. A seat naming an office,
+  a posture or a budget word the internal crew
+  does not use is refused by those same
+  validators, and a seat naming any privilege of
+  its own is refused as an unknown key: there
+  are no foreign privileges. This file is ONE
+  EXAMPLE SEAT BOOK in the shape a real seats
+  file takes: two outside agents seated at the
+  M-136 slice boundary, one under a per-task
+  budget and one under a per-session budget, and
+  one example check - the atlas seat judged to
+  stand on the same terms, its findings derived
+  from the seat, never stored loose. A real seat
+  book is a new file in this same shape - it is
+  never this file edited in place. This layer
+  holds seats as data only: it opens no MCP
+  connection, spawns no agent and runs no model.
+guide:
+  title: "External seats at the M-136 slice boundary"
+seats:
+- seat_id: seat-atlas
+  member:
+    id: atlas_reviewer
+    name: "Atlas Reviewer (external)"
+    office: auditor
+    model_route: null
+    tools: [read_file, list_dir, grep_search]
+    posture: read-only-scout
+    character: "external_agent_characters/Atlas_Reviewer.md"
+  agent_name: "Atlas Reviewer"
+  home: atlas-mcp
+  transport: mcp
+  budget:
+    scope: task
+    token_limit: 20000
+    command_limit: 40
+- seat_id: seat-ledger
+  member:
+    id: ledger_hand
+    name: "Ledger Hand (external)"
+    office: scribe
+    model_route: null
+    tools: [read_file, write_file, list_dir]
+    posture: trusted-forge
+    character: "external_agent_characters/Ledger_Hand.md"
+  agent_name: "Ledger Hand"
+  home: ledger-mcp
+  transport: mcp
+  budget:
+    scope: session
+    cost_limit: 5.0
+    time_limit_seconds: 3600
+checks:
+- check_id: atlas-on-same-terms
+  member: atlas_reviewer
