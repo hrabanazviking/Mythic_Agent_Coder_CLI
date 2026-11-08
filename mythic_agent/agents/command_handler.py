@@ -267,6 +267,30 @@ class CommandHandler:
                 self._handle_doctrine(args)
             elif cmd == "/rollback":
                 self._handle_rollback(args)
+            elif cmd == "/multirepo":
+                self._handle_multirepo(args)
+            elif cmd == "/remote":
+                self._handle_remote(args)
+            elif cmd == "/grace":
+                self._handle_grace(args)
+            elif cmd == "/moment":
+                self._handle_moment(args)
+            elif cmd == "/policy":
+                self._handle_policy(args)
+            elif cmd == "/crew":
+                self._handle_crew(args)
+            elif cmd == "/offices":
+                self._handle_offices(args)
+            elif cmd == "/worktrees":
+                self._handle_worktrees(args)
+            elif cmd == "/dealing":
+                self._handle_dealing(args)
+            elif cmd == "/comms":
+                self._handle_comms(args)
+            elif cmd == "/deadlock":
+                self._handle_deadlock(args)
+            elif cmd == "/merge":
+                self._handle_merge(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -2986,6 +3010,737 @@ class CommandHandler:
                 text = primary.rollback_status()["screen"]
             else:
                 text = format_result(primary.get_drill_run(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_multirepo(self, args: str):
+        """M-113: /multirepo - the multi-repo workspaces.
+
+        /multirepo shows the repos held this session
+        with each repo's policy stated in words, and
+        the cross-repo change sets held with their
+        decision counts; show <set> (or a bare set
+        id) shows one set; repos shows the held
+        repos alone. Reading registers, builds and
+        publishes nothing: a set is held only when a
+        cross-repo change is built through the
+        agent. The registry is session state held by
+        the agent; it is not a stored setting.
+        """
+        from ..core.multi_repo import (
+            format_cross_set,
+            format_repos,
+            parse_multirepo_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_multirepo_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "repos":
+                text = format_repos(primary._multi_repo_registry())
+            elif target is None:
+                text = primary.multi_repo_status()["screen"]
+            else:
+                text = format_cross_set(primary.get_cross_repo_set(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_remote(self, args: str):
+        """M-114: /remote - remote and SSH work.
+
+        /remote shows the targets held this session
+        with the one connection each is reached
+        through, and the work plans held with their
+        step counts; show <plan> (or a bare plan id)
+        shows one plan; targets shows the held
+        targets alone. Reading registers, judges and
+        publishes nothing: a plan is held only when
+        remote work is judged through the agent. The
+        registry is session state held by the agent;
+        it is not a stored setting.
+        """
+        from ..core.remote_work import (
+            format_targets,
+            format_work_plan,
+            parse_remote_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_remote_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "targets":
+                text = format_targets(primary._remote_work_registry())
+            elif target is None:
+                text = primary.remote_work_status()["screen"]
+            else:
+                text = format_work_plan(primary.get_remote_work_plan(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_grace(self, args: str):
+        """M-115: /grace - offline and degraded grace.
+
+        /grace shows the degradation records held
+        this session, each stating its state and
+        everything it lost in plain words; show
+        <record> (or a bare record id) shows one
+        record; failures shows the three failure
+        kinds alone. Reading judges, registers and
+        publishes nothing: a record is held only when
+        degradation is judged through the agent. The
+        registry is session state held by the agent;
+        it is not a stored setting.
+        """
+        from ..core.offline_grace import (
+            format_assessment,
+            format_failures,
+            parse_grace_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_grace_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "failures":
+                text = format_failures()
+            elif target is None:
+                text = primary.grace_status()["screen"]
+            else:
+                text = format_assessment(primary.get_grace_record(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_moment(self, args: str):
+        """M-116: /moment - approval by phone-sized moments.
+
+        /moment shows the approval moments held this
+        session, each a single, complete question
+        with full context; show <record> (or a bare
+        record id) shows one moment; parts shows the
+        parts a complete moment must carry alone.
+        Reading judges, registers and publishes
+        nothing: a moment is held only when an
+        approval ask is judged through the agent. The
+        registry is session state held by the agent;
+        it is not a stored setting.
+        """
+        from ..core.approval_moments import (
+            format_assessment,
+            format_parts,
+            parse_moment_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_moment_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "parts":
+                text = format_parts()
+            elif target is None:
+                text = primary.approval_moment_status()["screen"]
+            else:
+                text = format_assessment(primary.get_approval_moment(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_policy(self, args: str):
+        """M-119: /policy - policy as code.
+
+        ``/policy`` shows the current policy state
+        (the held policy, or the policy the file on
+        disk names, or the plain no-policy state);
+        ``/policy plan`` shows the data-only plan for
+        the file on disk, applying nothing; ``/policy
+        sections`` names the sections the file
+        carries; ``/policy apply`` loads the file and
+        applies its plan through the agent layer's
+        journal-first roads. A file that fails
+        validation is refused whole and said so
+        plainly; no file is a plain no-policy answer.
+        """
+        from ..core.policy_file import (
+            format_plan,
+            format_policy_sections,
+            parse_policy_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            request = parse_policy_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        if request["action"] == "show":
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[bold cyan]{primary.project_policy_status()['screen']}[/bold cyan]\n")
+            return
+        if request["action"] == "apply":
+            outcome = primary.apply_project_policy()
+            style = "red" if outcome["status"] == "refused" else "green"
+            publish_sync(
+                "agent_chat_chunk", agent_name="Primary",
+                text=f"\n[{style}]{outcome['screen']}[/{style}]\n")
+            return
+        try:
+            policy = primary.policy_on_disk()
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]Project policy refused: {e}[/red]\n")
+            return
+        text = (format_plan(policy)
+                if request["action"] == "plan"
+                else format_policy_sections(policy))
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_crew(self, args: str):
+        """M-121: /crew - agents as files.
+
+        ``/crew`` shows the crew held this session
+        (the shipped casting - the existing characters
+        as data - when none is held yet); ``/crew show
+        <member>`` (or a bare member id) shows one
+        member; ``/crew office <office>`` shows the
+        member holding one office. Reading registers,
+        spawns and publishes nothing: a member is held
+        only when it joins through the agent layer,
+        and held members spawn through the shipped
+        sub-agent road. The registry is session state
+        held by the agent; it is not a stored setting.
+        """
+        from ..core.crew_members import format_member, parse_crew_args
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_crew_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "office":
+                text = format_member(
+                    primary.crew_member_for_office(target))
+            elif target is None:
+                text = primary.crew_status()["screen"]
+            else:
+                text = format_member(primary.find_crew_member(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_offices(self, args: str):
+        """M-122: /offices - the six offices formalised.
+
+        ``/offices`` shows the offices held this
+        session (the shipped book - the six offices
+        formalised as data - when none is held yet);
+        ``/offices show <office>`` (or a bare office
+        id) shows one office; ``/offices handoffs
+        <office>`` shows one office's hand-off
+        contracts; ``/offices contract <from> <to>``
+        shows the one contract between two offices.
+        Reading registers and publishes nothing as
+        session news: an office is held only when it
+        is taken up through the agent layer, and a
+        held office is published as an office session
+        event. The registry is session state held by
+        the agent; it is not a stored setting.
+        ``/offices custom ...`` is the M-123 custom
+        offices surface, handled by
+        :meth:`_handle_offices_custom` on the pure
+        layer's custom parser + formatters.
+        """
+        from ..core.offices import format_office, parse_offices_args
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        _words = (args or "").strip().split()
+        if _words and _words[0].lower() == "custom":
+            self._handle_offices_custom(" ".join(_words[1:]))
+            return
+        try:
+            action, target = parse_offices_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "handoffs":
+                definition = primary.find_office_definition(target)
+                lines = [format_office(definition)]
+                for contract in definition.handoffs:
+                    lines.append(
+                        f"  -> {contract.to_office}: "
+                        f"{contract.artifact} - {contract.condition}")
+                text = "\n".join(lines)
+            elif action == "contract":
+                from_office, to_office = target
+                contract = primary.office_contract(from_office, to_office)
+                text = (f"  {from_office} -> {to_office}: "
+                        f"{contract.artifact} - {contract.condition}")
+            elif target is None:
+                text = primary.offices_status()["screen"]
+            else:
+                text = format_office(primary.find_office_definition(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_offices_custom(self, args: str):
+        """M-123: /offices custom - user-defined offices.
+
+        ``/offices custom`` shows the custom offices
+        held this session (the shipped custom book -
+        the roadmap's Gatekeeper and Benchmarker
+        examples - when none is held yet);
+        ``/offices custom show <office>`` (or a bare
+        custom office id) shows one office;
+        ``/offices custom handoffs <office>`` shows
+        one office's hand-off contracts;
+        ``/offices custom contract <from> <to>``
+        shows the one contract between two offices
+        (the from-office is a custom office; the
+        target may be a formalised office or a custom
+        office). A custom office is a user-defined
+        role, not a formalised office and not a cast
+        member: nothing here spawns, and spawning
+        stays the M-121 crew road's. Reading registers
+        and publishes nothing as session news: a custom
+        office is held only when it is taken up
+        through the agent layer, and a held custom
+        office is published as a custom_office session
+        event. The registry is session state held by
+        the agent; it is not a stored setting.
+        """
+        from ..core.custom_offices import (
+            format_custom_office,
+            parse_custom_offices_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_custom_offices_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "handoffs":
+                definition = primary.find_custom_office_definition(target)
+                lines = [format_custom_office(definition)]
+                for contract in definition.handoffs:
+                    lines.append(
+                        f"  -> {contract.to_office}: "
+                        f"{contract.artifact} - {contract.condition}")
+                text = "\n".join(lines)
+            elif action == "contract":
+                from_office, to_office = target
+                contract = primary.custom_office_contract(
+                    from_office, to_office)
+                text = (f"  {from_office} -> {to_office}: "
+                        f"{contract.artifact} - {contract.condition}")
+            elif target is None:
+                text = primary.custom_offices_status()["screen"]
+            else:
+                text = format_custom_office(
+                    primary.find_custom_office_definition(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_worktrees(self, args: str):
+        """M-124: /worktrees - parallel worktrees.
+
+        ``/worktrees`` shows the worktree
+        assignments held this session (the shipped
+        example plan - the M-121 casting dealt one
+        worktree each - when none is held yet);
+        ``/worktrees show <member>`` (or a bare
+        member id) shows one member's assignment;
+        ``/worktrees plan`` shows the whole plan
+        with its coordinator; ``/worktrees merges``
+        shows the coordinator merge plan derived in
+        slice order. Reading registers and
+        publishes nothing as session news: an
+        assignment is held only when it is taken up
+        through the agent layer, and a held
+        assignment is published as a
+        worktree_assignment session event. This
+        road runs no git command and creates no
+        worktree: the registry holds the plan as
+        data, and spawning stays the M-121 crew
+        road's. The registry is session state held
+        by the agent; it is not a stored setting.
+        """
+        from ..core.worktrees import (
+            format_assignment,
+            format_assignments,
+            format_merge_plan,
+            parse_worktrees_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_worktrees_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "plan":
+                plan = primary.worktree_plan()
+                text = (format_assignments(plan)
+                        + f"\nCoordinator: {plan.coordinator} - "
+                        "the coordinator merges, and holds no "
+                        "worktree in the plan.")
+            elif action == "merges":
+                text = format_merge_plan(primary.worktree_plan())
+            elif target is None:
+                text = primary.worktrees_status()["screen"]
+            else:
+                text = format_assignment(
+                    primary.find_worktree_assignment(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_dealing(self, args: str):
+        """M-125: /dealing - task dealing.
+
+        ``/dealing`` shows the dealt assignments
+        held this session (the shipped example
+        dealing - the next ten roadmap slices dealt
+        to the M-121 casting - when none is held
+        yet); ``/dealing show <member>`` (or a bare
+        member id) shows one member's assignments;
+        ``/dealing plan`` shows the whole plan with
+        its dealer; ``/dealing loads`` shows the
+        crew's loads from what the session holds.
+        Reading registers and publishes nothing as
+        session news: an assignment is held only
+        when it is dealt through the agent layer,
+        and a held assignment is published as a
+        task_dealing session event. This road starts
+        no crew and spawns nothing: the registry
+        holds the dealing as data, and there is no
+        Part VIII board yet - this surface is where
+        the dealing is visible. The registry is
+        session state held by the agent; it is not
+        a stored setting.
+        """
+        from ..core.task_dealing import (
+            format_assignments,
+            format_loads,
+            format_tasks,
+            parse_dealing_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_dealing_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "plan":
+                plan = primary.dealing_plan()
+                text = (format_tasks(plan)
+                        + f"\nDealer: {plan.dealer} - "
+                        "the dealer deals by office fit and "
+                        "current load, and the human may "
+                        "re-deal any slice.")
+            elif action == "loads":
+                text = format_loads(primary.dealing_loads())
+            elif target is None:
+                text = primary.task_dealing_status()["screen"]
+            else:
+                text = format_assignments(
+                    primary.find_dealt_assignments(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_comms(self, args: str):
+        """M-126: /comms - crew comms.
+
+        ``/comms`` shows the hand-offs held this
+        session (the shipped example ledger - six
+        hand-offs among the M-121 casting - when none
+        is held yet); ``/comms show <member>`` (or a
+        bare member id, or ``human``) shows one
+        member's hand-offs; ``/comms ask`` shows the
+        one batched ask of the questions waiting for
+        the human, each with its full context;
+        ``/comms kinds`` shows the hand-off kinds.
+        Reading registers and publishes nothing as
+        session news: a hand-off is held only when it
+        is handed through the agent layer, and a held
+        hand-off is published as a crew_handoff
+        session event, a batched ask as ONE
+        human_question_batch session event. This road
+        spawns no crew and delivers no message: the
+        registry holds the hand-offs as data, and
+        there is no Part VIII board yet - this surface
+        is where the hand-offs and the batch are
+        visible. The registry is session state held
+        by the agent; it is not a stored setting.
+        """
+        from ..core.crew_comms import (
+            format_handoffs,
+            format_human_batch,
+            format_kinds,
+            parse_comms_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_comms_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "ask":
+                text = format_human_batch(
+                    primary.human_question_batch())
+            elif action == "kinds":
+                text = format_kinds()
+            elif target is None:
+                text = primary.crew_comms_status()["screen"]
+            else:
+                text = format_handoffs(
+                    primary.find_handoffs(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_deadlock(self, args: str):
+        """M-127: /deadlock - cycle and deadlock watch.
+
+        ``/deadlock`` shows the findings of the watch
+        held this session (the shipped example watch -
+        five delegations and five claims among the
+        M-121 casting, yielding exactly three findings,
+        one of each kind - when none is held yet);
+        ``/deadlock show <member>`` (or a bare member
+        id) shows one member's findings; ``/deadlock
+        kinds`` shows the finding kinds. Reading
+        registers and publishes nothing as session
+        news: evidence is held only when it is given
+        through the agent layer, and held evidence is
+        published as a crew_delegation / crew_claim
+        session event, each finding as a
+        deadlock_finding session event and each report
+        as ONE deadlock_report session event. This
+        road spawns no crew, stops no member and runs
+        no git: the registry holds the evidence as
+        data, and there is no Part VIII board yet -
+        this surface is where the findings are
+        visible. The registry is session state held
+        by the agent; it is not a stored setting.
+        """
+        from ..core.deadlock_watch import (
+            format_findings,
+            format_kinds,
+            parse_deadlock_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_deadlock_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "kinds":
+                text = format_kinds()
+            elif target is None:
+                text = primary.deadlock_status()["screen"]
+            else:
+                text = format_findings(
+                    primary.find_findings(target))
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_merge(self, args: str):
+        """M-128: /merge - merge discipline.
+
+        ``/merge`` shows the verdicts of the plan
+        held this session (the shipped example plan -
+        seven steps and five merges among the M-121
+        casting, yielding exactly three verdicts, one
+        of each kind - when none is held yet);
+        ``/merge show <member>`` (or a bare member id)
+        shows one member's verdicts; ``/merge lines``
+        shows every line's state; ``/merge kinds``
+        shows the verdict kinds. Reading registers
+        and publishes nothing as session news:
+        evidence is held only when it is given through
+        the agent layer, and held evidence is
+        published as a merge_step / merge_attempt
+        session event, each verdict as a merge_verdict
+        session event and each report as ONE
+        merge_report session event. This road executes
+        no git, performs no merge and spawns or stops
+        no crew: the registry holds the evidence as
+        data, and there is no Part VIII board yet -
+        this surface is where the verdicts are
+        visible. The registry is session state held by
+        the agent; it is not a stored setting.
+        """
+        from ..core.merge_discipline import (
+            format_kinds,
+            format_lines,
+            format_verdicts,
+            parse_merge_args,
+        )
+
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_merge_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "kinds":
+                text = format_kinds()
+            elif action == "lines":
+                text = format_lines(primary.merge_report())
+            elif target is None:
+                text = primary.merge_status()["screen"]
+            else:
+                text = format_verdicts(
+                    primary.find_verdicts(target))
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

@@ -430,6 +430,7 @@ class Agent:
             self._session_store, self.session_id = store, session_id
             if resume is not None:
                 self._restore_salvaged_partial()
+            self._load_project_policy_at_start()
             return session_id
 
     def _restore_salvaged_partial(self) -> None:
@@ -508,6 +509,11 @@ class Agent:
                 self._note_audit_approval(
                     name, True, "a remembered approval")
                 return True
+            # M-116: the fresh ask is shaped as one
+            # approval moment from this real call and
+            # held for the session before the prompt
+            # is raised - shaping is news, never a gate.
+            self._note_approval_moment(name, arguments)
             settings = runtime_settings(self.config)
             description = self.redactor.text(name + ": " + json.dumps(arguments, ensure_ascii=False))
             decided = prompt_approval_sync(description, app, self._cancel, settings["approval_timeout"])
@@ -10543,6 +10549,3296 @@ class Agent:
         announced.add(record["run_id"])
         if self._session_store and self.session_id:
             self._checkpoint(record)
+
+    # -- M-113: multi-repo workspaces --
+
+    def _multi_repo_registry(self):
+        """The held multi-repo registry (M-113).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer repos and cross-repo
+        sets in the order they were registered and
+        built. It is created on first use, so an
+        agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_multi_repo_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_multi_repo_store", None)
+        if registry is None:
+            from ..core.multi_repo import MultiRepoRegistry
+            registry = MultiRepoRegistry()
+            self._multi_repo_store = registry
+        return registry
+
+    def multi_repo_status(self) -> dict[str, Any]:
+        """The held repos and sets, in plain data (M-113).
+
+        Every held repo and cross-repo set as its
+        plain record, in the order held, the one
+        screen rendered from that same registry,
+        and the plain explanation. Reading changes
+        nothing: a status read registers, builds,
+        or publishes nothing.
+        """
+        from ..core import multi_repo
+
+        registry = self._multi_repo_registry()
+        return {
+            "repos": [r.to_record() for r in registry.list_repos()],
+            "sets": [s.to_record() for s in registry.list_sets()],
+            "screen": multi_repo.format_multi_repo_screen(registry),
+            "explanation": multi_repo.PLAIN_EXPLANATION,
+        }
+
+    def get_held_repo(self, repo_id: Any):
+        """The one held repo an id names (M-113).
+
+        An id no held repo carries refuses plainly,
+        exactly as the pure registry answers.
+        """
+        return self._multi_repo_registry().get_repo(repo_id)
+
+    def get_cross_repo_set(self, set_id: Any):
+        """The one held cross-repo set an id names (M-113).
+
+        An unknown id raises KeyError, exactly as
+        the pure registry answers.
+        """
+        return self._multi_repo_registry().get(set_id)
+
+    def multi_repo_workspace(self, name: Any):
+        """The held repos as one workspace (M-113).
+
+        Built from the registry's held repos, in
+        registration order - the workspace a
+        cross-repo set is built against.
+        """
+        return self._multi_repo_registry().workspace(name)
+
+    def register_repo(self, repo: Any = None,
+                      **kwargs: Any) -> dict[str, Any]:
+        """Hold one repo for the session (M-113).
+
+        The entry is validated and held by the pure
+        registry; a duplicate repo id refuses.
+        Registering a repo publishes nothing: a repo
+        joining the workspace is setup, not news -
+        the news this slice publishes is the
+        cross-repo change set. Returns the held
+        repo, the screen rendered after it landed,
+        and the plain explanation.
+        """
+        from ..core import multi_repo
+
+        registry = self._multi_repo_registry()
+        held = registry.register_repo(repo, **kwargs)
+        return {
+            "repo": held.to_record(),
+            "screen": multi_repo.format_multi_repo_screen(registry),
+            "explanation": multi_repo.PLAIN_EXPLANATION,
+        }
+
+    def hold_cross_repo_set(self, cross: Any) -> dict[str, Any]:
+        """Hold one built cross-repo set, and announce it (M-113).
+
+        The set is held by the pure registry under
+        its id or the next deterministic one, and
+        its ``multi_repo_change_set`` record is
+        published as a session event through the
+        checkpoint road, so a cross-repo change is
+        news, never just a log line. Returns the
+        held set, its news record, the screen
+        rendered after it landed, and the plain
+        explanation.
+        """
+        from ..core import multi_repo
+
+        registry = self._multi_repo_registry()
+        held = registry.register(cross)
+        record = registry.record(held.set_id)
+        self._publish_multi_repo_record(record)
+        return {
+            "set": held.to_record(),
+            "record": record,
+            "screen": multi_repo.format_multi_repo_screen(registry),
+            "explanation": multi_repo.PLAIN_EXPLANATION,
+        }
+
+    def register_cross_repo_set(self, workspace: Any, name: Any,
+                                members: Any) -> dict[str, Any]:
+        """Build one cross-repo set and hold it (M-113).
+
+        The set is built on the pure layer's road -
+        ONE M-084 change set spanning the named
+        repos, each member judged by M-084's
+        ``make_edit`` unchanged, a repo the
+        workspace does not hold refusing plainly
+        and a read-only repo refusing its member at
+        build time - then held for the session and
+        published as a ``multi_repo_change_set``
+        session event. This layer builds and holds
+        the set as data: it writes no file in any
+        repo - planning and applying ride M-084's
+        roads, exercised in this slice's tests
+        against real on-disk repos. Returns the
+        held set, its news record, the screen, and
+        the plain explanation.
+        """
+        from ..core import multi_repo
+
+        registry = self._multi_repo_registry()
+        held = registry.build_and_register(workspace, name, members)
+        record = registry.record(held.set_id)
+        self._publish_multi_repo_record(record)
+        return {
+            "set": held.to_record(),
+            "record": record,
+            "screen": multi_repo.format_multi_repo_screen(registry),
+            "explanation": multi_repo.PLAIN_EXPLANATION,
+        }
+
+    def _publish_multi_repo_record(self, record: dict[str, Any]) -> None:
+        """Publish one cross-repo set as session news (M-113).
+
+        The pure layer's ``multi_repo_change_set``
+        record is journaled through the same
+        checkpoint road every sibling slice uses,
+        when a session is attached - for EVERY held
+        set, as the pure layer shapes it: a
+        cross-repo change is owed in plain words
+        whether it is already reviewed whole or
+        still holds undecided files. Each set is
+        announced at most once: the announcement is
+        keyed by the set id, and every held set
+        holds a fresh id.
+        """
+        if record.get("type") != "multi_repo_change_set":
+            return
+        announced = getattr(self, "_multi_repo_announced", None)
+        if announced is None:
+            announced = set()
+            self._multi_repo_announced = announced
+        if record["set_id"] in announced:
+            return
+        announced.add(record["set_id"])
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    # -- M-114: remote and SSH work --
+
+    def _remote_work_registry(self):
+        """The held remote-work registry (M-114).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer targets and work plans
+        in the order they were registered and built.
+        It is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly
+        one. The attribute is named
+        ``_remote_work_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_remote_work_store", None)
+        if registry is None:
+            from ..core.remote_work import RemoteWorkRegistry
+            registry = RemoteWorkRegistry()
+            self._remote_work_store = registry
+        return registry
+
+    def remote_work_status(self) -> dict[str, Any]:
+        """The held targets and plans, in plain data (M-114).
+
+        Every held target and work plan as its plain
+        record, in the order held, the one screen
+        rendered from that same registry, and the
+        plain explanation. Reading changes nothing:
+        a status read registers, judges, or
+        publishes nothing.
+        """
+        from ..core import remote_work
+
+        registry = self._remote_work_registry()
+        return {
+            "targets": [t.to_record() for t in registry.list_targets()],
+            "plans": [p.to_record() for p in registry.list_plans()],
+            "screen": remote_work.format_remote_screen(registry),
+            "explanation": remote_work.PLAIN_EXPLANATION,
+        }
+
+    def get_remote_target(self, target_id: Any):
+        """The one held target an id names (M-114).
+
+        An id no held target carries refuses plainly,
+        exactly as the pure registry answers.
+        """
+        return self._remote_work_registry().get_target(target_id)
+
+    def get_remote_work_plan(self, plan_id: Any):
+        """The one held work plan an id names (M-114).
+
+        An unknown id raises KeyError, exactly as
+        the pure registry answers.
+        """
+        return self._remote_work_registry().get(plan_id)
+
+    def register_remote_target(self, target: Any = None,
+                               **kwargs: Any) -> dict[str, Any]:
+        """Hold one remote target for the session (M-114).
+
+        The target is validated and held by the pure
+        registry; a duplicate target id refuses.
+        Registering a target publishes nothing: a
+        target joining the session is setup, not
+        news - the news this slice publishes is the
+        judged work plan. Returns the held target,
+        the screen rendered after it landed, and the
+        plain explanation.
+        """
+        from ..core import remote_work
+
+        registry = self._remote_work_registry()
+        held = registry.register_target(target, **kwargs)
+        return {
+            "target": held.to_record(),
+            "screen": remote_work.format_remote_screen(registry),
+            "explanation": remote_work.PLAIN_EXPLANATION,
+        }
+
+    def hold_remote_work_plan(self, plan: Any) -> dict[str, Any]:
+        """Judge one built work plan whole and hold it (M-114).
+
+        The plan is judged whole by the pure judge
+        against the target this session holds under
+        the plan's own target id - an unknown target,
+        a step outside the target's remote workspace
+        root, or a file operation that would copy a
+        file back to this machine refuses, and a
+        refusal holds nothing and publishes nothing.
+        A judged plan is held by the pure registry
+        and published as its ``remote_work_plan``
+        session-news record through the checkpoint
+        road. This layer opens no connection and
+        runs nothing: holding, judging and
+        publishing is the slice's agent work.
+        Returns the held plan, its news record, the
+        screen rendered after it landed, and the
+        plain explanation.
+        """
+        from ..core import remote_work
+
+        registry = self._remote_work_registry()
+        judged = remote_work.judge_work_plan(plan, registry)
+        held = registry.register(judged)
+        record = registry.record(held.plan_id)
+        self._publish_remote_work_record(record)
+        return {
+            "plan": held.to_record(),
+            "record": record,
+            "screen": remote_work.format_remote_screen(registry),
+            "explanation": remote_work.PLAIN_EXPLANATION,
+        }
+
+    def judge_remote_work_plan(self, target: Any, name: Any,
+                               steps: Any) -> dict[str, Any]:
+        """Build one work plan, judge it whole, and hold it (M-114).
+
+        The plan is built naming the ONE target -
+        a held target id or a RemoteTarget - and
+        judged by the pure judge in one move, on the
+        pure registry's ``build_and_register`` road:
+        an unknown target, a shell-string command
+        (the M-103 rule), a step outside the remote
+        workspace root, or a file operation that
+        would copy a file back to this machine
+        refuses, and a refusal holds nothing and
+        publishes nothing. A judged plan is held for
+        the session and published as a
+        ``remote_work_plan`` session event. This
+        layer opens no SSH connection and runs no
+        remote command: no shipped transport road
+        exists to carry one, and none is faked.
+        Returns the held plan, its news record, the
+        screen, and the plain explanation.
+        """
+        from ..core import remote_work
+
+        registry = self._remote_work_registry()
+        held = registry.build_and_register(target, name, steps)
+        record = registry.record(held.plan_id)
+        self._publish_remote_work_record(record)
+        return {
+            "plan": held.to_record(),
+            "record": record,
+            "screen": remote_work.format_remote_screen(registry),
+            "explanation": remote_work.PLAIN_EXPLANATION,
+        }
+
+    def _publish_remote_work_record(self, record: dict[str, Any]) -> None:
+        """Publish one remote work plan as session news (M-114).
+
+        The pure layer's ``remote_work_plan`` record
+        is journaled through the same checkpoint
+        road every sibling slice uses, when a
+        session is attached - for EVERY judged plan,
+        as the pure layer shapes it: remote work is
+        owed in plain words, its headline always
+        stating that every file and command stays on
+        that machine. Each plan is announced at most
+        once: the announcement is keyed by the plan
+        id, and every held plan holds a fresh id.
+        """
+        if record.get("type") != "remote_work_plan":
+            return
+        announced = getattr(self, "_remote_work_announced", None)
+        if announced is None:
+            announced = set()
+            self._remote_work_announced = announced
+        if record["plan_id"] in announced:
+            return
+        announced.add(record["plan_id"])
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    # -- M-115: offline and degraded grace --
+
+    def _degradation_registry(self):
+        """The held degradation registry (M-115).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer degradation assessments
+        in the order they were judged. It is created
+        on first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named ``_degradation_store``,
+        never the method's own name (the M-108
+        lesson).
+        """
+        registry = getattr(self, "_degradation_store", None)
+        if registry is None:
+            from ..core.offline_grace import DegradationRegistry
+            registry = DegradationRegistry()
+            self._degradation_store = registry
+        return registry
+
+    def grace_status(self) -> dict[str, Any]:
+        """The held degradation records, in plain data (M-115).
+
+        Every held assessment as its plain record, in
+        the order judged, the one screen rendered
+        from that same registry, and the plain
+        explanation. Reading changes nothing: a
+        status read judges, registers, or publishes
+        nothing.
+        """
+        from ..core import offline_grace
+
+        registry = self._degradation_registry()
+        return {
+            "records": [a.to_record() for a in registry.list_records()],
+            "screen": offline_grace.format_grace_screen(registry),
+            "explanation": offline_grace.PLAIN_EXPLANATION,
+        }
+
+    def get_grace_record(self, record_id: Any):
+        """The one held assessment an id names (M-115).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._degradation_registry().get(record_id)
+
+    def register_grace_assessment(self, assessment: Any) -> dict[str, Any]:
+        """Hold one judged assessment for the session (M-115).
+
+        The assessment is held by the pure registry
+        under its id or a fresh deterministic one - a
+        duplicate id refuses, and a refusal holds
+        nothing new and publishes nothing - and a
+        held assessment is published as its
+        ``degradation_change`` session-news record
+        through the checkpoint road, so what the
+        coder lost is news, never just a log line.
+        Returns the held assessment, its news record,
+        the screen rendered after it landed, and the
+        plain explanation.
+        """
+        from ..core import offline_grace
+
+        registry = self._degradation_registry()
+        held = registry.register(assessment)
+        record = registry.record(held.record_id)
+        self._publish_degradation_record(record)
+        return {
+            "assessment": held.to_record(),
+            "record": record,
+            "screen": offline_grace.format_grace_screen(registry),
+            "explanation": offline_grace.PLAIN_EXPLANATION,
+        }
+
+    def judge_degradation(self, evidence: Any) -> dict[str, Any]:
+        """Judge evidence and hold the assessment (M-115).
+
+        The pure judge derives the state from the
+        given evidence only - full only when the
+        provider, the language server and the network
+        all affirmatively answer, a dimension whose
+        evidence is unknown named unknown and never
+        guessed up or down, and one failure never
+        inventing another - and the assessment is
+        held for the session and published as a
+        ``degradation_change`` session event. Bad
+        evidence refuses plainly, and a refusal holds
+        nothing and publishes nothing. This layer
+        gathers no evidence itself and probes
+        nothing: judging held evidence is the slice's
+        agent work. Returns the held assessment, its
+        news record, the screen, and the plain
+        explanation.
+        """
+        from ..core import offline_grace
+
+        registry = self._degradation_registry()
+        held = registry.judge_and_register(evidence)
+        record = registry.record(held.record_id)
+        self._publish_degradation_record(record)
+        return {
+            "assessment": held.to_record(),
+            "record": record,
+            "screen": offline_grace.format_grace_screen(registry),
+            "explanation": offline_grace.PLAIN_EXPLANATION,
+        }
+
+    def _publish_degradation_record(self, record: dict[str, Any]) -> None:
+        """Publish one degradation change as session news (M-115).
+
+        The pure layer's ``degradation_change``
+        record is journaled through the same
+        checkpoint road every sibling slice uses,
+        when a session is attached - for EVERY judged
+        assessment, as the pure layer shapes it: a
+        degradation is owed in plain words, its
+        headline always stating what was lost. Each
+        record is announced at most once: the
+        announcement is keyed by the record id, and
+        every held record holds a fresh id.
+        """
+        if record.get("type") != "degradation_change":
+            return
+        announced = getattr(self, "_degradation_announced", None)
+        if announced is None:
+            announced = set()
+            self._degradation_announced = announced
+        if record["record_id"] in announced:
+            return
+        announced.add(record["record_id"])
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    # -- M-116: approval by phone-sized moments --
+
+    def _approval_moment_registry(self):
+        """The held approval-moment registry (M-116).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer moment assessments in
+        the order they were judged. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named ``_approval_moment_store``,
+        never the method's own name (the M-108
+        lesson).
+        """
+        registry = getattr(self, "_approval_moment_store", None)
+        if registry is None:
+            from ..core.approval_moments import ApprovalMomentRegistry
+            registry = ApprovalMomentRegistry()
+            self._approval_moment_store = registry
+        return registry
+
+    def approval_moment_status(self) -> dict[str, Any]:
+        """The held approval moments, in plain data (M-116).
+
+        Every held assessment as its plain record, in
+        the order judged, the one screen rendered
+        from that same registry, and the plain
+        explanation. Reading changes nothing: a
+        status read judges, registers, or publishes
+        nothing.
+        """
+        from ..core import approval_moments
+
+        registry = self._approval_moment_registry()
+        return {
+            "records": [a.to_record() for a in registry.list_records()],
+            "screen": approval_moments.format_moment_screen(registry),
+            "explanation": approval_moments.PLAIN_EXPLANATION,
+        }
+
+    def get_approval_moment(self, record_id: Any):
+        """The one held assessment an id names (M-116).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._approval_moment_registry().get(record_id)
+
+    def register_approval_moment(self, assessment: Any) -> dict[str, Any]:
+        """Hold one judged moment for the session (M-116).
+
+        The assessment is held by the pure registry
+        under its id or a fresh deterministic one - a
+        duplicate id refuses, and a refusal holds
+        nothing new and publishes nothing - and a
+        held assessment is published as its
+        ``approval_moment`` session-news record
+        through the checkpoint road, so an approval
+        ask is announced as the complete question it
+        is, never lost as a bare prompt. Returns the
+        held assessment, its news record, the screen
+        rendered after it landed, and the plain
+        explanation.
+        """
+        from ..core import approval_moments
+
+        registry = self._approval_moment_registry()
+        held = registry.register(assessment)
+        record = registry.record(held.record_id)
+        self._publish_approval_moment_record(record)
+        return {
+            "assessment": held.to_record(),
+            "record": record,
+            "screen": approval_moments.format_moment_screen(registry),
+            "explanation": approval_moments.PLAIN_EXPLANATION,
+        }
+
+    def judge_approval_moment(self, proposal: Any) -> dict[str, Any]:
+        """Judge a moment proposal and hold it (M-116).
+
+        The pure judge derives completeness from the
+        given proposal only - one question, full
+        context (what, where, what it does), every
+        choice stating its effect, the whole text
+        within one phone-sized moment - and invents
+        no context, choice or effect the proposal
+        does not carry. The assessment is held for
+        the session and published as an
+        ``approval_moment`` session event. A bad
+        proposal refuses plainly, and a refusal holds
+        nothing and publishes nothing. Returns the
+        held assessment, its news record, the screen,
+        and the plain explanation.
+        """
+        from ..core import approval_moments
+
+        registry = self._approval_moment_registry()
+        held = registry.judge_and_register(proposal)
+        record = registry.record(held.record_id)
+        self._publish_approval_moment_record(record)
+        return {
+            "assessment": held.to_record(),
+            "record": record,
+            "screen": approval_moments.format_moment_screen(registry),
+            "explanation": approval_moments.PLAIN_EXPLANATION,
+        }
+
+    def approval_moment_for_call(self, name: Any, arguments: Any):
+        """Shape one approval moment from a real tool call (M-116).
+
+        The moment is built from the call the
+        ``ToolPolicy`` ask road actually carries -
+        the tool ``name`` and its ``arguments`` - and
+        from nothing else. What is asked is the call
+        itself. Where it acts is named only when the
+        arguments themselves name a place (a path, a
+        file, a directory); what it does is named
+        only when the arguments themselves carry the
+        act (a command). A part the real call does
+        not name is left empty, so the judge honestly
+        names it missing - this layer invents no
+        context. The two choices are the approval
+        road's own: approve lets this call run, deny
+        stops it, each stating that effect. Shaping
+        registers and publishes nothing.
+        """
+        from ..core.approval_moments import build_choice, build_moment
+
+        tool = name.strip() if isinstance(name, str) else ""
+        args = arguments if isinstance(arguments, dict) else {}
+        where = ""
+        for key in ("path", "file_path", "file", "directory",
+                    "cwd", "root", "destination"):
+            value = args.get(key)
+            if isinstance(value, str) and value.strip():
+                where = value.strip()
+                break
+        does = ""
+        for key in ("command", "cmd"):
+            value = args.get(key)
+            if isinstance(value, str) and value.strip():
+                does = value.strip()
+                break
+        choices = ()
+        if tool:
+            choices = (
+                build_choice(
+                    "approve", "Approve it",
+                    f"the {tool} call runs"),
+                build_choice(
+                    "deny", "Deny it",
+                    f"the {tool} call does not run"),
+            )
+        return build_moment(
+            what=f"Run {tool}?" if tool else "",
+            where=where, what_it_does=does, choices=choices)
+
+    def judge_approval_call(self, name: Any,
+                            arguments: Any) -> dict[str, Any]:
+        """Shape, judge and hold the moment of one real call (M-116).
+
+        The moment is shaped from the real call alone
+        (see :meth:`approval_moment_for_call`), judged
+        by the pure judge, held for the session, and
+        published as an ``approval_moment`` session
+        event. Returns the held assessment, its news
+        record, the screen, and the plain explanation.
+        """
+        return self.judge_approval_moment(
+            self.approval_moment_for_call(name, arguments))
+
+    def _note_approval_moment(self, name: Any, arguments: Any) -> None:
+        """Shape and hold the moment of one fresh ask (M-116).
+
+        Called from :meth:`bind_tui` at the moment a
+        fresh approval ask is raised on the live
+        ``ToolPolicy`` road - after a remembered
+        approval has had its say (a standing answer
+        raises no fresh ask, so it shapes no moment)
+        and before the prompt itself. Shaping is
+        news, never a gate: a failure to shape must
+        never turn an ask into a refusal, so a
+        shaping failure is swallowed here and the
+        prompt road decides, exactly as it did
+        before this slice.
+        """
+        try:
+            self.judge_approval_call(name, arguments)
+        except Exception:
+            pass
+
+    def _publish_approval_moment_record(self, record: dict[str, Any]) -> None:
+        """Publish one judged moment as session news (M-116).
+
+        The pure layer's ``approval_moment`` record
+        is journaled through the same checkpoint
+        road every sibling slice uses, when a session
+        is attached - for EVERY judged moment, as the
+        pure layer shapes it: an approval ask is owed
+        as one complete question, its headline always
+        stating the question whole or naming what it
+        lacks. Each record is announced at most once:
+        the announcement is keyed by the record id,
+        and every held record holds a fresh id.
+        """
+        if record.get("type") != "approval_moment":
+            return
+        announced = getattr(self, "_approval_moment_announced", None)
+        if announced is None:
+            announced = set()
+            self._approval_moment_announced = announced
+        if record["record_id"] in announced:
+            return
+        announced.add(record["record_id"])
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    # -- M-119: policy as code --
+
+    def _policy_registry(self):
+        """The held project-policy registry (M-119).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer policies in the order
+        they were loaded. It is created on first use,
+        so an agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_policy_store``, never the method's own
+        name (the M-108 lesson).
+        """
+        registry = getattr(self, "_policy_store", None)
+        if registry is None:
+            from ..core.policy_file import PolicyRegistry
+            registry = PolicyRegistry()
+            self._policy_store = registry
+        return registry
+
+    def _policy_applications(self) -> dict[str, Any]:
+        """Application outcomes by policy id (M-119)."""
+        outcomes = getattr(self, "_policy_outcome_store", None)
+        if outcomes is None:
+            outcomes = {}
+            self._policy_outcome_store = outcomes
+        return outcomes
+
+    def project_policy_path(self):
+        """The policy file path in this workspace (M-119)."""
+        from ..core.policy_file import default_policy_path
+        return default_policy_path(self.project_root)
+
+    def policy_on_disk(self):
+        """The policy the file on disk names, or None (M-119).
+
+        A missing file is None - no policy, never an
+        invented one. A present file that fails
+        validation raises the pure layer's
+        ValidationError naming the file and reason.
+        """
+        from ..core.policy_file import load_policy_file
+        return load_policy_file(self.project_policy_path())
+
+    def get_project_policy(self, policy_id: Any):
+        """The one held policy an id names (M-119).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._policy_registry().get(policy_id)
+
+    def project_policy_status(self) -> dict[str, Any]:
+        """The project policy, in plain data (M-119).
+
+        The held policies as plain records with their
+        application outcomes, the policy the file on
+        disk names today (or the plain no-policy state,
+        or the refusal reason when the file on disk
+        fails validation), the one screen rendered
+        from the held-or-disk policy, and the plain
+        explanation. Reading applies, registers, and
+        publishes nothing.
+        """
+        from ..core import policy_file
+
+        registry = self._policy_registry()
+        outcomes = self._policy_applications()
+        held = []
+        for pid in registry.policy_ids():
+            entry: dict[str, Any] = {
+                "policy_id": pid,
+                "policy": registry.get(pid).to_record()}
+            if pid in outcomes:
+                entry["application"] = outcomes[pid]
+            held.append(entry)
+        refusal = None
+        disk_policy = None
+        try:
+            disk_policy = self.policy_on_disk()
+        except ValueError as exc:
+            refusal = str(exc)
+        shown = disk_policy
+        if shown is None and held:
+            shown = registry.get(registry.policy_ids()[-1])
+        if refusal is not None:
+            screen = "Project policy refused: " + refusal
+        else:
+            screen = policy_file.format_policy_screen(shown)
+        return {
+            "held": held,
+            "disk": (disk_policy.to_record()
+                     if disk_policy is not None else None),
+            "refusal": refusal,
+            "path": str(self.project_policy_path()),
+            "screen": screen,
+            "explanation": policy_file.PLAIN_EXPLANATION,
+        }
+
+    def set_hooks(self, hooks: Any) -> dict[str, Any]:
+        """Replace the configured hooks whole (M-119).
+
+        This is the M-101/M-102 storage road, in the
+        exact shape :meth:`install_hook_pack` applies
+        it: the hooks are validated by the pure M-101
+        layer before anything mutates; the change is
+        journaled first as a ``hooks_changed`` record
+        when a session is attached; the stored list is
+        the hooks' plain records under the M-101
+        ``hooks`` setting; a failed save restores the
+        previous config exactly and journals a
+        compensating ``hooks_reverted``. Hooks already
+        exactly as named change nothing and write
+        nothing (the M-102 already-installed precedent).
+        """
+        import copy
+
+        from ..core import hooks as hooks_module
+
+        target = hooks_module.validate_hooks([
+            h.to_record() if isinstance(h, hooks_module.Hook) else h
+            for h in (hooks or ())])
+        existing = hooks_module.hooks_from_config(self.config)
+        if list(existing) == list(target):
+            return {"type": "hooks_changed", "changed": False,
+                    "hooks": [h.to_record() for h in target],
+                    "session_id": self.session_id,
+                    "journaled": False}
+        change: dict[str, Any] = {
+            "type": "hooks_changed",
+            "hooks": [h.to_record() for h in target]}
+        journaled = False
+        if self._session_store and self.session_id:
+            self._checkpoint(change)
+            journaled = True
+        previous = copy.deepcopy(self.config)
+        self.config[hooks_module.SETTING_KEY] = [
+            h.to_record() for h in target]
+        if not self.save_config():
+            self.config = previous
+            if journaled:
+                try:
+                    self._checkpoint({
+                        "type": "hooks_reverted",
+                        "reason": "The hooks change could not "
+                                  "be saved; the previous "
+                                  "hooks were preserved.",
+                    })
+                except Exception:
+                    pass  # the RuntimeError below is the truth owed
+            raise RuntimeError(
+                "Hooks change could not be saved; previous "
+                "hooks were preserved")
+        return {**change, "changed": True,
+                "session_id": self.session_id,
+                "journaled": journaled}
+
+    def _publish_policy_record(self, record: dict[str, Any]) -> None:
+        """Publish one applied policy as session news (M-119).
+
+        The pure layer's ``project_policy`` record is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each policy is announced at most
+        once: the announcement is keyed by the policy
+        record id, and every held policy holds a fresh
+        id.
+        """
+        if record.get("type") != "project_policy":
+            return
+        announced = getattr(self, "_policy_announced", None)
+        if announced is None:
+            announced = set()
+            self._policy_announced = announced
+        if record["policy_id"] in announced:
+            return
+        announced.add(record["policy_id"])
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_policy_refusal(self, reason: str) -> None:
+        """Publish one whole-policy refusal as news (M-119)."""
+        if self._session_store and self.session_id:
+            self._checkpoint({
+                "type": "project_policy_refused",
+                "session_event": "project_policy_refused",
+                "news": True,
+                "slice": "M-119",
+                "reason": reason,
+                "headline": (
+                    "Project policy refused whole - nothing "
+                    "was applied: " + reason),
+            })
+
+    def _apply_policy_plan(self, plan: Any) -> list:
+        """Apply one policy plan, step by step (M-119).
+
+        The fixed order is posture, jail, grants,
+        hooks - each step through its own shipped
+        journal-first road, never a direct settings
+        write. A step the live settings already match
+        exactly is recorded ``satisfied`` and is not
+        forced through a road that refuses no-ops.
+        Steps follow the change-set precedent: one
+        step's refusal or save failure is recorded
+        with its reason, that road's own revert
+        behaviour governs that step, and the
+        remaining steps still run. Returns the step
+        outcomes, in order.
+        """
+        from ..core import hooks as hooks_module
+        from ..core import path_jail, permission_profiles
+
+        settings = plan.settings()
+        steps: list[dict[str, Any]] = []
+
+        def run(step: str, fn: Any) -> None:
+            try:
+                detail = fn()
+                steps.append({"step": step, "status": "applied",
+                              "detail": detail})
+            except (ValueError, KeyError, RuntimeError) as exc:
+                steps.append({"step": step, "status": "failed",
+                              "reason": str(exc)})
+
+        if "permission_profile" in settings:
+            wanted = settings["permission_profile"]
+            if self.config.get(
+                    permission_profiles.SETTING_KEY) == wanted:
+                steps.append({"step": "posture",
+                              "status": "satisfied"})
+            else:
+                run("posture", lambda: self.set_permission_profile(
+                    wanted)["type"])
+        if "path_jail" in settings:
+            wanted_jail = settings["path_jail"]
+            if path_jail.enabled_from_config(self.config) == wanted_jail:
+                steps.append({"step": "jail", "status": "satisfied"})
+            else:
+                run("jail", lambda: self.set_path_jail(
+                    wanted_jail)["type"])
+            grant_steps: list[dict[str, Any]] = []
+            current = list(path_jail.grants_from_config(self.config))
+            for grant in settings.get("path_grants", []):
+                if grant in current:
+                    grant_steps.append(
+                        {"grant": grant, "status": "satisfied"})
+                    continue
+                try:
+                    self.add_path_grant(grant)
+                    current.append(grant)
+                    grant_steps.append(
+                        {"grant": grant, "status": "applied"})
+                except (ValueError, KeyError, RuntimeError) as exc:
+                    grant_steps.append(
+                        {"grant": grant, "status": "failed",
+                         "reason": str(exc)})
+            failed = [g for g in grant_steps
+                      if g["status"] == "failed"]
+            steps.append({
+                "step": "grants",
+                "status": "failed" if failed else "applied",
+                "grants": grant_steps})
+        if "hooks" in settings:
+            wanted_hooks = settings["hooks"]
+            if self.config.get(hooks_module.SETTING_KEY) == wanted_hooks:
+                steps.append({"step": "hooks", "status": "satisfied"})
+            else:
+                def apply_hooks() -> str:
+                    outcome = self.set_hooks(wanted_hooks)
+                    return "changed" if outcome["changed"] else "satisfied"
+                try:
+                    detail = apply_hooks()
+                    steps.append({
+                        "step": "hooks",
+                        "status": ("applied" if detail == "changed"
+                                   else "satisfied")})
+                except (ValueError, KeyError, RuntimeError) as exc:
+                    steps.append({"step": "hooks", "status": "failed",
+                                  "reason": str(exc)})
+        return steps
+
+    def apply_project_policy(self) -> dict[str, Any]:
+        """Load the workspace policy file and apply it (M-119).
+
+        The file at the workspace root is loaded whole
+        through the pure layer first. No file is a
+        plain no-policy outcome: nothing applied,
+        nothing invented, nothing published. A file
+        that fails validation is refused whole: no
+        step runs, the refusal is published as session
+        news with the validator's reason, and the
+        outcome says so plainly. A valid policy is
+        registered for the session, its plan applied
+        step by step through the shipped roads (see
+        :meth:`_apply_policy_plan`), every step's
+        outcome held with the policy's record, and the
+        applied policy published as ``policy_record``
+        session news, deduped per policy record id.
+        """
+        from ..core import policy_file
+
+        path = str(self.project_policy_path())
+        try:
+            policy = self.policy_on_disk()
+        except ValueError as exc:
+            reason = str(exc)
+            self._publish_policy_refusal(reason)
+            headline = ("Project policy refused whole - nothing "
+                        "was applied: " + reason)
+            return {"status": "refused", "reason": reason,
+                    "policy_id": None, "steps": [], "path": path,
+                    "headline": headline, "screen": headline}
+        if policy is None:
+            return {"status": "no_policy", "reason": None,
+                    "policy_id": None, "steps": [], "path": path,
+                    "headline": policy_file.format_policy(None),
+                    "screen": policy_file.format_policy_screen(None)}
+        registry = self._policy_registry()
+        policy_id = registry.register(policy)
+        plan = policy_file.application_plan(policy)
+        steps = self._apply_policy_plan(plan)
+        complete = all(
+            step["status"] in ("applied", "satisfied")
+            for step in steps)
+        status = "applied" if complete else "partial"
+        record = policy_file.policy_record(policy)
+        record["policy_id"] = policy_id
+        record["steps"] = steps
+        record["applied"] = complete
+        self._policy_applications()[policy_id] = {
+            "status": status, "steps": steps}
+        self._publish_policy_record(record)
+        lines = [policy_file.format_policy(policy), "",
+                 "Policy application (" + status + "):"]
+        if not steps:
+            lines.append("  no sections - nothing to set.")
+        for step in steps:
+            line = f"  {step['step']}: {step['status']}"
+            if step["status"] == "failed":
+                line += " - " + step.get("reason", "")
+            lines.append(line)
+        return {"status": status, "reason": None,
+                "policy_id": policy_id, "record": record,
+                "policy": policy.to_record(), "steps": steps,
+                "path": path,
+                "headline": policy_file.plain_words(policy),
+                "screen": "\n".join(lines)}
+
+    def _load_project_policy_at_start(self) -> None:
+        """Apply the workspace policy at session start (M-119).
+
+        Called from :meth:`attach_session` once the
+        session is attached, so an applied policy and
+        a refusal both publish as session news on the
+        new session. A failure here never breaks the
+        session itself (the salvaged-restore
+        precedent): the apply road has already
+        published any refusal it owes.
+        """
+        try:
+            self.apply_project_policy()
+        except Exception:
+            pass
+
+    # -- M-121: agents as files --
+
+    def _crew_registry(self):
+        """The held crew registry (M-121).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer crew members in the
+        order they joined. It is created on first
+        use, so an agent whose ``__init__`` never ran
+        still holds exactly one. The attribute is
+        named ``_crew_store``, never the method's own
+        name (the M-108 lesson).
+        """
+        registry = getattr(self, "_crew_store", None)
+        if registry is None:
+            from ..core.crew_members import CrewRegistry
+            registry = CrewRegistry()
+            self._crew_store = registry
+        return registry
+
+    def crew_status(self) -> dict[str, Any]:
+        """The crew, in plain data (M-121).
+
+        The members held this session as plain
+        records, the shipped casting as plain records
+        (the existing characters, as data), the one
+        screen - rendered from the held registry, or
+        from the shipped casting when nothing is held
+        yet - and the plain explanation. Reading
+        registers, spawns, and publishes nothing.
+        """
+        from ..core import crew_members
+
+        registry = self._crew_registry()
+        held = registry.list_members()
+        casting = crew_members.load_casting()
+        shown = registry if held else casting
+        return {
+            "members": [m.to_record() for m in held],
+            "casting": [m.to_record() for m in casting.members],
+            "screen": crew_members.format_crew_screen(shown),
+            "explanation": crew_members.PLAIN_EXPLANATION,
+        }
+
+    def get_crew_member(self, member_id: Any):
+        """The one held member an id names (M-121).
+
+        An unknown id raises KeyError, exactly as the
+        pure registry answers.
+        """
+        return self._crew_registry().get(member_id)
+
+    def find_crew_member(self, member_id: Any):
+        """One member by id: held first, then the casting (M-121).
+
+        The session's held registry answers first; a
+        member the session has not taken up is read
+        from the shipped casting. An id neither holds
+        raises KeyError.
+        """
+        try:
+            return self._crew_registry().get(member_id)
+        except KeyError:
+            from ..core.crew_members import load_casting
+            return load_casting().get(member_id)
+
+    def crew_member_for_office(self, office: Any):
+        """The member holding one office (M-121).
+
+        The held registry answers first; with no held
+        member for the office, the shipped casting
+        answers. An office no member holds raises
+        KeyError; the ``primary`` office raises
+        ValueError, as the pure layer refuses it.
+        """
+        held = self._crew_registry().list_members(office)
+        if held:
+            return held[0]
+        from ..core.crew_members import load_casting
+        return load_casting().by_office(office)
+
+    def register_crew_member(self, member: Any) -> dict[str, Any]:
+        """Hold one crew member for the session (M-121).
+
+        The member is held by the pure registry under
+        its id or a fresh deterministic one - a
+        duplicate id or name refuses, and a refusal
+        holds nothing new and publishes nothing - and
+        a held member is published as its
+        ``casting_record`` session-news record through
+        the checkpoint road, so a member joining is
+        news with its shape attached. Returns the held
+        member, its news record, the screen rendered
+        after it landed, and the plain explanation.
+        """
+        from ..core import crew_members
+
+        registry = self._crew_registry()
+        held = registry.register(member)
+        record = crew_members.casting_record(held)
+        self._publish_crew_record(record)
+        return {
+            "member": held.to_record(),
+            "record": record,
+            "screen": crew_members.format_crew_screen(registry),
+            "explanation": crew_members.PLAIN_EXPLANATION,
+        }
+
+    def load_crew_casting(self, casting: Any = None) -> dict[str, Any]:
+        """Hold a whole casting for the session (M-121).
+
+        With no casting named, the shipped casting is
+        loaded through the pure layer - the existing
+        characters as the first castings. A casting
+        loaded from a file (the pure layer's
+        ``load_casting_file`` road) may be passed
+        instead, so a new member joins from a file,
+        not a code change. Every member is held in
+        file order and published as its
+        ``casting_record`` session news, deduped per
+        member id. The pure registry refuses a
+        duplicate id or name whole - a casting the
+        session already holds cannot be loaded twice.
+        Returns the held members, their news records,
+        the count, the screen, and the explanation.
+        """
+        from ..core import crew_members
+
+        registry = self._crew_registry()
+        casting = casting if casting is not None \
+            else crew_members.load_casting()
+        held = registry.register_casting(casting)
+        records = [crew_members.casting_record(m) for m in held]
+        for record in records:
+            self._publish_crew_record(record)
+        return {
+            "members": [m.to_record() for m in held],
+            "records": records,
+            "count": len(held),
+            "screen": crew_members.format_crew_screen(registry),
+            "explanation": crew_members.PLAIN_EXPLANATION,
+        }
+
+    def spawn_crew_member(self, member_id: Any,
+                          task: Any = None) -> dict[str, Any]:
+        """Spawn one held crew member from its record (M-121).
+
+        The spawn rides the one shipped road -
+        :meth:`AgentManager.spawn_subagent` - fed the
+        member's own name, so the member's prompt is
+        the shipped ``DEFAULT_SUBAGENTS`` entry its
+        record names and its office route is applied
+        by the road itself through the M-029
+        ``office_for_agent_name`` mapping. The policy
+        handed to the road is the member record's own
+        posture, read through the M-095 vocabulary
+        (``policy_mode_for`` of the shipped profile).
+        A member record carrying an explicit model
+        route has that route set on the spawned
+        member's config, in the same assignment the
+        spawn road makes for office routes; a member
+        on the session default is left exactly as the
+        road routed it. A *task*, when named, is
+        queued to the spawned member's inbox in the
+        delegation road's own words.
+
+        The spawn road only spawns names the session
+        config carries: a held member whose name no
+        ``sub_agents`` entry names - a new member
+        that arrived as a file, whose prompt prose no
+        shipped entry carries yet - is refused by the
+        road itself, and this method reports that
+        plainly (``spawned`` False, with the reason)
+        instead of inventing a spawn. A successful
+        spawn publishes the member's ``casting_record``
+        as session news, deduped per member id.
+        """
+        from ..core import crew_members
+        from ..core.permission_profiles import (
+            builtin_profile,
+            policy_mode_for,
+        )
+        from ..core.policy import ToolPolicy
+
+        registry = self._crew_registry()
+        held = registry.get(member_id)
+        record = crew_members.casting_record(held)
+        mode = policy_mode_for(builtin_profile(held.posture))
+        policy = ToolPolicy(mode)
+        spawned = agent_manager.spawn_subagent(
+            held.name, self.project_root, policy=policy,
+            tui_app=self.tui_app)
+        if spawned is None:
+            return {
+                "spawned": False,
+                "member": held.to_record(),
+                "record": record,
+                "policy_mode": mode,
+                "reason": (
+                    f"No sub-agent named {held.name!r} is "
+                    "configured in this session, so the "
+                    "spawn road refused it - a member "
+                    "record alone does not create a "
+                    "spawnable sub-agent; the shipped "
+                    "castings ride the shipped "
+                    "DEFAULT_SUBAGENTS entries, and a new "
+                    "member spawns once its name is "
+                    "carried there."),
+                "screen": crew_members.format_crew_screen(registry),
+                "explanation": crew_members.PLAIN_EXPLANATION,
+            }
+        if held.model_route is not None:
+            spawned.config["model"] = held.model_route.model
+            spawned.config["base_url"] = held.model_route.base_url
+        queued = False
+        if task is not None:
+            spawned.inbox.put(f"Task from {self.name}:\n{task}")
+            queued = True
+        self._publish_crew_record(record)
+        return {
+            "spawned": True,
+            "member": held.to_record(),
+            "record": record,
+            "agent_name": spawned.name,
+            "policy_mode": mode,
+            "route_words": held.route_words,
+            "task_queued": queued,
+            "screen": crew_members.format_crew_screen(registry),
+            "explanation": crew_members.PLAIN_EXPLANATION,
+        }
+
+    def _publish_crew_record(self, record: dict[str, Any]) -> None:
+        """Publish one crew member as session news (M-121).
+
+        The pure layer's ``casting_record`` is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each member is announced at most
+        once: the announcement is keyed by the member
+        record id, and every held member holds an id.
+        """
+        if record.get("type") != "crew_member":
+            return
+        announced = getattr(self, "_crew_announced", None)
+        if announced is None:
+            announced = set()
+            self._crew_announced = announced
+        member_id = record.get("member_id")
+        if member_id is not None:
+            if member_id in announced:
+                return
+            announced.add(member_id)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    # -- M-122: the six offices formalised --
+
+    def _offices_registry(self):
+        """The held offices registry (M-122).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer office definitions in
+        the order they were taken up. It is created
+        on first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named ``_offices_store``, never
+        the method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_offices_store", None)
+        if registry is None:
+            from ..core.offices import OfficeRegistry
+            registry = OfficeRegistry()
+            self._offices_store = registry
+        return registry
+
+    def offices_status(self) -> dict[str, Any]:
+        """The offices, in plain data (M-122).
+
+        The definitions held this session as plain
+        records, the shipped book as plain records
+        (the six offices formalised, as data), the
+        one screen - rendered from the held registry,
+        or from the shipped book when nothing is held
+        yet - and the plain explanation. Reading
+        registers and publishes nothing.
+        """
+        from ..core import offices
+
+        registry = self._offices_registry()
+        held = registry.list_definitions()
+        book = offices.load_offices()
+        shown = registry if held else book
+        return {
+            "offices": [d.to_record() for d in held],
+            "book": [d.to_record() for d in book.definitions],
+            "screen": offices.format_offices_screen(shown),
+            "explanation": offices.PLAIN_EXPLANATION,
+        }
+
+    def get_office_definition(self, office: Any):
+        """The one held definition an office names (M-122).
+
+        An office the session does not hold raises
+        KeyError, exactly as the pure registry
+        answers; an unformalised office raises
+        ValueError, as the pure layer refuses it.
+        """
+        return self._offices_registry().get(office)
+
+    def find_office_definition(self, office: Any):
+        """One office definition: held first, then the book (M-122).
+
+        The session's held registry answers first; an
+        office the session has not taken up is read
+        from the shipped book. An office neither
+        holds raises KeyError; an unformalised office
+        raises ValueError.
+        """
+        try:
+            return self._offices_registry().get(office)
+        except KeyError:
+            from ..core.offices import load_offices
+            return load_offices().get(office)
+
+    def office_handoffs(self, office: Any):
+        """Every hand-off contract one office hands out (M-122).
+
+        Read from the held definition when the
+        session holds the office, and from the
+        shipped book otherwise. Reading registers
+        and publishes nothing.
+        """
+        return self.find_office_definition(office).handoffs
+
+    def office_contract(self, from_office: Any, to_office: Any):
+        """The hand-off contract between two offices (M-122).
+
+        Read from the held definition when the
+        session holds the from-office, and from the
+        shipped book otherwise; no contract between
+        the two raises KeyError. Reading registers
+        and publishes nothing.
+        """
+        return self.find_office_definition(from_office).contract_to(to_office)
+
+    def register_office(self, definition: Any) -> dict[str, Any]:
+        """Hold one formalised office for the session (M-122).
+
+        The definition is held by the pure registry
+        under its office id - a duplicate office
+        refuses, and a refusal holds nothing new and
+        publishes nothing - and a held office is
+        published as its ``office_record``
+        session-news record through the checkpoint
+        road, so an office taken up is news with its
+        shape attached. Returns the held definition,
+        its news record, the screen rendered after it
+        landed, and the plain explanation.
+        """
+        from ..core import offices
+
+        registry = self._offices_registry()
+        held = registry.register(definition)
+        record = offices.office_record(held)
+        self._publish_office_record(record)
+        return {
+            "office": held.to_record(),
+            "record": record,
+            "screen": offices.format_offices_screen(registry),
+            "explanation": offices.PLAIN_EXPLANATION,
+        }
+
+    def load_offices_book(self, book: Any = None) -> dict[str, Any]:
+        """Hold a whole offices book for the session (M-122).
+
+        With no book named, the shipped book is
+        loaded through the pure layer - the six
+        offices formalised. A book loaded from a file
+        (the pure layer's ``load_offices_file`` road)
+        may be passed instead, so an offices file
+        formalising fewer offices is held as it
+        stands. Every definition is held in file
+        order and published as its ``office_record``
+        session news, deduped per office id. The pure
+        registry refuses a duplicate office - a book
+        the session already holds cannot be loaded
+        twice. Returns the held definitions, their
+        news records, the count, the screen, and the
+        explanation.
+        """
+        from ..core import offices
+
+        registry = self._offices_registry()
+        book = book if book is not None else offices.load_offices()
+        held = registry.register_book(book)
+        records = [offices.office_record(d) for d in held]
+        for record in records:
+            self._publish_office_record(record)
+        return {
+            "offices": [d.to_record() for d in held],
+            "records": records,
+            "count": len(held),
+            "screen": offices.format_offices_screen(registry),
+            "explanation": offices.PLAIN_EXPLANATION,
+        }
+
+    def _publish_office_record(self, record: dict[str, Any]) -> None:
+        """Publish one formalised office as session news (M-122).
+
+        The pure layer's ``office_record`` is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each office is announced at most
+        once: the announcement is keyed by the
+        record's office id, and every office record
+        carries one. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") != "office":
+            return
+        announced = getattr(self, "_offices_announced", None)
+        if announced is None:
+            announced = set()
+            self._offices_announced = announced
+        office_id = record.get("office")
+        if office_id is not None:
+            if office_id in announced:
+                return
+            announced.add(office_id)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
+    # -- M-123: custom offices --
+
+    def _custom_offices_registry(self):
+        """The held custom offices registry (M-123).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer custom office definitions
+        in the order they were taken up, beside the
+        session OfficeRegistry (M-122) and never in
+        it: a custom office is a user-defined role,
+        not a formalised office. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named ``_custom_offices_store``,
+        never the method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_custom_offices_store", None)
+        if registry is None:
+            from ..core.custom_offices import CustomOfficeRegistry
+            registry = CustomOfficeRegistry()
+            self._custom_offices_store = registry
+        return registry
+
+    def custom_offices_status(self) -> dict[str, Any]:
+        """The custom offices, in plain data (M-123).
+
+        The definitions held this session as plain
+        records, the shipped custom book as plain
+        records (the roadmap's example custom offices,
+        as data), the one screen - rendered from the
+        held registry, or from the shipped book when
+        nothing is held yet - and the plain
+        explanation. A custom office is user-defined,
+        not formalised: its records state that
+        plainly (``formal`` false, ``custom`` true).
+        Reading registers and publishes nothing.
+        """
+        from ..core import custom_offices
+
+        registry = self._custom_offices_registry()
+        held = registry.list_definitions()
+        book = custom_offices.load_custom_offices()
+        shown = registry if held else book
+        return {
+            "offices": [d.to_record() for d in held],
+            "book": [d.to_record() for d in book.definitions],
+            "screen": custom_offices.format_custom_offices_screen(shown),
+            "explanation": custom_offices.PLAIN_EXPLANATION,
+        }
+
+    def get_custom_office_definition(self, office: Any):
+        """The one held custom definition an office names (M-123).
+
+        An office the session does not hold raises
+        KeyError, exactly as the pure registry
+        answers; a shipped office id raises ValueError,
+        as the pure layer refuses it - a custom office
+        never names a shipped office.
+        """
+        return self._custom_offices_registry().get(office)
+
+    def find_custom_office_definition(self, office: Any):
+        """One custom office definition: held first, then the book (M-123).
+
+        The session's held registry answers first; an
+        office the session has not taken up is read
+        from the shipped custom book. An office
+        neither holds raises KeyError; a shipped
+        office id raises ValueError.
+        """
+        try:
+            return self._custom_offices_registry().get(office)
+        except KeyError:
+            from ..core.custom_offices import load_custom_offices
+            return load_custom_offices().get(office)
+
+    def custom_office_handoffs(self, office: Any):
+        """Every hand-off contract one custom office hands out (M-123).
+
+        Read from the held definition when the
+        session holds the office, and from the
+        shipped book otherwise. Reading registers
+        and publishes nothing.
+        """
+        return self.find_custom_office_definition(office).handoffs
+
+    def custom_office_contract(self, from_office: Any, to_office: Any):
+        """The hand-off contract between two offices (M-123).
+
+        The from-office is a custom office; the target
+        may be a formalised office or a custom office.
+        Read from the held definition when the session
+        holds the from-office, and from the shipped
+        book otherwise; no contract between the two
+        raises KeyError. Reading registers and
+        publishes nothing.
+        """
+        return self.find_custom_office_definition(from_office).contract_to(to_office)
+
+    def register_custom_office(self, definition: Any) -> dict[str, Any]:
+        """Hold one custom office for the session (M-123).
+
+        The definition is held by the pure registry
+        under its custom office id - a duplicate
+        office refuses, a definition naming a shipped
+        office refuses, and a refusal holds nothing
+        new and publishes nothing - and a held office
+        is published as its ``custom_office_record``
+        session-news record through the checkpoint
+        road, so a custom office taken up is news with
+        its shape attached. Returns the held
+        definition, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a custom office casts no
+        member and spawns nothing: a custom office is
+        a user-defined role, not a formalised office
+        and not a cast member, and no spawn road is
+        owed or built for it - spawning stays the
+        M-121 crew road's.
+        """
+        from ..core import custom_offices
+
+        registry = self._custom_offices_registry()
+        held = registry.register(definition)
+        record = custom_offices.custom_office_record(held)
+        self._publish_custom_office_record(record)
+        return {
+            "office": held.to_record(),
+            "record": record,
+            "screen": custom_offices.format_custom_offices_screen(registry),
+            "explanation": custom_offices.PLAIN_EXPLANATION,
+        }
+
+    def load_custom_offices_book(self, book: Any = None) -> dict[str, Any]:
+        """Hold a whole custom offices book for the session (M-123).
+
+        With no book named, the shipped book is
+        loaded through the pure layer - the roadmap's
+        example custom offices. A book loaded from a
+        file (the pure layer's
+        ``load_custom_offices_file`` road) may be
+        passed instead, so a custom offices file
+        defining new offices is held as it stands.
+        Every definition is held in file order and
+        published as its ``custom_office_record``
+        session news, deduped per office id. The pure
+        registry refuses a duplicate office - a book
+        the session already holds cannot be loaded
+        twice. Returns the held definitions, their
+        news records, the count, the screen, and the
+        explanation.
+        """
+        from ..core import custom_offices
+
+        registry = self._custom_offices_registry()
+        book = book if book is not None else custom_offices.load_custom_offices()
+        held = registry.register_book(book)
+        records = [custom_offices.custom_office_record(d) for d in held]
+        for record in records:
+            self._publish_custom_office_record(record)
+        return {
+            "offices": [d.to_record() for d in held],
+            "records": records,
+            "count": len(held),
+            "screen": custom_offices.format_custom_offices_screen(registry),
+            "explanation": custom_offices.PLAIN_EXPLANATION,
+        }
+
+    def _publish_custom_office_record(self, record: dict[str, Any]) -> None:
+        """Publish one custom office as session news (M-123).
+
+        The pure layer's ``custom_office_record`` is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each office is announced at most
+        once: the announcement is keyed by the
+        record's office id, and every custom office
+        record carries one. A foreign record type is
+        never published on this road.
+        """
+        if record.get("type") != "custom_office":
+            return
+        announced = getattr(self, "_custom_offices_announced", None)
+        if announced is None:
+            announced = set()
+            self._custom_offices_announced = announced
+        office_id = record.get("office")
+        if office_id is not None:
+            if office_id in announced:
+                return
+            announced.add(office_id)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    # -- M-124: parallel worktrees --
+
+    def _worktrees_registry(self):
+        """The held worktrees registry (M-124).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer worktree assignments in
+        the order they were taken up, beside the
+        session crew registry (M-121) and never in
+        it: a worktree assignment is the plan's
+        record of who writes in which tree, not a
+        cast member. It is created on first use, so
+        an agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_worktrees_store``, never the method's own
+        name (the M-108 lesson).
+        """
+        registry = getattr(self, "_worktrees_store", None)
+        if registry is None:
+            from ..core.worktrees import WorktreeRegistry
+            registry = WorktreeRegistry()
+            self._worktrees_store = registry
+        return registry
+
+    def worktrees_status(self) -> dict[str, Any]:
+        """The worktrees, in plain data (M-124).
+
+        The assignments held this session as plain
+        records, the shipped example plan as plain
+        records (the M-121 casting dealt one
+        worktree each, as data), the one screen -
+        rendered from the held registry, or from
+        the shipped example plan when nothing is
+        held yet - and the plain explanation.
+        Reading registers and publishes nothing,
+        runs no git command and creates no
+        worktree: this layer holds the plan as
+        data only.
+        """
+        from ..core import worktrees
+
+        registry = self._worktrees_registry()
+        held = registry.list_assignments()
+        plan = worktrees.load_worktree_plan()
+        shown = registry if held else plan
+        return {
+            "assignments": [a.to_record() for a in held],
+            "plan": [a.to_record() for a in plan.assignments],
+            "screen": worktrees.format_worktrees_screen(shown),
+            "explanation": worktrees.PLAIN_EXPLANATION,
+        }
+
+    def get_worktree_assignment(self, member: Any):
+        """The one held assignment a member holds (M-124).
+
+        A member the session does not hold raises
+        KeyError, exactly as the pure registry
+        answers.
+        """
+        return self._worktrees_registry().by_member(member)
+
+    def find_worktree_assignment(self, member: Any):
+        """One assignment: held first, then the example plan (M-124).
+
+        The session's held registry answers first;
+        a member the session has not taken up is
+        read from the shipped example plan. A
+        member neither holds raises KeyError.
+        Reading registers and publishes nothing.
+        """
+        try:
+            return self._worktrees_registry().by_member(member)
+        except KeyError:
+            from ..core.worktrees import load_worktree_plan
+            return load_worktree_plan().get(member)
+
+    def worktree_plan(self):
+        """The session's worktree plan, as data (M-124).
+
+        When the session holds assignments, the
+        plan is those assignments under the
+        coordinator the session's loaded plan
+        named - the house coordinator word until
+        a plan names another - so the merge plan
+        is derived from what the session actually
+        holds. With nothing held, the shipped
+        example plan answers. Reading registers
+        and publishes nothing.
+        """
+        from ..core.worktrees import WorktreePlan, load_worktree_plan
+
+        held = self._worktrees_registry().list_assignments()
+        if not held:
+            return load_worktree_plan()
+        coordinator = getattr(
+            self, "_worktrees_coordinator", None) or "coordinator"
+        return WorktreePlan(assignments=held, coordinator=coordinator)
+
+    def worktree_merge_plan(self):
+        """The coordinator merge plan, in slice order (M-124).
+
+        Derived from the session's plan - the held
+        assignments when the session holds any,
+        the shipped example plan otherwise - every
+        step merged by the coordinator only. The
+        plan is derived, never stored, and reading
+        it carries out no merge and runs no git:
+        merges are carried out by the coordinator
+        through the git roads, never by this layer.
+        """
+        from ..core.worktrees import merge_plan_for
+
+        return merge_plan_for(self.worktree_plan())
+
+    def register_worktree_assignment(self, assignment: Any) -> dict[str, Any]:
+        """Hold one worktree assignment for the session (M-124).
+
+        The assignment is held by the pure registry
+        under its id or a fresh deterministic one -
+        a member, branch or path already held
+        refuses (never two writers in one tree),
+        and a refusal holds nothing new and
+        publishes nothing - and a held assignment
+        is published as its ``worktree_record``
+        session-news record through the checkpoint
+        road, so an assignment taken up is news
+        with its shape attached. Returns the held
+        assignment, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding an assignment creates
+        no worktree and runs no git command, and
+        no spawn road is owed or built for it: the
+        registry holds the plan as data, and
+        spawning stays the M-121 crew road's.
+        """
+        from ..core import worktrees
+
+        registry = self._worktrees_registry()
+        held = registry.register(assignment)
+        record = worktrees.worktree_record(held)
+        self._publish_worktree_record(record)
+        return {
+            "assignment": held.to_record(),
+            "record": record,
+            "screen": worktrees.format_worktrees_screen(registry),
+            "explanation": worktrees.PLAIN_EXPLANATION,
+        }
+
+    def load_worktrees_plan(self, plan: Any = None) -> dict[str, Any]:
+        """Hold a whole worktree plan for the session (M-124).
+
+        With no plan named, the shipped example
+        plan is loaded through the pure layer - the
+        M-121 casting dealt one worktree each. A
+        plan loaded from a file (the pure layer's
+        ``load_worktree_plan_file`` road) may be
+        passed instead, so a real wave's plan is
+        held as it stands. Every assignment is
+        held in file order and published as its
+        ``worktree_record`` session news, deduped
+        per member, and the plan's coordinator is
+        remembered as session state so the merge
+        plan is derived under the coordinator the
+        plan named. The pure registry refuses a
+        member, branch or path already held - a
+        plan the session already holds cannot be
+        loaded twice. Returns the held assignments,
+        their news records, the count, the screen,
+        and the explanation. Holding a plan creates
+        no worktree and runs no git command.
+        """
+        from ..core import worktrees
+
+        registry = self._worktrees_registry()
+        plan = plan if plan is not None else worktrees.load_worktree_plan()
+        held = registry.register_plan(plan)
+        self._worktrees_coordinator = plan.coordinator
+        records = [worktrees.worktree_record(a) for a in held]
+        for record in records:
+            self._publish_worktree_record(record)
+        return {
+            "assignments": [a.to_record() for a in held],
+            "records": records,
+            "count": len(held),
+            "screen": worktrees.format_worktrees_screen(registry),
+            "explanation": worktrees.PLAIN_EXPLANATION,
+        }
+
+    def _publish_worktree_record(self, record: dict[str, Any]) -> None:
+        """Publish one worktree assignment as session news (M-124).
+
+        The pure layer's ``worktree_record`` is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each member is announced at most
+        once: the announcement is keyed by the
+        record's member id, and every worktree
+        record carries one. A foreign record type
+        is never published on this road.
+        """
+        if record.get("type") != "worktree_assignment":
+            return
+        announced = getattr(self, "_worktrees_announced", None)
+        if announced is None:
+            announced = set()
+            self._worktrees_announced = announced
+        member_id = record.get("member")
+        if member_id is not None:
+            if member_id in announced:
+                return
+            announced.add(member_id)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+    # -- M-125: task dealing --
+
+    def _task_dealing_registry(self):
+        """The held task-dealing registry (M-125).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer dealt assignments in
+        the order they were dealt, beside the session
+        worktree registry (M-124) and never in it: a
+        dealt assignment is the dealing's record of
+        who takes which slice, not a worktree
+        assignment. It is created on first use, so
+        an agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_task_dealing_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_task_dealing_store", None)
+        if registry is None:
+            from ..core.task_dealing import TaskDealingRegistry
+            registry = TaskDealingRegistry()
+            self._task_dealing_store = registry
+        return registry
+
+    def task_dealing_status(self) -> dict[str, Any]:
+        """The task dealing, in plain data (M-125).
+
+        The assignments held this session as plain
+        records, the session plan's tasks as plain
+        records (the shipped example plan - the next
+        ten roadmap slices - until a plan is loaded),
+        the one screen - rendered from the held
+        registry, or from the shipped example
+        dealing when nothing is held yet - and the
+        plain explanation. Reading registers and
+        publishes nothing, starts no crew and spawns
+        nothing: this layer holds the dealing as
+        data only. There is no Part VIII board yet;
+        the screen is where the dealing is visible.
+        """
+        from ..core import task_dealing
+
+        registry = self._task_dealing_registry()
+        held = registry.list_assignments()
+        plan = self.dealing_plan()
+        screen = task_dealing.format_dealing_screen(registry) \
+            if held else task_dealing.format_dealing_screen()
+        return {
+            "assignments": [a.to_record() for a in held],
+            "plan": [t.to_record() for t in plan.tasks],
+            "screen": screen,
+            "explanation": task_dealing.PLAIN_EXPLANATION,
+        }
+
+    def get_dealt_assignment(self, slice_id: Any):
+        """The one held assignment a slice holds (M-125).
+
+        A slice the session does not hold raises
+        KeyError, exactly as the pure registry
+        answers.
+        """
+        return self._task_dealing_registry().by_slice(slice_id)
+
+    def find_dealt_assignment(self, slice_id: Any):
+        """One dealt assignment: held first, then the example (M-125).
+
+        The session's held registry answers first;
+        a slice the session has not dealt is read
+        from the shipped example dealing. A slice
+        neither holds raises KeyError. Reading
+        registers and publishes nothing.
+        """
+        try:
+            return self._task_dealing_registry().by_slice(slice_id)
+        except KeyError:
+            from ..core.crew_members import load_casting
+            from ..core.task_dealing import (
+                deal_tasks, load_dealing_plan)
+            dealing = deal_tasks(
+                load_dealing_plan(), load_casting().members)
+            return dealing.get(slice_id)
+
+    def find_dealt_assignments(self, member: Any):
+        """Every assignment one member holds (M-125).
+
+        The session's held registry answers when the
+        session holds any dealing; otherwise the
+        shipped example dealing answers. A member
+        holding nothing in the answering dealing
+        raises KeyError naming the member. Reading
+        registers and publishes nothing.
+        """
+        from ..core.crew_members import (
+            load_casting, normalize_member_id)
+        from ..core.task_dealing import (
+            deal_tasks, load_dealing_plan)
+
+        wanted = normalize_member_id(member)
+        registry = self._task_dealing_registry()
+        if registry.list_assignments():
+            found = registry.by_member(wanted)
+        else:
+            dealing = deal_tasks(
+                load_dealing_plan(), load_casting().members)
+            found = tuple(
+                a for a in dealing.assignments if a.member == wanted)
+        if not found:
+            raise KeyError(
+                f"no assignment holds the member: {wanted!r}")
+        return found
+
+    def dealing_plan(self):
+        """The session's dealing plan, as data (M-125).
+
+        The plan the session loaded through
+        :meth:`deal_task_dealing_plan`, or the
+        shipped example plan until one is loaded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.task_dealing import load_dealing_plan
+
+        plan = getattr(self, "_task_dealing_plan", None)
+        if plan is None:
+            return load_dealing_plan()
+        return plan
+
+    def dealing_loads(self) -> dict[str, Any]:
+        """The whole crew's loads from what is held (M-125).
+
+        Every shipped member's count of dealt slices
+        held this session - the current load the
+        next dealing is dealt under - read through
+        the pure layer's member_loads against the
+        shipped casting. Members holding nothing
+        read 0. Reading registers and publishes
+        nothing.
+        """
+        from ..core.crew_members import load_casting
+        from ..core.task_dealing import member_loads
+
+        return member_loads(
+            load_casting().members, self._task_dealing_registry())
+
+    def register_dealt_assignment(self, assignment: Any) -> dict[str, Any]:
+        """Hold one dealt assignment for the session (M-125).
+
+        The assignment is held by the pure registry
+        under its id or a fresh deterministic one -
+        a slice already dealt refuses (a held slice
+        moves only by an explicit re-deal), and a
+        refusal holds nothing new and publishes
+        nothing - and a held assignment is published
+        as its ``dealing_record`` session-news record
+        through the checkpoint road, so a slice dealt
+        is news with its shape attached. Returns the
+        held assignment, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding an assignment starts no
+        crew and spawns nothing: the registry holds
+        the dealing as data.
+        """
+        from ..core import task_dealing
+
+        registry = self._task_dealing_registry()
+        held = registry.register(assignment)
+        record = task_dealing.dealing_record(held)
+        self._publish_dealing_record(record)
+        return {
+            "assignment": held.to_record(),
+            "record": record,
+            "screen": task_dealing.format_dealing_screen(registry),
+            "explanation": task_dealing.PLAIN_EXPLANATION,
+        }
+
+    def deal_task_dealing_plan(self, plan: Any = None) -> dict[str, Any]:
+        """Deal a whole plan to the crew for the session (M-125).
+
+        With no plan named, the shipped example plan
+        is dealt through the pure layer - the next
+        ten roadmap slices, each to the member whose
+        office its work fits. A plan loaded from a
+        file (the pure layer's
+        ``load_dealing_plan_file`` road) may be
+        passed instead, so a real plan is dealt as
+        it stands. The dealing is derived by the
+        pure ``deal_tasks`` judge under the loads
+        the session already holds, every assignment
+        is held in plan order and published as its
+        ``dealing_record`` session news, deduped per
+        slice and member, and the plan is remembered
+        as the session's plan. The pure registry
+        refuses a slice already dealt - a plan the
+        session already dealt cannot be dealt twice;
+        the human re-deals a slice explicitly.
+        Returns the held assignments, their news
+        records, the count, the screen, and the
+        explanation. Dealing starts no crew and
+        spawns nothing.
+        """
+        from ..core import task_dealing
+        from ..core.crew_members import load_casting
+
+        registry = self._task_dealing_registry()
+        plan = plan if plan is not None \
+            else task_dealing.load_dealing_plan()
+        members = load_casting().members
+        loads = {
+            member.member_id: len(registry.by_member(member.member_id))
+            for member in members}
+        dealing = task_dealing.deal_tasks(plan, members, loads=loads)
+        held = registry.register_dealing(dealing)
+        self._task_dealing_plan = plan
+        records = [task_dealing.dealing_record(a) for a in held]
+        for record in records:
+            self._publish_dealing_record(record)
+        return {
+            "assignments": [a.to_record() for a in held],
+            "records": records,
+            "count": len(held),
+            "screen": task_dealing.format_dealing_screen(registry),
+            "explanation": task_dealing.PLAIN_EXPLANATION,
+        }
+
+    def redeal_task_assignment(self, slice_id: Any,
+                               member: Any) -> dict[str, Any]:
+        """Re-deal one held slice to another member (M-125).
+
+        The human's re-deal, carried out: the named
+        slice, held this session, moves to the named
+        member of the shipped casting, carrying that
+        member's cast office, and the held loads are
+        recomputed by the pure registry. A member
+        the casting does not hold refuses, and a
+        slice the session does not hold raises
+        KeyError, exactly as the pure registry
+        answers. The moved assignment is published
+        as its ``dealing_record`` session news - a
+        re-deal to a new member is news again; the
+        announcement is deduped per slice and
+        member. Returns the moved assignment, its
+        news record, the screen rendered after it
+        landed, and the plain explanation.
+        """
+        from ..core import task_dealing
+        from ..core.crew_members import load_casting, normalize_member_id
+
+        wanted = normalize_member_id(member)
+        offices = {
+            member.member_id: member.office
+            for member in load_casting().members}
+        if wanted not in offices:
+            raise ValueError(
+                f"the member {wanted!r} is not in the shipped "
+                f"casting; a slice is re-dealt to a crew member")
+        registry = self._task_dealing_registry()
+        moved = registry.redeal(slice_id, wanted, offices[wanted])
+        record = task_dealing.dealing_record(moved)
+        self._publish_dealing_record(record)
+        return {
+            "assignment": moved.to_record(),
+            "record": record,
+            "screen": task_dealing.format_dealing_screen(registry),
+            "explanation": task_dealing.PLAIN_EXPLANATION,
+        }
+
+    def _publish_dealing_record(self, record: dict[str, Any]) -> None:
+        """Publish one dealt assignment as session news (M-125).
+
+        The pure layer's ``dealing_record`` is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each (slice, member) pair is
+        announced at most once: the announcement is
+        keyed by the record's slice and member, so a
+        slice re-dealt to a new member is announced
+        again for that member, and every dealing
+        record carries both. A foreign record type
+        is never published on this road.
+        """
+        if record.get("type") != "task_dealing":
+            return
+        announced = getattr(self, "_task_dealing_announced", None)
+        if announced is None:
+            announced = set()
+            self._task_dealing_announced = announced
+        key = (record.get("slice_id"), record.get("member"))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
+    # -- M-126: crew comms --
+
+    def _crew_comms_registry(self):
+        """The held crew-comms registry (M-126).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer hand-offs in the order
+        they were handed, beside the session dealing
+        registry (M-125) and never in it: a hand-off
+        is the crew's traffic, not a dealt assignment.
+        It is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly
+        one. The attribute is named
+        ``_crew_comms_store``, never the method's own
+        name (the M-108 lesson).
+        """
+        registry = getattr(self, "_crew_comms_store", None)
+        if registry is None:
+            from ..core.crew_comms import CrewCommsRegistry
+            registry = CrewCommsRegistry()
+            self._crew_comms_store = registry
+        return registry
+
+    def crew_comms_status(self) -> dict[str, Any]:
+        """The crew comms, in plain data (M-126).
+
+        The hand-offs held this session as plain
+        records, the session ledger's hand-offs as
+        plain records (the shipped example ledger -
+        six hand-offs among the M-121 casting - until
+        a ledger is recorded), the one batch of the
+        questions waiting for the human as its batch
+        record, the one screen - rendered from the
+        held registry, or from the shipped example
+        ledger when nothing is held yet - and the
+        plain explanation. Reading registers and
+        publishes nothing, spawns no crew and
+        delivers no message: this layer holds the
+        hand-offs as data only. There is no Part
+        VIII board yet; the screen is where the
+        hand-offs and the batch are visible.
+        """
+        from ..core import crew_comms
+
+        registry = self._crew_comms_registry()
+        held = registry.list_handoffs()
+        ledger = self.comms_ledger()
+        screen = crew_comms.format_comms_screen(registry) \
+            if held else crew_comms.format_comms_screen()
+        return {
+            "handoffs": [h.to_record() for h in held],
+            "ledger": [h.to_record() for h in ledger.handoffs],
+            "batch": crew_comms.batch_record(self.human_question_batch()),
+            "screen": screen,
+            "explanation": crew_comms.PLAIN_EXPLANATION,
+        }
+
+    def get_handoff(self, handoff_id: Any):
+        """The one held hand-off an id names (M-126).
+
+        A hand-off the session does not hold raises
+        KeyError, exactly as the pure registry
+        answers.
+        """
+        return self._crew_comms_registry().get(handoff_id)
+
+    def find_handoffs(self, member: Any):
+        """Every hand-off one member sent or received (M-126).
+
+        The session's held registry answers when the
+        session holds any hand-off; otherwise the
+        shipped example ledger answers. The human
+        reads as a recipient: finding the human's
+        hand-offs finds every hand-off addressed to
+        the human. A member holding nothing in the
+        answering set raises KeyError. Reading
+        registers and publishes nothing.
+        """
+        from ..core.crew_comms import (
+            load_comms_ledger, normalize_recipient)
+
+        wanted = normalize_recipient(member)
+        registry = self._crew_comms_registry()
+        if registry.list_handoffs():
+            found = registry.for_member(wanted)
+        else:
+            found = tuple(
+                h for h in load_comms_ledger().handoffs
+                if h.sender == wanted or h.recipient == wanted)
+        if not found:
+            raise KeyError(
+                f"no hand-off holds the member: {wanted!r}")
+        return found
+
+    def comms_ledger(self):
+        """The session's comms ledger, as data (M-126).
+
+        The ledger the session recorded through
+        :meth:`record_comms_ledger`, or the shipped
+        example ledger until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.crew_comms import load_comms_ledger
+
+        ledger = getattr(self, "_crew_comms_ledger", None)
+        if ledger is None:
+            return load_comms_ledger()
+        return ledger
+
+    def human_question_batch(self):
+        """The one batch of questions waiting for the human (M-126).
+
+        Derived by the pure layer from what the
+        session holds - the held registry when the
+        session holds any hand-off, otherwise the
+        shipped example ledger - every waiting
+        question in hand-off order, each with its
+        full context. Reading registers, publishes
+        and asks nothing: asking is
+        :meth:`ask_batched_human_questions`' road.
+        """
+        from ..core.crew_comms import batch_human_questions
+
+        registry = self._crew_comms_registry()
+        if registry.list_handoffs():
+            return registry.batch()
+        return batch_human_questions(self.comms_ledger())
+
+    def register_handoff(self, handoff: Any) -> dict[str, Any]:
+        """Hold one hand-off for the session (M-126).
+
+        The hand-off is held by the pure registry
+        under its id or a fresh deterministic one -
+        a supplied id already held refuses, and a
+        refusal holds nothing new and publishes
+        nothing - and a held hand-off is published
+        as its ``handoff_record`` session-news record
+        through the checkpoint road, so a hand-off
+        made is news with its shape attached. Returns
+        the held hand-off, its news record, the
+        screen rendered after it landed, and the
+        plain explanation. Holding a hand-off spawns
+        no crew and delivers no message: the registry
+        holds the hand-off as data.
+        """
+        from ..core import crew_comms
+
+        registry = self._crew_comms_registry()
+        held = registry.register(handoff)
+        record = crew_comms.handoff_record(held)
+        self._publish_comms_record(record)
+        return {
+            "handoff": held.to_record(),
+            "record": record,
+            "screen": crew_comms.format_comms_screen(registry),
+            "explanation": crew_comms.PLAIN_EXPLANATION,
+        }
+
+    def record_comms_ledger(self, ledger: Any = None) -> dict[str, Any]:
+        """Record a whole ledger of hand-offs for the session (M-126).
+
+        With no ledger named, the shipped example
+        ledger is recorded through the pure layer -
+        six hand-offs among the M-121 casting. A
+        ledger loaded from a file (the pure layer's
+        ``load_comms_ledger_file`` road) may be
+        passed instead, so a real ledger is recorded
+        as it stands. Every hand-off is held in
+        ledger order and published as its
+        ``handoff_record`` session news, deduped per
+        hand-off id, the ledger is remembered as the
+        session's ledger, and the same ledger
+        recorded twice refuses - a ledger is recorded
+        once, never duplicated into the session.
+        Returns the held hand-offs, their news
+        records, the count, the screen, and the
+        explanation. Recording spawns no crew and
+        delivers no message.
+        """
+        from ..core import crew_comms
+
+        ledger = ledger if ledger is not None \
+            else crew_comms.load_comms_ledger()
+        fingerprint = tuple(
+            (h.sender, h.recipient, h.kind, h.slice_id,
+             h.title, h.body) for h in ledger.handoffs)
+        recorded = getattr(self, "_crew_comms_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._crew_comms_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this comms ledger is already recorded for "
+                "the session; a ledger is recorded once")
+        registry = self._crew_comms_registry()
+        held = registry.register_ledger(ledger)
+        recorded.add(fingerprint)
+        self._crew_comms_ledger = ledger
+        records = [crew_comms.handoff_record(h) for h in held]
+        for record in records:
+            self._publish_comms_record(record)
+        return {
+            "handoffs": [h.to_record() for h in held],
+            "records": records,
+            "count": len(held),
+            "screen": crew_comms.format_comms_screen(registry),
+            "explanation": crew_comms.PLAIN_EXPLANATION,
+        }
+
+    def ask_batched_human_questions(self) -> dict[str, Any]:
+        """Ask the human the waiting questions, once, together (M-126).
+
+        The batching rule carried out: the batch is
+        derived from what the session holds by
+        :meth:`human_question_batch` - every waiting
+        question, in hand-off order, each with its
+        sender, slice, title and body - and published
+        as ONE ``human_question_batch`` session-news
+        record holding them all, never one record per
+        question. The announcement is deduped per
+        batch: asking again while the same questions
+        wait publishes nothing new, and a batch grown
+        by a newly held question is a new ask. With
+        no waiting question nothing is published and
+        the count is 0. Returns the batch, its news
+        record, the count, the batched-ask screen,
+        and the plain explanation.
+        """
+        from ..core import crew_comms
+
+        batch = self.human_question_batch()
+        record = crew_comms.batch_record(batch)
+        if batch.questions:
+            self._publish_batch_record(record)
+        return {
+            "batch": batch.to_record(),
+            "record": record,
+            "count": len(batch.questions),
+            "screen": crew_comms.format_human_batch(batch),
+            "explanation": crew_comms.PLAIN_EXPLANATION,
+        }
+
+    def _publish_comms_record(self, record: dict[str, Any]) -> None:
+        """Publish one hand-off as session news (M-126).
+
+        The pure layer's ``handoff_record`` is
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each hand-off id is announced at
+        most once. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") != "crew_handoff":
+            return
+        announced = getattr(self, "_crew_comms_announced", None)
+        if announced is None:
+            announced = set()
+            self._crew_comms_announced = announced
+        key = record.get("handoff_id")
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_batch_record(self, record: dict[str, Any]) -> None:
+        """Publish one batched ask as session news (M-126).
+
+        The pure layer's ``batch_record`` is journaled
+        through the same checkpoint road, when a
+        session is attached - ONE event holding every
+        waiting question, so the human is asked once.
+        Each batch is announced at most once: the
+        announcement is keyed by the batch's questions
+        (sender, slice, title), so a batch grown by a
+        newly held question announces again as the new
+        batch it is. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") != "human_question_batch":
+            return
+        announced = getattr(self, "_crew_comms_batch_announced", None)
+        if announced is None:
+            announced = set()
+            self._crew_comms_batch_announced = announced
+        key = tuple(
+            (q.get("sender"), q.get("slice_id"), q.get("title"))
+            for q in record.get("questions", []))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    # -- M-127: cycle and deadlock watch --
+
+    def _deadlock_watch_registry(self):
+        """The held deadlock-watch registry (M-127).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer delegations and claims in
+        the order they were given, beside the session
+        comms registry (M-126) and never in it: the
+        watch's evidence is the coordinator's, not the
+        crew's traffic. It is created on first use, so
+        an agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_deadlock_watch_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_deadlock_watch_store", None)
+        if registry is None:
+            from ..core.deadlock_watch import DeadlockWatchRegistry
+            registry = DeadlockWatchRegistry()
+            self._deadlock_watch_store = registry
+        return registry
+
+    def deadlock_status(self) -> dict[str, Any]:
+        """The deadlock watch, in plain data (M-127).
+
+        The delegations and claims held this session
+        as plain records, the session watch's evidence
+        as plain records (the shipped example watch -
+        five delegations and five claims among the
+        M-121 casting, kept by the guardian - until a
+        watch is recorded), the derived report as its
+        one report record, the one screen - rendered
+        from the held registry, or from the shipped
+        example watch when nothing is held yet - and
+        the plain explanation. Reading registers and
+        publishes nothing, spawns no crew, stops no
+        member and runs no git: this layer holds the
+        watch as data only. There is no Part VIII
+        board yet; the screen is where the findings
+        are visible.
+        """
+        from ..core import deadlock_watch
+
+        registry = self._deadlock_watch_registry()
+        held_delegations = registry.list_delegations()
+        held_claims = registry.list_claims()
+        watch = self.deadlock_watch()
+        screen = deadlock_watch.format_deadlock_screen(registry) \
+            if held_delegations or held_claims \
+            else deadlock_watch.format_deadlock_screen()
+        return {
+            "delegations": [d.to_record() for d in held_delegations],
+            "claims": [c.to_record() for c in held_claims],
+            "watch": {
+                "keeper": watch.keeper,
+                "delegations": [
+                    d.to_record() for d in watch.delegations],
+                "claims": [c.to_record() for c in watch.claims],
+            },
+            "report": deadlock_watch.report_record(
+                self.deadlock_report()),
+            "screen": screen,
+            "explanation": deadlock_watch.PLAIN_EXPLANATION,
+        }
+
+    def get_delegation(self, delegation_id: Any):
+        """The one held delegation an id names (M-127).
+
+        A delegation the session does not hold raises
+        KeyError, exactly as the pure registry answers.
+        """
+        return self._deadlock_watch_registry().get_delegation(
+            delegation_id)
+
+    def get_claim(self, claim_id: Any):
+        """The one held claim an id names (M-127).
+
+        A claim the session does not hold raises
+        KeyError, exactly as the pure registry answers.
+        """
+        return self._deadlock_watch_registry().get_claim(claim_id)
+
+    def find_findings(self, member: Any):
+        """Every finding one member is held in (M-127).
+
+        The session's held registry answers when the
+        session holds any evidence; otherwise the
+        shipped example watch answers. A member held
+        in no finding in the answering set raises
+        KeyError. Reading registers and publishes
+        nothing.
+        """
+        from ..core.crew_members import normalize_member_id
+        from ..core.deadlock_watch import load_deadlock_watch
+
+        wanted = normalize_member_id(member)
+        registry = self._deadlock_watch_registry()
+        if registry.list_delegations() or registry.list_claims():
+            found = registry.for_member(wanted)
+        else:
+            found = load_deadlock_watch().report().for_member(wanted)
+        if not found:
+            raise KeyError(
+                f"no finding holds the member: {wanted!r}")
+        return found
+
+    def deadlock_watch(self):
+        """The session's deadlock watch, as data (M-127).
+
+        The watch the session recorded through
+        :meth:`record_deadlock_watch`, or the shipped
+        example watch until one is recorded. Reading
+        registers and publishes nothing.
+        """
+        from ..core.deadlock_watch import load_deadlock_watch
+
+        watch = getattr(self, "_deadlock_watch_held", None)
+        if watch is None:
+            return load_deadlock_watch()
+        return watch
+
+    def deadlock_report(self):
+        """The report the watch's evidence yields (M-127).
+
+        Derived by the pure layer from what the
+        session holds - the held registry when the
+        session holds any evidence, otherwise the
+        shipped example watch - every hazard the
+        evidence holds, in detection order: delegation
+        cycles, then merge conflicts, then duplicated
+        work. Reading registers and publishes nothing:
+        publishing is :meth:`report_deadlock`' road.
+        """
+        from ..core.deadlock_watch import load_deadlock_watch
+
+        registry = self._deadlock_watch_registry()
+        if registry.list_delegations() or registry.list_claims():
+            return registry.report()
+        return load_deadlock_watch().report()
+
+    def register_delegation(self, delegation: Any) -> dict[str, Any]:
+        """Hold one delegation for the session (M-127).
+
+        The delegation is held by the pure registry
+        under its id or a fresh deterministic one - a
+        supplied id already held refuses, and a
+        refusal holds nothing new and publishes
+        nothing - and a held delegation is published
+        as its ``delegation_record`` session-news
+        record through the checkpoint road, so
+        evidence given is news with its shape
+        attached. Returns the held delegation, its
+        news record, the screen rendered after it
+        landed, and the plain explanation. Holding a
+        delegation spawns no crew and stops no
+        member: the registry holds the evidence as
+        data.
+        """
+        from ..core import deadlock_watch
+
+        registry = self._deadlock_watch_registry()
+        held = registry.register_delegation(delegation)
+        record = deadlock_watch.delegation_record(held)
+        self._publish_deadlock_record(record)
+        return {
+            "delegation": held.to_record(),
+            "record": record,
+            "screen": deadlock_watch.format_deadlock_screen(registry),
+            "explanation": deadlock_watch.PLAIN_EXPLANATION,
+        }
+
+    def register_claim(self, claim: Any) -> dict[str, Any]:
+        """Hold one claim for the session (M-127).
+
+        The claim is held by the pure registry under
+        its id or a fresh deterministic one - a
+        supplied id already held refuses, and a
+        refusal holds nothing new and publishes
+        nothing - and a held claim is published as
+        its ``claim_record`` session-news record
+        through the checkpoint road, so evidence given
+        is news with its shape attached. Returns the
+        held claim, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a claim spawns no crew,
+        stops no member and runs no git: the registry
+        holds the evidence as data.
+        """
+        from ..core import deadlock_watch
+
+        registry = self._deadlock_watch_registry()
+        held = registry.register_claim(claim)
+        record = deadlock_watch.claim_record(held)
+        self._publish_deadlock_record(record)
+        return {
+            "claim": held.to_record(),
+            "record": record,
+            "screen": deadlock_watch.format_deadlock_screen(registry),
+            "explanation": deadlock_watch.PLAIN_EXPLANATION,
+        }
+
+    def record_deadlock_watch(self, watch: Any = None) -> dict[str, Any]:
+        """Record a whole watch of evidence for the session (M-127).
+
+        With no watch named, the shipped example
+        watch is recorded through the pure layer -
+        five delegations and five claims among the
+        M-121 casting, kept by the guardian. A watch
+        loaded from a file (the pure layer's
+        ``load_deadlock_watch_file`` road) may be
+        passed instead, so a real watch is recorded as
+        it stands. Every delegation and claim is held
+        in watch order and published as its
+        ``delegation_record`` / ``claim_record``
+        session news, deduped per evidence id, the
+        watch is remembered as the session's watch,
+        and the same watch recorded twice refuses - a
+        watch is recorded once, never duplicated into
+        the session. Returns the held delegations, the
+        held claims, their news records, the count of
+        evidence held, the screen, and the
+        explanation. Recording spawns no crew, stops
+        no member and runs no git.
+        """
+        from ..core import deadlock_watch
+
+        watch = watch if watch is not None \
+            else deadlock_watch.load_deadlock_watch()
+        fingerprint = (
+            tuple((d.delegator, d.delegatee, d.slice_id)
+                  for d in watch.delegations),
+            tuple((c.member, c.slice_id, c.path)
+                  for c in watch.claims))
+        recorded = getattr(self, "_deadlock_watch_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._deadlock_watch_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this deadlock watch is already recorded for "
+                "the session; a watch is recorded once")
+        registry = self._deadlock_watch_registry()
+        delegations, claims = registry.register_watch(watch)
+        recorded.add(fingerprint)
+        self._deadlock_watch_held = watch
+        records = [
+            deadlock_watch.delegation_record(d) for d in delegations]
+        records += [
+            deadlock_watch.claim_record(c) for c in claims]
+        for record in records:
+            self._publish_deadlock_record(record)
+        return {
+            "delegations": [d.to_record() for d in delegations],
+            "claims": [c.to_record() for c in claims],
+            "records": records,
+            "count": len(delegations) + len(claims),
+            "screen": deadlock_watch.format_deadlock_screen(registry),
+            "explanation": deadlock_watch.PLAIN_EXPLANATION,
+        }
+
+    def report_deadlock(self) -> dict[str, Any]:
+        """Report the watch's findings to the coordinator (M-127).
+
+        The report is derived from what the session
+        holds by :meth:`deadlock_report` - every
+        hazard the evidence holds, in detection
+        order - and published as session news: each
+        finding as its ``finding_record``, then the
+        report itself as ONE ``report_record`` session
+        event holding every finding, never one report
+        per finding. The announcements are deduped:
+        reporting again while the same evidence is
+        held publishes nothing new, and a report grown
+        by newly held evidence announces as the new
+        report it is. Returns the report, its news
+        record, the count of findings, the findings
+        screen, and the plain explanation. Reporting
+        spawns no crew, stops no member and runs no
+        git: the coordinator acts on the findings
+        through later roads.
+        """
+        from ..core import deadlock_watch
+
+        report = self.deadlock_report()
+        for finding in report.findings:
+            self._publish_finding_record(
+                deadlock_watch.finding_record(finding))
+        record = deadlock_watch.report_record(report)
+        self._publish_report_record(record)
+        return {
+            "report": report.to_record(),
+            "record": record,
+            "count": len(report.findings),
+            "screen": deadlock_watch.format_findings(report),
+            "explanation": deadlock_watch.PLAIN_EXPLANATION,
+        }
+
+    def _publish_deadlock_record(self, record: dict[str, Any]) -> None:
+        """Publish one piece of watch evidence as session news (M-127).
+
+        The pure layer's ``delegation_record`` and
+        ``claim_record`` are journaled through the
+        same checkpoint road every sibling slice
+        uses, when a session is attached. Each piece
+        of evidence is announced at most once, under
+        its own id. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") == "crew_delegation":
+            key = ("crew_delegation", record.get("delegation_id"))
+        elif record.get("type") == "crew_claim":
+            key = ("crew_claim", record.get("claim_id"))
+        else:
+            return
+        announced = getattr(self, "_deadlock_announced", None)
+        if announced is None:
+            announced = set()
+            self._deadlock_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_finding_record(self, record: dict[str, Any]) -> None:
+        """Publish one finding as session news (M-127).
+
+        The pure layer's ``finding_record`` is
+        journaled through the same checkpoint road,
+        when a session is attached. Each finding is
+        announced at most once: the announcement is
+        keyed by the finding's whole shape (kind,
+        members, slices, paths, title), so the same
+        hazard derived again from the same evidence
+        is not news twice. A foreign record type is
+        never published on this road.
+        """
+        if record.get("type") != "deadlock_finding":
+            return
+        announced = getattr(self, "_deadlock_finding_announced", None)
+        if announced is None:
+            announced = set()
+            self._deadlock_finding_announced = announced
+        key = (
+            record.get("kind"), tuple(record.get("members", [])),
+            tuple(record.get("slice_ids", [])),
+            tuple(record.get("paths", [])), record.get("title"))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_report_record(self, record: dict[str, Any]) -> None:
+        """Publish one watch report as session news (M-127).
+
+        The pure layer's ``report_record`` is
+        journaled through the same checkpoint road,
+        when a session is attached - ONE event holding
+        every finding, so the coordinator is told
+        once. Each report is announced at most once:
+        the announcement is keyed by the report's
+        findings, so a report grown by newly held
+        evidence announces again as the new report it
+        is. A foreign record type is never published
+        on this road.
+        """
+        if record.get("type") != "deadlock_report":
+            return
+        announced = getattr(self, "_deadlock_report_announced", None)
+        if announced is None:
+            announced = set()
+            self._deadlock_report_announced = announced
+        key = tuple(
+            (f.get("kind"), tuple(f.get("members", [])),
+             tuple(f.get("slice_ids", [])),
+             tuple(f.get("paths", [])), f.get("title"))
+            for f in record.get("findings", []))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    # -- M-128: merge discipline --
+
+    def _merge_discipline_registry(self):
+        """The held merge-discipline registry (M-128).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds pure-layer steps and recorded merges
+        in the order they were given, beside the
+        session deadlock-watch registry (M-127) and
+        never in it: the merging evidence is the
+        coordinator's, held under the discipline this
+        slice names. It is created on first use, so an
+        agent whose ``__init__`` never ran still holds
+        exactly one. The attribute is named
+        ``_merge_discipline_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_merge_discipline_store", None)
+        if registry is None:
+            from ..core.merge_discipline import (
+                MergeDisciplineRegistry,
+            )
+            registry = MergeDisciplineRegistry()
+            self._merge_discipline_store = registry
+        return registry
+
+    def merge_status(self) -> dict[str, Any]:
+        """The merge discipline, in plain data (M-128).
+
+        The steps and recorded merges held this
+        session as plain records, the session plan's
+        evidence as plain records (the shipped
+        example plan - seven steps and five merges
+        among the M-121 casting, kept by the
+        forge_worker - until a plan is recorded), the
+        derived report as its one report record, the
+        one screen - rendered from the held registry,
+        or from the shipped example plan when nothing
+        is held yet - and the plain explanation.
+        Reading registers and publishes nothing,
+        executes no git, performs no merge and spawns
+        or stops no crew: this layer holds the
+        merging as data only. There is no Part VIII
+        board yet; the screen is where the verdicts
+        are visible.
+        """
+        from ..core import merge_discipline
+
+        registry = self._merge_discipline_registry()
+        held_steps = registry.list_steps()
+        held_attempts = registry.list_attempts()
+        plan = self.merge_discipline()
+        screen = merge_discipline.format_merge_screen(registry) \
+            if held_steps or held_attempts \
+            else merge_discipline.format_merge_screen()
+        return {
+            "steps": [s.to_record() for s in held_steps],
+            "attempts": [a.to_record() for a in held_attempts],
+            "plan": {
+                "keeper": plan.keeper,
+                "steps": [s.to_record() for s in plan.steps],
+                "merges": [m.to_record() for m in plan.merges],
+            },
+            "report": merge_discipline.report_record(
+                self.merge_report()),
+            "screen": screen,
+            "explanation": merge_discipline.PLAIN_EXPLANATION,
+        }
+
+    def get_merge_step(self, step_id: Any):
+        """The one held step an id names (M-128).
+
+        A step the session does not hold raises
+        KeyError, exactly as the pure registry answers.
+        """
+        return self._merge_discipline_registry().get_step(step_id)
+
+    def get_merge_attempt(self, attempt_id: Any):
+        """The one held recorded merge an id names (M-128).
+
+        A merge the session does not hold raises
+        KeyError, exactly as the pure registry answers.
+        """
+        return self._merge_discipline_registry().get_attempt(
+            attempt_id)
+
+    def find_verdicts(self, member: Any):
+        """Every verdict on one member's line (M-128).
+
+        The session's held registry answers when the
+        session holds any evidence; otherwise the
+        shipped example plan answers. A member held
+        in no verdict in the answering set raises
+        KeyError. Reading registers and publishes
+        nothing.
+        """
+        from ..core.crew_members import normalize_member_id
+        from ..core.merge_discipline import load_merge_discipline
+
+        wanted = normalize_member_id(member)
+        registry = self._merge_discipline_registry()
+        if registry.list_steps() or registry.list_attempts():
+            found = registry.for_member(wanted)
+        else:
+            found = load_merge_discipline().report().for_member(wanted)
+        if not found:
+            raise KeyError(
+                f"no verdict stands on the member's line: {wanted!r}")
+        return found
+
+    def merge_discipline(self):
+        """The session's merge plan and ledger, as data (M-128).
+
+        The plan the session recorded through
+        :meth:`record_merge_discipline`, or the
+        shipped example plan until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.merge_discipline import load_merge_discipline
+
+        plan = getattr(self, "_merge_discipline_held", None)
+        if plan is None:
+            return load_merge_discipline()
+        return plan
+
+    def merge_report(self):
+        """The report the plan's evidence yields (M-128).
+
+        Derived by the pure layer from what the
+        session holds - the held registry when the
+        session holds any evidence, otherwise the
+        shipped example plan - every verdict the
+        evidence holds, in judgement order:
+        out-of-order verdicts, then missing-gate
+        verdicts, then line-stopped verdicts, with
+        every line's state beside them. Reading
+        registers and publishes nothing: publishing
+        is :meth:`report_merge`' road.
+        """
+        from ..core.merge_discipline import load_merge_discipline
+
+        registry = self._merge_discipline_registry()
+        if registry.list_steps() or registry.list_attempts():
+            return registry.report()
+        return load_merge_discipline().report()
+
+    def register_merge_step(self, step: Any) -> dict[str, Any]:
+        """Hold one merge step for the session (M-128).
+
+        The step is held by the pure registry under
+        its id or a fresh deterministic one - a
+        supplied id already held refuses, a line
+        planning one slice twice refuses, and a
+        refusal holds nothing new and publishes
+        nothing - and a held step is published as its
+        ``step_record`` session-news record through
+        the checkpoint road, so evidence given is
+        news with its shape attached. Returns the held
+        step, its news record, the screen rendered
+        after it landed, and the plain explanation.
+        Holding a step executes no git and performs no
+        merge: the registry holds the evidence as data.
+        """
+        from ..core import merge_discipline
+
+        registry = self._merge_discipline_registry()
+        held = registry.register_step(step)
+        record = merge_discipline.step_record(held)
+        self._publish_merge_record(record)
+        return {
+            "step": held.to_record(),
+            "record": record,
+            "screen": merge_discipline.format_merge_screen(registry),
+            "explanation": merge_discipline.PLAIN_EXPLANATION,
+        }
+
+    def register_merge_attempt(self, attempt: Any) -> dict[str, Any]:
+        """Hold one recorded merge for the session (M-128).
+
+        The merge is held by the pure registry under
+        its id or a fresh deterministic one - a
+        supplied id already held refuses, and a
+        refusal holds nothing new and publishes
+        nothing - and a held merge is published as
+        its ``attempt_record`` session-news record
+        through the checkpoint road, so evidence given
+        is news with its shape attached. Returns the
+        held merge, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a merge executes no git
+        and performs no merge itself: the registry
+        holds the evidence as data.
+        """
+        from ..core import merge_discipline
+
+        registry = self._merge_discipline_registry()
+        held = registry.register_attempt(attempt)
+        record = merge_discipline.attempt_record(held)
+        self._publish_merge_record(record)
+        return {
+            "attempt": held.to_record(),
+            "record": record,
+            "screen": merge_discipline.format_merge_screen(registry),
+            "explanation": merge_discipline.PLAIN_EXPLANATION,
+        }
+
+    def record_merge_discipline(
+            self, plan: Any = None) -> dict[str, Any]:
+        """Record a whole plan and ledger for the session (M-128).
+
+        With no plan named, the shipped example plan
+        is recorded through the pure layer - seven
+        steps and five merges among the M-121 casting,
+        kept by the forge_worker. A plan loaded from a
+        file (the pure layer's
+        ``load_merge_discipline_file`` road) may be
+        passed instead, so a real plan is recorded as
+        it stands. Every step and merge is held in
+        plan order and published as its
+        ``step_record`` / ``attempt_record`` session
+        news, deduped per evidence id, the plan is
+        remembered as the session's plan, and the same
+        plan recorded twice refuses - a plan is
+        recorded once, never duplicated into the
+        session. Returns the held steps, the held
+        merges, their news records, the count of
+        evidence held, the screen, and the
+        explanation. Recording executes no git,
+        performs no merge and spawns or stops no crew.
+        """
+        from ..core import merge_discipline
+
+        plan = plan if plan is not None \
+            else merge_discipline.load_merge_discipline()
+        fingerprint = (
+            tuple((s.member, s.slice_id, s.branch)
+                  for s in plan.steps),
+            tuple((m.member, m.slice_id, m.branch, m.gate,
+                    m.outcome) for m in plan.merges))
+        recorded = getattr(self, "_merge_discipline_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._merge_discipline_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this merge plan is already recorded for "
+                "the session; a plan is recorded once")
+        registry = self._merge_discipline_registry()
+        steps, attempts = registry.register_plan(plan)
+        recorded.add(fingerprint)
+        self._merge_discipline_held = plan
+        records = [
+            merge_discipline.step_record(s) for s in steps]
+        records += [
+            merge_discipline.attempt_record(a) for a in attempts]
+        for record in records:
+            self._publish_merge_record(record)
+        return {
+            "steps": [s.to_record() for s in steps],
+            "attempts": [a.to_record() for a in attempts],
+            "records": records,
+            "count": len(steps) + len(attempts),
+            "screen": merge_discipline.format_merge_screen(registry),
+            "explanation": merge_discipline.PLAIN_EXPLANATION,
+        }
+
+    def report_merge(self) -> dict[str, Any]:
+        """Report the discipline's verdicts to the coordinator (M-128).
+
+        The report is derived from what the session
+        holds by :meth:`merge_report` - every verdict
+        the evidence holds, in judgement order - and
+        published as session news: each verdict as its
+        ``verdict_record``, then the report itself as
+        ONE ``report_record`` session event holding
+        every verdict and every line, never one report
+        per verdict. The announcements are deduped:
+        reporting again while the same evidence is
+        held publishes nothing new, and a report grown
+        by newly held evidence announces as the new
+        report it is. Returns the report, its news
+        record, the count of verdicts, the verdicts
+        screen, and the plain explanation. Reporting
+        executes no git and performs no merge: the
+        coordinator acts on the verdicts through later
+        roads.
+        """
+        from ..core import merge_discipline
+
+        report = self.merge_report()
+        for verdict in report.verdicts:
+            self._publish_verdict_record(
+                merge_discipline.verdict_record(verdict))
+        record = merge_discipline.report_record(report)
+        self._publish_merge_report_record(record)
+        return {
+            "report": report.to_record(),
+            "record": record,
+            "count": len(report.verdicts),
+            "screen": merge_discipline.format_verdicts(report),
+            "explanation": merge_discipline.PLAIN_EXPLANATION,
+        }
+
+    def _publish_merge_record(self, record: dict[str, Any]) -> None:
+        """Publish one piece of merge evidence as session news (M-128).
+
+        The pure layer's ``step_record`` and
+        ``attempt_record`` are journaled through the
+        same checkpoint road every sibling slice uses,
+        when a session is attached. Each piece of
+        evidence is announced at most once, under its
+        own id. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") == "merge_step":
+            key = ("merge_step", record.get("step_id"))
+        elif record.get("type") == "merge_attempt":
+            key = ("merge_attempt", record.get("attempt_id"))
+        else:
+            return
+        announced = getattr(self, "_merge_announced", None)
+        if announced is None:
+            announced = set()
+            self._merge_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_verdict_record(self, record: dict[str, Any]) -> None:
+        """Publish one verdict as session news (M-128).
+
+        The pure layer's ``verdict_record`` is
+        journaled through the same checkpoint road,
+        when a session is attached. Each verdict is
+        announced at most once: the announcement is
+        keyed by the verdict's whole shape (kind,
+        member, slice, branch, title), so the same
+        judgement derived again from the same evidence
+        is not news twice. A foreign record type is
+        never published on this road.
+        """
+        if record.get("type") != "merge_verdict":
+            return
+        announced = getattr(self, "_merge_verdict_announced", None)
+        if announced is None:
+            announced = set()
+            self._merge_verdict_announced = announced
+        key = (
+            record.get("kind"), record.get("member"),
+            record.get("slice_id"), record.get("branch"),
+            record.get("title"))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_merge_report_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one merge report as session news (M-128).
+
+        The pure layer's ``report_record`` is journaled
+        through the same checkpoint road, when a
+        session is attached - ONE event holding every
+        verdict and every line, so the coordinator is
+        told once. Each report is announced at most
+        once: the announcement is keyed by the
+        report's verdicts and lines, so a report grown
+        by newly held evidence announces again as the
+        new report it is. A foreign record type is
+        never published on this road.
+        """
+        if record.get("type") != "merge_report":
+            return
+        announced = getattr(self, "_merge_report_announced", None)
+        if announced is None:
+            announced = set()
+            self._merge_report_announced = announced
+        key = (
+            tuple(
+                (v.get("kind"), v.get("member"),
+                 v.get("slice_id"), v.get("branch"),
+                 v.get("title"))
+                for v in record.get("verdicts", [])),
+            tuple(
+                (line.get("member"),
+                 tuple(line.get("merged", [])),
+                 line.get("stopped_slice"))
+                for line in record.get("lines", [])))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""

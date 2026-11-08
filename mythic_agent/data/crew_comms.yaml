@@ -1,0 +1,66 @@
+schema: mythic.crew_comms/1
+slice: M-126
+part: 6
+part_title: Agents as files
+keeper: coordinator
+ledger_note: |
+  Crew comms: the hand-offs between members, as data.
+  A hand-off is structured - a sender member, a
+  recipient member (or the human), a kind (findings,
+  a diff, or a question), the slice it belongs to, a
+  title and a body - so the traffic between members
+  can be checked, counted and shown, never passed as
+  prose alone. This file is ONE EXAMPLE LEDGER in the
+  shape a real ledger's file takes: six hand-offs
+  among the shipped M-121 casting, three of them
+  questions to the human from three different
+  members. A real ledger is a new file in this same
+  shape - it is never this file edited in place. The
+  batching rule is the heart of the shape: a member's
+  question to the human is batched and asked once,
+  with full context - the three questions in this
+  ledger are ONE ask, not three. The roadmap names
+  the board (Part VIII) as where crew traffic will
+  be visible; that board does not exist yet, so these
+  hand-offs and the one batched ask are visible
+  through this slice's own /comms screen, and nothing
+  here claims a board exists. This layer holds
+  hand-offs as data only: it spawns no crew and
+  delivers no message itself.
+handoffs:
+- sender: cartographer
+  recipient: forge_worker
+  kind: findings
+  slice_id: M-126
+  title: Comms shape mapped
+  body: "The crew holds no structured hand-off record yet: findings, diffs and questions pass in prose, so nothing can be checked, counted or batched."
+- sender: forge_worker
+  recipient: auditor
+  kind: diff
+  slice_id: M-126
+  title: Hand-off record diff
+  body: "crew_comms holds every hand-off as validated data - sender, recipient, kind, slice, title and body - and refuses unknown keys instead of guessing."
+- sender: scribe
+  recipient: human
+  kind: question
+  slice_id: M-126
+  title: Board or screen first
+  body: "When the Part VIII board exists, should the batched human questions appear there too, or stay on this slice's own screen until then?"
+- sender: auditor
+  recipient: human
+  kind: question
+  slice_id: M-125
+  title: Re-deal record kept
+  body: "When a slice is re-dealt, should the record keep the first dealing beside the new one, or only the dealing the slice finally holds?"
+- sender: guardian
+  recipient: human
+  kind: question
+  slice_id: M-126
+  title: Largest question batch
+  body: "Is there a largest batch of member questions to ask the human at once, or is every waiting question asked together, however many wait?"
+- sender: auditor
+  recipient: scribe
+  kind: findings
+  slice_id: M-126
+  title: Batching rule checked
+  body: "Three members hold questions for the human in this ledger; the batch gathers all three and asks them once, each with its sender, slice and body."

@@ -1,0 +1,19 @@
+# Example project policy (M-119) - copy to mythic-policy.yaml
+# at a repo root and edit. Every shape here is the exact shape
+# its shipped road consumes: posture by M-095 profile name (or
+# a custom posture mapping), jail + grants in M-099 shapes,
+# hooks as M-101 hook records. A checked-in policy may not
+# turn the path jail off and may not grant the filesystem root.
+schema: mythic.policy_file/1
+name: example-forge-policy
+posture: trusted-forge
+jail:
+  enabled: true
+  grants:
+  - /srv/shared-assets
+hooks:
+- event: pre_tool
+  command: python3 scripts/policy_check.py
+  name: example-check
+  enabled: true
+  timeout_seconds: 30
