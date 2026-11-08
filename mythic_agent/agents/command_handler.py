@@ -333,6 +333,8 @@ class CommandHandler:
                 self._handle_instruction_files(args)
             elif cmd == "/memorymap":
                 self._handle_memory_map(args)
+            elif cmd == "/glassbox":
+                self._handle_glassbox(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -5216,6 +5218,69 @@ class CommandHandler:
                 text = format_panel(primary.project_memory_map_book())
             else:
                 text = primary.project_memory_map_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_glassbox(self, args: str):
+        """M-151: /glassbox - compaction v2, glass-box.
+
+        ``/glassbox`` shows the compaction glass-box
+        held this session (the shipped example book -
+        three compactions at the M-150 slice boundary,
+        one of each shipped road, one holding its
+        material by journal reference alone and one
+        carrying an edited summary, with its one
+        pinned panel - when none is held yet);
+        ``/glassbox record <record-id>`` shows one
+        record; ``/glassbox versions <record-id>``
+        shows one record's summary versions, in order
+        - the original first, the current summary
+        last; ``/glassbox panel`` shows the panel
+        derived from the whole book, its rows in
+        journal order. Reading registers and publishes
+        nothing as session news: records are held only
+        when they are given through the agent's
+        glass-box roads, and every record held for the
+        session is journaled as a
+        compaction_glassbox_record session event and
+        every derived panel as a
+        compaction_glassbox_panel session event. This
+        surface compacts no live context - /compact
+        stays the live pruner's own command - and
+        there is no Part VIII board yet, so the glass
+        box is visible on this surface, not on a board.
+        """
+        from ..core.compaction_glassbox import (
+            format_panel,
+            format_record,
+            format_versions,
+            parse_glassbox_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_glassbox_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "record":
+                text = format_record(primary.get_compaction_record(target))
+            elif action == "versions":
+                text = format_versions(primary.get_compaction_record(target))
+            elif action == "panel":
+                text = format_panel(primary.compaction_glassbox_book())
+            else:
+                text = primary.compaction_glassbox_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

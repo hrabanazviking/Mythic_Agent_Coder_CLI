@@ -22610,6 +22610,436 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-151: compaction glass-box --
+
+    def _compaction_glassbox_registry(self):
+        """The held compaction glass-box registry (M-151).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer compaction records
+        one by one, beside the session project memory
+        map registry (M-150) and never in it: the
+        glass box is one book of compaction records -
+        what each compaction replaced, the summary
+        that stands in its place as its versions, and
+        its journal position, beside what it replaced.
+        It is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly
+        one. The attribute is named
+        ``_compaction_glassbox_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_compaction_glassbox_store", None)
+        if registry is None:
+            from ..core.compaction_glassbox import CompactionRegistry
+            registry = CompactionRegistry()
+            self._compaction_glassbox_store = registry
+        return registry
+
+    def compaction_glassbox_book(self):
+        """The session's compaction glass-box book, as data (M-151).
+
+        The held registry's book when the session
+        holds any record - the compactions the session
+        has actually gathered (records held one by
+        one, before any whole book stands recorded,
+        stand under a session compaction glass-box
+        book composed here in the agent layer, so a
+        later whole book recorded under its own title
+        is never refused by a shim title at the
+        registry) - otherwise the book recorded whole
+        through :meth:`record_compaction_glassbox_book`,
+        or the shipped example compaction glass-box
+        book until one is recorded. Reading registers
+        and publishes nothing.
+        """
+        from ..core.compaction_glassbox import (
+            CompactionBook, load_compaction_glassbox)
+        registry = self._compaction_glassbox_registry()
+        if registry.list_records():
+            try:
+                book = registry.book()
+            except ValueError:
+                return CompactionBook(
+                    title="Session compaction glass-box",
+                    records=registry.list_records())
+            held = getattr(self, "_compaction_glassbox_held", None)
+            if held is not None and held.title == book.title \
+                    and held.record_ids() == book.record_ids():
+                return held
+            return book
+        book = getattr(self, "_compaction_glassbox_held", None)
+        if book is None:
+            return load_compaction_glassbox()
+        return book
+
+    def _compaction_glassbox_screen(self) -> str:
+        """The /glassbox screen for the session's state (M-151).
+
+        Rendered from the held book when one stands,
+        and from the shipped example book while
+        nothing is held.
+        """
+        from ..core import compaction_glassbox as glassbox_module
+        registry = self._compaction_glassbox_registry()
+        if not registry.list_records():
+            return glassbox_module.format_compaction_glassbox_screen()
+        return glassbox_module.format_compaction_glassbox_screen(
+            self.compaction_glassbox_book())
+
+    def compaction_glassbox_status(self) -> dict[str, Any]:
+        """The compaction glass-box account, in plain data (M-151).
+
+        The records held this session as plain
+        records, the held book's record (none until a
+        record stands held), the session compaction
+        glass-box book's pieces as plain records (the
+        shipped example book - three compactions at
+        the M-150 slice boundary, one of each shipped
+        road, one holding its material by journal
+        reference alone and one carrying an edited
+        summary, with its one pinned panel - until
+        records are held), its whole-book record, the
+        panel derived from the whole book and every
+        panel the book holds as plain records, the
+        records in plain words and the panel told in
+        plain words, the one screen - rendered from
+        the held book, or from the shipped example
+        book when nothing is held yet - and the plain
+        explanation. Reading registers and publishes
+        nothing, compacts no live context: this layer
+        holds compactions as data only. There is no
+        Part VIII board yet; the screen is where the
+        glass box is visible.
+        """
+        from ..core import compaction_glassbox as glassbox_module
+        registry = self._compaction_glassbox_registry()
+        held_records = registry.list_records()
+        book = self.compaction_glassbox_book()
+        return {
+            "records": [r.to_record() for r in held_records],
+            "book": (book.to_record() if held_records else None),
+            "compaction_glassbox": {
+                "title": book.title,
+                "records": [r.to_record() for r in book.records],
+            },
+            "book_record": glassbox_module.book_record(book),
+            "panel": glassbox_module.derive_panel(book).to_record(),
+            "panels": [p.to_record() for p in book.panels],
+            "plain_words": [
+                glassbox_module.plain_words(record)
+                for record in book.records],
+            "panel_plain_words": glassbox_module.panel_plain_words(book),
+            "screen": self._compaction_glassbox_screen(),
+            "explanation": glassbox_module.PLAIN_EXPLANATION,
+        }
+
+    def get_compaction_record(self, record_id: Any):
+        """The one record an id names (M-151).
+
+        The session's held registry answers when the
+        session holds any record; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held
+        session answers for its own book alone: an id
+        the held book holds no record for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._compaction_glassbox_registry()
+        if registry.list_records():
+            return registry.get_record(record_id)
+        return self.compaction_glassbox_book().record_for(record_id)
+
+    def compaction_records_for_source(self, source: Any):
+        """Every record of one source (M-151).
+
+        Read off the session's book - the held
+        registry's book when the session holds any
+        record, otherwise the shipped example book
+        (or the book recorded whole for the session) -
+        in held order. A held session answers for its
+        own book alone, with no silent fall back to
+        the example. Reading registers and publishes
+        nothing.
+        """
+        return self.compaction_glassbox_book().records_for_source(source)
+
+    def compaction_glassbox_panel(self):
+        """The panel derived for the whole book (M-151).
+
+        The panel is derived at call time from the
+        whole book of records - the held registry's
+        records when the session holds any record,
+        otherwise the shipped example book's records
+        (or the records of the book recorded whole
+        for the session) - so its rows are the records
+        carried whole, in journal order, and its
+        totals are the records' own counts, read at
+        call time. Reading registers and publishes
+        nothing.
+        """
+        from ..core.compaction_glassbox import derive_panel as _derive_panel
+        return _derive_panel(self.compaction_glassbox_book())
+
+    def register_compaction_record(self, record: Any) -> dict[str, Any]:
+        """Hold one compaction record for the session (M-151).
+
+        The record is held by the pure registry under
+        its id or the deterministic compact-N id - a
+        record id already standing here refuses, as
+        does a record standing at a journal position
+        a held record already stands at, and a
+        refusal holds nothing new and publishes
+        nothing. A held record is published as its
+        ``record_record`` session-news record through
+        the checkpoint road, and the panel derived
+        from the held records as its ``panel_record``
+        session news, so a compaction named into the
+        glass box is news. Returns the held record,
+        its news record, the panel and its news
+        record, the screen rendered after it landed,
+        and the plain explanation. Holding a record
+        compacts no live context and archives no
+        message: the registry holds the record as
+        data, and the panel stays a derivation read
+        off the held records at call time.
+        """
+        from ..core import compaction_glassbox as glassbox_module
+        registry = self._compaction_glassbox_registry()
+        held = registry.register_record(record)
+        record_news = glassbox_module.record_record(held)
+        self._publish_compaction_glassbox_record(record_news)
+        panel = glassbox_module.derive_panel(registry)
+        panel_news = glassbox_module.panel_record(panel)
+        self._publish_compaction_glassbox_record(panel_news)
+        return {
+            "record": held.to_record(),
+            "record_news": record_news,
+            "panel": panel.to_record(),
+            "panel_record": panel_news,
+            "screen": self._compaction_glassbox_screen(),
+            "explanation": glassbox_module.PLAIN_EXPLANATION,
+        }
+
+    def edit_compaction_summary(
+            self, record_id: Any, new_summary: Any) -> dict[str, Any]:
+        """Edit one held record's summary, as data (M-151).
+
+        The pure registry's edit road appends the new
+        summary as a new version of the held record -
+        the original and every earlier edit kept, in
+        order, the new summary standing last as the
+        current one - and the edited record is
+        published as its ``record_record`` session
+        news through the checkpoint road, with the
+        panel derived from the held records as its
+        ``panel_record`` session news, so an edited
+        summary is news with its whole history held.
+        An unknown id raises KeyError and an edit
+        that changes nothing refuses, holding and
+        publishing nothing new. Returns the edited
+        record, its news record, the panel and its
+        news record, the screen and the explanation.
+        Editing a summary here edits data only: it
+        compacts no live context, rewrites no earlier
+        version and calls no model.
+        """
+        from ..core import compaction_glassbox as glassbox_module
+        registry = self._compaction_glassbox_registry()
+        edited = registry.edit_summary(record_id, new_summary)
+        record_news = glassbox_module.record_record(edited)
+        self._publish_compaction_glassbox_record(record_news)
+        panel = glassbox_module.derive_panel(registry)
+        panel_news = glassbox_module.panel_record(panel)
+        self._publish_compaction_glassbox_record(panel_news)
+        return {
+            "record": edited.to_record(),
+            "record_news": record_news,
+            "panel": panel.to_record(),
+            "panel_record": panel_news,
+            "screen": self._compaction_glassbox_screen(),
+            "explanation": glassbox_module.PLAIN_EXPLANATION,
+        }
+
+    def register_compaction_glassbox_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole compaction glass-box book for the session (M-151).
+
+        Every record of the book is held by the pure
+        registry, in book order - the first book held
+        sets the registry's title, a later book under
+        a different title refuses, as does a book
+        naming a held record id or a held journal
+        position. The book's panels are derivations,
+        not holdings, and are not held. Every record
+        is published as its ``record_record`` session
+        news, in book order, and the book's derived
+        panel as its ``panel_record`` session news.
+        Returns the held book, its records, their
+        news records, the panel news record, the
+        count of records held, the screen, and the
+        explanation. Registering compacts no live
+        context.
+        """
+        from ..core import compaction_glassbox as glassbox_module
+        validated = glassbox_module.build_book(book)
+        registry = self._compaction_glassbox_registry()
+        registry.register_book(validated)
+        records = [
+            glassbox_module.record_record(record)
+            for record in validated.records]
+        for record_news in records:
+            self._publish_compaction_glassbox_record(record_news)
+        panel_news = glassbox_module.panel_record(
+            glassbox_module.derive_panel(validated))
+        self._publish_compaction_glassbox_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "records": [r.to_record() for r in validated.records],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": self._compaction_glassbox_screen(),
+            "explanation": glassbox_module.PLAIN_EXPLANATION,
+        }
+
+    def record_compaction_glassbox_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole compaction glass-box book for the session (M-151).
+
+        With no book named, the shipped example
+        compaction glass-box book is recorded through
+        the pure layer - three compactions at the
+        M-150 slice boundary, one of each shipped
+        road, one holding its material by journal
+        reference alone and one carrying an edited
+        summary, with its one pinned panel. A book
+        loaded from a file (the pure layer's
+        ``load_compaction_glassbox_file`` road) may
+        be passed instead, so a real compaction
+        glass-box book is recorded as it stands.
+        Every record is held and published as its
+        ``record_record`` session news, in book
+        order, and the book's derived panel as its
+        ``panel_record`` session news; the book is
+        remembered whole as the session's - its held
+        panel and all - and the same book recorded
+        twice refuses - fingerprinted on its record
+        ids and title - a book is recorded once,
+        never duplicated into the session. Returns
+        the held book, its records, their news
+        records, the panel news record, the count of
+        records held, the screen, and the explanation.
+        Recording compacts no live context.
+        """
+        from ..core import compaction_glassbox as glassbox_module
+        book = book if book is not None \
+            else glassbox_module.load_compaction_glassbox()
+        validated = glassbox_module.build_book(book)
+        fingerprint = (tuple(validated.record_ids()), validated.title)
+        recorded = getattr(self, "_compaction_glassbox_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._compaction_glassbox_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this compaction glass-box book is already recorded "
+                "for the session; a book is recorded once")
+        registry = self._compaction_glassbox_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._compaction_glassbox_held = validated
+        records = [
+            glassbox_module.record_record(record)
+            for record in validated.records]
+        for record_news in records:
+            self._publish_compaction_glassbox_record(record_news)
+        panel_news = glassbox_module.panel_record(
+            glassbox_module.derive_panel(validated))
+        self._publish_compaction_glassbox_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "records": [r.to_record() for r in validated.records],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": glassbox_module.format_compaction_glassbox_screen(
+                validated),
+            "explanation": glassbox_module.PLAIN_EXPLANATION,
+        }
+
+    def report_compaction_glassbox(self) -> dict[str, Any]:
+        """Render the session compaction glass-box book, as a report (M-151).
+
+        The book - the held registry's book when the
+        session holds any record, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone: its records, its
+        panel and its one screen. Rendering registers
+        and publishes nothing, compacts no live
+        context: the agent layer renders the glass
+        box as data. Returns the book, its records and
+        panels as plain records, the derived panel,
+        the rendered records and panel, the screen,
+        and the plain explanation.
+        """
+        from ..core import compaction_glassbox as glassbox_module
+        book = self.compaction_glassbox_book()
+        return {
+            "book": book.to_record(),
+            "records": [r.to_record() for r in book.records],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": glassbox_module.derive_panel(book).to_record(),
+            "records_text": glassbox_module.format_records(book),
+            "panel_text": glassbox_module.format_panel(book),
+            "screen": self._compaction_glassbox_screen(),
+            "explanation": glassbox_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_compaction_glassbox_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one compaction glass-box record as session news (M-151).
+
+        The pure layer's ``record_record`` and
+        ``panel_record`` are journaled through the
+        same checkpoint road every sibling slice
+        uses, when a session is attached. Each record
+        is announced at most once per shape: a record
+        under its own record id and summary version
+        count, so an edited summary - a new version
+        of the same record - announces again as the
+        new figure it is, and a panel under its whole
+        derived shape (its rows and totals), so a
+        panel grown by a newly held record announces
+        again as the new figure it is. A foreign
+        record type is never published on this road.
+        """
+        if record.get("type") == "compaction_glassbox_record":
+            key = ("compaction_glassbox_record", record.get("record_id"),
+                   record.get("version_count"))
+        elif record.get("type") == "compaction_glassbox_panel":
+            key = ("compaction_glassbox_panel", record.get("panel_id"),
+                   tuple(row.get("record_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_records"),
+                   record.get("total_versions"))
+        else:
+            return
+        announced = getattr(self, "_compaction_glassbox_announced", None)
+        if announced is None:
+            announced = set()
+            self._compaction_glassbox_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
