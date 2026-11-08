@@ -583,3 +583,451 @@ def test_no_live_roads():
                         fromlist=["x"])
     assert not hasattr(module, "charge")
     assert not hasattr(module, "bill")
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-140 agent layer: the agent holds a
+# CourtRegistry for the session (session state
+# only, no new setting), run records are held by
+# being registered - published as their
+# entry_record session news through the checkpoint
+# road, deduped per entry id - the report road
+# renders the held book (or the shipped example
+# when unheld) through the pure formatters, and
+# the /costcourt surface rides both roads on the
+# pure parser + formatters. Status, get, report
+# and ledger reads register and publish nothing,
+# answer from the held registry first and from the
+# shipped example only while nothing is held - a
+# held session never falls back to the example.
+# Reports and the ledger are derived at call time
+# from the held records, never held. This layer
+# calls no model, bills no one, charges nothing,
+# persists nothing and claims no live crew run -
+# and there is no Part VIII board yet, so the
+# screen is where the court is visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _court_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_court_book(tmp_path, data):
+    path = tmp_path / "court.yaml"
+    path.write_text(yaml.safe_dump(data), encoding="utf-8")
+    return path
+
+
+class TestCostCourtAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.cost_court_status()
+        assert status["entries"] == []
+        assert status["book"] is None
+        assert status["court"]["title"] == (
+            "Cost court at the M-139 slice boundary")
+        assert [e["entry_id"] for e in status["court"]["entries"]] == [
+            "entry-m139-forge-a", "entry-m139-forge-b",
+            "entry-m139-auditor", "entry-m138-scribe-a",
+            "entry-m138-scribe-b"]
+        assert status["book_record"]["type"] == "cost_court_book"
+        assert status["book_record"]["entry_count"] == 5
+        assert status["book_record"]["ledger_count"] == 1
+        assert [(r["member"], r["slice_id"]) for r in status["reports"]] == [
+            ("forge_worker", "M-139"), ("auditor", "M-139"),
+            ("scribe", "M-138")]
+        assert status["reports"][0]["cost_usd"] == pytest.approx(0.135)
+        assert [led["ledger_id"] for led in status["ledgers"]] == [
+            "ledger-m139-boundary"]
+        assert status["ledger"]["keeper"] == "scribe"
+        assert status["ledger"]["total_calls"] == 5
+        assert status["ledger"]["total_cost_usd"] == pytest.approx(0.14145)
+        assert "forge_worker ran claude-3-5-sonnet" in status["plain_words"][0]
+        assert "forge_worker on M-139" in status["report_plain_words"]
+        assert "Ledger kept by scribe" in status["ledger_plain_words"]
+        assert "Cost court (M-140)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        assert agent._cost_court_registry() is agent._cost_court_registry()
+        assert agent._cost_court_store is agent._cost_court_registry()
+
+    def test_reads_register_and_publish_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.cost_court_status()
+        entry = agent.get_cost_entry("entry-m139-forge-a")
+        assert entry.member == "forge_worker"
+        assert entry.cost_usd == pytest.approx(0.081)
+        report = agent.cost_report("forge_worker", "M-139")
+        assert report.calls == 2
+        assert report.cost_usd == pytest.approx(0.135)
+        ledger = agent.scribe_ledger()
+        assert ledger.keeper == "scribe"
+        assert ledger.total_calls == 5
+        assert agent.cost_court().title == (
+            "Cost court at the M-139 slice boundary")
+        registry = agent._cost_court_registry()
+        assert registry.list_entries() == ()
+        assert _court_events(store, session_id, "cost_court_entry") == []
+        agent.close()
+
+    def test_unheld_reads_raise(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_cost_entry("no-such-entry")
+        with pytest.raises(KeyError):
+            agent.cost_report("skald", "M-139")
+        with pytest.raises(KeyError):
+            agent.cost_report("forge_worker", "M-200")
+
+    def test_status_after_register_shows_the_held_pieces(self, agent):
+        agent.register_cost_entry(_entry())
+        status = agent.cost_court_status()
+        assert [e["entry_id"] for e in status["entries"]] == [
+            "entry-m139-forge-a"]
+        assert status["book"]["entry_count"] == 1
+        # The held book answers now, not the example:
+        # records held one by one stand under a session
+        # cost court book, and it holds no ledgers -
+        # the ledger stays a derivation.
+        assert status["court"]["title"] == "Session cost court book"
+        assert status["ledgers"] == []
+        assert status["ledger"]["total_calls"] == 1
+        assert "entry-m139-forge-a" in status["screen"]
+
+    def test_held_session_never_falls_back_to_the_example(self, agent):
+        agent.register_cost_entry(_entry())
+        with pytest.raises(KeyError):
+            agent.get_cost_entry("entry-m139-forge-b")
+        with pytest.raises(KeyError):
+            agent.cost_report("auditor", "M-139")
+        assert agent.cost_court().entry_ids() == ("entry-m139-forge-a",)
+        assert agent.get_cost_entry(
+            "entry-m139-forge-a").member == "forge_worker"
+        report = agent.cost_report("forge_worker", "M-139")
+        assert report.calls == 1
+        assert agent.scribe_ledger().total_calls == 1
+
+
+class TestCostCourtAgentRegister:
+    def test_register_entry_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_cost_entry(_entry())
+        assert outcome["entry"]["entry_id"] == "entry-m139-forge-a"
+        assert outcome["record"]["type"] == "cost_court_entry"
+        events = _court_events(store, session_id, "cost_court_entry")
+        assert len(events) == 1
+        assert events[0]["entry_id"] == "entry-m139-forge-a"
+        # The same record is never published twice.
+        agent._publish_cost_court_record(outcome["record"])
+        assert len(_court_events(
+            store, session_id, "cost_court_entry")) == 1
+        # Foreign record types are refused on this road.
+        from mythic_agent.core.character_voices import (
+            load_character_voices,
+            profile_record,
+        )
+        from mythic_agent.core.crew_members import (
+            casting_record,
+            load_casting,
+        )
+        from mythic_agent.core.crew_memory import (
+            entry_record as _memory_entry_record,
+            load_crew_memory,
+        )
+        from mythic_agent.core.crew_replay import (
+            load_crew_replay,
+            step_record as _replay_step_record,
+        )
+        from mythic_agent.core.crew_sizing import (
+            case_record as _sizing_case_record,
+            load_crew_sizing,
+        )
+        from mythic_agent.core.external_agents import (
+            load_external_agents,
+            seat_record as _external_seat_record,
+        )
+        from mythic_agent.core.failure_fostering import (
+            load_failure_fostering,
+            report_record as _foster_report_record,
+        )
+        from mythic_agent.core.review_panels import (
+            load_review_panel,
+            review_record,
+        )
+        from mythic_agent.core.stand_ups import (
+            entry_record as _stand_up_entry_record,
+            load_stand_up,
+        )
+        entries = _entries()
+        agent._publish_cost_court_record(report_record(
+            derive_report(entries, "forge_worker", "M-139"), entries))
+        agent._publish_cost_court_record(ledger_record(
+            derive_ledger(entries), entries))
+        agent._publish_cost_court_record(book_record(load_cost_court()))
+        agent._publish_cost_court_record(_foster_report_record(
+            load_failure_fostering().reports[0]))
+        agent._publish_cost_court_record(_replay_step_record(
+            load_crew_replay().steps[0]))
+        agent._publish_cost_court_record(profile_record(
+            load_character_voices().profiles[0]))
+        agent._publish_cost_court_record(_sizing_case_record(
+            load_crew_sizing().cases[0]))
+        agent._publish_cost_court_record(_stand_up_entry_record(
+            load_stand_up().entries[0]))
+        memory = load_crew_memory()
+        agent._publish_cost_court_record(_memory_entry_record(
+            memory.entry_for("broken-checkpoint-chain")))
+        panel = load_review_panel()
+        agent._publish_cost_court_record(review_record(panel.reviews[0]))
+        agent._publish_cost_court_record(casting_record(
+            load_casting().members[0]))
+        agent._publish_cost_court_record(_external_seat_record(
+            load_external_agents().seats[0]))
+        for kind in ("cost_court_report", "cost_court_ledger",
+                     "cost_court_book", "failure_report",
+                     "crew_replay_step", "character_voice_profile",
+                     "crew_sizing_case", "stand_up_entry",
+                     "crew_memory_entry", "panel_review", "crew_member",
+                     "external_seat"):
+            assert _court_events(store, session_id, kind) == []
+        assert len(_court_events(
+            store, session_id, "cost_court_entry")) == 1
+        agent.close()
+
+    def test_duplicate_entry_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_cost_entry(_entry())
+        with pytest.raises(ValueError):
+            agent.register_cost_entry(_entry())
+        assert len(_court_events(
+            store, session_id, "cost_court_entry")) == 1
+        agent.close()
+
+    def test_register_entry_without_id_gets_a_court_id(self, agent):
+        outcome = agent.register_cost_entry({
+            "member": "auditor", "slice_id": "M-140",
+            "model": "gpt-4o", "input_tokens": 10, "output_tokens": 2})
+        assert outcome["entry"]["entry_id"] == "court-1"
+        assert agent.get_cost_entry("court-1").member == "auditor"
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_cost_book(load_cost_court())
+        assert outcome["count"] == 5
+        assert outcome["book"]["entry_count"] == 5
+        events = _court_events(store, session_id, "cost_court_entry")
+        assert [e["entry_id"] for e in events] == [
+            "entry-m139-forge-a", "entry-m139-forge-b",
+            "entry-m139-auditor", "entry-m138-scribe-a",
+            "entry-m138-scribe-b"]
+        assert agent.cost_court().title == (
+            "Cost court at the M-139 slice boundary")
+        assert agent.get_cost_entry("entry-m138-scribe-b").priced is False
+        # The registry holds records, never reports or
+        # ledgers: both are derived at call time.
+        assert agent.cost_court().ledgers == ()
+        assert agent.cost_report("scribe", "M-138").unpriced_calls == 1
+        assert agent.scribe_ledger().total_calls == 5
+        agent.close()
+
+    def test_register_book_twice_refuses(self, agent):
+        agent.register_cost_book(load_cost_court())
+        with pytest.raises(ValueError):
+            agent.register_cost_book(load_cost_court())
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_cost_book()
+        assert outcome["count"] == 5
+        assert outcome["book"]["entry_count"] == 5
+        events = _court_events(store, session_id, "cost_court_entry")
+        assert [e["entry_id"] for e in events] == [
+            "entry-m139-forge-a", "entry-m139-forge-b",
+            "entry-m139-auditor", "entry-m138-scribe-a",
+            "entry-m138-scribe-b"]
+        assert agent.cost_court().title == (
+            "Cost court at the M-139 slice boundary")
+        # The recorded book stands whole: its held
+        # ledger still answers.
+        assert agent.cost_court().ledgers[0].ledger_id == (
+            "ledger-m139-boundary")
+        assert agent.scribe_ledger().total_cost_usd == pytest.approx(0.14145)
+        agent.close()
+
+    def test_record_same_book_twice_refuses(self, agent):
+        agent.record_cost_book()
+        with pytest.raises(ValueError):
+            agent.record_cost_book()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_court_book(tmp_path, _book_dict())
+        book = load_cost_court_file(path)
+        outcome = agent.record_cost_book(book)
+        assert outcome["count"] == 5
+        assert agent.cost_court().title == "A small court book"
+        assert agent.get_cost_entry("entry-m139-auditor").member == "auditor"
+        assert agent.cost_report(
+            "forge_worker", "M-139").cost_usd == pytest.approx(0.135)
+
+    def test_one_by_one_holdings_stand_under_a_session_book(self, agent):
+        agent.register_cost_entry(_entry())
+        # Held one by one, the records stand under a
+        # session cost court book composed in the agent
+        # layer - never under a recorded book title.
+        assert agent.cost_court().title == "Session cost court book"
+        agent.register_cost_entry(_entries()[2])
+        assert [e.entry_id for e in agent.cost_court().entries] == [
+            "entry-m139-forge-a", "entry-m139-auditor"]
+        # A whole book recorded now would re-hold the
+        # same entry ids: the registry refuses it, as
+        # it refuses any duplicate.
+        with pytest.raises(ValueError):
+            agent.record_cost_book()
+
+
+class TestCostCourtAgentReport:
+    def test_report_renders_the_example_when_unheld(self, agent):
+        outcome = agent.report_cost_court()
+        assert outcome["book"]["title"] == (
+            "Cost court at the M-139 slice boundary")
+        assert outcome["book"]["entry_count"] == 5
+        assert "entry-m138-scribe-b" in outcome["entries_text"]
+        assert "scribe on M-138" in outcome["report_text"]
+        assert "Kept by scribe:" in outcome["ledger_text"]
+        assert "Cost court (M-140)" in outcome["screen"]
+        assert outcome["explanation"] == PLAIN_EXPLANATION
+
+    def test_report_renders_the_held_book_only(self, agent):
+        agent.register_cost_entry(_entry())
+        outcome = agent.report_cost_court()
+        assert outcome["book"]["entry_count"] == 1
+        assert "entry-m139-forge-a" in outcome["entries_text"]
+        assert "entry-m139-forge-b" not in outcome["entries_text"]
+        assert "auditor" not in outcome["report_text"]
+
+    def test_report_registers_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.report_cost_court()
+        registry = agent._cost_court_registry()
+        assert registry.list_entries() == ()
+        assert _court_events(store, session_id, "cost_court_entry") == []
+        agent.close()
+
+    def test_no_live_bill_charge_or_model_road(self, agent):
+        # This layer holds the court as data: it calls
+        # no model, bills no one, charges nothing,
+        # runs no live crew, persists nothing - and
+        # there is no Part VIII board yet.
+        assert not hasattr(agent, "generate_cost_court")
+        assert not hasattr(agent, "persist_cost_court")
+        assert not hasattr(agent, "bill_cost_court")
+        assert not hasattr(agent, "charge_cost_court")
+        assert not hasattr(agent, "issue_bill")
+        assert not hasattr(agent, "run_live_crew")
+        assert not hasattr(agent, "cost_court_board")
+
+
+class TestCostCourtTerminalSurface:
+    def test_show_entry_member_slice_and_ledger(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/costcourt")
+        assert "Cost court (M-140)" in text
+        _, _, text = _slash(agent, "/costcourt entry entry-m139-forge-a")
+        assert "entry-m139-forge-a: forge_worker" in text
+        _, _, text = _slash(agent, "/costcourt member forge_worker")
+        assert "entry-m139-forge-a" in text
+        assert "entry-m139-forge-b" in text
+        assert "entry-m139-auditor" not in text
+        _, _, text = _slash(agent, "/costcourt slice M-138")
+        assert "entry-m138-scribe-a" in text
+        assert "entry-m139-forge-a" not in text
+        _, _, text = _slash(agent, "/costcourt ledger")
+        assert "Kept by scribe:" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/costcourt [show|entry <entry-id>|member <member-id>|"
+                "slice <slice-id>|ledger]") in text
+        _, _, text = _slash(agent, "/costcourt dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/costcourt entry missing-entry")
+        assert "no run record in the book" in text
+
+
+@pytest.fixture()
+def court_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _court_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestCostCourtCommand:
+    def test_show_is_default(self, court_handler, agent):
+        court_handler._handle_costcourt("")
+        assert "Cost court (M-140)" in _court_published_text(court_handler)
+
+    def test_entry_member_slice_and_ledger(self, court_handler, agent):
+        court_handler._handle_costcourt("entry entry-m139-forge-a")
+        assert "forge_worker" in _court_published_text(court_handler)
+        court_handler._handle_costcourt("member scribe")
+        assert "entry-m138-scribe-a" in _court_published_text(court_handler)
+        court_handler._handle_costcourt("slice M-139")
+        assert "entry-m139-auditor" in _court_published_text(court_handler)
+        court_handler._handle_costcourt("ledger")
+        assert "Kept by scribe:" in _court_published_text(court_handler)
+
+    def test_bad_grammar_is_published(self, court_handler, agent):
+        court_handler._handle_costcourt("dance party")
+        assert USAGE in _court_published_text(court_handler)
+
+
+class TestChatScreenRoutingCostCourt:
+    def test_costcourt_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/costcourt entry entry-m139-forge-a", _FakeLog())
+        assert calls == [("/costcourt", "entry entry-m139-forge-a")]
