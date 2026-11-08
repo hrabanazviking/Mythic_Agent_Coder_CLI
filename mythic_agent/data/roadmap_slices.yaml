@@ -967,7 +967,7 @@ slices:
   title: Cross-project memory
   summary: lessons learned in one repo (a flaky test's true cause, a library's trap) are offerable to
     other projects — with provenance, never as silent contamination.
-  status: queued
+  status: done
 - id: M-155
   part: 7
   title: The Self-Improving ledger

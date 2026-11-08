@@ -354,3 +354,13 @@ mythic_agent/core/session_memory.py:980:slice_for:method
 mythic_agent/core/session_memory.py:988:decision_for:method
 mythic_agent/core/session_memory.py:1434:row_for:method
 mythic_agent/core/session_memory.py:2073:latest_situation:method
+mythic_agent/agents/llm.py:24082:get_cross_project_offer:method
+mythic_agent/agents/llm.py:24117:accepted_cross_project_lessons:method
+mythic_agent/agents/llm.py:24132:register_cross_project_lesson:method
+mythic_agent/agents/llm.py:24163:register_cross_project_offer:method
+mythic_agent/agents/llm.py:24204:offer_memory_map_lessons:method
+mythic_agent/agents/llm.py:24292:register_cross_project_book:method
+mythic_agent/agents/llm.py:24346:record_cross_project_book:method
+mythic_agent/agents/llm.py:24423:report_cross_project_memory:method
+mythic_agent/core/cross_project_memory.py:1085:row_for:method
+mythic_agent/core/cross_project_memory.py:1910:latest_lesson:method
