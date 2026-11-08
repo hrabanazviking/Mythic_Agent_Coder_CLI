@@ -17063,6 +17063,367 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-137: external agents as crew --
+
+    def _external_agents_registry(self):
+        """The held external registry (M-137).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer seat book seat by
+        seat, beside the session voice registry
+        (M-136) and never in it: the seat book is the
+        outside agents' seats in the crew, held under
+        the book this slice names. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named ``_external_agents_store``,
+        never the method's own name (the M-108
+        lesson).
+        """
+        registry = getattr(self, "_external_agents_store", None)
+        if registry is None:
+            from ..core.external_agents import ExternalRegistry
+            registry = ExternalRegistry()
+            self._external_agents_store = registry
+        return registry
+
+    def external_agents(self):
+        """The session's seat book, as data (M-137).
+
+        The held registry's book when the session
+        holds any seat - the seats the session has
+        actually gathered (seats held one by one,
+        before any whole book stands recorded, stand
+        under a session seat book composed here in
+        the agent layer, its checks derived from the
+        held seats at call time, so a later whole
+        book recorded under its own title is never
+        refused by a shim title) - otherwise the book
+        recorded whole through
+        :meth:`record_external_seat`, or the shipped
+        example seat book until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.external_agents import (
+            SeatBook,
+            check_seat as _derive_check,
+            load_external_agents,
+        )
+        registry = self._external_agents_registry()
+        if registry.list_seats():
+            seats = registry.list_seats()
+            checks = tuple(_derive_check(seat) for seat in seats)
+            try:
+                book = registry.book()
+            except ValueError:
+                return SeatBook(
+                    title="Session seat book",
+                    seats=seats, checks=checks)
+            held = getattr(self, "_external_agents_held", None)
+            if held is not None and held.title == book.title \
+                    and held.member_ids() == book.member_ids():
+                return held
+            return SeatBook(
+                title=book.title, seats=book.seats, checks=checks)
+        book = getattr(self, "_external_agents_held", None)
+        if book is None:
+            return load_external_agents()
+        return book
+
+    def external_agents_status(self) -> dict[str, Any]:
+        """The external seats, in plain data (M-137).
+
+        The seats held this session as plain records,
+        the held book's record (none until a seat
+        stands held), the session seat book's pieces
+        as plain records (the shipped example book -
+        two outside agents at the M-136 slice
+        boundary, one under each budget scope -
+        until seats are held), its whole-book record,
+        every check the book holds as plain records
+        (derived from the held seats when seats are
+        held), the seats and the checks in plain
+        words, the one screen - rendered from the
+        held book, or from the shipped example book
+        when nothing is held yet - and the plain
+        explanation. Reading registers and publishes
+        nothing, opens no MCP session, persists
+        nothing and calls no model: this layer holds
+        the seats as data only. There is no Part VIII
+        board yet; the screen is where the seats are
+        visible.
+        """
+        from ..core import external_agents as external_module
+        registry = self._external_agents_registry()
+        held_seats = registry.list_seats()
+        book = self.external_agents()
+        if held_seats:
+            screen = external_module.format_external_agents_screen(book)
+        else:
+            screen = external_module.format_external_agents_screen()
+        return {
+            "seats": [s.to_record() for s in held_seats],
+            "book": (book.to_record() if held_seats else None),
+            "agents": {
+                "title": book.title,
+                "seats": [s.to_record() for s in book.seats],
+            },
+            "book_record": external_module.book_record(book),
+            "checks": [c.to_record() for c in book.checks],
+            "plain_words": [
+                external_module.plain_words(s) for s in book.seats],
+            "check_plain_words": external_module.check_plain_words(book),
+            "screen": screen,
+            "explanation": external_module.PLAIN_EXPLANATION,
+        }
+
+    def get_external_seat(self, member: Any):
+        """The one seat a member holds (M-137).
+
+        The session's held registry answers when the
+        session holds any seat; otherwise the shipped
+        example seat book answers (or the book
+        recorded whole for the session). A held
+        session answers for its own book alone: a
+        member the held book holds no seat for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._external_agents_registry()
+        if registry.list_seats():
+            return registry.get_seat(member)
+        return self.external_agents().seat_for(member)
+
+    def external_seat_check(self, member: Any):
+        """The check derived for one seat (M-137).
+
+        The check is derived at call time from the
+        seat it judges - the held registry's seat
+        when the session holds any seat, otherwise
+        the shipped example book's seat (or the seat
+        of the book recorded whole for the session) -
+        so its findings are the seat's own office,
+        posture and budget, read at call time. A held
+        session answers for its own book alone: a
+        member the held book holds no seat for raises
+        KeyError, with no silent fall back to the
+        example. Reading registers and publishes
+        nothing.
+        """
+        from ..core.external_agents import check_seat as _derive_check
+        registry = self._external_agents_registry()
+        if registry.list_seats():
+            return registry.check_seat(member)
+        return _derive_check(self.external_agents().seat_for(member))
+
+    def external_seats_for_transport(self, transport: Any):
+        """Every seat riding one transport (M-137).
+
+        The session's held registry answers when the
+        session holds any seat; otherwise the shipped
+        example seat book answers (or the book
+        recorded whole for the session). A held
+        session answers for its own book alone, with
+        no silent fall back to the example. Reading
+        registers and publishes nothing.
+        """
+        registry = self._external_agents_registry()
+        if registry.list_seats():
+            return registry.seats_for(transport)
+        return self.external_agents().seats_for(transport)
+
+    def register_external_seat(
+            self, seat: Any) -> dict[str, Any]:
+        """Hold one external seat for the session (M-137).
+
+        The seat is held by the pure registry under
+        its id or the deterministic external-N id - a
+        second seat for a member already holding one
+        refuses, and a refusal holds nothing new and
+        publishes nothing. A held seat is published
+        as its ``seat_record`` session-news record
+        through the checkpoint road, so a seat given
+        is news with its contract and budget
+        attached. Returns the held seat, its news
+        record, the screen rendered after it landed,
+        and the plain explanation. Holding a seat
+        opens no MCP session, spawns no agent,
+        persists nothing and calls no model: the
+        registry holds the seat as data, and a check
+        stays a derivation read off the seat at call
+        time.
+        """
+        from ..core import external_agents as external_module
+        registry = self._external_agents_registry()
+        held = registry.register_seat(seat)
+        record = external_module.seat_record(held)
+        self._publish_external_record(record)
+        return {
+            "seat": held.to_record(),
+            "record": record,
+            "screen": external_module.format_external_agents_screen(
+                self.external_agents()),
+            "explanation": external_module.PLAIN_EXPLANATION,
+        }
+
+    def register_external_seat_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole seat book for the session (M-137).
+
+        Every seat of the book is held by the pure
+        registry, in book order - the first book held
+        sets the registry's title, a later book under
+        a different title refuses, as does a book
+        holding a seat for a member already standing
+        here. Every seat is published as its
+        ``seat_record`` session news, in book order.
+        Returns the held book, its seats, their news
+        records, the count of seats held, the screen,
+        and the explanation. Registering opens no MCP
+        session, spawns no agent, persists nothing
+        and calls no model.
+        """
+        from ..core import external_agents as external_module
+        validated = external_module.build_book(book)
+        registry = self._external_agents_registry()
+        registry.register_book(validated)
+        records = [
+            external_module.seat_record(seat)
+            for seat in validated.seats]
+        for record in records:
+            self._publish_external_record(record)
+        return {
+            "book": validated.to_record(),
+            "seats": [s.to_record() for s in validated.seats],
+            "records": records,
+            "count": len(records),
+            "screen": external_module.format_external_agents_screen(
+                self.external_agents()),
+            "explanation": external_module.PLAIN_EXPLANATION,
+        }
+
+    def record_external_seat(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole seat book for the session (M-137).
+
+        With no book named, the shipped example seat
+        book is recorded through the pure layer - two
+        outside agents at the M-136 slice boundary,
+        one under each budget scope. A book loaded
+        from a file (the pure layer's
+        ``load_external_agents_file`` road) may be
+        passed instead, so a real seat book is
+        recorded as it stands. Every seat is held and
+        published as its ``seat_record`` session
+        news, in book order; the book is remembered
+        whole as the session's - its held check and
+        all - and the same book recorded twice
+        refuses - fingerprinted on its member ids and
+        title - a book is recorded once, never
+        duplicated into the session. Returns the held
+        book, its seats, their news records, the
+        count of seats held, the screen, and the
+        explanation. Recording opens no MCP session,
+        spawns no agent, persists nothing and calls
+        no model.
+        """
+        from ..core import external_agents as external_module
+        book = book if book is not None \
+            else external_module.load_external_agents()
+        validated = external_module.build_book(book)
+        fingerprint = (tuple(validated.member_ids()), validated.title)
+        recorded = getattr(self, "_external_agents_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._external_agents_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this seat book is already recorded for "
+                "the session; a book is recorded once")
+        registry = self._external_agents_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._external_agents_held = validated
+        records = [
+            external_module.seat_record(seat)
+            for seat in validated.seats]
+        for record in records:
+            self._publish_external_record(record)
+        return {
+            "book": validated.to_record(),
+            "seats": [s.to_record() for s in validated.seats],
+            "records": records,
+            "count": len(records),
+            "screen": external_module.format_external_agents_screen(
+                validated),
+            "explanation": external_module.PLAIN_EXPLANATION,
+        }
+
+    def report_external_agents(self) -> dict[str, Any]:
+        """Render the session seat book, as a report (M-137).
+
+        The book - the held registry's book when the
+        session holds any seat, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - is rendered through the pure
+        formatters alone: its seats, its checks, its
+        transports and its one screen. Rendering
+        registers and publishes nothing, opens no MCP
+        session, spawns no agent, persists nothing
+        and calls no model: the agent layer renders
+        the seats as data, and a seat is never a
+        connection. Returns the book, its seats and
+        checks as plain records, the rendered seats,
+        checks and transports, the screen, and the
+        plain explanation.
+        """
+        from ..core import external_agents as external_module
+        registry = self._external_agents_registry()
+        book = self.external_agents()
+        if registry.list_seats():
+            screen = external_module.format_external_agents_screen(book)
+        else:
+            screen = external_module.format_external_agents_screen()
+        return {
+            "book": book.to_record(),
+            "seats": [s.to_record() for s in book.seats],
+            "checks": [c.to_record() for c in book.checks],
+            "seats_text": external_module.format_seats(book),
+            "check_text": external_module.format_check(book),
+            "transports": external_module.format_transports(),
+            "screen": screen,
+            "explanation": external_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_external_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one external seat as session news (M-137).
+
+        The pure layer's ``seat_record`` is journaled
+        through the same checkpoint road every sibling
+        slice uses, when a session is attached. Each
+        member's seat is announced at most once, under
+        its own member id. A foreign record type is
+        never published on this road.
+        """
+        if record.get("type") != "external_seat":
+            return
+        member = record.get("member")
+        member_id = member.get("member_id") \
+            if isinstance(member, dict) else member
+        announced = getattr(self, "_external_agents_announced", None)
+        if announced is None:
+            announced = set()
+            self._external_agents_announced = announced
+        key = ("external_seat", member_id)
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 
 class AgentManager:
