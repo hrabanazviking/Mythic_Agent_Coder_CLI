@@ -931,7 +931,7 @@ slices:
   title: The @-mention canon
   summary: '`@file`, `@folder`, `@symbol`, `@url`, `@image`, `@session`, `@issue` — one grammar for pulling
     anything into context, in TUI and headless alike.'
-  status: queued
+  status: done
 - id: M-149
   part: 7
   title: Instruction files unified
