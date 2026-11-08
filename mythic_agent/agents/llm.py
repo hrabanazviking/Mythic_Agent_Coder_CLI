@@ -23929,6 +23929,578 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-154: cross-project memory --
+
+    def _cross_project_registry(self):
+        """The held cross-project registry (M-154).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer lesson and offer
+        records one by one, beside the session
+        session-memory registry (M-153) and never in
+        it: the cross-project book is one book of
+        lessons with their provenance whole and the
+        offers standing on them. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named ``_cross_project_store``,
+        never the method's own name (the M-108
+        lesson).
+        """
+        registry = getattr(self, "_cross_project_store", None)
+        if registry is None:
+            from ..core.cross_project_memory import (
+                CrossProjectRegistry)
+            registry = CrossProjectRegistry()
+            self._cross_project_store = registry
+        return registry
+
+    def cross_project_book(self):
+        """The session's cross-project book, as data (M-154).
+
+        The held registry's book when the session
+        holds any lesson - the lessons and offers the
+        session has actually gathered (records held
+        one by one, before any whole book stands
+        recorded, stand under a session cross-project
+        book composed here in the agent layer, so a
+        later whole book recorded under its own title
+        is never refused by a shim title at the
+        registry) - otherwise the book recorded whole
+        through :meth:`record_cross_project_book`,
+        or the shipped example cross-project book
+        until one is recorded. Reading registers and
+        publishes nothing.
+        """
+        from ..core.cross_project_memory import (
+            CrossProjectBook, load_cross_project_memory)
+        registry = self._cross_project_registry()
+        if registry.list_lessons():
+            try:
+                book = registry.book()
+            except ValueError:
+                return CrossProjectBook(
+                    title="Cross-project memory",
+                    lessons=registry.list_lessons(),
+                    offers=registry.list_offers())
+            held = getattr(self, "_cross_project_held", None)
+            if held is not None and held.title == book.title \
+                    and held.lesson_ids() == book.lesson_ids() \
+                    and held.offer_ids() == book.offer_ids():
+                return held
+            return book
+        book = getattr(self, "_cross_project_held", None)
+        if book is None:
+            return load_cross_project_memory()
+        return book
+
+    def _cross_project_screen(self) -> str:
+        """The /crossmemory screen for the session's state (M-154).
+
+        Rendered from the held book when one stands,
+        and from the shipped example book while
+        nothing is held.
+        """
+        from ..core import cross_project_memory as cross_module
+        registry = self._cross_project_registry()
+        if not registry.list_lessons():
+            return cross_module.format_cross_project_screen()
+        return cross_module.format_cross_project_screen(
+            self.cross_project_book())
+
+    def cross_project_status(self) -> dict[str, Any]:
+        """The cross-project account, in plain data (M-154).
+
+        The lessons and offers held this session as
+        plain records, the held book's record (none
+        until a lesson stands held), the session
+        cross-project book's pieces as plain records
+        (the shipped example book - three lessons at
+        the M-153 slice boundary, one accepted into a
+        sibling project, one on offer and one
+        declined, with its one pinned panel - until
+        lessons are held), its whole-book record, the
+        exchange panel derived from the whole book and
+        every panel the book holds as plain records,
+        the latest lesson in plain words and the
+        panel told in plain words, the one screen -
+        rendered from the held book, or from the
+        shipped example book when nothing is held
+        yet - and the plain explanation. Reading
+        registers and publishes nothing, calls no
+        model and writes no project's files: this
+        layer holds lessons and offers as data only.
+        There is no Part VIII board yet; the screen
+        is where the exchange is visible.
+        """
+        from ..core import cross_project_memory as cross_module
+        registry = self._cross_project_registry()
+        held_lessons = registry.list_lessons()
+        held_offers = registry.list_offers()
+        book = self.cross_project_book()
+        latest = book.lessons[-1]
+        return {
+            "lessons": [item.to_record() for item in held_lessons],
+            "offers": [item.to_record() for item in held_offers],
+            "book": (book.to_record() if held_lessons else None),
+            "cross_project": {
+                "title": book.title,
+                "lessons": [item.to_record() for item in book.lessons],
+                "offers": [item.to_record() for item in book.offers],
+            },
+            "book_record": cross_module.book_record(book),
+            "panel": (cross_module.derive_panel(book).to_record()
+                      if book.offers else None),
+            "panels": [p.to_record() for p in book.panels],
+            "plain_words": cross_module.plain_words(latest),
+            "panel_plain_words": (
+                cross_module.panel_plain_words(book)
+                if book.offers else ""),
+            "screen": self._cross_project_screen(),
+            "explanation": cross_module.PLAIN_EXPLANATION,
+        }
+
+    def get_cross_project_lesson(self, lesson_id: Any):
+        """The one shared lesson an id names (M-154).
+
+        The session's held registry answers when the
+        session holds any lesson; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held
+        session answers for its own book alone: an id
+        the held book holds no lesson for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._cross_project_registry()
+        if registry.list_lessons():
+            return registry.get_lesson(lesson_id)
+        return self.cross_project_book().lesson_for(lesson_id)
+
+    def get_cross_project_offer(self, offer_id: Any):
+        """The one lesson offer an id names (M-154).
+
+        The session's held registry answers when the
+        session holds any lesson; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held
+        session answers for its own book alone: an id
+        the held book holds no offer for raises
+        KeyError, with no silent fall back to the
+        example. Reading registers and publishes
+        nothing.
+        """
+        registry = self._cross_project_registry()
+        if registry.list_lessons():
+            return registry.get_offer(offer_id)
+        return self.cross_project_book().offer_for(offer_id)
+
+    def cross_project_panel(self):
+        """The exchange panel derived for the whole book (M-154).
+
+        The panel is derived at call time from the
+        session book whole - the held registry's book
+        when the session holds any lesson, otherwise
+        the shipped example book's (or the book
+        recorded whole for the session) - so its rows
+        are the offers with their lessons carried
+        whole, in panel order, and its totals are the
+        offers' own counts, read at call time. Reading
+        registers and publishes nothing.
+        """
+        from ..core.cross_project_memory import (
+            derive_panel as _derive_panel)
+        return _derive_panel(self.cross_project_book())
+
+    def accepted_cross_project_lessons(self, target_project: Any):
+        """The lessons standing accepted into one project (M-154).
+
+        Read off the session book whole at call time:
+        only accepted offers stand, each lesson with
+        its provenance whole. An offered, declined or
+        withdrawn lesson stands nowhere in the
+        target. Reading registers and publishes
+        nothing, and copies nothing into any
+        project's own records.
+        """
+        from ..core.cross_project_memory import (
+            accepted_lessons as _accepted)
+        return _accepted(self.cross_project_book(), target_project)
+
+    def register_cross_project_lesson(
+            self, lesson: Any) -> dict[str, Any]:
+        """Hold one shared lesson for the session (M-154).
+
+        The lesson is held by the pure registry under
+        its id or the deterministic lesson-N id - a
+        lesson id already standing here refuses, as
+        does a fact one project already stands here,
+        and a refusal holds nothing new and publishes
+        nothing. A held lesson is published as its
+        ``lesson_record`` session-news record through
+        the checkpoint road, so a lesson named into
+        the session is news. Returns the held lesson,
+        its news record, the screen rendered after it
+        landed, and the plain explanation. Holding a
+        lesson calls no model and writes no project's
+        files: the registry holds the lesson as data,
+        provenance whole.
+        """
+        from ..core import cross_project_memory as cross_module
+        registry = self._cross_project_registry()
+        held = registry.register_lesson(lesson)
+        lesson_news = cross_module.lesson_record(held)
+        self._publish_cross_project_record(lesson_news)
+        return {
+            "lesson": held.to_record(),
+            "lesson_news": lesson_news,
+            "screen": self._cross_project_screen(),
+            "explanation": cross_module.PLAIN_EXPLANATION,
+        }
+
+    def register_cross_project_offer(
+            self, offer: Any) -> dict[str, Any]:
+        """Hold one lesson offer for the session (M-154).
+
+        The offer is held by the pure registry,
+        judged exactly as a book judges it: its
+        lesson must already stand held here, its
+        target is never the lesson's own project, and
+        no lesson is offered twice to one target - a
+        refusal holds nothing new and publishes
+        nothing. A held offer is published as its
+        ``offer_record`` session-news record through
+        the checkpoint road, and the exchange panel
+        derived from the whole held registry as its
+        ``panel_record`` session news, so an offer
+        named into the session is news. Returns the
+        held offer, its news record, the panel and
+        its news record, the screen rendered after it
+        landed, and the plain explanation. Holding an
+        offer enters nothing into the target project:
+        the state is the whole act, and only the
+        accepted state lets a lesson stand in a
+        target, derived at call time.
+        """
+        from ..core import cross_project_memory as cross_module
+        registry = self._cross_project_registry()
+        held = registry.register_offer(offer)
+        offer_news = cross_module.offer_record(held)
+        self._publish_cross_project_record(offer_news)
+        panel = cross_module.derive_panel(registry)
+        panel_news = cross_module.panel_record(panel)
+        self._publish_cross_project_record(panel_news)
+        return {
+            "offer": held.to_record(),
+            "offer_news": offer_news,
+            "panel": panel.to_record(),
+            "panel_record": panel_news,
+            "screen": self._cross_project_screen(),
+            "explanation": cross_module.PLAIN_EXPLANATION,
+        }
+
+    def offer_memory_map_lessons(
+            self, target_project: Any, *,
+            source_project: Any, context: Any,
+            evidence: Any) -> dict[str, Any]:
+        """Offer this project's memory-map lessons onward (M-154).
+
+        This slice's own road: the session's project
+        memory map book (the M-150 road) is read onto
+        shared lessons BY IMPORT through the pure
+        layer's ``lessons_from_memory_map`` - every
+        entry of the map, under one provenance frame
+        (the source project, the context the lessons
+        were learned in, and the evidence they stand
+        on, all three named by the caller) - and each
+        lesson is held and offered to the named
+        target project in the offered state. A target
+        that is the source project itself refuses
+        before anything is held, as does a lesson
+        already standing here: the road holds nothing
+        twice and contaminates nothing silently.
+        Every lesson is published as its
+        ``lesson_record`` session news, in map order,
+        every offer as its ``offer_record`` session
+        news, and the exchange panel derived from the
+        whole held registry as its ``panel_record``
+        session news. Returns the held lessons, their
+        news records, the offers and their news
+        records, the panel news record, the counts,
+        the screen, and the explanation. Offering
+        calls no model and writes no project's files:
+        the target's own memory is untouched - the
+        offers stand here, as explicit states, until
+        the target's word accepts one.
+        """
+        from ..core import cross_project_memory as cross_module
+        lessons = cross_module.lessons_from_memory_map(
+            self.project_memory_map_book(),
+            source_project=source_project,
+            context=context, evidence=evidence)
+        if not lessons:
+            raise ValueError(
+                "the session's memory map holds no lessons to offer")
+        registry = self._cross_project_registry()
+        held_ids = {item.lesson_id for item in registry.list_lessons()}
+        for lesson in lessons:
+            if lesson.lesson_id in held_ids:
+                raise ValueError(
+                    f"a lesson named {lesson.lesson_id!r} "
+                    f"already exists")
+        target = cross_module.build_offer({
+            "lesson_id": lessons[0].lesson_id,
+            "target_project": target_project,
+            "state": "offered", "note": "standing offer"})
+        if target.target_project == lessons[0].source_project:
+            raise ValueError(
+                "lessons are offered to another project, "
+                "never to their own")
+        lesson_news = []
+        offer_news = []
+        for lesson in lessons:
+            held_lesson = registry.register_lesson(lesson)
+            news = cross_module.lesson_record(held_lesson)
+            self._publish_cross_project_record(news)
+            lesson_news.append(news)
+            held_offer = registry.register_offer({
+                "lesson_id": held_lesson.lesson_id,
+                "target_project": target.target_project,
+                "state": "offered",
+                "note": (
+                    f"Offered from {held_lesson.source_project}'s "
+                    f"memory map; standing until the target's "
+                    f"word accepts it.")})
+            news = cross_module.offer_record(held_offer)
+            self._publish_cross_project_record(news)
+            offer_news.append(news)
+        panel = cross_module.derive_panel(registry)
+        panel_news = cross_module.panel_record(panel)
+        self._publish_cross_project_record(panel_news)
+        return {
+            "lessons": [item.to_record() for item in lessons],
+            "lessons_news": lesson_news,
+            "offers": offer_news,
+            "panel_record": panel_news,
+            "count": len(lesson_news),
+            "screen": self._cross_project_screen(),
+            "explanation": cross_module.PLAIN_EXPLANATION,
+        }
+
+    def register_cross_project_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole cross-project book for the session (M-154).
+
+        Every lesson and offer of the book is held by
+        the pure registry, in book order - the first
+        book held sets the registry's title, a later
+        book under a different title refuses, as does
+        a book naming a held lesson or offer id. The
+        book's panels are derivations, not holdings,
+        and are not held. Every lesson is published
+        as its ``lesson_record`` session news, in
+        book order, every offer as its
+        ``offer_record`` session news, and the
+        exchange panel derived from the whole book as
+        its ``panel_record`` session news. Returns
+        the held book, its lessons and offers, their
+        news records, the panel news record, the
+        counts of lessons and offers held, the
+        screen, and the explanation. Registering
+        calls no model and writes no project's files.
+        """
+        from ..core import cross_project_memory as cross_module
+        validated = cross_module.build_book(book)
+        registry = self._cross_project_registry()
+        registry.register_book(validated)
+        lessons = [
+            cross_module.lesson_record(lesson)
+            for lesson in validated.lessons]
+        for lesson_news in lessons:
+            self._publish_cross_project_record(lesson_news)
+        offers = [
+            cross_module.offer_record(offer)
+            for offer in validated.offers]
+        for offer_news in offers:
+            self._publish_cross_project_record(offer_news)
+        panel_news = cross_module.panel_record(
+            cross_module.derive_panel(validated))
+        self._publish_cross_project_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "lessons": [
+                item.to_record() for item in validated.lessons],
+            "lessons_news": lessons,
+            "offers": [
+                item.to_record() for item in validated.offers],
+            "offers_news": offers,
+            "panel_record": panel_news,
+            "count": len(lessons),
+            "offer_count": len(offers),
+            "screen": self._cross_project_screen(),
+            "explanation": cross_module.PLAIN_EXPLANATION,
+        }
+
+    def record_cross_project_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole cross-project book for the session (M-154).
+
+        With no book named, the shipped example
+        cross-project book is recorded through the
+        pure layer - three lessons at the M-153 slice
+        boundary, one accepted into a sibling
+        project, one on offer and one declined, with
+        its one pinned panel. A book loaded from a
+        file (the pure layer's
+        ``load_cross_project_memory_file`` road) may
+        be passed instead, so a real cross-project
+        book is recorded as it stands. Every lesson
+        is held and published as its ``lesson_record``
+        session news, in book order, every offer as
+        its ``offer_record`` session news, and the
+        exchange panel as its ``panel_record``
+        session news; the book is remembered whole as
+        the session's - its held panel and all - and
+        the same book recorded twice refuses -
+        fingerprinted on its lesson ids, offer ids
+        and title - a book is recorded once, never
+        duplicated into the session. Returns the held
+        book, its lessons and offers, their news
+        records, the panel news record, the counts,
+        the screen, and the explanation. Recording
+        calls no model.
+        """
+        from ..core import cross_project_memory as cross_module
+        book = book if book is not None \
+            else cross_module.load_cross_project_memory()
+        validated = cross_module.build_book(book)
+        fingerprint = (
+            tuple(validated.lesson_ids()),
+            tuple(validated.offer_ids()), validated.title)
+        recorded = getattr(self, "_cross_project_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._cross_project_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this cross-project book is already recorded "
+                "for the session; a book is recorded once")
+        registry = self._cross_project_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._cross_project_held = validated
+        lessons = [
+            cross_module.lesson_record(lesson)
+            for lesson in validated.lessons]
+        for lesson_news in lessons:
+            self._publish_cross_project_record(lesson_news)
+        offers = [
+            cross_module.offer_record(offer)
+            for offer in validated.offers]
+        for offer_news in offers:
+            self._publish_cross_project_record(offer_news)
+        panel_news = cross_module.panel_record(
+            cross_module.derive_panel(validated))
+        self._publish_cross_project_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "lessons": [
+                item.to_record() for item in validated.lessons],
+            "lessons_news": lessons,
+            "offers": [
+                item.to_record() for item in validated.offers],
+            "offers_news": offers,
+            "panel_record": panel_news,
+            "count": len(lessons),
+            "offer_count": len(offers),
+            "screen": cross_module.format_cross_project_screen(
+                validated),
+            "explanation": cross_module.PLAIN_EXPLANATION,
+        }
+
+    def report_cross_project_memory(self) -> dict[str, Any]:
+        """Render the session cross-project book, as a report (M-154).
+
+        The book - the held registry's book when the
+        session holds any lesson, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone: its lessons, its
+        offers, its derived panel and its one screen.
+        Rendering registers and publishes nothing,
+        calls no model and writes no project's files:
+        the agent layer renders the exchange as data.
+        Returns the book, its lessons, offers and
+        panels as plain records, the derived panel,
+        the rendered lessons, offers and panel, the
+        screen, and the plain explanation.
+        """
+        from ..core import cross_project_memory as cross_module
+        book = self.cross_project_book()
+        return {
+            "book": book.to_record(),
+            "lessons": [item.to_record() for item in book.lessons],
+            "offers": [item.to_record() for item in book.offers],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (cross_module.derive_panel(book).to_record()
+                      if book.offers else None),
+            "lessons_text": cross_module.format_lessons(book),
+            "offers_text": cross_module.format_offers(book),
+            "panel_text": cross_module.format_panel(book),
+            "screen": self._cross_project_screen(),
+            "explanation": cross_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_cross_project_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one cross-project record as session news (M-154).
+
+        The pure layer's ``lesson_record``,
+        ``offer_record`` and ``panel_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once per shape: a lesson under its own lesson
+        id, source project and title, an offer under
+        its whole standing (its offer id, lesson,
+        target and state - so an offer whose state
+        moves announces again as the new figure it
+        is), and a panel under its whole derived
+        shape (its rows and totals), so a panel grown
+        by a newly held offer announces again as the
+        new figure it is. A foreign record type is
+        never published on this road.
+        """
+        if record.get("type") == "cross_project_lesson":
+            key = ("cross_project_lesson",
+                   record.get("lesson_id"),
+                   record.get("source_project"),
+                   record.get("title"))
+        elif record.get("type") == "cross_project_offer":
+            key = ("cross_project_offer", record.get("offer_id"),
+                   record.get("lesson_id"),
+                   record.get("target_project"),
+                   record.get("state"))
+        elif record.get("type") == "cross_project_panel":
+            key = ("cross_project_panel", record.get("panel_id"),
+                   tuple(row.get("lesson_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_items"))
+        else:
+            return
+        announced = getattr(self, "_cross_project_announced", None)
+        if announced is None:
+            announced = set()
+            self._cross_project_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
