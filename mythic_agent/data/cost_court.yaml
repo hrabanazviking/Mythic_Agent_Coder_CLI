@@ -1,0 +1,118 @@
+schema: mythic.cost_court/1
+slice: M-140
+part: 6
+part_title: Agents as files
+court_note: |
+  Cost court: crew runs report cost per member
+  per slice; the Scribe keeps the ledger that
+  Part XI's efficiency work reads. A court book
+  holds one run record per model run of the crew
+  run, in held order: each record names the
+  member who ran, the slice the run served, the
+  model and the input / output tokens - and
+  names no cost, because a record's cost is
+  derived from the shared rate table
+  (core/costs.py), never stored on the record. A
+  report of one member's cost on one slice is
+  derived from that pair's records - its calls,
+  token totals, cost, unpriced count and account
+  read off the records - and a stored report that
+  disagrees with the derived one is refused. The
+  Scribe's ledger is derived from the whole
+  book: its rows are the per-member-per-slice
+  reports in the order the records first name
+  them, its totals are the rows' sums and its
+  account is read off the rows; a stored ledger
+  that disagrees refuses. This file is ONE
+  EXAMPLE COURT BOOK in the shape a real court
+  file takes: the M-139 boundary run - the forge
+  worker's two priced calls and the auditor's one
+  priced call on M-139, and the Scribe's two
+  calls on M-138, one of them on a model the rate
+  table does not know, priced at $0 and counted
+  unpriced - and the Scribe's one ledger of it.
+  A real court book is a new file in this same
+  shape - it is never this file edited in place.
+  This layer holds costs as data only: it calls
+  no model, bills no one and charges nothing.
+guide:
+  title: "Cost court at the M-139 slice boundary"
+entries:
+- entry_id: entry-m139-forge-a
+  member: forge_worker
+  slice_id: M-139
+  model: claude-3-5-sonnet
+  input_tokens: 12000
+  output_tokens: 3000
+- entry_id: entry-m139-forge-b
+  member: forge_worker
+  slice_id: M-139
+  model: claude-3-5-sonnet
+  input_tokens: 8000
+  output_tokens: 2000
+- entry_id: entry-m139-auditor
+  member: auditor
+  slice_id: M-139
+  model: gpt-4o-mini
+  input_tokens: 5000
+  output_tokens: 1000
+- entry_id: entry-m138-scribe-a
+  member: scribe
+  slice_id: M-138
+  model: qwen-2.5-72b
+  input_tokens: 10000
+  output_tokens: 4000
+- entry_id: entry-m138-scribe-b
+  member: scribe
+  slice_id: M-138
+  model: mystery-model
+  input_tokens: 2000
+  output_tokens: 500
+ledgers:
+- ledger_id: ledger-m139-boundary
+  keeper: scribe
+  rows:
+  - member: forge_worker
+    slice_id: M-139
+    entry_ids: [entry-m139-forge-a, entry-m139-forge-b]
+    calls: 2
+    input_tokens: 20000
+    output_tokens: 5000
+    cost_usd: 0.135
+    unpriced_calls: 0
+    account:
+    - "Member forge_worker spent $0.135000 on slice M-139."
+    - "2 call(s), 20000 input tokens and 5000 output tokens on M-139."
+    - "Every call was priced from the shared cost table."
+  - member: auditor
+    slice_id: M-139
+    entry_ids: [entry-m139-auditor]
+    calls: 1
+    input_tokens: 5000
+    output_tokens: 1000
+    cost_usd: 0.00135
+    unpriced_calls: 0
+    account:
+    - "Member auditor spent $0.001350 on slice M-139."
+    - "1 call(s), 5000 input tokens and 1000 output tokens on M-139."
+    - "Every call was priced from the shared cost table."
+  - member: scribe
+    slice_id: M-138
+    entry_ids: [entry-m138-scribe-a, entry-m138-scribe-b]
+    calls: 2
+    input_tokens: 12000
+    output_tokens: 4500
+    cost_usd: 0.0051
+    unpriced_calls: 1
+    account:
+    - "Member scribe spent $0.005100 on slice M-138."
+    - "2 call(s), 12000 input tokens and 4500 output tokens on M-138."
+    - "1 call(s) used unpriced models and billed $0."
+  total_calls: 5
+  total_input_tokens: 37000
+  total_output_tokens: 10500
+  total_cost_usd: 0.14145
+  account:
+  - "The Scribe keeps this ledger: 3 member-slice row(s) across 2 slice(s)."
+  - "Total: $0.141450 from 5 call(s), 37000 input tokens and 10500 output tokens."
+  - "Part XI's efficiency work reads this ledger."
