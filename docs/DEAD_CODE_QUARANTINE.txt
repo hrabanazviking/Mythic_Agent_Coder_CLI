@@ -235,3 +235,6 @@ mythic_agent/agents/llm.py:15899:record_crew_memory:method
 mythic_agent/agents/llm.py:15956:report_crew_memory:method
 mythic_agent/core/crew_memory.py:554:entries_for:method
 mythic_agent/core/crew_memory.py:839:entries_for:method
+mythic_agent/agents/llm.py:16191:register_stand_up_entry:method
+mythic_agent/agents/llm.py:16236:record_stand_up_report:method
+mythic_agent/agents/llm.py:16295:report_stand_up:method
