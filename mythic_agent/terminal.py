@@ -276,7 +276,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /changeset [on|off] /rename [on|off|<old-path> <new-path>] /generated [on|off|<path>|mark <path> <generator>] /largefile [on|off|<path>]/largefile [on|off|<path>] /stash [show|on|off|shelve <name>|restore <name>|drop <name>] /patch [show|on|off|export <set name>|import <patch file>] /editor [show|on|off|file <path>|prompt] /diff [show|on|off|unified|side-by-side|whitespace|whitespace off] /blame [show|on|off|<path> [<line>]] /massedit [show|on|off] /posture [show|<profile name>] /remember [list|forget <id>|clear] /sandbox [show|on|off|truth|plan <command>] /network [show|on|off|list|check <tool> <host>|allow <tool> <domain>] /pathjail [show|on|off|grants|check <path>|grant <abs-path>] /plan [show|on|off|approve|build|check <effect>] /hooks [show|show <event>|check <event>] /hookpacks [show|show <pack>|install <pack>] /background [show|show <job>|tail [<job>]|kill <job>|start <command...>] /keeper [show|show <target>|check|heartbeat <target>] /schedule [show|show <job>|check] /fleet [show|show <task>|verdict|resume] /budgets [show|show <budget>|check|check <budget>] /halt [show|show <halt>|pull|pull <target>] /audit [show|show <entry>|export] /secrets [show|show <screening>|check <file>] /doctrine [show|show <judgement>|ladder|check <command>] /rollback [show|show <run>|drills|run <drill>] /multirepo [show|show <set>|repos] /remote [show|show <plan>|targets] /grace [show|show <record>|failures] /moment [show|show <record>|parts] /policy [show|plan|sections|apply] /crew [show|show <member>|office <office>] /offices [show|show <office>|handoffs <office>|contract <from> <to>] /offices custom [show|show <office>|handoffs <office>|contract <from> <to>] /worktrees [show|show <member>|plan|merges] /dealing [show|show <member>|plan|loads] /comms [show|show <member>|ask|kinds] /deadlock [show|show <member>|kinds] /merge [show|show <member>|lines|kinds] /hetero [show|show <member>|routes|kinds] /veto [show|show <slice>|gates|kinds] /swarm [show|show <member>|digest|sources|kinds] /panel [show|show <reviewer>|outcome|verdicts|kinds] /memory [show|show <member>|search <words>|tag <tag>|entry <entry-id>|members] /standup [show|digest|done|doing|blocked|needs-you|entry <entry-id>|kinds] /crewsize [show|recommend <case-id>|case <case-id>|solo|pair|crew|full-crew|kinds] /voices [show|profile <member-id>|report <report-id>|plain|warm|wry|grim|registers] /externals [show|seat <member-id>|check <member-id>|mcp|transports] /replay [show|step <step-id>|trace <step-id>] /foster [show|report <report-id>|redeal <slice-id>|escalation <report-id>] /costcourt [show|entry <entry-id>|member <member-id>|slice <slice-id>|ledger] /dogfood [show|entry <entry-id>|member <member-id>|slice <slice-id>|part <part-number>|ledger] /solo [show|capability <capability-id>|member <member-id>|report <member-id>|ledger] /templates [show|template <template>|member <member-id>|roster <template>|index] /issueslice [on|off|github <number>] /prcraft [on|off|tasks <pr>] /commitcraft [on|off|plan|commit <concern>|push] /guardians [word on|word off|check <path>] /autocommit [on|off|allow-protected|block-protected] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /changeset [on|off] /rename [on|off|<old-path> <new-path>] /generated [on|off|<path>|mark <path> <generator>] /largefile [on|off|<path>]/largefile [on|off|<path>] /stash [show|on|off|shelve <name>|restore <name>|drop <name>] /patch [show|on|off|export <set name>|import <patch file>] /editor [show|on|off|file <path>|prompt] /diff [show|on|off|unified|side-by-side|whitespace|whitespace off] /blame [show|on|off|<path> [<line>]] /massedit [show|on|off] /posture [show|<profile name>] /remember [list|forget <id>|clear] /sandbox [show|on|off|truth|plan <command>] /network [show|on|off|list|check <tool> <host>|allow <tool> <domain>] /pathjail [show|on|off|grants|check <path>|grant <abs-path>] /plan [show|on|off|approve|build|check <effect>] /hooks [show|show <event>|check <event>] /hookpacks [show|show <pack>|install <pack>] /background [show|show <job>|tail [<job>]|kill <job>|start <command...>] /keeper [show|show <target>|check|heartbeat <target>] /schedule [show|show <job>|check] /fleet [show|show <task>|verdict|resume] /budgets [show|show <budget>|check|check <budget>] /halt [show|show <halt>|pull|pull <target>] /audit [show|show <entry>|export] /secrets [show|show <screening>|check <file>] /doctrine [show|show <judgement>|ladder|check <command>] /rollback [show|show <run>|drills|run <drill>] /multirepo [show|show <set>|repos] /remote [show|show <plan>|targets] /grace [show|show <record>|failures] /moment [show|show <record>|parts] /policy [show|plan|sections|apply] /crew [show|show <member>|office <office>] /offices [show|show <office>|handoffs <office>|contract <from> <to>] /offices custom [show|show <office>|handoffs <office>|contract <from> <to>] /worktrees [show|show <member>|plan|merges] /dealing [show|show <member>|plan|loads] /comms [show|show <member>|ask|kinds] /deadlock [show|show <member>|kinds] /merge [show|show <member>|lines|kinds] /hetero [show|show <member>|routes|kinds] /veto [show|show <slice>|gates|kinds] /swarm [show|show <member>|digest|sources|kinds] /panel [show|show <reviewer>|outcome|verdicts|kinds] /memory [show|show <member>|search <words>|tag <tag>|entry <entry-id>|members] /standup [show|digest|done|doing|blocked|needs-you|entry <entry-id>|kinds] /crewsize [show|recommend <case-id>|case <case-id>|solo|pair|crew|full-crew|kinds] /voices [show|profile <member-id>|report <report-id>|plain|warm|wry|grim|registers] /externals [show|seat <member-id>|check <member-id>|mcp|transports] /replay [show|step <step-id>|trace <step-id>] /foster [show|report <report-id>|redeal <slice-id>|escalation <report-id>] /costcourt [show|entry <entry-id>|member <member-id>|slice <slice-id>|ledger] /dogfood [show|entry <entry-id>|member <member-id>|slice <slice-id>|part <part-number>|ledger] /solo [show|capability <capability-id>|member <member-id>|report <member-id>|ledger] /templates [show|template <template>|member <member-id>|roster <template>|index] /interrupts [show|interrupt <interrupt-id>|member <member-id>|slice <slice-id>|report <interrupt-id>|index] /issueslice [on|off|github <number>] /prcraft [on|off|tasks <pr>] /commitcraft [on|off|plan|commit <concern>|push] /guardians [word on|word off|check <path>] /autocommit [on|off|allow-protected|block-protected] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
         return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /issueslice [on|off|github <number>] /prcraft [on|off|tasks <pr>] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
@@ -2151,6 +2151,52 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
                 return True, False, str(_exc)
             return True, False, _fmt_tindex(_index)
         return True, False, agent.crew_templates_status()["screen"]
+    if command == "/interrupts":
+        # M-144 terminal road: show the crew interrupt
+        # book held this session (the shipped example
+        # book when none is held), show one pause
+        # record, one member's pauses, one slice's
+        # pauses or one pause's derived consistency
+        # report, or show the interrupt index derived
+        # from the whole book, on the pure layer's
+        # parser + formatters. This road pauses no
+        # member, halts no crew, signals no process,
+        # touches no worktree, writes no journal and
+        # persists nothing; the registry holds the
+        # records as data, and there is no Part VIII
+        # board yet - this screen is where the crew
+        # interrupts are visible.
+        from .core.crew_interrupts import format_index as _fmt_iindex, format_interrupt as _fmt_iinterrupt, format_interrupts as _fmt_iinterrupts, format_report as _fmt_ireport, parse_crew_interrupts_args as _parse_interrupts
+        try:
+            _act, _tgt = _parse_interrupts(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "interrupt":
+            try:
+                _interrupt = agent.get_crew_interrupt(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_iinterrupt(_interrupt)
+        if _act == "member":
+            return True, False, _fmt_iinterrupts(agent.crew_interrupts(), _tgt)
+        if _act == "slice":
+            _held = agent.crew_interrupts_for_slice(_tgt)
+            if _held:
+                return True, False, "\n".join(_fmt_iinterrupt(_e) for _e in _held)
+            return True, False, "No interrupt records are held."
+        if _act == "report":
+            try:
+                _report = agent.crew_interrupt_report(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_ireport(_report)
+        if _act == "index":
+            try:
+                _index = agent.crew_interrupt_index()
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_iindex(_index)
+        return True, False, agent.crew_interrupts_status()["screen"]
     if command == "/conflicts":
         from .core.conflict_workbench import (
             enabled_from_config,

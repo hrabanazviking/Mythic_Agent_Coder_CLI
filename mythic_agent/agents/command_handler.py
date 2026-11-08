@@ -321,6 +321,8 @@ class CommandHandler:
                 self._handle_solo(args)
             elif cmd == "/templates":
                 self._handle_templates(args)
+            elif cmd == "/interrupts":
+                self._handle_interrupts(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -4798,6 +4800,82 @@ class CommandHandler:
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
 
+
+
+    def _handle_interrupts(self, args: str):
+        """M-144: /interrupts - crew interrupts with grace.
+
+        ``/interrupts`` shows the crew interrupt book
+        held this session (the shipped example book -
+        four interrupt records at the M-143 slice
+        boundary, the roadmap's three pause scopes, and
+        its pinned index - when none is held yet);
+        ``/interrupts interrupt <interrupt-id>`` shows
+        one pause record; ``/interrupts member
+        <member-id>`` shows the pauses naming one
+        member; ``/interrupts slice <slice-id>`` shows
+        the pauses naming one slice; ``/interrupts
+        report <interrupt-id>`` shows one pause's
+        derived consistency report; ``/interrupts
+        index`` shows the interrupt index derived from
+        the whole book. Reading registers and publishes
+        nothing as session news: records are held only
+        when they are given through the agent layer,
+        and held records are published as crew_interrupt,
+        crew_interrupt_consistency and
+        crew_interrupt_index session events. This road
+        pauses no member, halts no crew, signals no
+        process, touches no worktree, writes no journal,
+        persists nothing and claims no board: the
+        registry holds the interrupts as data, no record
+        here claims a pause was ever carried out, and
+        there is no Part VIII board yet - this surface
+        is where the crew interrupts are visible. The
+        registry is session state held by the agent; it
+        is not a stored setting.
+        """
+        from ..core.crew_interrupts import (
+            format_index,
+            format_interrupt,
+            format_interrupts,
+            format_report,
+            parse_crew_interrupts_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_crew_interrupts_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "interrupt":
+                text = format_interrupt(primary.get_crew_interrupt(target))
+            elif action == "member":
+                text = format_interrupts(primary.crew_interrupts(), target)
+            elif action == "slice":
+                held = primary.crew_interrupts_for_slice(target)
+                if held:
+                    text = "\n".join(format_interrupt(e) for e in held)
+                else:
+                    text = "No interrupt records are held."
+            elif action == "report":
+                text = format_report(primary.crew_interrupt_report(target))
+            elif action == "index":
+                text = format_index(primary.crew_interrupt_index())
+            else:
+                text = primary.crew_interrupts_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
 
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.
