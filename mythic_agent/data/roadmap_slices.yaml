@@ -858,7 +858,7 @@ slices:
   part: 6
   title: Crew sizing honesty
   summary: the app recommends crew size by task shape and says when one pair of hands beats six.
-  status: queued
+  status: done
 - id: M-136
   part: 6
   title: Agent character voices
