@@ -313,6 +313,8 @@ class CommandHandler:
                 self._handle_replay(args)
             elif cmd == "/foster":
                 self._handle_foster(args)
+            elif cmd == "/costcourt":
+                self._handle_costcourt(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -4512,6 +4514,72 @@ class CommandHandler:
                     primary.fostering_escalation(target))
             else:
                 text = primary.failure_fostering_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_costcourt(self, args: str):
+        """M-140: /costcourt - cost court.
+
+        ``/costcourt`` shows the court book held this
+        session (the shipped example book - five run
+        records at the M-139 slice boundary and the
+        Scribe's ledger of them - when none is held
+        yet); ``/costcourt entry <entry-id>`` shows
+        one run record; ``/costcourt member
+        <member-id>`` shows one member's records;
+        ``/costcourt slice <slice-id>`` shows one
+        slice's records; ``/costcourt ledger`` shows
+        the Scribe's ledger derived from the whole
+        book. Reading registers and publishes nothing
+        as session news: records are held only when
+        they are given through the agent layer, and
+        held records are published as a
+        cost_court_entry session event. This road
+        calls no model, bills no one, charges nothing,
+        persists nothing and claims no board: the
+        registry holds the court as data, and there
+        is no Part VIII board yet - this surface is
+        where the court is visible. The registry is
+        session state held by the agent; it is not a
+        stored setting.
+        """
+        from ..core.cost_court import (
+            format_entries,
+            format_entry,
+            format_ledger,
+            parse_cost_court_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_cost_court_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "entry":
+                text = format_entry(primary.get_cost_entry(target))
+            elif action == "member":
+                text = format_entries(primary.cost_court(), target)
+            elif action == "slice":
+                held = primary.cost_court().entries_on(target)
+                if held:
+                    text = "\n".join(format_entry(e) for e in held)
+                else:
+                    text = "No run records are held."
+            elif action == "ledger":
+                text = format_ledger(primary.scribe_ledger())
+            else:
+                text = primary.cost_court_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

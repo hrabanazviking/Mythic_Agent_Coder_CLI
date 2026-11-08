@@ -18296,6 +18296,387 @@ class Agent:
 
 
 
+    # -- M-140: cost court --
+
+    def _cost_court_registry(self):
+        """The held cost court registry (M-140).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer court book record by
+        record, beside the session fostering registry
+        (M-139) and never in it: the court book is one
+        book of run records - the member who ran, the
+        slice, the model and the tokens - held under
+        the book this slice names. It is created on
+        first use, so an agent whose ``__init__`` never
+        ran still holds exactly one. The attribute is
+        named ``_cost_court_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_cost_court_store", None)
+        if registry is None:
+            from ..core.cost_court import CourtRegistry
+            registry = CourtRegistry()
+            self._cost_court_store = registry
+        return registry
+
+    def cost_court(self):
+        """The session's cost court book, as data (M-140).
+
+        The held registry's book when the session
+        holds any run record - the records the session
+        has actually gathered (records held one by
+        one, before any whole book stands recorded,
+        stand under a session cost court book composed
+        here in the agent layer, so a later whole book
+        recorded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book recorded whole through
+        :meth:`record_cost_book`, or the shipped
+        example court book until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.cost_court import CostBook, load_cost_court
+        registry = self._cost_court_registry()
+        if registry.list_entries():
+            try:
+                book = registry.book()
+            except ValueError:
+                return CostBook(
+                    title="Session cost court book",
+                    entries=registry.list_entries())
+            held = getattr(self, "_cost_court_held", None)
+            if held is not None and held.title == book.title \
+                    and held.entry_ids() == book.entry_ids():
+                return held
+            return book
+        book = getattr(self, "_cost_court_held", None)
+        if book is None:
+            return load_cost_court()
+        return book
+
+    def _cost_court_screen(self) -> str:
+        """The /costcourt screen for the session's state (M-140).
+
+        Rendered from the held book when one stands,
+        and from the shipped example book while
+        nothing is held.
+        """
+        from ..core import cost_court as court_module
+        registry = self._cost_court_registry()
+        if not registry.list_entries():
+            return court_module.format_cost_court_screen()
+        return court_module.format_cost_court_screen(self.cost_court())
+
+    def cost_court_status(self) -> dict[str, Any]:
+        """The cost court, in plain data (M-140).
+
+        The run records held this session as plain
+        records, the held book's record (none until a
+        run record stands held), the session court
+        book's pieces as plain records (the shipped
+        example book - five run records at the M-139
+        slice boundary and the Scribe's one pinned
+        ledger - until records are held), its
+        whole-book record, every report the book
+        derives as plain records, every ledger the
+        book holds as plain records and the ledger
+        derived from the whole book, the records in
+        plain words and the reports and ledger told
+        in plain words, the one screen - rendered
+        from the held book, or from the shipped
+        example book when nothing is held yet - and
+        the plain explanation. Reading registers and
+        publishes nothing, calls no model, bills no
+        one, charges nothing and persists nothing:
+        this layer holds the court as data only.
+        There is no Part VIII board yet; the screen
+        is where the court is visible.
+        """
+        from ..core import cost_court as court_module
+        registry = self._cost_court_registry()
+        held_entries = registry.list_entries()
+        book = self.cost_court()
+        pairs: list = []
+        for entry in book.entries:
+            key = (entry.slice_id, entry.member)
+            if key not in pairs:
+                pairs.append(key)
+        reports = [
+            court_module.derive_report(book.entries, member, slice_id)
+            for slice_id, member in pairs]
+        ledger = court_module.derive_ledger(book.entries)
+        return {
+            "entries": [e.to_record() for e in held_entries],
+            "book": (book.to_record() if held_entries else None),
+            "court": {
+                "title": book.title,
+                "entries": [e.to_record() for e in book.entries],
+            },
+            "book_record": court_module.book_record(book),
+            "reports": [r.to_record() for r in reports],
+            "ledgers": [led.to_record() for led in book.ledgers],
+            "ledger": ledger.to_record(),
+            "plain_words": [
+                court_module.plain_words(entry) for entry in book.entries],
+            "report_plain_words": court_module.report_plain_words(book),
+            "ledger_plain_words": court_module.ledger_plain_words(book),
+            "screen": self._cost_court_screen(),
+            "explanation": court_module.PLAIN_EXPLANATION,
+        }
+
+    def get_cost_entry(self, entry_id: Any):
+        """The one run record an id names (M-140).
+
+        The session's held registry answers when the
+        session holds any run record; otherwise the
+        shipped example court book answers (or the
+        book recorded whole for the session). A held
+        session answers for its own book alone: a
+        record the held book holds no record for
+        raises KeyError, with no silent fall back to
+        the example, exactly as the pure layer
+        answers. Reading registers and publishes
+        nothing.
+        """
+        registry = self._cost_court_registry()
+        if registry.list_entries():
+            return registry.get_entry(entry_id)
+        return self.cost_court().entry_for(entry_id)
+
+    def cost_report(self, member: Any, slice_id: Any):
+        """The report derived for one member on one slice (M-140).
+
+        The report is derived at call time from the
+        run records naming the member and the slice -
+        the held registry's records when the session
+        holds any run record, otherwise the shipped
+        example book's records (or the records of the
+        book recorded whole for the session) - so its
+        totals and account are the records' own sums,
+        read at call time. A held session answers for
+        its own book alone: a member and slice the
+        held book holds no record for raises KeyError,
+        with no silent fall back to the example.
+        Reading registers and publishes nothing.
+        """
+        from ..core.cost_court import derive_report as _derive_report
+        registry = self._cost_court_registry()
+        if registry.list_entries():
+            return registry.report_for(member, slice_id)
+        return _derive_report(self.cost_court(), member, slice_id)
+
+    def scribe_ledger(self):
+        """The Scribe's ledger derived for the whole book (M-140).
+
+        The ledger is derived at call time from the
+        whole book of run records - the held
+        registry's records when the session holds any
+        run record, otherwise the shipped example
+        book's records (or the records of the book
+        recorded whole for the session) - so its rows
+        are the per-member-per-slice reports of those
+        records and its totals are the rows' own sums,
+        read at call time; the keeper is always the
+        Scribe. Reading registers and publishes
+        nothing.
+        """
+        from ..core.cost_court import derive_ledger as _derive_ledger
+        registry = self._cost_court_registry()
+        if registry.list_entries():
+            return registry.ledger()
+        return _derive_ledger(self.cost_court().entries)
+
+    def register_cost_entry(
+            self, entry: Any) -> dict[str, Any]:
+        """Hold one run record for the session (M-140).
+
+        The record is held by the pure registry under
+        its id or the deterministic court-N id - a
+        record id already standing here refuses, and
+        a refusal holds nothing new and publishes
+        nothing. A held record is published as its
+        ``entry_record`` session-news record through
+        the checkpoint road, so a record given is
+        news with its derived cost attached. Returns
+        the held record, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a record calls no model,
+        bills no one, charges nothing and persists
+        nothing: the registry holds the record as
+        data, and a report or ledger stays a
+        derivation read off the held records at call
+        time.
+        """
+        from ..core import cost_court as court_module
+        registry = self._cost_court_registry()
+        held = registry.register_entry(entry)
+        record = court_module.entry_record(held)
+        self._publish_cost_court_record(record)
+        return {
+            "entry": held.to_record(),
+            "record": record,
+            "screen": self._cost_court_screen(),
+            "explanation": court_module.PLAIN_EXPLANATION,
+        }
+
+    def register_cost_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole court book for the session (M-140).
+
+        Every run record of the book is held by the
+        pure registry, in book order - the first book
+        held sets the registry's title, a later book
+        under a different title refuses, as does a
+        book naming a held record id. The book's
+        reports and its ledger are derivations, not
+        holdings, and are not held. Every record is
+        published as its ``entry_record`` session
+        news, in book order. Returns the held book,
+        its records, their news records, the count of
+        records held, the screen, and the explanation.
+        Registering calls no model, bills no one,
+        charges nothing and persists nothing.
+        """
+        from ..core import cost_court as court_module
+        validated = court_module.build_book(book)
+        registry = self._cost_court_registry()
+        registry.register_book(validated)
+        records = [
+            court_module.entry_record(entry)
+            for entry in validated.entries]
+        for record in records:
+            self._publish_cost_court_record(record)
+        return {
+            "book": validated.to_record(),
+            "entries": [e.to_record() for e in validated.entries],
+            "records": records,
+            "count": len(records),
+            "screen": self._cost_court_screen(),
+            "explanation": court_module.PLAIN_EXPLANATION,
+        }
+
+    def record_cost_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole court book for the session (M-140).
+
+        With no book named, the shipped example court
+        book is recorded through the pure layer - five
+        run records at the M-139 slice boundary and
+        the Scribe's one pinned ledger. A book loaded
+        from a file (the pure layer's
+        ``load_cost_court_file`` road) may be passed
+        instead, so a real court book is recorded as
+        it stands. Every record is held and published
+        as its ``entry_record`` session news, in book
+        order; the book is remembered whole as the
+        session's - its held ledger and all - and the
+        same book recorded twice refuses -
+        fingerprinted on its entry ids and title - a
+        book is recorded once, never duplicated into
+        the session. Returns the held book, its
+        records, their news records, the count of
+        records held, the screen, and the explanation.
+        Recording calls no model, bills no one,
+        charges nothing and persists nothing.
+        """
+        from ..core import cost_court as court_module
+        book = book if book is not None \
+            else court_module.load_cost_court()
+        validated = court_module.build_book(book)
+        fingerprint = (tuple(validated.entry_ids()), validated.title)
+        recorded = getattr(self, "_cost_court_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._cost_court_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this cost court book is already recorded for "
+                "the session; a book is recorded once")
+        registry = self._cost_court_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._cost_court_held = validated
+        records = [
+            court_module.entry_record(entry)
+            for entry in validated.entries]
+        for record in records:
+            self._publish_cost_court_record(record)
+        return {
+            "book": validated.to_record(),
+            "entries": [e.to_record() for e in validated.entries],
+            "records": records,
+            "count": len(records),
+            "screen": court_module.format_cost_court_screen(validated),
+            "explanation": court_module.PLAIN_EXPLANATION,
+        }
+
+    def report_cost_court(self) -> dict[str, Any]:
+        """Render the session court book, as a report (M-140).
+
+        The book - the held registry's book when the
+        session holds any run record, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone: its run records,
+        its reports, its ledger and its one screen.
+        Rendering registers and publishes nothing,
+        calls no model, bills no one, charges nothing
+        and persists nothing: the agent layer renders
+        the court as data. Returns the book, its
+        records, reports and ledgers as plain records,
+        the rendered records, reports and ledger, the
+        screen, and the plain explanation.
+        """
+        from ..core import cost_court as court_module
+        book = self.cost_court()
+        pairs: list = []
+        for entry in book.entries:
+            key = (entry.slice_id, entry.member)
+            if key not in pairs:
+                pairs.append(key)
+        reports = [
+            court_module.derive_report(book.entries, member, slice_id)
+            for slice_id, member in pairs]
+        return {
+            "book": book.to_record(),
+            "entries": [e.to_record() for e in book.entries],
+            "reports": [r.to_record() for r in reports],
+            "ledgers": [led.to_record() for led in book.ledgers],
+            "ledger": court_module.derive_ledger(
+                book.entries).to_record(),
+            "entries_text": court_module.format_entries(book),
+            "report_text": court_module.format_report(book),
+            "ledger_text": court_module.format_ledger(book),
+            "screen": self._cost_court_screen(),
+            "explanation": court_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_cost_court_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one run record as session news (M-140).
+
+        The pure layer's ``entry_record`` is journaled
+        through the same checkpoint road every sibling
+        slice uses, when a session is attached. Each
+        record is announced at most once, under its
+        own entry id. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") != "cost_court_entry":
+            return
+        announced = getattr(self, "_cost_court_announced", None)
+        if announced is None:
+            announced = set()
+            self._cost_court_announced = announced
+        key = ("cost_court_entry", record.get("entry_id"))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
