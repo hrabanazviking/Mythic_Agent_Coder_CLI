@@ -22198,6 +22198,418 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-150: project memory map (Mythic law) --
+
+    def _project_memory_map_registry(self):
+        """The held project memory map registry (M-150).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer entry records one by
+        one, beside the session instruction-files
+        registry (M-149) and never in it: the map is
+        one book of entry records - one fact of the
+        living map, its section, its title, the fact
+        itself, its source and where the thing it
+        names lives - under the book this slice names.
+        It is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly
+        one. The attribute is named
+        ``_project_memory_map_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_project_memory_map_store", None)
+        if registry is None:
+            from ..core.project_memory_map import MemoryMapRegistry
+            registry = MemoryMapRegistry()
+            self._project_memory_map_store = registry
+        return registry
+
+    def project_memory_map_book(self):
+        """The session's project memory map book, as data (M-150).
+
+        The held registry's book when the session
+        holds any entry - the facts the session has
+        actually gathered (entries held one by one,
+        before any whole book stands recorded, stand
+        under a session project memory map book
+        composed here in the agent layer, so a later
+        whole book recorded under its own title is
+        never refused by a shim title at the
+        registry) - otherwise the book recorded whole
+        through :meth:`record_project_memory_map_book`,
+        or the shipped example project memory map book
+        until one is recorded. Reading registers and
+        publishes nothing.
+        """
+        from ..core.project_memory_map import (
+            MemoryMapBook, load_project_memory_map)
+        registry = self._project_memory_map_registry()
+        if registry.list_entries():
+            try:
+                book = registry.book()
+            except ValueError:
+                return MemoryMapBook(
+                    title="Session project memory map",
+                    entries=registry.list_entries())
+            held = getattr(self, "_project_memory_map_held", None)
+            if held is not None and held.title == book.title \
+                    and held.entry_ids() == book.entry_ids():
+                return held
+            return book
+        book = getattr(self, "_project_memory_map_held", None)
+        if book is None:
+            return load_project_memory_map()
+        return book
+
+    def _project_memory_map_screen(self) -> str:
+        """The /memorymap screen for the session's state (M-150).
+
+        Rendered from the held book when one stands,
+        and from the shipped example book while
+        nothing is held.
+        """
+        from ..core import project_memory_map as map_module
+        registry = self._project_memory_map_registry()
+        if not registry.list_entries():
+            return map_module.format_project_memory_map_screen()
+        return map_module.format_project_memory_map_screen(
+            self.project_memory_map_book())
+
+    def project_memory_map_status(self) -> dict[str, Any]:
+        """The project memory map account, in plain data (M-150).
+
+        The entries held this session as plain
+        records, the held book's record (none until an
+        entry stands held), the session project memory
+        map book's pieces as plain records (the shipped
+        example book - nine facts at the M-149 slice
+        boundary, of every section, with its one pinned
+        panel - until entries are held), its whole-book
+        record, the panel derived from the whole book
+        and every panel the book holds as plain
+        records, the entries in plain words and the
+        panel told in plain words, the one screen -
+        rendered from the held book, or from the shipped
+        example book when nothing is held yet - and the
+        plain explanation. Reading registers and
+        publishes nothing, writes and edits no project
+        file: this layer holds the map as data only.
+        There is no Part VIII board yet; the screen is
+        where the map is visible.
+        """
+        from ..core import project_memory_map as map_module
+        registry = self._project_memory_map_registry()
+        held_entries = registry.list_entries()
+        book = self.project_memory_map_book()
+        return {
+            "entries": [e.to_record() for e in held_entries],
+            "book": (book.to_record() if held_entries else None),
+            "project_memory_map": {
+                "title": book.title,
+                "entries": [e.to_record() for e in book.entries],
+            },
+            "book_record": map_module.book_record(book),
+            "panel": map_module.derive_panel(book).to_record(),
+            "panels": [p.to_record() for p in book.panels],
+            "plain_words": [
+                map_module.plain_words(entry)
+                for entry in book.entries],
+            "panel_plain_words": map_module.panel_plain_words(book),
+            "screen": self._project_memory_map_screen(),
+            "explanation": map_module.PLAIN_EXPLANATION,
+        }
+
+    def get_memory_map_entry(self, entry_id: Any):
+        """The one entry an id names (M-150).
+
+        The session's held registry answers when the
+        session holds any entry; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). A held session answers
+        for its own book alone: an id the held book
+        holds no entry for raises KeyError, with no
+        silent fall back to the example, exactly as
+        the pure layer answers. Reading registers and
+        publishes nothing.
+        """
+        registry = self._project_memory_map_registry()
+        if registry.list_entries():
+            return registry.get_entry(entry_id)
+        return self.project_memory_map_book().entry_for(entry_id)
+
+    def project_memory_map_for_section(self, section: Any):
+        """Every entry of one section (M-150).
+
+        Read off the session's book - the held
+        registry's book when the session holds any
+        entry, otherwise the shipped example book (or
+        the book recorded whole for the session) - in
+        held order. A held session answers for its own
+        book alone, with no silent fall back to the
+        example. Reading registers and publishes
+        nothing.
+        """
+        return self.project_memory_map_book().entries_for_section(section)
+
+    def project_memory_map_panel(self):
+        """The panel derived for the whole book (M-150).
+
+        The panel is derived at call time from the
+        whole book of entries - the held registry's
+        entries when the session holds any entry,
+        otherwise the shipped example book's entries
+        (or the entries of the book recorded whole for
+        the session) - so its rows are the entries
+        carried whole, in map order, and its totals
+        are the entries' own counts, read at call
+        time, kept by the Scribe. Reading registers
+        and publishes nothing.
+        """
+        from ..core.project_memory_map import derive_panel as _derive_panel
+        return _derive_panel(self.project_memory_map_book())
+
+    def register_memory_map_entry(self, entry: Any) -> dict[str, Any]:
+        """Hold one project memory map entry for the session (M-150).
+
+        The entry is held by the pure registry under
+        its id or the deterministic map-N id - a record
+        id already standing here refuses, as does the
+        same fact already standing here in the same
+        section, and a refusal holds nothing new and
+        publishes nothing. A held entry is published
+        as its ``entry_record`` session-news record
+        through the checkpoint road, and the panel
+        derived from the held entries as its
+        ``panel_record`` session news, so a fact named
+        into the map is news. Returns the held entry,
+        its news record, the panel and its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding an entry writes and
+        edits no project file: the registry holds the
+        entry as data, and the panel stays a derivation
+        read off the held entries at call time.
+        """
+        from ..core import project_memory_map as map_module
+        registry = self._project_memory_map_registry()
+        held = registry.register_entry(entry)
+        record = map_module.entry_record(held)
+        self._publish_project_memory_map_record(record)
+        panel = map_module.derive_panel(registry)
+        panel_record = map_module.panel_record(panel)
+        self._publish_project_memory_map_record(panel_record)
+        return {
+            "entry": held.to_record(),
+            "record": record,
+            "panel": panel.to_record(),
+            "panel_record": panel_record,
+            "screen": self._project_memory_map_screen(),
+            "explanation": map_module.PLAIN_EXPLANATION,
+        }
+
+    def scan_and_register_project_memory_map(
+            self, workspace: Any) -> dict[str, Any]:
+        """Scan a workspace's convention file and hold its map (M-150).
+
+        The workspace's ``PROJECT_MEMORY_MAP.md`` is
+        read by the pure scan road - each heading
+        becoming one entry, composed onto the closed
+        sections - and every entry found is held by
+        the pure registry, in scan order, each
+        published as its ``entry_record`` session news
+        with the derived ``panel_record``. A fact
+        already standing here refuses, as the pure
+        layers refuse. Returns the held entries, their
+        news records, the panel news record, the count
+        held, the screen, and the plain explanation.
+        Scanning reads the convention file and writes
+        nothing: every file in the workspace is left
+        byte-identical.
+        """
+        from ..core import project_memory_map as map_module
+        found = map_module.scan_workspace(workspace)
+        records = []
+        held_records = []
+        panel_record = None
+        for entry in found:
+            outcome = self.register_memory_map_entry(entry)
+            held_records.append(outcome["entry"])
+            records.append(outcome["record"])
+            panel_record = outcome["panel_record"]
+        return {
+            "entries": held_records,
+            "records": records,
+            "panel_record": panel_record,
+            "count": len(records),
+            "screen": self._project_memory_map_screen(),
+            "explanation": map_module.PLAIN_EXPLANATION,
+        }
+
+    def register_project_memory_map_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole project memory map book for the session (M-150).
+
+        Every entry of the book is held by the pure
+        registry, in book order - the first book held
+        sets the registry's title, a later book under
+        a different title refuses, as does a book
+        naming a held entry id or a held fact. The
+        book's panels are derivations, not holdings,
+        and are not held. Every entry is published as
+        its ``entry_record`` session news, in book
+        order, and the book's derived panel as its
+        ``panel_record`` session news. Returns the
+        held book, its entries, their news records,
+        the panel news record, the count of entries
+        held, the screen, and the explanation.
+        Registering writes and edits no project file.
+        """
+        from ..core import project_memory_map as map_module
+        validated = map_module.build_book(book)
+        registry = self._project_memory_map_registry()
+        registry.register_book(validated)
+        records = [
+            map_module.entry_record(entry)
+            for entry in validated.entries]
+        for record in records:
+            self._publish_project_memory_map_record(record)
+        panel_record = map_module.panel_record(
+            map_module.derive_panel(validated))
+        self._publish_project_memory_map_record(panel_record)
+        return {
+            "book": validated.to_record(),
+            "entries": [e.to_record() for e in validated.entries],
+            "records": records,
+            "panel_record": panel_record,
+            "count": len(records),
+            "screen": self._project_memory_map_screen(),
+            "explanation": map_module.PLAIN_EXPLANATION,
+        }
+
+    def record_project_memory_map_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole project memory map book for the session (M-150).
+
+        With no book named, the shipped example project
+        memory map book is recorded through the pure
+        layer - nine facts at the M-149 slice boundary,
+        of every section, with its one pinned panel. A
+        book loaded from a file (the pure layer's
+        ``load_project_memory_map_file`` road) may be
+        passed instead, so a real project memory map
+        book is recorded as it stands. Every entry is
+        held and published as its ``entry_record``
+        session news, in book order, and the book's
+        derived panel as its ``panel_record`` session
+        news; the book is remembered whole as the
+        session's - its held panel and all - and the
+        same book recorded twice refuses - fingerprinted
+        on its entry ids and title - a book is recorded
+        once, never duplicated into the session. Returns
+        the held book, its entries, their news records,
+        the panel news record, the count of entries
+        held, the screen, and the explanation. Recording
+        writes and edits no project file.
+        """
+        from ..core import project_memory_map as map_module
+        book = book if book is not None \
+            else map_module.load_project_memory_map()
+        validated = map_module.build_book(book)
+        fingerprint = (tuple(validated.entry_ids()), validated.title)
+        recorded = getattr(self, "_project_memory_map_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._project_memory_map_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this project memory map book is already recorded "
+                "for the session; a book is recorded once")
+        registry = self._project_memory_map_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._project_memory_map_held = validated
+        records = [
+            map_module.entry_record(entry)
+            for entry in validated.entries]
+        for record in records:
+            self._publish_project_memory_map_record(record)
+        panel_record = map_module.panel_record(
+            map_module.derive_panel(validated))
+        self._publish_project_memory_map_record(panel_record)
+        return {
+            "book": validated.to_record(),
+            "entries": [e.to_record() for e in validated.entries],
+            "records": records,
+            "panel_record": panel_record,
+            "count": len(records),
+            "screen": map_module.format_project_memory_map_screen(
+                validated),
+            "explanation": map_module.PLAIN_EXPLANATION,
+        }
+
+    def report_project_memory_map(self) -> dict[str, Any]:
+        """Render the session project memory map book, as a report (M-150).
+
+        The book - the held registry's book when the
+        session holds any entry, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - is rendered through the pure
+        formatters alone: its entries, its panel and
+        its one screen. Rendering registers and
+        publishes nothing, writes and edits no project
+        file: the agent layer renders the map as data.
+        Returns the book, its entries and panels as
+        plain records, the derived panel, the rendered
+        entries and panel, the screen, and the plain
+        explanation.
+        """
+        from ..core import project_memory_map as map_module
+        book = self.project_memory_map_book()
+        return {
+            "book": book.to_record(),
+            "entries": [e.to_record() for e in book.entries],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": map_module.derive_panel(book).to_record(),
+            "entries_text": map_module.format_entries(book),
+            "panel_text": map_module.format_panel(book),
+            "screen": self._project_memory_map_screen(),
+            "explanation": map_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_project_memory_map_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one project memory map record as session news (M-150).
+
+        The pure layer's ``entry_record`` and
+        ``panel_record`` are journaled through the same
+        checkpoint road every sibling slice uses, when
+        a session is attached. Each record is announced
+        at most once: an entry under its own entry id,
+        and a panel under its whole derived shape (its
+        rows and total), so a panel grown by a newly
+        held entry announces again as the new figure it
+        is. A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "project_memory_map_entry":
+            key = ("project_memory_map_entry", record.get("entry_id"))
+        elif record.get("type") == "project_memory_map_panel":
+            key = ("project_memory_map_panel", record.get("panel_id"),
+                   tuple(row.get("entry_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_entries"))
+        else:
+            return
+        announced = getattr(self, "_project_memory_map_announced", None)
+        if announced is None:
+            announced = set()
+            self._project_memory_map_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
