@@ -1,0 +1,51 @@
+schema: mythic.review_panels/1
+slice: M-132
+part: 6
+part_title: Agents as files
+panel_note: |
+  Review panels: one change put to two reviewers
+  riding different models, as data. Each review
+  is one reviewer's own reading - the provider
+  and model they rode, their verdict (approve,
+  request_changes or reject), their notes in
+  plain words, and the concerns they name - and
+  the panel's outcome is derived from the two
+  verdicts alone: two agreeing verdicts yield
+  that verdict, two differing verdicts yield a
+  disagreement that names both positions, and
+  fewer than two reviews yields awaiting. A
+  disagreement is surfaced, never averaged away:
+  there is no middle verdict, no score and no
+  tie-break. This file is ONE EXAMPLE PANEL in
+  the shape a real panel's file takes: the
+  session-branching restore guard is reviewed by
+  the auditor riding anthropic's
+  claude-sonnet-4-5, who approves it, and by the
+  guardian riding ollama's llama3.1, who asks
+  for changes - so the example outcome is the
+  disagreement itself, held open for the human
+  to judge. A real panel is a new file in this
+  same shape - it is never this file edited in
+  place. This layer holds the panel as data
+  only: it runs no review, calls no model,
+  executes no change and spawns no crew itself;
+  the reviewers' readings arrive through later
+  roads, and the outcome is visible through this
+  slice's own /panel screen - the Part VIII
+  board the roadmap names does not exist yet.
+change:
+  title: "Session-branching restore guard"
+  summary: "Restoring a session branch now refuses when the branch's checkpoint chain is broken, instead of restoring half a chain silently; the refusal names the broken link."
+reviews:
+- reviewer: auditor
+  provider: anthropic
+  model: claude-sonnet-4-5
+  verdict: approve
+  notes: "The guard refuses on a broken chain and names the broken link; the refusal is pinned by tests on both roads and the change states its own honest boundary."
+  concerns: []
+- reviewer: guardian
+  provider: ollama
+  model: llama3.1
+  verdict: request_changes
+  notes: "The guard is right, but the refusal reaches the human as a bare error with no plain-words road back; a refused restore must say what to do next before this banks."
+  concerns: ["the refusal names no next step for the human"]
