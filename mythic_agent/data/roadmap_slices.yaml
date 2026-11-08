@@ -841,7 +841,7 @@ slices:
   title: Review panels
   summary: two Auditors with different models review the same change; disagreements are surfaced, not
     averaged away.
-  status: queued
+  status: done
 - id: M-133
   part: 6
   title: Crew memory
