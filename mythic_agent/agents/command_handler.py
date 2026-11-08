@@ -331,6 +331,8 @@ class CommandHandler:
                 self._handle_mentions(args)
             elif cmd == "/instructionfiles":
                 self._handle_instruction_files(args)
+            elif cmd == "/memorymap":
+                self._handle_memory_map(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -5157,6 +5159,63 @@ class CommandHandler:
                 text = format_panel(primary.instruction_files_book())
             else:
                 text = primary.instruction_files_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_memory_map(self, args: str):
+        """M-150: /memorymap - project memory map (Mythic law).
+
+        ``/memorymap`` shows the project memory map held
+        this session (the shipped example book - nine
+        facts at the M-149 slice boundary, of every
+        section, with its one pinned panel - when none is
+        held yet); ``/memorymap entry <entry-id>`` shows
+        one entry; ``/memorymap section <section>`` shows
+        the entries of one section; ``/memorymap panel``
+        shows the panel derived from the whole book, kept
+        by the Scribe. Reading registers and publishes
+        nothing as session news: entries are held only
+        when they are given through the agent's map roads,
+        and every entry held for the session is journaled
+        as a project_memory_map_entry session event and
+        every derived panel as a project_memory_map_panel
+        session event. This surface writes and edits no
+        project file, and there is no Part VIII board yet,
+        so the map is visible on this surface, not on a
+        board.
+        """
+        from ..core.project_memory_map import (
+            format_entries,
+            format_entry,
+            format_panel,
+            parse_memory_map_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_memory_map_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "entry":
+                text = format_entry(primary.get_memory_map_entry(target))
+            elif action == "section":
+                text = format_entries(
+                    primary.project_memory_map_book(), target)
+            elif action == "panel":
+                text = format_panel(primary.project_memory_map_book())
+            else:
+                text = primary.project_memory_map_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
