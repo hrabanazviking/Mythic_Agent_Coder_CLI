@@ -470,3 +470,373 @@ def test_no_live_roads_in_pure_layer():
     record = _shape().to_record()
     assert "recommended_size" not in record
     assert "kind" not in record
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-135 agent layer: the agent holds a
+# SizingRegistry for the session (session state
+# only, no new setting), cases are held by being
+# registered - published as their case_record
+# session news through the checkpoint road, deduped
+# per case id - the held book's recommendations are
+# published as ONE crew_sizing_recommendation_set
+# session event, deduped per whole recommendation
+# shape, and the /crewsize surface rides both roads
+# on the pure parser + formatters. Status, get,
+# recommendation and sizing reads register and
+# publish nothing, answer from the held registry
+# first and from the shipped example only while
+# nothing is held - a held session never falls back
+# to the example. This layer spawns no crew, sizes
+# no live crew, persists nothing, calls no model
+# and claims no board - Part VIII does not exist
+# yet, so the screen is where the sizing is visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _sizing_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+class TestCrewSizingAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.crew_sizing_status()
+        assert status["cases"] == []
+        assert status["book"] is None
+        assert status["sizing"]["title"] == (
+            "Crew sizing at the M-134 slice boundary")
+        assert [c["case_id"] for c in status["sizing"]["cases"]] == [
+            "tangled-single-file-fix", "docs-and-tests-split",
+            "four-independent-slices", "wide-census-sweep"]
+        assert status["book_record"]["type"] == "crew_sizing_book"
+        assert status["book_record"]["case_count"] == 4
+        assert [r["recommended_size"]
+                for r in status["recommendations"]] == [1, 2, 4, 6]
+        assert [r["kind"] for r in status["recommendations"]] == [
+            "solo", "pair", "crew", "full_crew"]
+        assert "One pair of hands beats six" in status["plain_words"]
+        assert "Crew sizing honesty (M-135)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        assert agent._crew_sizing_registry() is \
+            agent._crew_sizing_registry()
+        assert agent._crew_sizing_store is \
+            agent._crew_sizing_registry()
+
+    def test_reads_register_and_publish_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.crew_sizing_status()
+        case = agent.get_sizing_case("tangled-single-file-fix")
+        assert case.lead == "forge_worker"
+        rec = agent.sizing_recommendation("wide-census-sweep")
+        assert rec.recommended_size == 6
+        assert rec.kind == "full_crew"
+        solo = agent.sizing_recommendation("tangled-single-file-fix")
+        assert solo.recommended_size == 1
+        assert "beats six" in solo.reason
+        assert agent.crew_sizing().title == (
+            "Crew sizing at the M-134 slice boundary")
+        registry = agent._crew_sizing_registry()
+        assert registry.list_cases() == ()
+        for kind in ("crew_sizing_case",
+                     "crew_sizing_recommendation_set"):
+            assert _sizing_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_unheld_get_raises_keyerror(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_sizing_case("case-1")
+        with pytest.raises(KeyError):
+            agent.get_sizing_case("no-such-case")
+        with pytest.raises(KeyError):
+            agent.sizing_recommendation("no-such-case")
+
+    def test_status_after_register_shows_the_held_pieces(self, agent):
+        agent.register_sizing_case(_shape())
+        status = agent.crew_sizing_status()
+        assert [c["case_id"] for c in status["cases"]] == ["a-task"]
+        assert status["book"]["case_count"] == 1
+        # The held book answers now, not the example:
+        # the session sizing is the held case alone.
+        assert [c["case_id"] for c in status["sizing"]["cases"]] == [
+            "a-task"]
+        assert [r["recommended_size"]
+                for r in status["recommendations"]] == [3]
+        assert "A task" in status["screen"]
+
+    def test_held_session_never_falls_back_to_the_example(self, agent):
+        agent.register_sizing_case(_shape())
+        with pytest.raises(KeyError):
+            agent.get_sizing_case("tangled-single-file-fix")
+        with pytest.raises(KeyError):
+            agent.sizing_recommendation("tangled-single-file-fix")
+        assert [c.case_id for c in agent.crew_sizing().cases] == [
+            "a-task"]
+        assert agent.sizing_recommendation(
+            "a-task").recommended_size == 3
+
+
+class TestCrewSizingAgentRegister:
+    def test_register_case_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_sizing_case(_shape())
+        assert outcome["case"]["case_id"] == "a-task"
+        assert outcome["record"]["type"] == "crew_sizing_case"
+        events = _sizing_events(store, session_id, "crew_sizing_case")
+        assert len(events) == 1
+        assert events[0]["case_id"] == "a-task"
+        # The same record is never published twice.
+        agent._publish_crew_sizing_record(outcome["record"])
+        assert len(_sizing_events(
+            store, session_id, "crew_sizing_case")) == 1
+        # Foreign record types are refused on this road.
+        from mythic_agent.core.crew_members import (
+            casting_record,
+            load_casting,
+        )
+        from mythic_agent.core.crew_memory import (
+            entry_record as _memory_entry_record,
+            load_crew_memory,
+        )
+        from mythic_agent.core.review_panels import (
+            load_review_panel,
+            review_record,
+        )
+        from mythic_agent.core.stand_ups import (
+            digest_record,
+            digest_stand_up,
+            entry_record as _stand_up_entry_record,
+            load_stand_up,
+        )
+        report = load_stand_up()
+        agent._publish_crew_sizing_record(_stand_up_entry_record(
+            report.entries[0]))
+        agent._publish_crew_sizing_record(digest_record(
+            digest_stand_up(report), report))
+        memory = load_crew_memory()
+        agent._publish_crew_sizing_record(_memory_entry_record(
+            memory.entry_for("broken-checkpoint-chain")))
+        panel = load_review_panel()
+        agent._publish_crew_sizing_record(review_record(
+            panel.reviews[0]))
+        agent._publish_crew_sizing_record(casting_record(
+            load_casting().members[0]))
+        for kind in ("stand_up_entry", "stand_up_digest",
+                     "crew_memory_entry", "panel_review",
+                     "crew_member"):
+            assert _sizing_events(store, session_id, kind) == []
+        assert len(_sizing_events(
+            store, session_id, "crew_sizing_case")) == 1
+        agent.close()
+
+    def test_duplicate_id_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_sizing_case(_shape())
+        with pytest.raises(ValueError):
+            agent.register_sizing_case(_shape(title="Another task"))
+        assert len(_sizing_events(
+            store, session_id, "crew_sizing_case")) == 1
+        agent.close()
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_sizing_book()
+        assert outcome["count"] == 4
+        assert outcome["book"]["case_count"] == 4
+        events = _sizing_events(store, session_id, "crew_sizing_case")
+        assert [e["case_id"] for e in events] == [
+            "tangled-single-file-fix", "docs-and-tests-split",
+            "four-independent-slices", "wide-census-sweep"]
+        assert agent.crew_sizing().title == (
+            "Crew sizing at the M-134 slice boundary")
+        assert agent.get_sizing_case(
+            "wide-census-sweep").lead == "cartographer"
+        assert agent.sizing_recommendation(
+            "docs-and-tests-split").recommended_size == 2
+        agent.close()
+
+    def test_record_same_book_twice_refuses(self, agent):
+        agent.record_sizing_book()
+        with pytest.raises(ValueError):
+            agent.record_sizing_book()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_sizing(tmp_path, _book_data())
+        book = load_crew_sizing_file(path)
+        outcome = agent.record_sizing_book(book)
+        assert outcome["count"] == 4
+        assert agent.get_sizing_case("wide-task").lead == (
+            "cartographer")
+        assert agent.sizing_recommendation(
+            "solo-task").recommended_size == 1
+        assert agent.sizing_recommendation(
+            "wide-task").kind == "full_crew"
+
+
+class TestCrewSizingAgentReport:
+    def test_report_publishes_one_set_event_and_dedups(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.record_sizing_book()
+        outcome = agent.report_crew_sizing()
+        assert outcome["record"]["type"] == (
+            "crew_sizing_recommendation_set")
+        assert outcome["case_count"] == 4
+        assert [r["recommended_size"]
+                for r in outcome["recommendations"]] == [1, 2, 4, 6]
+        events = _sizing_events(
+            store, session_id, "crew_sizing_recommendation_set")
+        # ONE set event holds the whole recommendation set.
+        assert len(events) == 1
+        assert events[0]["case_count"] == 4
+        assert [r["case_id"] for r in events[0]["recommendations"]] == [
+            "tangled-single-file-fix", "docs-and-tests-split",
+            "four-independent-slices", "wide-census-sweep"]
+        # Reporting again on the same set publishes nothing new.
+        agent.report_crew_sizing()
+        assert len(_sizing_events(
+            store, session_id,
+            "crew_sizing_recommendation_set")) == 1
+        agent.close()
+
+    def test_changed_set_announces_again(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_sizing_case(_shape())
+        outcome = agent.report_crew_sizing()
+        assert outcome["case_count"] == 1
+        assert len(_sizing_events(
+            store, session_id,
+            "crew_sizing_recommendation_set")) == 1
+        # A newly held case changes the set: the new set
+        # announces as the new set it is.
+        agent.register_sizing_case(_shape(
+            case_id="b-task", title="B task",
+            independent_pieces=2))
+        outcome = agent.report_crew_sizing()
+        assert outcome["case_count"] == 2
+        events = _sizing_events(
+            store, session_id, "crew_sizing_recommendation_set")
+        assert len(events) == 2
+        assert events[1]["case_count"] == 2
+        agent.close()
+
+    def test_no_spawn_size_persist_or_model_road(self, agent):
+        # This layer holds the sizing as data: it spawns
+        # no crew, sizes no live crew, persists nothing
+        # and calls no model - and there is no Part VIII
+        # board yet.
+        assert not hasattr(agent, "spawn_crew")
+        assert not hasattr(agent, "size_crew")
+        assert not hasattr(agent, "persist_crew_sizing")
+        assert not hasattr(agent, "crew_sizing_board")
+
+
+class TestCrewSizingTerminalSurface:
+    def test_show_recommend_case_bands_and_kinds(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/crewsize")
+        assert "Crew sizing honesty (M-135)" in text
+        _, _, text = _slash(
+            agent, "/crewsize recommend tangled-single-file-fix")
+        assert "One pair of hands beats six" in text
+        _, _, text = _slash(agent, "/crewsize case docs-and-tests-split")
+        assert "docs-and-tests-split" in text
+        _, _, text = _slash(agent, "/crewsize solo")
+        assert "tangled-single-file-fix" in text
+        assert "wide-census-sweep" not in text
+        _, _, text = _slash(agent, "/crewsize full-crew")
+        assert "wide-census-sweep" in text
+        _, _, text = _slash(agent, "/crewsize kinds")
+        assert text == "Size kinds: solo, pair, crew, full-crew"
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/crewsize [show|recommend <case-id>|case <case-id>|"
+                "solo|pair|crew|full-crew|kinds]") in text
+        _, _, text = _slash(agent, "/crewsize dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/crewsize case missing-case")
+        assert "no case in the sizing book" in text
+
+
+@pytest.fixture()
+def crewsize_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _crewsize_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestCrewSizingCommand:
+    def test_show_is_default(self, crewsize_handler, agent):
+        crewsize_handler._handle_crewsize("")
+        assert "Crew sizing honesty (M-135)" in \
+            _crewsize_published_text(crewsize_handler)
+
+    def test_recommend_case_band_and_kinds(
+            self, crewsize_handler, agent):
+        crewsize_handler._handle_crewsize(
+            "recommend tangled-single-file-fix")
+        assert "One pair of hands beats six" in \
+            _crewsize_published_text(crewsize_handler)
+        crewsize_handler._handle_crewsize("case docs-and-tests-split")
+        assert "docs-and-tests-split" in \
+            _crewsize_published_text(crewsize_handler)
+        crewsize_handler._handle_crewsize("solo")
+        assert "tangled-single-file-fix" in \
+            _crewsize_published_text(crewsize_handler)
+        crewsize_handler._handle_crewsize("kinds")
+        assert "full-crew" in _crewsize_published_text(crewsize_handler)
+
+    def test_bad_grammar_is_published(self, crewsize_handler, agent):
+        crewsize_handler._handle_crewsize("dance party")
+        assert USAGE in _crewsize_published_text(crewsize_handler)
+
+
+class TestChatScreenRoutingCrewSize:
+    def test_crewsize_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/crewsize kinds", _FakeLog())
+        assert calls == [("/crewsize", "kinds")]

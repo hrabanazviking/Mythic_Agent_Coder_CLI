@@ -16392,6 +16392,343 @@ class Agent:
             self._checkpoint(record)
 
 
+
+
+    # -- M-135: crew sizing honesty --
+
+    def _crew_sizing_registry(self):
+        """The held crew-sizing registry (M-135).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer sizing book case by
+        case, beside the session stand-up registry
+        (M-134) and never in it: the sizing book is
+        the honest account of how many pairs of hands
+        each task shape takes, held under the book
+        this slice names. It is created on first use,
+        so an agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_crew_sizing_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_crew_sizing_store", None)
+        if registry is None:
+            from ..core.crew_sizing import SizingRegistry
+            registry = SizingRegistry()
+            self._crew_sizing_store = registry
+        return registry
+
+    def crew_sizing(self):
+        """The session's sizing book, as data (M-135).
+
+        The held registry's book when the session
+        holds any case - the sizing the session has
+        actually gathered (cases held one by one,
+        before any whole book stands recorded, stand
+        under a session sizing book) - otherwise the
+        book recorded whole through
+        :meth:`record_sizing_book`, or the shipped
+        example sizing book until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.crew_sizing import (
+            SizingBook,
+            load_crew_sizing,
+        )
+        registry = self._crew_sizing_registry()
+        if registry.list_cases():
+            try:
+                return registry.book()
+            except ValueError:
+                return SizingBook(
+                    title="Session sizing book",
+                    cases=registry.list_cases())
+        book = getattr(self, "_crew_sizing_held", None)
+        if book is None:
+            return load_crew_sizing()
+        return book
+
+    def crew_sizing_status(self) -> dict[str, Any]:
+        """The crew sizing, in plain data (M-135).
+
+        The cases held this session as plain records,
+        the held book's record (none until a case
+        stands held), the session sizing book's pieces
+        as plain records (the shipped example book -
+        four cases at the M-134 slice boundary
+        covering solo, pair, crew and full-crew -
+        until cases are held), its whole-book record,
+        every case's derived recommendation as plain
+        records and in plain words, the one screen -
+        rendered from the held book, or from the
+        shipped example book when nothing is held yet
+        - and the plain explanation. Reading registers
+        and publishes nothing, spawns nothing, sizes
+        no live crew, persists nothing and calls no
+        model: this layer holds the sizing as data
+        only. There is no Part VIII board yet; the
+        screen is where the sizing is visible.
+        """
+        from ..core import crew_sizing as sizing_module
+        registry = self._crew_sizing_registry()
+        held_cases = registry.list_cases()
+        book = self.crew_sizing()
+        if held_cases:
+            screen = sizing_module.format_crew_sizing_screen(book)
+        else:
+            screen = sizing_module.format_crew_sizing_screen()
+        return {
+            "cases": [c.to_record() for c in held_cases],
+            "book": (book.to_record() if held_cases else None),
+            "sizing": {
+                "title": book.title,
+                "cases": [c.to_record() for c in book.cases],
+            },
+            "book_record": sizing_module.book_record(book),
+            "recommendations": [
+                r.to_record() for r in book.recommendations()],
+            "plain_words": sizing_module.recommendation_plain_words(
+                book),
+            "screen": screen,
+            "explanation": sizing_module.PLAIN_EXPLANATION,
+        }
+
+    def get_sizing_case(self, case_id: Any):
+        """The one case an id names (M-135).
+
+        The session's held registry answers when the
+        session holds any case; otherwise the shipped
+        example sizing book answers. A held session
+        answers for its own book alone: a case id the
+        held book does not hold raises KeyError, with
+        no silent fall back to the example, exactly as
+        the pure layer answers. Reading registers and
+        publishes nothing.
+        """
+        from ..core.crew_sizing import load_crew_sizing
+        registry = self._crew_sizing_registry()
+        if registry.list_cases():
+            return registry.get_case(case_id)
+        return load_crew_sizing().case_for(case_id)
+
+    def sizing_recommendation(self, case_id: Any):
+        """One case's derived recommendation (M-135).
+
+        Derived by the pure layer from the case's
+        shape alone - the held registry's case when
+        the session holds any case, otherwise the
+        shipped example book's case - never stored
+        and never judged apart from its shape. A held
+        session answers for its own book alone: a case
+        id the held book does not hold raises KeyError.
+        Reading registers and publishes nothing.
+        """
+        from ..core.crew_sizing import derive_recommendation
+        registry = self._crew_sizing_registry()
+        if registry.list_cases():
+            return registry.recommendation_for(case_id)
+        return derive_recommendation(self.get_sizing_case(case_id))
+
+    def register_sizing_case(
+            self, shape: Any) -> dict[str, Any]:
+        """Hold one sizing case for the session (M-135).
+
+        The case is held by the pure registry under
+        its id or the deterministic case-N id - a
+        duplicate case id refuses, and a refusal holds
+        nothing new and publishes nothing. A held case
+        is published as its ``case_record`` session-
+        news record through the checkpoint road, so a
+        sizing given is news with its shape attached.
+        Returns the held case, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a case spawns nothing,
+        sizes no live crew, persists nothing and calls
+        no model: the registry holds the sizing as
+        data, and the recommendation stays derived.
+        """
+        from ..core import crew_sizing as sizing_module
+        registry = self._crew_sizing_registry()
+        held = registry.register_case(shape)
+        record = sizing_module.case_record(held)
+        self._publish_crew_sizing_record(record)
+        return {
+            "case": held.to_record(),
+            "record": record,
+            "screen": sizing_module.format_crew_sizing_screen(
+                self.crew_sizing()),
+            "explanation": sizing_module.PLAIN_EXPLANATION,
+        }
+
+    def record_sizing_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole sizing book for the session (M-135).
+
+        With no book named, the shipped example sizing
+        book is recorded through the pure layer - four
+        cases at the M-134 slice boundary covering
+        solo, pair, crew and full-crew. A book loaded
+        from a file (the pure layer's
+        ``load_crew_sizing_file`` road) may be passed
+        instead, so a real sizing book is recorded as
+        it stands. Every case is held and published as
+        its ``case_record`` session news, in book
+        order; the book is remembered as the session's,
+        and the same book recorded twice refuses -
+        fingerprinted on its case ids and title - a
+        book is recorded once, never duplicated into
+        the session. Returns the held book, its cases,
+        their news records, the count of cases held,
+        the screen, and the explanation. Recording
+        spawns nothing, sizes no live crew, persists
+        nothing and calls no model.
+        """
+        from ..core import crew_sizing as sizing_module
+        book = book if book is not None \
+            else sizing_module.load_crew_sizing()
+        fingerprint = (tuple(book.case_ids()), book.title)
+        recorded = getattr(self, "_crew_sizing_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._crew_sizing_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this sizing book is already recorded for "
+                "the session; a book is recorded once")
+        registry = self._crew_sizing_registry()
+        held_book = registry.register_book(book)
+        recorded.add(fingerprint)
+        self._crew_sizing_held = held_book
+        records = [
+            sizing_module.case_record(case)
+            for case in held_book.cases]
+        for record in records:
+            self._publish_crew_sizing_record(record)
+        return {
+            "book": held_book.to_record(),
+            "cases": [c.to_record() for c in held_book.cases],
+            "records": records,
+            "count": len(records),
+            "screen": sizing_module.format_crew_sizing_screen(
+                held_book),
+            "explanation": sizing_module.PLAIN_EXPLANATION,
+        }
+
+    def report_crew_sizing(self) -> dict[str, Any]:
+        """Report the sizing recommendations as news (M-135).
+
+        The derived recommendations of the book the
+        session holds - the held registry's book, or
+        the session book (the shipped example until
+        one is recorded) - are published as ONE
+        ``crew_sizing_recommendation_set`` session
+        event holding the whole recommendation set,
+        never one event per case. The announcement is
+        deduped per whole recommendation shape:
+        reporting again while the same set stands
+        publishes nothing new, and a set changed by a
+        newly held case announces again as the new set
+        it is. Returns the book, its recommendations,
+        the set's news record, its case count, the
+        screen, and the plain explanation. Reporting
+        spawns nothing, sizes no live crew, persists
+        nothing and calls no model: the human acts on
+        the recommendations through later roads.
+        """
+        from ..core import crew_sizing as sizing_module
+        book = self.crew_sizing()
+        recommendations = book.recommendations()
+        record = {
+            "type": "crew_sizing_recommendation_set",
+            "slice": sizing_module.CREW_SIZING_SLICE,
+            "title": book.title,
+            "case_ids": list(book.case_ids()),
+            "recommendations": [
+                r.to_record() for r in recommendations],
+            "case_count": len(recommendations),
+            "news": True,
+            "headline": (
+                f"Sizing for {book.title}: "
+                f"{len(recommendations)} recommendation(s) "
+                f"stand derived from their shapes."),
+        }
+        self._publish_crew_sizing_report_record(record)
+        registry = self._crew_sizing_registry()
+        if registry.list_cases():
+            screen = sizing_module.format_crew_sizing_screen(book)
+        else:
+            screen = sizing_module.format_crew_sizing_screen()
+        return {
+            "book": book.to_record(),
+            "recommendations": [
+                r.to_record() for r in recommendations],
+            "record": record,
+            "case_count": len(recommendations),
+            "screen": screen,
+            "explanation": sizing_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_crew_sizing_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one sizing case as session news (M-135).
+
+        The pure layer's ``case_record`` is journaled
+        through the same checkpoint road every sibling
+        slice uses, when a session is attached. Each
+        case is announced at most once, under its own
+        id. A foreign record type is never published
+        on this road.
+        """
+        if record.get("type") != "crew_sizing_case":
+            return
+        announced = getattr(self, "_crew_sizing_announced", None)
+        if announced is None:
+            announced = set()
+            self._crew_sizing_announced = announced
+        key = ("crew_sizing_case", record.get("case_id"))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publish_crew_sizing_report_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one whole recommendation set as news (M-135).
+
+        The recommendation set is journaled through
+        the same checkpoint road, when a session is
+        attached - ONE event holding every derived
+        recommendation, so the human is told once.
+        Each set is announced at most once: the
+        announcement is keyed by the set's whole
+        shape (its book title and every case's id,
+        derived size and band, in book order), so a
+        set changed by a newly held case announces
+        again as the new set it is. A foreign record
+        type is never published on this road.
+        """
+        if record.get("type") != "crew_sizing_recommendation_set":
+            return
+        announced = getattr(
+            self, "_crew_sizing_report_announced", None)
+        if announced is None:
+            announced = set()
+            self._crew_sizing_report_announced = announced
+        key = (
+            record.get("title"),
+            tuple(
+                (r.get("case_id"), r.get("recommended_size"),
+                 r.get("kind"))
+                for r in record.get("recommendations", [])))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):

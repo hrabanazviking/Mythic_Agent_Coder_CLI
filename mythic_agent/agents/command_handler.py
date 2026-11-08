@@ -303,6 +303,8 @@ class CommandHandler:
                 self._handle_memory(args)
             elif cmd == "/standup":
                 self._handle_standup(args)
+            elif cmd == "/crewsize":
+                self._handle_crewsize(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -4185,6 +4187,71 @@ class CommandHandler:
                     primary.get_stand_up_entry(target))
             else:
                 text = primary.stand_up_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_crewsize(self, args: str):
+        """M-135: /crewsize - crew sizing honesty.
+
+        ``/crewsize`` shows the sizing book held this
+        session (the shipped example book - four cases
+        at the M-134 slice boundary covering solo,
+        pair, crew and full-crew - when none is held
+        yet); ``/crewsize recommend <case-id>`` shows
+        one case's derived recommendation;
+        ``/crewsize case <case-id>`` shows one case;
+        ``/crewsize solo`` / ``pair`` / ``crew`` /
+        ``full-crew`` show one size band;
+        ``/crewsize kinds`` lists the four size bands.
+        Reading registers and publishes nothing as
+        session news: cases are held only when they
+        are given through the agent layer, and held
+        cases are published as a crew_sizing_case
+        session event, each sizing report as ONE
+        crew_sizing_recommendation_set session event.
+        This road spawns nothing, sizes no live crew,
+        persists nothing, calls no model and claims
+        no board: the registry holds the sizing as
+        data, and there is no Part VIII board yet -
+        this surface is where the sizing is visible.
+        The registry is session state held by the
+        agent; it is not a stored setting.
+        """
+        from ..core.crew_sizing import (
+            format_shape,
+            format_shapes,
+            format_size_kinds,
+            parse_crew_size_args,
+            recommendation_plain_words,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_crew_size_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "kinds":
+                text = format_size_kinds()
+            elif action == "recommend":
+                text = recommendation_plain_words(
+                    primary.get_sizing_case(target))
+            elif action == "case":
+                text = format_shape(primary.get_sizing_case(target))
+            elif action == "band":
+                text = format_shapes(primary.crew_sizing(), target)
+            else:
+                text = primary.crew_sizing_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
