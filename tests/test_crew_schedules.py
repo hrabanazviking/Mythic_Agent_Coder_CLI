@@ -639,3 +639,478 @@ def test_builders_from_field_words():
     book = build_book(title="A small book", entries=[record])
     assert isinstance(book, CrewScheduleBook)
     assert book.entries[0] is record
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-145 agent layer: the agent holds a
+# CrewScheduleRegistry for the session (session
+# state only, no new setting), attachment records
+# are held by being registered - published as their
+# attachment_record session news with their derived
+# report_record, and a whole book's derived
+# index_record, through the checkpoint road, deduped
+# per id - the report road renders the held book (or
+# the shipped example when unheld) through the pure
+# formatters, and the /crewschedules surface rides
+# both roads on the pure parser + formatters. Status,
+# get, report, template, job and index reads register
+# and publish nothing, answer from the held registry
+# first and from the shipped example only while
+# nothing is held - a held session never falls back
+# to the example. Reports and the index derive at
+# call time from the held records, never held. This
+# layer starts no timer, runs no job, summons no
+# crew, spawns no agent and persists nothing - and
+# there is no Part VIII board yet, so the screen is
+# where the crew on schedule attachments are visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _schedule_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_schedule_book(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data"
+           / "crew_schedules.yaml").read_text(encoding="utf-8")
+    path = tmp_path / "crew_schedules.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestCrewSchedulesAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.crew_schedules_status()
+        assert status["attachments"] == []
+        assert status["book"] is None
+        assert status["crew_schedules"]["title"] == (
+            "Crew schedule book at the M-144 slice boundary")
+        assert [e["attachment_id"]
+                for e in status["crew_schedules"]["attachments"]] == [
+            "att-dawn-auditor-sweep", "att-weekly-full-six",
+            "att-research-swarm-watch", "att-weekend-duo-paused"]
+        assert status["book_record"]["type"] == "crew_schedule_book"
+        assert status["book_record"]["attachment_count"] == 4
+        assert status["book_record"]["index_count"] == 1
+        assert [r["standing"] for r in status["reports"]] == [
+            "armed", "waiting_for_approval", "armed", "disabled"]
+        assert [i["index_id"] for i in status["indexes"]] == [
+            "index-m144-boundary"]
+        assert status["index"]["total_attachments"] == 4
+        assert status["index"]["total_armed"] == 2
+        assert status["index"]["total_waiting"] == 1
+        assert status["index"]["total_disabled"] == 1
+        assert status["index"]["total_templates"] == 4
+        assert "Dawn Auditor sweep" in status["plain_words"][0]
+        assert "Formation review_panel on job dawn-auditor-sweep" in (
+            status["report_plain_words"])
+        assert "Attachment index:" in status["index_plain_words"]
+        assert "Crew on schedule (M-145)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        assert agent._crew_schedules_registry() is \
+            agent._crew_schedules_registry()
+        assert agent._crew_schedules_store is \
+            agent._crew_schedules_registry()
+
+    def test_reads_register_and_publish_nothing(self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.crew_schedules_status()
+        attachment = agent.get_crew_schedule("att-dawn-auditor-sweep")
+        assert attachment.template == "review_panel"
+        assert agent.get_crew_schedule_for_job(
+            "weekly-full-six").template == "full_six"
+        report = agent.crew_schedule_report("att-weekly-full-six")
+        assert report.standing == "waiting_for_approval"
+        index = agent.crew_schedule_index()
+        assert index.total_attachments == 4
+        assert index.total_armed == 2
+        assert [e.attachment_id for e in
+                agent.crew_schedules_for_template("duo")] == [
+            "att-weekend-duo-paused"]
+        assert agent.crew_schedules().title == (
+            "Crew schedule book at the M-144 slice boundary")
+        registry = agent._crew_schedules_registry()
+        assert registry.list_attachments() == ()
+        for kind in ("crew_schedule_attachment", "crew_schedule_report",
+                     "crew_schedule_index"):
+            assert _schedule_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_unheld_reads_raise(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_crew_schedule("att-nope")
+        with pytest.raises(KeyError):
+            agent.get_crew_schedule_for_job("nope")
+        with pytest.raises(KeyError):
+            agent.crew_schedule_report("att-nope")
+
+    def test_status_after_register_shows_the_held_pieces(self, agent):
+        agent.register_crew_schedule(_attachment())
+        status = agent.crew_schedules_status()
+        assert [e["attachment_id"] for e in status["attachments"]] == [
+            "att-dawn-auditor-sweep"]
+        assert status["book"]["attachment_count"] == 1
+        # The held book answers now, not the example:
+        # records held one by one stand under a session
+        # crew schedule book, and it holds no indexes -
+        # the index stays a derivation.
+        assert status["crew_schedules"]["title"] == (
+            "Session crew schedule book")
+        assert status["indexes"] == []
+        assert status["index"]["total_attachments"] == 1
+        assert status["index"]["total_armed"] == 1
+        assert status["index"]["total_templates"] == 1
+        assert "att-dawn-auditor-sweep" in status["screen"]
+
+    def test_held_session_never_falls_back_to_the_example(self, agent):
+        agent.register_crew_schedule(_attachment())
+        with pytest.raises(KeyError):
+            agent.get_crew_schedule("att-weekly-full-six")
+        with pytest.raises(KeyError):
+            agent.get_crew_schedule_for_job("weekly-full-six")
+        with pytest.raises(KeyError):
+            agent.crew_schedule_report("att-weekly-full-six")
+        assert agent.crew_schedules_for_template("duo") == ()
+        assert agent.crew_schedules().attachment_ids() == (
+            "att-dawn-auditor-sweep",)
+        assert agent.get_crew_schedule(
+            "att-dawn-auditor-sweep").template == "review_panel"
+        report = agent.crew_schedule_report("att-dawn-auditor-sweep")
+        assert report.standing == "armed"
+        assert agent.crew_schedule_index().total_attachments == 1
+
+
+class TestCrewSchedulesAgentRegister:
+    def test_register_attachment_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_crew_schedule(_attachment())
+        assert outcome["attachment"]["attachment_id"] == (
+            "att-dawn-auditor-sweep")
+        assert outcome["record"]["type"] == "crew_schedule_attachment"
+        assert outcome["report_record"]["type"] == "crew_schedule_report"
+        events = _schedule_events(
+            store, session_id, "crew_schedule_attachment")
+        assert len(events) == 1
+        assert events[0]["attachment_id"] == "att-dawn-auditor-sweep"
+        reports = _schedule_events(store, session_id, "crew_schedule_report")
+        assert len(reports) == 1
+        assert reports[0]["attachment_id"] == "att-dawn-auditor-sweep"
+        # The same records are never published twice.
+        agent._publish_crew_schedules_record(outcome["record"])
+        agent._publish_crew_schedules_record(outcome["report_record"])
+        assert len(_schedule_events(
+            store, session_id, "crew_schedule_attachment")) == 1
+        assert len(_schedule_events(
+            store, session_id, "crew_schedule_report")) == 1
+        # Foreign record types are refused on this road.
+        from mythic_agent.core.crew_interrupts import (
+            book_record as _interrupt_book_record,
+            load_crew_interrupts,
+        )
+        from mythic_agent.core.dogfood import (
+            entry_record as _dogfood_entry_record,
+            load_dogfood,
+        )
+        from mythic_agent.core.solo_mode import (
+            capability_record as _solo_capability_record,
+            load_solo_mode,
+        )
+        agent._publish_crew_schedules_record(book_record(
+            load_crew_schedules()))
+        agent._publish_crew_schedules_record(_interrupt_book_record(
+            load_crew_interrupts()))
+        agent._publish_crew_schedules_record(_solo_capability_record(
+            load_solo_mode().entries[0]))
+        agent._publish_crew_schedules_record(_dogfood_entry_record(
+            load_dogfood().entries[0]))
+        for kind in ("crew_schedule_book", "crew_interrupt_book",
+                     "solo_capability", "dogfood_entry"):
+            assert _schedule_events(store, session_id, kind) == []
+        assert len(_schedule_events(
+            store, session_id, "crew_schedule_attachment")) == 1
+        agent.close()
+
+    def test_duplicate_attachment_and_job_refuse_and_publish_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_crew_schedule(_attachment())
+        with pytest.raises(ValueError):
+            agent.register_crew_schedule(_attachment())
+        with pytest.raises(ValueError):
+            agent.register_crew_schedule(CrewAttachment(
+                attachment_id="att-other", template="duo",
+                title="Another formation on the dawn job",
+                detail="A second formation on one job refuses.",
+                job=_job()))
+        assert len(_schedule_events(
+            store, session_id, "crew_schedule_attachment")) == 1
+        agent.close()
+
+    def test_register_attachment_without_id_gets_an_attachment_id(
+            self, agent):
+        outcome = agent.register_crew_schedule({
+            "template": "duo", "title": "Duo on a job",
+            "detail": "The Duo stands on this job.",
+            "job": _job(job_id="duo-job")})
+        assert outcome["attachment"]["attachment_id"] == "attachment-1"
+        assert agent.get_crew_schedule(
+            "attachment-1").template == "duo"
+        assert agent.get_crew_schedule_for_job(
+            "duo-job").attachment_id == "attachment-1"
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_crew_schedule_book(load_crew_schedules())
+        assert outcome["count"] == 4
+        assert outcome["book"]["attachment_count"] == 4
+        events = _schedule_events(
+            store, session_id, "crew_schedule_attachment")
+        assert [e["attachment_id"] for e in events] == [
+            "att-dawn-auditor-sweep", "att-weekly-full-six",
+            "att-research-swarm-watch", "att-weekend-duo-paused"]
+        reports = _schedule_events(store, session_id, "crew_schedule_report")
+        assert [e["attachment_id"] for e in reports] == [
+            "att-dawn-auditor-sweep", "att-weekly-full-six",
+            "att-research-swarm-watch", "att-weekend-duo-paused"]
+        indexes = _schedule_events(store, session_id, "crew_schedule_index")
+        assert len(indexes) == 1
+        assert indexes[0]["total_attachments"] == 4
+        assert indexes[0]["total_armed"] == 2
+        assert agent.crew_schedules().title == (
+            "Crew schedule book at the M-144 slice boundary")
+        # The registry holds records, never reports or
+        # indexes: both are derived at call time.
+        assert agent.crew_schedules().indexes == ()
+        assert agent.crew_schedule_report(
+            "att-weekly-full-six").standing == "waiting_for_approval"
+        assert agent.crew_schedule_index().total_disabled == 1
+        agent.close()
+
+    def test_register_book_twice_refuses(self, agent):
+        agent.register_crew_schedule_book(load_crew_schedules())
+        with pytest.raises(ValueError):
+            agent.register_crew_schedule_book(load_crew_schedules())
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_crew_schedule_book()
+        assert outcome["count"] == 4
+        assert outcome["book"]["attachment_count"] == 4
+        events = _schedule_events(
+            store, session_id, "crew_schedule_attachment")
+        assert [e["attachment_id"] for e in events] == [
+            "att-dawn-auditor-sweep", "att-weekly-full-six",
+            "att-research-swarm-watch", "att-weekend-duo-paused"]
+        assert len(_schedule_events(
+            store, session_id, "crew_schedule_report")) == 4
+        assert len(_schedule_events(
+            store, session_id, "crew_schedule_index")) == 1
+        assert agent.crew_schedules().title == (
+            "Crew schedule book at the M-144 slice boundary")
+        # The recorded book stands whole: its held
+        # index still answers.
+        assert agent.crew_schedules().indexes[0].index_id == (
+            "index-m144-boundary")
+        assert agent.crew_schedule_index().total_attachments == 4
+        agent.close()
+
+    def test_record_same_book_twice_refuses(self, agent):
+        agent.record_crew_schedule_book()
+        with pytest.raises(ValueError):
+            agent.record_crew_schedule_book()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_schedule_book(tmp_path)
+        book = load_crew_schedules_file(path)
+        outcome = agent.record_crew_schedule_book(book)
+        assert outcome["count"] == 4
+        assert agent.crew_schedules().title == (
+            "Crew schedule book at the M-144 slice boundary")
+        assert agent.get_crew_schedule_for_job(
+            "weekend-duo-sweep").template == "duo"
+        assert agent.crew_schedule_report(
+            "att-weekend-duo-paused").standing == "disabled"
+
+    def test_one_by_one_holdings_stand_under_a_session_book(self, agent):
+        agent.register_crew_schedule(_attachment())
+        # Held one by one, the records stand under a
+        # session crew schedule book composed in the
+        # agent layer - never under a recorded book
+        # title.
+        assert agent.crew_schedules().title == (
+            "Session crew schedule book")
+        agent.register_crew_schedule(_attachments()[3])
+        assert [e.attachment_id
+                for e in agent.crew_schedules().entries] == [
+            "att-dawn-auditor-sweep", "att-weekend-duo-paused"]
+        # A whole book recorded now would re-hold the
+        # same attachment ids: the registry refuses it,
+        # as it refuses any duplicate.
+        with pytest.raises(ValueError):
+            agent.record_crew_schedule_book()
+
+
+class TestCrewSchedulesAgentReport:
+    def test_report_renders_the_example_when_unheld(self, agent):
+        outcome = agent.report_crew_schedules()
+        assert outcome["book"]["title"] == (
+            "Crew schedule book at the M-144 slice boundary")
+        assert outcome["book"]["attachment_count"] == 4
+        assert "att-weekend-duo-paused" in outcome["attachments_text"]
+        assert "Formation review_panel on job dawn-auditor-sweep" in (
+            outcome["report_text"])
+        assert "Attachment index:" in outcome["index_text"]
+        assert "Crew on schedule (M-145)" in outcome["screen"]
+        assert outcome["explanation"] == PLAIN_EXPLANATION
+
+    def test_report_renders_the_held_book_only(self, agent):
+        agent.register_crew_schedule(_attachment())
+        outcome = agent.report_crew_schedules()
+        assert outcome["book"]["attachment_count"] == 1
+        assert "att-dawn-auditor-sweep" in outcome["attachments_text"]
+        assert "att-weekly-full-six" not in outcome["attachments_text"]
+        assert "att-weekly-full-six" not in outcome["report_text"]
+
+    def test_report_registers_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.report_crew_schedules()
+        registry = agent._crew_schedules_registry()
+        assert registry.list_attachments() == ()
+        for kind in ("crew_schedule_attachment", "crew_schedule_report",
+                     "crew_schedule_index"):
+            assert _schedule_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_no_live_run_summon_timer_or_persist_road(self, agent):
+        # This layer holds the attachments as data: it
+        # starts no timer, runs no job, summons no crew,
+        # spawns no agent, persists nothing - and there
+        # is no Part VIII board yet.
+        assert not hasattr(agent, "run_crew_schedule")
+        assert not hasattr(agent, "summon_crew_schedule")
+        assert not hasattr(agent, "spawn_crew_schedule")
+        assert not hasattr(agent, "start_crew_schedule_timer")
+        assert not hasattr(agent, "persist_crew_schedules")
+        assert not hasattr(agent, "crew_schedules_board")
+
+
+class TestCrewSchedulesTerminalSurface:
+    def test_show_attachment_template_job_report_and_index(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/crewschedules")
+        assert "Crew on schedule (M-145)" in text
+        _, _, text = _slash(
+            agent, "/crewschedules attachment att-dawn-auditor-sweep")
+        assert "att-dawn-auditor-sweep: review_panel - Dawn Auditor sweep" in text
+        _, _, text = _slash(agent, "/crewschedules template duo")
+        assert "att-weekend-duo-paused" in text
+        assert "att-dawn-auditor-sweep" not in text
+        _, _, text = _slash(agent, "/crewschedules job weekly-full-six")
+        assert "att-weekly-full-six" in text
+        _, _, text = _slash(
+            agent, "/crewschedules report att-weekly-full-six")
+        assert "Formation full_six on job weekly-full-six" in text
+        _, _, text = _slash(agent, "/crewschedules index")
+        assert "Attachment index:" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/crewschedules [show|attachment <attachment-id>|"
+                "template <template>|job <job-id>|"
+                "report <attachment-id>|index]") in text
+        _, _, text = _slash(agent, "/crewschedules dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/crewschedules attachment att-nope")
+        assert "no attachment record in the book" in text
+
+
+@pytest.fixture()
+def schedules_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _schedules_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestCrewSchedulesCommand:
+    def test_show_is_default(self, schedules_handler, agent):
+        schedules_handler._handle_crewschedules("")
+        assert "Crew on schedule (M-145)" in _schedules_published_text(
+            schedules_handler)
+
+    def test_attachment_template_job_report_and_index(
+            self, schedules_handler, agent):
+        schedules_handler._handle_crewschedules(
+            "attachment att-dawn-auditor-sweep")
+        assert "review_panel" in _schedules_published_text(schedules_handler)
+        schedules_handler._handle_crewschedules("template duo")
+        assert "att-weekend-duo-paused" in _schedules_published_text(
+            schedules_handler)
+        schedules_handler._handle_crewschedules("job weekly-full-six")
+        assert "att-weekly-full-six" in _schedules_published_text(
+            schedules_handler)
+        schedules_handler._handle_crewschedules(
+            "report att-weekly-full-six")
+        assert "Formation full_six on job weekly-full-six" in (
+            _schedules_published_text(schedules_handler))
+        schedules_handler._handle_crewschedules("index")
+        assert "Attachment index:" in _schedules_published_text(
+            schedules_handler)
+
+    def test_bad_grammar_is_published(self, schedules_handler, agent):
+        schedules_handler._handle_crewschedules("dance party")
+        assert USAGE in _schedules_published_text(schedules_handler)
+
+
+class TestChatScreenRoutingCrewSchedules:
+    def test_crewschedules_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command(
+            "/crewschedules attachment att-dawn-auditor-sweep", _FakeLog())
+        assert calls == [("/crewschedules",
+                          "attachment att-dawn-auditor-sweep")]

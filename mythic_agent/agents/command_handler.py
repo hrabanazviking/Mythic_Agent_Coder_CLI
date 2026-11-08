@@ -323,6 +323,8 @@ class CommandHandler:
                 self._handle_templates(args)
             elif cmd == "/interrupts":
                 self._handle_interrupts(args)
+            elif cmd == "/crewschedules":
+                self._handle_crewschedules(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -4869,6 +4871,79 @@ class CommandHandler:
                 text = format_index(primary.crew_interrupt_index())
             else:
                 text = primary.crew_interrupts_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_crewschedules(self, args: str):
+        """M-145: /crewschedules - crew on schedule.
+
+        ``/crewschedules`` shows the crew schedule book
+        held this session (the shipped example book -
+        four attachment records at the M-144 slice
+        boundary, the roadmap's dawn Auditor sweep
+        first, and its pinned index - when none is held
+        yet); ``/crewschedules attachment
+        <attachment-id>`` shows one attachment record;
+        ``/crewschedules template <template>`` shows
+        the attachments naming one formation;
+        ``/crewschedules job <job-id>`` shows the
+        attachment naming one job; ``/crewschedules
+        report <attachment-id>`` shows one attachment's
+        derived report; ``/crewschedules index`` shows
+        the attachment index derived from the whole
+        book. Reading registers and publishes nothing
+        as session news: records are held only when
+        they are given through the agent layer, and
+        held records are published as
+        crew_schedule_attachment, crew_schedule_report
+        and crew_schedule_index session events. This
+        road starts no timer, runs no job, summons no
+        crew, spawns no agent, persists nothing and
+        claims no board: the registry holds the
+        attachments as data, no record here claims a
+        job was ever run with its formation, and there
+        is no Part VIII board yet - this surface is
+        where the crew on schedule attachments are
+        visible. The registry is session state held by
+        the agent; it is not a stored setting.
+        """
+        from ..core.crew_schedules import (
+            format_attachment,
+            format_attachments,
+            format_index,
+            format_report,
+            parse_crew_schedules_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_crew_schedules_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "attachment":
+                text = format_attachment(primary.get_crew_schedule(target))
+            elif action == "template":
+                text = format_attachments(primary.crew_schedules(), target)
+            elif action == "job":
+                text = format_attachment(
+                    primary.get_crew_schedule_for_job(target))
+            elif action == "report":
+                text = format_report(primary.crew_schedule_report(target))
+            elif action == "index":
+                text = format_index(primary.crew_schedule_index())
+            else:
+                text = primary.crew_schedules_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

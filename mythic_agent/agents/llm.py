@@ -20362,6 +20362,478 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _crew_schedules_registry(self):
+        """The held crew schedule registry (M-145).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer crew schedule book
+        record by record, beside the session crew
+        interrupt registry (M-144) and never in it: the
+        crew schedule book is one book of attachment
+        records - one formation named by its M-143
+        word standing on one scheduled job held whole
+        as M-105 data - held under the book this slice
+        names. It is created on first use, so an agent
+        whose ``__init__`` never ran still holds
+        exactly one. The attribute is named
+        ``_crew_schedules_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_crew_schedules_store", None)
+        if registry is None:
+            from ..core.crew_schedules import CrewScheduleRegistry
+            registry = CrewScheduleRegistry()
+            self._crew_schedules_store = registry
+        return registry
+
+    def crew_schedules(self):
+        """The session's crew schedule book, as data (M-145).
+
+        The held registry's book when the session
+        holds any attachment record - the records the
+        session has actually gathered (records held
+        one by one, before any whole book stands
+        recorded, stand under a session crew schedule
+        book composed here in the agent layer, so a
+        later whole book recorded under its own title
+        is never refused by a shim title at the
+        registry) - otherwise the book recorded whole
+        through :meth:`record_crew_schedule_book`, or
+        the shipped example crew schedule book until
+        one is recorded. Reading registers and
+        publishes nothing.
+        """
+        from ..core.crew_schedules import (
+            CrewScheduleBook,
+            load_crew_schedules,
+        )
+        registry = self._crew_schedules_registry()
+        if registry.list_attachments():
+            try:
+                book = registry.book()
+            except ValueError:
+                return CrewScheduleBook(
+                    title="Session crew schedule book",
+                    entries=registry.list_attachments())
+            held = getattr(self, "_crew_schedules_held", None)
+            if held is not None and held.title == book.title \
+                    and held.attachment_ids() == book.attachment_ids():
+                return held
+            return book
+        book = getattr(self, "_crew_schedules_held", None)
+        if book is None:
+            return load_crew_schedules()
+        return book
+
+    def _crew_schedules_screen(self) -> str:
+        """The /crewschedules screen for the session's state (M-145).
+
+        Rendered from the held book when one stands,
+        and from the shipped example book while
+        nothing is held.
+        """
+        from ..core import crew_schedules as schedules_module
+        registry = self._crew_schedules_registry()
+        if not registry.list_attachments():
+            return schedules_module.format_crew_schedules_screen()
+        return schedules_module.format_crew_schedules_screen(
+            self.crew_schedules())
+
+    def crew_schedules_status(self) -> dict[str, Any]:
+        """The crew on schedule attachments, in plain data (M-145).
+
+        The attachment records held this session as
+        plain records, the held book's record (none
+        until an attachment record stands held), the
+        session crew schedule book's pieces as plain
+        records (the shipped example book - four
+        attachment records at the M-144 slice
+        boundary, the roadmap's dawn Auditor sweep
+        first, and its one pinned index - until
+        records are held), its whole-book record,
+        every report the book derives as plain
+        records, every index the book holds as plain
+        records and the index derived from the whole
+        book, the records in plain words and the
+        reports and index told in plain words, the
+        one screen - rendered from the held book, or
+        from the shipped example book when nothing
+        is held yet - and the plain explanation.
+        Reading registers and publishes nothing,
+        starts no timer, runs no job, summons no
+        crew, spawns no agent and persists nothing:
+        this layer holds the attachments as data
+        only, and no record here claims a job was
+        ever run with its formation. There is no
+        Part VIII board yet; the screen is where the
+        crew on schedule attachments are visible.
+        """
+        from ..core import crew_schedules as schedules_module
+        registry = self._crew_schedules_registry()
+        held_attachments = registry.list_attachments()
+        book = self.crew_schedules()
+        return {
+            "attachments": [e.to_record() for e in held_attachments],
+            "book": (book.to_record() if held_attachments else None),
+            "crew_schedules": {
+                "title": book.title,
+                "attachments": [e.to_record() for e in book.entries],
+            },
+            "book_record": schedules_module.book_record(book),
+            "reports": [
+                schedules_module.derive_report(entry).to_record()
+                for entry in book.entries],
+            "indexes": [i.to_record() for i in book.indexes],
+            "index": schedules_module.derive_index(
+                book.entries).to_record(),
+            "plain_words": [
+                schedules_module.plain_words(entry)
+                for entry in book.entries],
+            "report_plain_words": schedules_module.report_plain_words(
+                book),
+            "index_plain_words": schedules_module.index_plain_words(
+                book),
+            "screen": self._crew_schedules_screen(),
+            "explanation": schedules_module.PLAIN_EXPLANATION,
+        }
+
+    def get_crew_schedule(self, attachment_id: Any):
+        """The one attachment record an id names (M-145).
+
+        The session's held registry answers when the
+        session holds any attachment record; otherwise
+        the shipped example crew schedule book answers
+        (or the book recorded whole for the session).
+        A held session answers for its own book alone:
+        an id the held book holds no record for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._crew_schedules_registry()
+        if registry.list_attachments():
+            return registry.get_attachment(attachment_id)
+        return self.crew_schedules().attachment_for(attachment_id)
+
+    def get_crew_schedule_for_job(self, job_id: Any):
+        """The one attachment record a job id names (M-145).
+
+        The session's held registry answers when the
+        session holds any attachment record; otherwise
+        the shipped example crew schedule book answers
+        (or the book recorded whole for the session).
+        A held session answers for its own book alone:
+        a job the held book holds no attachment for
+        raises KeyError, with no silent fall back to
+        the example. Reading registers and publishes
+        nothing.
+        """
+        registry = self._crew_schedules_registry()
+        if registry.list_attachments():
+            return registry.get_for_job(job_id)
+        return self.crew_schedules().attachment_for_job(job_id)
+
+    def crew_schedules_for_template(self, template: Any):
+        """Every attachment naming one formation (M-145).
+
+        Read off the session's book - the held
+        registry's book when the session holds any
+        attachment record, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - in held order. A held session
+        answers for its own book alone, with no silent
+        fall back to the example. Reading registers
+        and publishes nothing.
+        """
+        return self.crew_schedules().attachments_for_template(template)
+
+    def crew_schedule_report(self, attachment_id: Any):
+        """The report derived for one attachment (M-145).
+
+        The report is derived at call time from the
+        attachment record the id names - the held
+        registry's record when the session holds any
+        attachment record, otherwise the shipped
+        example book's record (or the record of the
+        book recorded whole for the session) - so its
+        checks, standing, action and account are the
+        record's own job, read at call time. A held
+        session answers for its own book alone: an id
+        the held book holds no record for raises
+        KeyError, with no silent fall back to the
+        example. Reading registers and publishes
+        nothing.
+        """
+        from ..core.crew_schedules import derive_report as _derive_report
+        registry = self._crew_schedules_registry()
+        if registry.list_attachments():
+            return registry.report_for(attachment_id)
+        return _derive_report(
+            self.crew_schedules().attachment_for(attachment_id))
+
+    def crew_schedule_index(self):
+        """The attachment index derived for the whole book (M-145).
+
+        The index is derived at call time from the
+        whole book of attachment records - the held
+        registry's records when the session holds any
+        attachment record, otherwise the shipped
+        example book's records (or the records of the
+        book recorded whole for the session) - so its
+        rows are the per-attachment reports of those
+        records and its totals are the records' own
+        derived counts, read at call time. Reading
+        registers and publishes nothing.
+        """
+        from ..core.crew_schedules import derive_index as _derive_index
+        registry = self._crew_schedules_registry()
+        if registry.list_attachments():
+            return registry.index()
+        return _derive_index(self.crew_schedules().entries)
+
+    def register_crew_schedule(
+            self, attachment: Any) -> dict[str, Any]:
+        """Hold one attachment record for the session (M-145).
+
+        The record is held by the pure registry under
+        its id or the deterministic attachment-N id -
+        a record id already standing here refuses, as
+        does a job already standing attached here,
+        and a refusal holds nothing new and publishes
+        nothing. A held record is published as its
+        ``attachment_record`` session-news record
+        through the checkpoint road, and its derived
+        report as its ``report_record`` session news,
+        so an attachment given is news. Returns the
+        held record, its news record, its report and
+        report news record, the screen rendered after
+        it landed, and the plain explanation. Holding
+        a record starts no timer, runs no job,
+        summons no crew, spawns no agent and persists
+        nothing: the registry holds the record as
+        data, and a report or the index stays a
+        derivation read off the held records at call
+        time.
+        """
+        from ..core import crew_schedules as schedules_module
+        registry = self._crew_schedules_registry()
+        held = registry.register_attachment(attachment)
+        record = schedules_module.attachment_record(held)
+        self._publish_crew_schedules_record(record)
+        report = schedules_module.derive_report(held)
+        report_record = schedules_module.report_record(report)
+        self._publish_crew_schedules_record(report_record)
+        return {
+            "attachment": held.to_record(),
+            "record": record,
+            "report": report.to_record(),
+            "report_record": report_record,
+            "screen": self._crew_schedules_screen(),
+            "explanation": schedules_module.PLAIN_EXPLANATION,
+        }
+
+    def register_crew_schedule_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole crew schedule book for the session (M-145).
+
+        Every attachment record of the book is held by
+        the pure registry, in book order - the first
+        book held sets the registry's title, a later
+        book under a different title refuses, as does
+        a book naming a held record id or a held job
+        id. The book's reports and its index are
+        derivations, not holdings, and are not held.
+        Every record is published as its
+        ``attachment_record`` session news with its
+        derived ``report_record``, in book order, and
+        the book's derived index as its
+        ``index_record`` session news. Returns the
+        held book, its records, their news records,
+        the report and index news records, the count
+        of records held, the screen, and the
+        explanation. Registering starts no timer,
+        runs no job, summons no crew, spawns no agent
+        and persists nothing.
+        """
+        from ..core import crew_schedules as schedules_module
+        validated = schedules_module.build_book(book)
+        registry = self._crew_schedules_registry()
+        registry.register_book(validated)
+        records = [
+            schedules_module.attachment_record(entry)
+            for entry in validated.entries]
+        report_records = [
+            schedules_module.report_record(
+                schedules_module.derive_report(entry))
+            for entry in validated.entries]
+        for record, report_record in zip(records, report_records):
+            self._publish_crew_schedules_record(record)
+            self._publish_crew_schedules_record(report_record)
+        index_record = schedules_module.index_record(
+            schedules_module.derive_index(validated.entries))
+        self._publish_crew_schedules_record(index_record)
+        return {
+            "book": validated.to_record(),
+            "attachments": [e.to_record() for e in validated.entries],
+            "records": records,
+            "report_records": report_records,
+            "index_record": index_record,
+            "count": len(records),
+            "screen": self._crew_schedules_screen(),
+            "explanation": schedules_module.PLAIN_EXPLANATION,
+        }
+
+    def record_crew_schedule_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole crew schedule book for the session (M-145).
+
+        With no book named, the shipped example crew
+        schedule book is recorded through the pure
+        layer - four attachment records at the M-144
+        slice boundary, the roadmap's dawn Auditor
+        sweep first, and its one pinned index. A book
+        loaded from a file (the pure layer's
+        ``load_crew_schedules_file`` road) may be
+        passed instead, so a real crew schedule book
+        is recorded as it stands. Every record is held
+        and published as its ``attachment_record``
+        session news with its derived
+        ``report_record``, in book order, and the
+        book's derived index as its ``index_record``
+        session news; the book is remembered whole as
+        the session's - its held index and all - and
+        the same book recorded twice refuses -
+        fingerprinted on its attachment ids and title -
+        a book is recorded once, never duplicated into
+        the session. Returns the held book, its
+        records, their news records, the report and
+        index news records, the count of records held,
+        the screen, and the explanation. Recording
+        starts no timer, runs no job, summons no crew,
+        spawns no agent and persists nothing.
+        """
+        from ..core import crew_schedules as schedules_module
+        book = book if book is not None \
+            else schedules_module.load_crew_schedules()
+        validated = schedules_module.build_book(book)
+        fingerprint = (tuple(validated.attachment_ids()), validated.title)
+        recorded = getattr(self, "_crew_schedules_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._crew_schedules_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this crew schedule book is already recorded for "
+                "the session; a book is recorded once")
+        registry = self._crew_schedules_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._crew_schedules_held = validated
+        records = [
+            schedules_module.attachment_record(entry)
+            for entry in validated.entries]
+        report_records = [
+            schedules_module.report_record(
+                schedules_module.derive_report(entry))
+            for entry in validated.entries]
+        for record, report_record in zip(records, report_records):
+            self._publish_crew_schedules_record(record)
+            self._publish_crew_schedules_record(report_record)
+        index_record = schedules_module.index_record(
+            schedules_module.derive_index(validated.entries))
+        self._publish_crew_schedules_record(index_record)
+        return {
+            "book": validated.to_record(),
+            "attachments": [e.to_record() for e in validated.entries],
+            "records": records,
+            "report_records": report_records,
+            "index_record": index_record,
+            "count": len(records),
+            "screen": schedules_module.format_crew_schedules_screen(
+                validated),
+            "explanation": schedules_module.PLAIN_EXPLANATION,
+        }
+
+    def report_crew_schedules(self) -> dict[str, Any]:
+        """Render the session crew schedule book, as a report (M-145).
+
+        The book - the held registry's book when the
+        session holds any attachment record, otherwise
+        the shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone: its attachment
+        records, its reports, its index and its one
+        screen. Rendering registers and publishes
+        nothing, starts no timer, runs no job, summons
+        no crew, spawns no agent and persists nothing:
+        the agent layer renders the attachments as
+        data. Returns the book, its records, reports
+        and indexes as plain records, the derived
+        index, the rendered records, reports and
+        index, the screen, and the plain explanation.
+        """
+        from ..core import crew_schedules as schedules_module
+        book = self.crew_schedules()
+        return {
+            "book": book.to_record(),
+            "attachments": [e.to_record() for e in book.entries],
+            "reports": [
+                schedules_module.derive_report(e).to_record()
+                for e in book.entries],
+            "indexes": [i.to_record() for i in book.indexes],
+            "index": schedules_module.derive_index(
+                book.entries).to_record(),
+            "attachments_text": schedules_module.format_attachments(book),
+            "report_text": schedules_module.format_report(book),
+            "index_text": schedules_module.format_index(book),
+            "screen": self._crew_schedules_screen(),
+            "explanation": schedules_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_crew_schedules_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one crew schedule record as session news (M-145).
+
+        The pure layer's ``attachment_record``,
+        ``report_record`` and ``index_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once: an attachment under its own attachment
+        id, a report under its attachment id, and the
+        index under its whole derived shape (its rows
+        and totals), so an index grown by a newly held
+        attachment announces again as the new index it
+        is. A foreign record type is never published
+        on this road.
+        """
+        if record.get("type") == "crew_schedule_attachment":
+            key = ("crew_schedule_attachment", record.get("attachment_id"))
+        elif record.get("type") == "crew_schedule_report":
+            key = ("crew_schedule_report",
+                   record.get("attachment_id"))
+        elif record.get("type") == "crew_schedule_index":
+            key = ("crew_schedule_index", record.get("index_id"),
+                   tuple(row.get("attachment_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_attachments"),
+                   record.get("total_armed"),
+                   record.get("total_waiting"),
+                   record.get("total_disabled"),
+                   record.get("total_templates"))
+        else:
+            return
+        announced = getattr(self, "_crew_schedules_announced", None)
+        if announced is None:
+            announced = set()
+            self._crew_schedules_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
