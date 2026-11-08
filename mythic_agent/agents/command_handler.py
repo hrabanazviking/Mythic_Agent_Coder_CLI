@@ -311,6 +311,8 @@ class CommandHandler:
                 self._handle_externals(args)
             elif cmd == "/replay":
                 self._handle_replay(args)
+            elif cmd == "/foster":
+                self._handle_foster(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -4438,6 +4440,78 @@ class CommandHandler:
                 text = format_trace(primary.replay_trace(target))
             else:
                 text = primary.crew_replay_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_foster(self, args: str):
+        """M-139: /foster - failure fostering.
+
+        ``/foster`` shows the fostering book held this
+        session (the shipped example book - the M-139
+        task dealt to forge_worker and the M-138 task
+        dealt to scribe, three reports, one pinned
+        re-deal and one pinned escalation - when none
+        is held yet); ``/foster report <report-id>``
+        shows one failure report; ``/foster redeal
+        <slice-id>`` shows the re-deal the book holds
+        for that slice; ``/foster escalation
+        <report-id>`` derives the escalation of that
+        report's failure. Reading registers and
+        publishes nothing as session news: dealings
+        and reports are held only when they are given
+        through the agent layer, and held reports are
+        published as a failure_report session event.
+        This road re-deals no task to a live agent,
+        delivers no escalation, spawns no agent,
+        persists nothing, calls no model and claims no
+        board: the registry holds the fostering as
+        data, and there is no Part VIII board yet -
+        this surface is where the fostering is
+        visible. The registry is session state held by
+        the agent; it is not a stored setting.
+        """
+        from ..core.failure_fostering import (
+            format_escalation,
+            format_redeal,
+            format_report,
+            parse_fostering_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_fostering_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "report":
+                text = format_report(primary.get_failure_report(target))
+            elif action == "redeal":
+                book = primary.failure_fostering()
+                redeal = None
+                if book is not None:
+                    for held_redeal in book.redeals:
+                        if held_redeal.slice_id == target:
+                            redeal = held_redeal
+                            break
+                if redeal is None:
+                    raise KeyError(
+                        f"no re-deal in the book: {target!r}")
+                text = format_redeal(redeal)
+            elif action == "escalation":
+                text = format_escalation(
+                    primary.fostering_escalation(target))
+            else:
+                text = primary.failure_fostering_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

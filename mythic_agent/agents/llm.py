@@ -17778,6 +17778,522 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-139: failure fostering --
+
+    def _failure_fostering_registry(self):
+        """The held fostering registry (M-139).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer fostering book record
+        by record, beside the session replay registry
+        (M-138) and never in it: the fostering book is
+        one book of original dealings and the failure
+        reports filed against them, held under the
+        book this slice names. It is created on first
+        use, so an agent whose ``__init__`` never ran
+        still holds exactly one. The attribute is named
+        ``_failure_fostering_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_failure_fostering_store", None)
+        if registry is None:
+            from ..core.failure_fostering import FosterRegistry
+            registry = FosterRegistry()
+            self._failure_fostering_store = registry
+        return registry
+
+    def failure_fostering(self):
+        """The session's fostering book, as data (M-139).
+
+        The held registry's book when the session
+        holds any dealing or report - the records the
+        session has actually gathered (dealings and
+        reports held one by one, before any whole book
+        stands recorded, stand under a session
+        fostering book composed here in the agent
+        layer, so a later whole book recorded under
+        its own title is never refused by a shim title
+        at the registry) - otherwise the book recorded
+        whole through :meth:`record_fostering_book`,
+        or the shipped example fostering book until
+        one is recorded. While only one side of the
+        book stands held - dealings with no reports,
+        or reports with no dealings - no whole book
+        can stand yet and this road returns None; the
+        held records themselves still answer on their
+        own roads. Reading registers and publishes
+        nothing.
+        """
+        from ..core.failure_fostering import (
+            FosterBook,
+            load_failure_fostering,
+        )
+        registry = self._failure_fostering_registry()
+        if registry.list_assignments() or registry.list_reports():
+            try:
+                book = registry.book()
+            except ValueError:
+                book = None
+            if book is not None:
+                held = getattr(
+                    self, "_failure_fostering_held", None)
+                if held is not None and held.title == book.title \
+                        and held.report_ids() == book.report_ids() \
+                        and [a.slice_id for a in held.assignments] \
+                        == [a.slice_id for a in book.assignments]:
+                    return held
+                return book
+            if registry.list_assignments() \
+                    and registry.list_reports():
+                return FosterBook(
+                    title="Session fostering book",
+                    assignments=registry.list_assignments(),
+                    reports=registry.list_reports())
+            return None
+        book = getattr(self, "_failure_fostering_held", None)
+        if book is None:
+            return load_failure_fostering()
+        return book
+
+    def _failure_fostering_screen(self) -> str:
+        """The /foster screen for the session's state (M-139).
+
+        Rendered from the held book when one stands,
+        from the shipped example book while nothing is
+        held, and from the held reports alone while
+        only one side of the book stands held and no
+        whole book can stand yet.
+        """
+        from ..core import failure_fostering as fostering_module
+        registry = self._failure_fostering_registry()
+        if not registry.list_assignments() \
+                and not registry.list_reports():
+            return fostering_module.format_fostering_screen()
+        book = self.failure_fostering()
+        if book is not None:
+            return fostering_module.format_fostering_screen(book)
+        lines = [
+            "Failure fostering (M-139) - "
+            + fostering_module.PLAIN_EXPLANATION, ""]
+        reports = registry.list_reports()
+        if reports:
+            lines.append("\n".join(
+                fostering_module.format_report(report)
+                for report in reports))
+        else:
+            lines.append("No failure reports are held.")
+        lines.append("")
+        lines.append(fostering_module.USAGE)
+        return "\n".join(lines)
+
+    def failure_fostering_status(self) -> dict[str, Any]:
+        """The failure fostering, in plain data (M-139).
+
+        The dealings and reports held this session as
+        plain records, the held book's record (none
+        until a dealing or a report stands held), the
+        session fostering book's pieces as plain
+        records (the shipped example book - the M-139
+        task dealt to forge_worker and the M-138 task
+        dealt to scribe, three reports, one pinned
+        re-deal and one pinned escalation - until
+        records are held), its whole-book record, every
+        re-deal and escalation the book holds as plain
+        records, the reports in plain words and the
+        re-deals and escalations told in plain words,
+        the one screen - rendered from the held book,
+        or from the shipped example book when nothing
+        is held yet - and the plain explanation.
+        Reading registers and publishes nothing,
+        re-deals no task to a live agent, delivers no
+        escalation, persists nothing and calls no
+        model: this layer holds the fostering as data
+        only. There is no Part VIII board yet; the
+        screen is where the fostering is visible.
+        """
+        from ..core import failure_fostering as fostering_module
+        registry = self._failure_fostering_registry()
+        held_assignments = registry.list_assignments()
+        held_reports = registry.list_reports()
+        held_any = bool(held_assignments or held_reports)
+        book = self.failure_fostering()
+        return {
+            "assignments": [
+                a.to_record() for a in held_assignments],
+            "reports": [r.to_record() for r in held_reports],
+            "book": (book.to_record()
+                     if held_any and book is not None else None),
+            "fostering": {
+                "title": book.title if book is not None else None,
+                "assignments": (
+                    [a.to_record() for a in book.assignments]
+                    if book is not None else []),
+                "reports": (
+                    [r.to_record() for r in book.reports]
+                    if book is not None else []),
+            },
+            "book_record": (
+                fostering_module.book_record(book)
+                if book is not None else None),
+            "redeals": (
+                [r.to_record() for r in book.redeals]
+                if book is not None else []),
+            "escalations": (
+                [e.to_record() for e in book.escalations]
+                if book is not None else []),
+            "plain_words": [
+                fostering_module.plain_words(report)
+                for report in (
+                    book.reports if book is not None
+                    else held_reports)],
+            "redeal_plain_words": (
+                fostering_module.redeal_plain_words(book)
+                if book is not None else ""),
+            "escalation_plain_words": (
+                fostering_module.escalation_plain_words(book)
+                if book is not None else ""),
+            "screen": self._failure_fostering_screen(),
+            "explanation": fostering_module.PLAIN_EXPLANATION,
+        }
+
+    def get_failure_report(self, report_id: Any):
+        """The one failure report an id names (M-139).
+
+        The session's held registry answers when the
+        session holds any dealing or report; otherwise
+        the shipped example fostering book answers (or
+        the book recorded whole for the session). A
+        held session answers for its own book alone: a
+        report the held book holds no report for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._failure_fostering_registry()
+        if registry.list_assignments() or registry.list_reports():
+            return registry.get_report(report_id)
+        return self.failure_fostering().report_for(report_id)
+
+    def get_fostering_assignment(self, slice_id: Any):
+        """The one original dealing a slice names (M-139).
+
+        The session's held registry answers when the
+        session holds any dealing or report; otherwise
+        the shipped example fostering book answers (or
+        the book recorded whole for the session). A
+        held session answers for its own book alone: a
+        slice the held book holds no dealing for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._failure_fostering_registry()
+        if registry.list_assignments() or registry.list_reports():
+            return registry.get_assignment(slice_id)
+        return self.failure_fostering().assignment_for(slice_id)
+
+    def fostering_redeal(self, slice_id: Any, foster_member: Any):
+        """The re-deal derived for one slice (M-139).
+
+        The re-deal is derived at call time from the
+        original dealing, the first failure report
+        judging it and the fostering member named -
+        the held registry's records when the session
+        holds any dealing or report, otherwise the
+        shipped example book's records (or the records
+        of the book recorded whole for the session) -
+        so its account is the dealing's and the
+        report's own words, read at call time. A held
+        session answers for its own book alone: a slice
+        the held book holds no dealing or no judging
+        report for raises KeyError, with no silent fall
+        back to the example. Reading registers and
+        publishes nothing.
+        """
+        from ..core.failure_fostering import (
+            derive_redeal as _derive_redeal,
+        )
+        registry = self._failure_fostering_registry()
+        if registry.list_assignments() or registry.list_reports():
+            return registry.redeal_for(slice_id, foster_member)
+        book = self.failure_fostering()
+        dealt = book.assignment_for(slice_id)
+        for report in book.reports:
+            if report.member == dealt.member \
+                    and report.slice_id == dealt.slice_id:
+                return _derive_redeal(dealt, report, foster_member)
+        raise KeyError(
+            f"no held report judges the dealing: {dealt.slice_id!r}")
+
+    def fostering_escalation(self, report: Any):
+        """The escalation derived for one report (M-139).
+
+        The escalation is derived at call time from
+        the two reports of the failure the named report
+        belongs to - the held registry's reports when
+        the session holds any dealing or report,
+        otherwise the shipped example book's reports
+        (or the reports of the book recorded whole for
+        the session) - so its account is the reports'
+        own words, read at call time. One report alone,
+        or two reports of different failures, never
+        escalate. A held session answers for its own
+        book alone, with no silent fall back to the
+        example. Reading registers and publishes
+        nothing.
+        """
+        from ..core.failure_fostering import (
+            derive_escalation as _derive_escalation,
+        )
+        registry = self._failure_fostering_registry()
+        if registry.list_assignments() or registry.list_reports():
+            return registry.escalation_for(report)
+        return _derive_escalation(self.failure_fostering(), report)
+
+    def register_fostering_assignment(
+            self, assignment: Any) -> dict[str, Any]:
+        """Hold one original dealing for the session (M-139).
+
+        The dealing is held by the pure registry under
+        its slice - one dealing per slice, and a second
+        dealing for a slice already standing here
+        refuses; a refusal holds nothing new and
+        publishes nothing. A dealing is held silently:
+        only failure reports are session news on this
+        slice, so holding a dealing publishes nothing.
+        Returns the held dealing, the screen rendered
+        after it landed, and the plain explanation.
+        Holding a dealing re-deals no task, persists
+        nothing and calls no model: the registry holds
+        the dealing as data, and a re-deal stays a
+        derivation read off the held records at call
+        time.
+        """
+        from ..core import failure_fostering as fostering_module
+        registry = self._failure_fostering_registry()
+        held = registry.register_assignment(assignment)
+        return {
+            "assignment": held.to_record(),
+            "screen": self._failure_fostering_screen(),
+            "explanation": fostering_module.PLAIN_EXPLANATION,
+        }
+
+    def register_failure_report(
+            self, report: Any) -> dict[str, Any]:
+        """Hold one failure report for the session (M-139).
+
+        The report is held by the pure registry under
+        its id or the deterministic fostering-N id - a
+        report id already standing here refuses, and a
+        refusal holds nothing new and publishes
+        nothing. A held report is published as its
+        ``report_record`` session-news record through
+        the checkpoint road, so a report given is news
+        with its failure attached. Returns the held
+        report, its news record, the screen rendered
+        after it landed, and the plain explanation.
+        Holding a report delivers no escalation,
+        persists nothing and calls no model: the
+        registry holds the report as data, and an
+        escalation stays a derivation read off the
+        held reports at call time.
+        """
+        from ..core import failure_fostering as fostering_module
+        registry = self._failure_fostering_registry()
+        held = registry.register_report(report)
+        record = fostering_module.report_record(held)
+        self._publish_failure_fostering_record(record)
+        return {
+            "report": held.to_record(),
+            "record": record,
+            "screen": self._failure_fostering_screen(),
+            "explanation": fostering_module.PLAIN_EXPLANATION,
+        }
+
+    def register_fostering_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole fostering book for the session (M-139).
+
+        Every dealing and report of the book is held by
+        the pure registry, in book order - the first
+        book held sets the registry's title, a later
+        book under a different title refuses, as does a
+        book naming a held slice or report id. The
+        book's re-deals and escalations are derivations,
+        not holdings, and are not held. Every report is
+        published as its ``report_record`` session
+        news, in book order. Returns the held book, its
+        dealings and reports, their news records, the
+        count of reports held, the screen, and the
+        explanation. Registering re-deals no task,
+        delivers no escalation, persists nothing and
+        calls no model.
+        """
+        from ..core import failure_fostering as fostering_module
+        validated = fostering_module.build_book(book)
+        registry = self._failure_fostering_registry()
+        registry.register_book(validated)
+        records = [
+            fostering_module.report_record(report)
+            for report in validated.reports]
+        for record in records:
+            self._publish_failure_fostering_record(record)
+        return {
+            "book": validated.to_record(),
+            "assignments": [
+                a.to_record() for a in validated.assignments],
+            "reports": [r.to_record() for r in validated.reports],
+            "records": records,
+            "count": len(records),
+            "screen": self._failure_fostering_screen(),
+            "explanation": fostering_module.PLAIN_EXPLANATION,
+        }
+
+    def record_fostering_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole fostering book for the session (M-139).
+
+        With no book named, the shipped example
+        fostering book is recorded through the pure
+        layer - the M-139 task dealt to forge_worker
+        and the M-138 task dealt to scribe, three
+        reports, one pinned re-deal and one pinned
+        escalation. A book loaded from a file (the pure
+        layer's ``load_failure_fostering_file`` road)
+        may be passed instead, so a real fostering book
+        is recorded as it stands. Every dealing and
+        report is held, and every report published as
+        its ``report_record`` session news, in book
+        order; the book is remembered whole as the
+        session's - its held re-deal and escalation and
+        all - and the same book recorded twice refuses
+        - fingerprinted on its report ids and title - a
+        book is recorded once, never duplicated into
+        the session. Returns the held book, its
+        dealings and reports, their news records, the
+        count of reports held, the screen, and the
+        explanation. Recording re-deals no task,
+        delivers no escalation, persists nothing and
+        calls no model.
+        """
+        from ..core import failure_fostering as fostering_module
+        book = book if book is not None \
+            else fostering_module.load_failure_fostering()
+        validated = fostering_module.build_book(book)
+        fingerprint = (tuple(validated.report_ids()), validated.title)
+        recorded = getattr(self, "_failure_fostering_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._failure_fostering_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this fostering book is already recorded for "
+                "the session; a book is recorded once")
+        registry = self._failure_fostering_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._failure_fostering_held = validated
+        records = [
+            fostering_module.report_record(report)
+            for report in validated.reports]
+        for record in records:
+            self._publish_failure_fostering_record(record)
+        return {
+            "book": validated.to_record(),
+            "assignments": [
+                a.to_record() for a in validated.assignments],
+            "reports": [r.to_record() for r in validated.reports],
+            "records": records,
+            "count": len(records),
+            "screen": fostering_module.format_fostering_screen(
+                validated),
+            "explanation": fostering_module.PLAIN_EXPLANATION,
+        }
+
+    def report_failure_fostering(self) -> dict[str, Any]:
+        """Render the session fostering book, as a report (M-139).
+
+        The book - the held registry's book when the
+        session holds any dealing or report, otherwise
+        the shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone: its reports, its
+        re-deals, its escalations and its one screen.
+        While only one side of the book stands held,
+        the held reports are rendered alone and no
+        whole book is claimed. Rendering registers and
+        publishes nothing, re-deals no task to a live
+        agent, delivers no escalation, persists nothing
+        and calls no model: the agent layer renders the
+        fostering as data. Returns the book, its
+        dealings, reports, re-deals and escalations as
+        plain records, the rendered reports, re-deals
+        and escalations, the screen, and the plain
+        explanation.
+        """
+        from ..core import failure_fostering as fostering_module
+        registry = self._failure_fostering_registry()
+        book = self.failure_fostering()
+        if book is None:
+            held_reports = registry.list_reports()
+            return {
+                "book": None,
+                "assignments": [
+                    a.to_record()
+                    for a in registry.list_assignments()],
+                "reports": [r.to_record() for r in held_reports],
+                "redeals": [],
+                "escalations": [],
+                "reports_text": (
+                    "\n".join(
+                        fostering_module.format_report(report)
+                        for report in held_reports)
+                    if held_reports
+                    else "No failure reports are held."),
+                "redeal_text": "Nothing here.",
+                "escalation_text": "Nothing here.",
+                "screen": self._failure_fostering_screen(),
+                "explanation": fostering_module.PLAIN_EXPLANATION,
+            }
+        return {
+            "book": book.to_record(),
+            "assignments": [a.to_record() for a in book.assignments],
+            "reports": [r.to_record() for r in book.reports],
+            "redeals": [r.to_record() for r in book.redeals],
+            "escalations": [e.to_record() for e in book.escalations],
+            "reports_text": fostering_module.format_reports(book),
+            "redeal_text": fostering_module.format_redeal(book),
+            "escalation_text": fostering_module.format_escalation(book),
+            "screen": self._failure_fostering_screen(),
+            "explanation": fostering_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_failure_fostering_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one failure report as session news (M-139).
+
+        The pure layer's ``report_record`` is journaled
+        through the same checkpoint road every sibling
+        slice uses, when a session is attached. Each
+        report is announced at most once, under its own
+        report id. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") != "failure_report":
+            return
+        announced = getattr(
+            self, "_failure_fostering_announced", None)
+        if announced is None:
+            announced = set()
+            self._failure_fostering_announced = announced
+        key = ("failure_report", record.get("report_id"))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 
 class AgentManager:
