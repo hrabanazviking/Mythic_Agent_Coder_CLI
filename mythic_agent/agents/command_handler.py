@@ -309,6 +309,8 @@ class CommandHandler:
                 self._handle_voices(args)
             elif cmd == "/externals":
                 self._handle_externals(args)
+            elif cmd == "/replay":
+                self._handle_replay(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -4381,6 +4383,61 @@ class CommandHandler:
                 text = format_seats(primary.external_agents(), target)
             else:
                 text = primary.external_agents_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_replay(self, args: str):
+        """M-138: /replay - crew replay.
+
+        ``/replay`` shows the replay book held this
+        session (the shipped example book - five
+        hand-offs at the M-137 slice boundary and one
+        pinned trace - when none is held yet);
+        ``/replay step <step-id>`` shows one step;
+        ``/replay trace <step-id>`` derives the trace
+        of the decision that step carries. Reading
+        registers and publishes nothing as session
+        news: steps are held only when they are given
+        through the agent layer, and held steps are
+        published as a crew_replay_step session event.
+        This road reads no live journal, re-executes
+        no step, spawns no agent, persists nothing,
+        calls no model and claims no board: the
+        registry holds the steps as data, and there is
+        no Part VIII board yet - this surface is where
+        the replay is visible. The registry is session
+        state held by the agent; it is not a stored
+        setting.
+        """
+        from ..core.crew_replay import (
+            format_step,
+            format_steps,
+            format_trace,
+            parse_replay_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_replay_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "step":
+                text = format_step(primary.get_replay_step(target))
+            elif action == "trace":
+                text = format_trace(primary.replay_trace(target))
+            else:
+                text = primary.crew_replay_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

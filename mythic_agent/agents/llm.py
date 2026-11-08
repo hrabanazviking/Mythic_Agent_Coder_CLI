@@ -17426,6 +17426,360 @@ class Agent:
 
 
 
+    # -- M-138: crew replay --
+
+    def _crew_replay_registry(self):
+        """The held replay registry (M-138).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer replay book step by
+        step, beside the session external registry
+        (M-137) and never in it: the replay book is
+        one finished run's hand-offs in journal
+        order, held under the book this slice names.
+        It is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly
+        one. The attribute is named
+        ``_crew_replay_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_crew_replay_store", None)
+        if registry is None:
+            from ..core.crew_replay import ReplayRegistry
+            registry = ReplayRegistry()
+            self._crew_replay_store = registry
+        return registry
+
+    def crew_replay(self):
+        """The session's replay book, as data (M-138).
+
+        The held registry's book when the session
+        holds any step - the steps the session has
+        actually gathered (steps held one by one,
+        before any whole book stands recorded, stand
+        under a session replay book composed here in
+        the agent layer, so a later whole book
+        recorded under its own title is never
+        refused by a shim title at the registry -
+        the journal order itself still governs what
+        may join) - otherwise the book recorded
+        whole through :meth:`record_replay_book`, or
+        the shipped example replay book until one is
+        recorded. Reading registers and publishes
+        nothing.
+        """
+        from ..core.crew_replay import (
+            ReplayBook,
+            load_crew_replay,
+        )
+        registry = self._crew_replay_registry()
+        if registry.list_steps():
+            try:
+                book = registry.book()
+            except ValueError:
+                return ReplayBook(
+                    title="Session replay book",
+                    steps=registry.list_steps())
+            held = getattr(self, "_crew_replay_held", None)
+            if held is not None and held.title == book.title \
+                    and held.step_ids() == book.step_ids():
+                return held
+            return book
+        book = getattr(self, "_crew_replay_held", None)
+        if book is None:
+            return load_crew_replay()
+        return book
+
+    def crew_replay_status(self) -> dict[str, Any]:
+        """The crew replay, in plain data (M-138).
+
+        The steps held this session as plain records,
+        the held book's record (none until a step
+        stands held), the session replay book's pieces
+        as plain records (the shipped example book -
+        five hand-offs at the M-137 slice boundary
+        and one pinned trace - until steps are held),
+        its whole-book record, every trace the book
+        holds as plain records, the steps in plain
+        words and the traces told in plain words, the
+        one screen - rendered from the held book, or
+        from the shipped example book when nothing is
+        held yet - and the plain explanation. Reading
+        registers and publishes nothing, reads no live
+        journal, re-executes nothing, persists nothing
+        and calls no model: this layer holds the
+        replay as data only. There is no Part VIII
+        board yet; the screen is where the replay is
+        visible.
+        """
+        from ..core import crew_replay as replay_module
+        registry = self._crew_replay_registry()
+        held_steps = registry.list_steps()
+        book = self.crew_replay()
+        if held_steps:
+            screen = replay_module.format_replay_screen(book)
+        else:
+            screen = replay_module.format_replay_screen()
+        return {
+            "steps": [s.to_record() for s in held_steps],
+            "book": (book.to_record() if held_steps else None),
+            "replay": {
+                "title": book.title,
+                "steps": [s.to_record() for s in book.steps],
+            },
+            "book_record": replay_module.book_record(book),
+            "traces": [t.to_record() for t in book.traces],
+            "plain_words": [
+                replay_module.plain_words(s) for s in book.steps],
+            "trace_plain_words":
+                replay_module.trace_plain_words(book),
+            "screen": screen,
+            "explanation": replay_module.PLAIN_EXPLANATION,
+        }
+
+    def get_replay_step(self, step_id: Any):
+        """The one step an id names (M-138).
+
+        The session's held registry answers when the
+        session holds any step; otherwise the shipped
+        example replay book answers (or the book
+        recorded whole for the session). A held
+        session answers for its own book alone: a
+        step the held book holds no step for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._crew_replay_registry()
+        if registry.list_steps():
+            return registry.get_step(step_id)
+        return self.crew_replay().step_for(step_id)
+
+    def replay_step_at(self, position: Any):
+        """The step at one journal position (M-138).
+
+        The session's held registry answers when the
+        session holds any step; otherwise the shipped
+        example replay book answers (or the book
+        recorded whole for the session). A held
+        session answers for its own book alone, with
+        no silent fall back to the example. Reading
+        registers and publishes nothing.
+        """
+        registry = self._crew_replay_registry()
+        if registry.list_steps():
+            return registry.step_at(position)
+        return self.crew_replay().step_at(position)
+
+    def replay_trace(self, decision: Any):
+        """The trace derived for one decision (M-138).
+
+        The trace is derived at call time from the
+        steps that led to the decision - the held
+        registry's steps when the session holds any
+        step, otherwise the shipped example book's
+        steps (or the steps of the book recorded
+        whole for the session) - so its account is
+        the steps' own hand-offs, read at call time.
+        A held session answers for its own book
+        alone: a decision the held book holds no
+        step for raises KeyError, with no silent fall
+        back to the example. Reading registers and
+        publishes nothing.
+        """
+        from ..core.crew_replay import derive_trace as _derive_trace
+        registry = self._crew_replay_registry()
+        if registry.list_steps():
+            return registry.trace_for(decision)
+        return _derive_trace(self.crew_replay(), decision)
+
+    def register_replay_step(
+            self, step: Any) -> dict[str, Any]:
+        """Hold one replay step for the session (M-138).
+
+        The step is held by the pure registry under
+        its id or the deterministic replay-N id - a
+        step joins only at the next journal position,
+        and a step id already standing here refuses;
+        a refusal holds nothing new and publishes
+        nothing. A held step is published as its
+        ``step_record`` session-news record through
+        the checkpoint road, so a step given is news
+        with its hand-off attached. Returns the held
+        step, its news record, the screen rendered
+        after it landed, and the plain explanation.
+        Holding a step reads no live journal,
+        re-executes nothing, persists nothing and
+        calls no model: the registry holds the step
+        as data, and a trace stays a derivation read
+        off the steps at call time.
+        """
+        from ..core import crew_replay as replay_module
+        registry = self._crew_replay_registry()
+        held = registry.register_step(step)
+        record = replay_module.step_record(held)
+        self._publish_crew_replay_record(record)
+        return {
+            "step": held.to_record(),
+            "record": record,
+            "screen": replay_module.format_replay_screen(
+                self.crew_replay()),
+            "explanation": replay_module.PLAIN_EXPLANATION,
+        }
+
+    def register_replay_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole replay book for the session (M-138).
+
+        Every step of the book is held by the pure
+        registry, in journal order - the first book
+        held sets the registry's title, a later book
+        under a different title refuses, as does a
+        book whose steps do not continue the held
+        journal order. Every step is published as its
+        ``step_record`` session news, in book order.
+        Returns the held book, its steps, their news
+        records, the count of steps held, the screen,
+        and the explanation. Registering reads no live
+        journal, re-executes nothing, persists nothing
+        and calls no model.
+        """
+        from ..core import crew_replay as replay_module
+        validated = replay_module.build_book(book)
+        registry = self._crew_replay_registry()
+        registry.register_book(validated)
+        records = [
+            replay_module.step_record(step)
+            for step in validated.steps]
+        for record in records:
+            self._publish_crew_replay_record(record)
+        return {
+            "book": validated.to_record(),
+            "steps": [s.to_record() for s in validated.steps],
+            "records": records,
+            "count": len(records),
+            "screen": replay_module.format_replay_screen(
+                self.crew_replay()),
+            "explanation": replay_module.PLAIN_EXPLANATION,
+        }
+
+    def record_replay_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole replay book for the session (M-138).
+
+        With no book named, the shipped example replay
+        book is recorded through the pure layer - five
+        hand-offs at the M-137 slice boundary and one
+        pinned trace. A book loaded from a file (the
+        pure layer's ``load_crew_replay_file`` road)
+        may be passed instead, so a real replay book
+        is recorded as it stands. Every step is held
+        and published as its ``step_record`` session
+        news, in journal order; the book is remembered
+        whole as the session's - its held trace and
+        all - and the same book recorded twice refuses
+        - fingerprinted on its step ids and title - a
+        book is recorded once, never duplicated into
+        the session. Returns the held book, its steps,
+        their news records, the count of steps held,
+        the screen, and the explanation. Recording
+        reads no live journal, re-executes nothing,
+        persists nothing and calls no model.
+        """
+        from ..core import crew_replay as replay_module
+        book = book if book is not None \
+            else replay_module.load_crew_replay()
+        validated = replay_module.build_book(book)
+        fingerprint = (tuple(validated.step_ids()), validated.title)
+        recorded = getattr(self, "_crew_replay_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._crew_replay_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this replay book is already recorded for "
+                "the session; a book is recorded once")
+        registry = self._crew_replay_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._crew_replay_held = validated
+        records = [
+            replay_module.step_record(step)
+            for step in validated.steps]
+        for record in records:
+            self._publish_crew_replay_record(record)
+        return {
+            "book": validated.to_record(),
+            "steps": [s.to_record() for s in validated.steps],
+            "records": records,
+            "count": len(records),
+            "screen": replay_module.format_replay_screen(
+                validated),
+            "explanation": replay_module.PLAIN_EXPLANATION,
+        }
+
+    def report_crew_replay(self) -> dict[str, Any]:
+        """Render the session replay book, as a report (M-138).
+
+        The book - the held registry's book when the
+        session holds any step, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - is rendered through the pure
+        formatters alone: its steps, its traces and
+        its one screen. Rendering registers and
+        publishes nothing, reads no live journal,
+        re-executes nothing, persists nothing and
+        calls no model: the agent layer renders the
+        replay as data, and a step is never a
+        re-execution. Returns the book, its steps and
+        traces as plain records, the rendered steps
+        and traces, the screen, and the plain
+        explanation.
+        """
+        from ..core import crew_replay as replay_module
+        registry = self._crew_replay_registry()
+        book = self.crew_replay()
+        if registry.list_steps():
+            screen = replay_module.format_replay_screen(book)
+        else:
+            screen = replay_module.format_replay_screen()
+        return {
+            "book": book.to_record(),
+            "steps": [s.to_record() for s in book.steps],
+            "traces": [t.to_record() for t in book.traces],
+            "steps_text": replay_module.format_steps(book),
+            "trace_text": replay_module.format_trace(book),
+            "screen": screen,
+            "explanation": replay_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_crew_replay_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one replay step as session news (M-138).
+
+        The pure layer's ``step_record`` is journaled
+        through the same checkpoint road every sibling
+        slice uses, when a session is attached. Each
+        step is announced at most once, under its own
+        step id. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") != "crew_replay_step":
+            return
+        announced = getattr(self, "_crew_replay_announced", None)
+        if announced is None:
+            announced = set()
+            self._crew_replay_announced = announced
+        key = ("crew_replay_step", record.get("step_id"))
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
