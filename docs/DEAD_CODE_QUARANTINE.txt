@@ -238,3 +238,7 @@ mythic_agent/core/crew_memory.py:839:entries_for:method
 mythic_agent/agents/llm.py:16191:register_stand_up_entry:method
 mythic_agent/agents/llm.py:16236:record_stand_up_report:method
 mythic_agent/agents/llm.py:16295:report_stand_up:method
+mythic_agent/agents/llm.py:16515:sizing_recommendation:method
+mythic_agent/agents/llm.py:16533:register_sizing_case:method
+mythic_agent/agents/llm.py:16564:record_sizing_book:method
+mythic_agent/agents/llm.py:16618:report_crew_sizing:method
