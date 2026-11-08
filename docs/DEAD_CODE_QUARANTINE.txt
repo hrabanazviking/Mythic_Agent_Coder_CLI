@@ -192,3 +192,14 @@ mythic_agent/agents/llm.py:13711:report_merge:method
 mythic_agent/core/merge_discipline.py:1035:line_for:method
 mythic_agent/core/merge_discipline.py:1147:steps_for:method
 mythic_agent/core/merge_discipline.py:1152:merges_for:method
+mythic_agent/agents/llm.py:13920:get_hetero_assignment:method
+mythic_agent/agents/llm.py:13929:get_hetero_budget:method
+mythic_agent/agents/llm.py:13937:get_hetero_reading:method
+mythic_agent/agents/llm.py:14015:register_hetero_assignment:method
+mythic_agent/agents/llm.py:14048:register_hetero_budget:method
+mythic_agent/agents/llm.py:14074:register_hetero_reading:method
+mythic_agent/agents/llm.py:14105:record_heterogeneous_crew:method
+mythic_agent/agents/llm.py:14177:report_hetero:method
+mythic_agent/core/heterogeneous_crews.py:1232:assignments_for:method
+mythic_agent/core/heterogeneous_crews.py:1239:budget_for:method
+mythic_agent/core/heterogeneous_crews.py:1247:readings_for:method
