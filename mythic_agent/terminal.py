@@ -276,7 +276,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /changeset [on|off] /rename [on|off|<old-path> <new-path>] /generated [on|off|<path>|mark <path> <generator>] /largefile [on|off|<path>]/largefile [on|off|<path>] /stash [show|on|off|shelve <name>|restore <name>|drop <name>] /patch [show|on|off|export <set name>|import <patch file>] /editor [show|on|off|file <path>|prompt] /diff [show|on|off|unified|side-by-side|whitespace|whitespace off] /blame [show|on|off|<path> [<line>]] /massedit [show|on|off] /posture [show|<profile name>] /remember [list|forget <id>|clear] /sandbox [show|on|off|truth|plan <command>] /network [show|on|off|list|check <tool> <host>|allow <tool> <domain>] /pathjail [show|on|off|grants|check <path>|grant <abs-path>] /plan [show|on|off|approve|build|check <effect>] /hooks [show|show <event>|check <event>] /hookpacks [show|show <pack>|install <pack>] /background [show|show <job>|tail [<job>]|kill <job>|start <command...>] /keeper [show|show <target>|check|heartbeat <target>] /schedule [show|show <job>|check] /fleet [show|show <task>|verdict|resume] /budgets [show|show <budget>|check|check <budget>] /halt [show|show <halt>|pull|pull <target>] /audit [show|show <entry>|export] /secrets [show|show <screening>|check <file>] /doctrine [show|show <judgement>|ladder|check <command>] /rollback [show|show <run>|drills|run <drill>] /issueslice [on|off|github <number>] /prcraft [on|off|tasks <pr>] /commitcraft [on|off|plan|commit <concern>|push] /guardians [word on|word off|check <path>] /autocommit [on|off|allow-protected|block-protected] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /changeset [on|off] /rename [on|off|<old-path> <new-path>] /generated [on|off|<path>|mark <path> <generator>] /largefile [on|off|<path>]/largefile [on|off|<path>] /stash [show|on|off|shelve <name>|restore <name>|drop <name>] /patch [show|on|off|export <set name>|import <patch file>] /editor [show|on|off|file <path>|prompt] /diff [show|on|off|unified|side-by-side|whitespace|whitespace off] /blame [show|on|off|<path> [<line>]] /massedit [show|on|off] /posture [show|<profile name>] /remember [list|forget <id>|clear] /sandbox [show|on|off|truth|plan <command>] /network [show|on|off|list|check <tool> <host>|allow <tool> <domain>] /pathjail [show|on|off|grants|check <path>|grant <abs-path>] /plan [show|on|off|approve|build|check <effect>] /hooks [show|show <event>|check <event>] /hookpacks [show|show <pack>|install <pack>] /background [show|show <job>|tail [<job>]|kill <job>|start <command...>] /keeper [show|show <target>|check|heartbeat <target>] /schedule [show|show <job>|check] /fleet [show|show <task>|verdict|resume] /budgets [show|show <budget>|check|check <budget>] /halt [show|show <halt>|pull|pull <target>] /audit [show|show <entry>|export] /secrets [show|show <screening>|check <file>] /doctrine [show|show <judgement>|ladder|check <command>] /rollback [show|show <run>|drills|run <drill>] /multirepo [show|show <set>|repos] /remote [show|show <plan>|targets] /grace [show|show <record>|failures] /moment [show|show <record>|parts] /policy [show|plan|sections|apply] /crew [show|show <member>|office <office>] /offices [show|show <office>|handoffs <office>|contract <from> <to>] /offices custom [show|show <office>|handoffs <office>|contract <from> <to>] /worktrees [show|show <member>|plan|merges] /dealing [show|show <member>|plan|loads] /comms [show|show <member>|ask|kinds] /deadlock [show|show <member>|kinds] /merge [show|show <member>|lines|kinds] /issueslice [on|off|github <number>] /prcraft [on|off|tasks <pr>] /commitcraft [on|off|plan|commit <concern>|push] /guardians [word on|word off|check <path>] /autocommit [on|off|allow-protected|block-protected] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
         return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /issueslice [on|off|github <number>] /prcraft [on|off|tasks <pr>] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
@@ -1260,6 +1260,325 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         except KeyError as _exc:
             return True, False, str(_exc)
         return True, False, _fmt_res(_one)
+    if command == "/multirepo":
+        # M-113 terminal road: show the workspace and
+        # its sets, show one set, or show the held
+        # repos alone.
+        from .core.multi_repo import format_cross_set as _fmt_xset, format_repos as _fmt_repos, parse_multirepo_args as _parse_mr
+        try:
+            _act, _tgt = _parse_mr(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "repos":
+            return True, False, _fmt_repos(agent._multi_repo_registry())
+        if _tgt is None:
+            return True, False, agent.multi_repo_status()["screen"]
+        try:
+            _one = agent.get_cross_repo_set(_tgt)
+        except KeyError as _exc:
+            return True, False, str(_exc)
+        return True, False, _fmt_xset(_one)
+    if command == "/remote":
+        # M-114 terminal road: show the targets and
+        # their plans, show one plan, or show the
+        # held targets alone.
+        from .core.remote_work import format_targets as _fmt_tgts, format_work_plan as _fmt_plan, parse_remote_args as _parse_rw
+        try:
+            _act, _tgt = _parse_rw(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "targets":
+            return True, False, _fmt_tgts(agent._remote_work_registry())
+        if _tgt is None:
+            return True, False, agent.remote_work_status()["screen"]
+        try:
+            _one = agent.get_remote_work_plan(_tgt)
+        except KeyError as _exc:
+            return True, False, str(_exc)
+        return True, False, _fmt_plan(_one)
+    if command == "/grace":
+        # M-115 terminal road: show the records held
+        # this session, show one record, or show the
+        # failure kinds alone.
+        from .core.offline_grace import format_assessment as _fmt_assess, format_failures as _fmt_fails, parse_grace_args as _parse_grace
+        try:
+            _act, _tgt = _parse_grace(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "failures":
+            return True, False, _fmt_fails()
+        if _tgt is None:
+            return True, False, agent.grace_status()["screen"]
+        try:
+            _one = agent.get_grace_record(_tgt)
+        except KeyError as _exc:
+            return True, False, str(_exc)
+        return True, False, _fmt_assess(_one)
+    if command == "/moment":
+        # M-116 terminal road: show the moments held
+        # this session, show one moment, or show the
+        # required parts alone.
+        from .core.approval_moments import format_assessment as _fmt_moment_assess, format_parts as _fmt_mparts, parse_moment_args as _parse_moment
+        try:
+            _act, _tgt = _parse_moment(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "parts":
+            return True, False, _fmt_mparts()
+        if _tgt is None:
+            return True, False, agent.approval_moment_status()["screen"]
+        try:
+            _one = agent.get_approval_moment(_tgt)
+        except KeyError as _exc:
+            return True, False, str(_exc)
+        return True, False, _fmt_moment_assess(_one)
+    if command == "/policy":
+        # M-119 terminal road: show the current policy
+        # state, the data-only plan for the file on
+        # disk, its sections, or load and apply it.
+        from .core.policy_file import format_plan as _fmt_pol_plan, format_policy_sections as _fmt_pol_sections, parse_policy_args as _parse_policy
+        try:
+            _req = _parse_policy(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _req["action"] == "show":
+            return True, False, agent.project_policy_status()["screen"]
+        if _req["action"] == "apply":
+            return True, False, agent.apply_project_policy()["screen"]
+        try:
+            _pol = agent.policy_on_disk()
+        except ValueError as _exc:
+            return True, False, "Project policy refused: " + str(_exc)
+        if _req["action"] == "plan":
+            return True, False, _fmt_pol_plan(_pol)
+        return True, False, _fmt_pol_sections(_pol)
+    if command == "/crew":
+        # M-121 terminal road: show the crew held
+        # this session (the shipped casting when none
+        # is held), show one member, or show the
+        # member holding one office.
+        from .core.crew_members import format_member as _fmt_crew_member, parse_crew_args as _parse_crew
+        try:
+            _act, _tgt = _parse_crew(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "office":
+            try:
+                _one = agent.crew_member_for_office(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_crew_member(_one)
+        if _tgt is None:
+            return True, False, agent.crew_status()["screen"]
+        try:
+            _one = agent.find_crew_member(_tgt)
+        except (KeyError, ValueError) as _exc:
+            return True, False, str(_exc)
+        return True, False, _fmt_crew_member(_one)
+    if command == "/offices":
+        # M-122 terminal road: show the offices held
+        # this session (the shipped book when none is
+        # held), show one office, show one office's
+        # hand-offs, or show one hand-off contract.
+        # M-123 terminal road: /offices custom shows
+        # the custom offices held this session (the
+        # shipped custom book when none is held), one
+        # custom office, its hand-offs, or one contract,
+        # on the pure layer's custom parser + formatters.
+        _words = arguments.strip().split() if arguments else []
+        if _words and _words[0].lower() == "custom":
+            from .core.custom_offices import format_custom_office as _fmt_custom, parse_custom_offices_args as _parse_custom
+            try:
+                _act, _tgt = _parse_custom(" ".join(_words[1:]))
+            except ValueError as _exc:
+                return True, False, str(_exc)
+            if _act == "handoffs":
+                try:
+                    _one = agent.find_custom_office_definition(_tgt)
+                except (KeyError, ValueError) as _exc:
+                    return True, False, str(_exc)
+                _lines = [_fmt_custom(_one)]
+                for _c in _one.handoffs:
+                    _lines.append(f"  -> {_c.to_office}: {_c.artifact} - {_c.condition}")
+                return True, False, "\n".join(_lines)
+            if _act == "contract":
+                _from, _to = _tgt
+                try:
+                    _c = agent.custom_office_contract(_from, _to)
+                except (KeyError, ValueError) as _exc:
+                    return True, False, str(_exc)
+                return True, False, f"  {_from} -> {_to}: {_c.artifact} - {_c.condition}"
+            if _tgt is None:
+                return True, False, agent.custom_offices_status()["screen"]
+            try:
+                _one = agent.find_custom_office_definition(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_custom(_one)
+        from .core.offices import format_office as _fmt_office, parse_offices_args as _parse_offices
+        try:
+            _act, _tgt = _parse_offices(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "handoffs":
+            try:
+                _one = agent.find_office_definition(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            _lines = [_fmt_office(_one)]
+            for _c in _one.handoffs:
+                _lines.append(f"  -> {_c.to_office}: {_c.artifact} - {_c.condition}")
+            return True, False, "\n".join(_lines)
+        if _act == "contract":
+            _from, _to = _tgt
+            try:
+                _c = agent.office_contract(_from, _to)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, f"  {_from} -> {_to}: {_c.artifact} - {_c.condition}"
+        if _tgt is None:
+            return True, False, agent.offices_status()["screen"]
+        try:
+            _one = agent.find_office_definition(_tgt)
+        except (KeyError, ValueError) as _exc:
+            return True, False, str(_exc)
+        return True, False, _fmt_office(_one)
+    if command == "/worktrees":
+        # M-124 terminal road: show the worktree
+        # assignments held this session (the shipped
+        # example plan when none is held), show one
+        # member's assignment, show the whole plan,
+        # or show the coordinator merge plan derived
+        # in slice order, on the pure layer's parser
+        # + formatters. This road runs no git command
+        # and creates no worktree; the registry holds
+        # the plan as data.
+        from .core.worktrees import format_assignment as _fmt_wt, format_assignments as _fmt_wts, format_merge_plan as _fmt_merges, parse_worktrees_args as _parse_wt
+        try:
+            _act, _tgt = _parse_wt(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "plan":
+            _plan = agent.worktree_plan()
+            return True, False, _fmt_wts(_plan) + f"\nCoordinator: {_plan.coordinator} - the coordinator merges, and holds no worktree in the plan."
+        if _act == "merges":
+            return True, False, _fmt_merges(agent.worktree_plan())
+        if _tgt is None:
+            return True, False, agent.worktrees_status()["screen"]
+        try:
+            _one = agent.find_worktree_assignment(_tgt)
+        except (KeyError, ValueError) as _exc:
+            return True, False, str(_exc)
+        return True, False, _fmt_wt(_one)
+    if command == "/dealing":
+        # M-125 terminal road: show the dealt
+        # assignments held this session (the shipped
+        # example dealing when none is held), show
+        # one member's assignments, show the whole
+        # plan, or show the crew's loads, on the pure
+        # layer's parser + formatters. This road
+        # starts no crew and spawns nothing; the
+        # registry holds the dealing as data, and
+        # there is no Part VIII board yet - this
+        # screen is where the dealing is visible.
+        from .core.task_dealing import format_assignments as _fmt_dealt, format_loads as _fmt_loads, format_tasks as _fmt_tasks, parse_dealing_args as _parse_dealing
+        try:
+            _act, _tgt = _parse_dealing(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "plan":
+            _plan = agent.dealing_plan()
+            return True, False, _fmt_tasks(_plan) + f"\nDealer: {_plan.dealer} - the dealer deals by office fit and current load, and the human may re-deal any slice."
+        if _act == "loads":
+            return True, False, _fmt_loads(agent.dealing_loads())
+        if _tgt is None:
+            return True, False, agent.task_dealing_status()["screen"]
+        try:
+            _held = agent.find_dealt_assignments(_tgt)
+        except (KeyError, ValueError) as _exc:
+            return True, False, str(_exc)
+        return True, False, _fmt_dealt(_held)
+    if command == "/comms":
+        # M-126 terminal road: show the hand-offs
+        # held this session (the shipped example
+        # ledger when none is held), show one
+        # member's hand-offs, show the one batched
+        # ask of the questions waiting for the human,
+        # or show the kinds, on the pure layer's
+        # parser + formatters. This road spawns no
+        # crew and delivers no message; the registry
+        # holds the hand-offs as data, and there is
+        # no Part VIII board yet - this screen is
+        # where the hand-offs and the batch are
+        # visible.
+        from .core.crew_comms import format_handoffs as _fmt_comms, format_human_batch as _fmt_batch, format_kinds as _fmt_kinds, parse_comms_args as _parse_comms
+        try:
+            _act, _tgt = _parse_comms(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "ask":
+            return True, False, _fmt_batch(agent.human_question_batch())
+        if _act == "kinds":
+            return True, False, _fmt_kinds()
+        if _tgt is None:
+            return True, False, agent.crew_comms_status()["screen"]
+        try:
+            _held = agent.find_handoffs(_tgt)
+        except (KeyError, ValueError) as _exc:
+            return True, False, str(_exc)
+        return True, False, _fmt_comms(_held)
+    if command == "/deadlock":
+        # M-127 terminal road: show the findings of
+        # the watch held this session (the shipped
+        # example watch when none is held), show one
+        # member's findings, or show the kinds, on
+        # the pure layer's parser + formatters. This
+        # road spawns no crew, stops no member and
+        # runs no git; the registry holds the evidence
+        # as data, and there is no Part VIII board
+        # yet - this screen is where the findings are
+        # visible.
+        from .core.deadlock_watch import format_findings as _fmt_findings, format_kinds as _fmt_dw_kinds, parse_deadlock_args as _parse_deadlock
+        try:
+            _act, _tgt = _parse_deadlock(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "kinds":
+            return True, False, _fmt_dw_kinds()
+        if _tgt is None:
+            return True, False, agent.deadlock_status()["screen"]
+        try:
+            _held = agent.find_findings(_tgt)
+        except (KeyError, ValueError) as _exc:
+            return True, False, str(_exc)
+        return True, False, _fmt_findings(_held)
+    if command == "/merge":
+        # M-128 terminal road: show the verdicts of
+        # the plan held this session (the shipped
+        # example plan when none is held), show one
+        # member's verdicts, show every line's state,
+        # or show the kinds, on the pure layer's
+        # parser + formatters. This road executes no
+        # git and performs no merge; the registry
+        # holds the evidence as data, and there is no
+        # Part VIII board yet - this screen is where
+        # the verdicts are visible.
+        from .core.merge_discipline import format_lines as _fmt_lines, format_kinds as _fmt_md_kinds, format_verdicts as _fmt_verdicts, parse_merge_args as _parse_merge
+        try:
+            _act, _tgt = _parse_merge(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "kinds":
+            return True, False, _fmt_md_kinds()
+        if _act == "lines":
+            return True, False, _fmt_lines(agent.merge_report())
+        if _tgt is None:
+            return True, False, agent.merge_status()["screen"]
+        try:
+            _held = agent.find_verdicts(_tgt)
+        except (KeyError, ValueError) as _exc:
+            return True, False, str(_exc)
+        return True, False, _fmt_verdicts(_held)
     if command == "/conflicts":
         from .core.conflict_workbench import (
             enabled_from_config,
