@@ -919,7 +919,7 @@ slices:
   title: Part VI gate
   summary: a six-slice feature built by a three-member crew in parallel worktrees — merged clean, Auditor-approved,
     cost ledger complete. ---
-  status: queued
+  status: done
 - id: M-147
   part: 7
   title: Context budget made visible
