@@ -1,0 +1,222 @@
+schema: mythic.graph_retrieval/1
+slice: M-152
+part: 7
+part_title: Memory & Context
+canon_note: |
+  Retrieval over the code graph: vector RAG
+  (existing) married to Part III's symbol graph -
+  retrieval returns connected code, not confetti.
+  A graph-retrieval book holds one bundle per
+  retrieval, in held order: each bundle names its
+  query, the seeds it grew from (ranked hits from
+  the shipped semantic road, a vector provider, the
+  symbol road, or a manual naming - each carrying
+  its file, its symbol where it names one, its
+  score and its source), and the connected pieces
+  the shipped symbol graph grew from those seeds,
+  in deterministic ranked order - every piece
+  carrying its relation, its distance from its
+  seed, its seed's score and its provenance. A seed
+  the graph cannot answer for stands in the
+  bundle's skipped with its reason, and pieces
+  beyond the node cap are counted in omitted,
+  never silently dropped. The PANEL is derived
+  from a bundle: its rows are the pieces carried
+  whole, in ranked order, and its totals are the
+  pieces' own counts, and a stored panel that
+  disagrees with its derived shape is refused.
+  This file is ONE EXAMPLE BOOK, in the shape a
+  real book file takes: the M-151 slice boundary -
+  one retrieval whose semantic seed names the
+  compaction glass-box record, grown one hop
+  through the graph into the panel defined beside
+  it, the agent road that calls it, the token
+  estimator it calls, a test that references it,
+  and the budget file its own file imports, with
+  the one panel of the book. A real book is a new
+  file in this same shape - it is never this file
+  edited in place. This layer holds retrievals as
+  data only: it calls no model, edits no code,
+  assembles no live context and persists nothing.
+guide:
+  title: "Graph retrieval at the M-151 slice boundary"
+bundles:
+- bundle_id: retrieval-m151-boundary
+  query: "compaction glass-box summary versions journal"
+  depth: 1
+  seeds:
+  - seed_id: seed-1
+    path: "mythic_agent/core/compaction_glassbox.py"
+    symbol: "CompactionRecord"
+    score: 4.0
+    source: semantic
+  nodes:
+  - node_id: node-1
+    path: "mythic_agent/core/compaction_glassbox.py"
+    symbol: "CompactionRecord"
+    kind: class
+    relation: seed
+    distance: 0
+    seed_score: 4.0
+    score: 4.0
+    seed_id: seed-1
+    provenance: "the seed itself: a semantic hit scoring 4.0"
+  - node_id: node-2
+    path: "mythic_agent/core/compaction_glassbox.py"
+    symbol: "CompactionPanel"
+    kind: class
+    relation: definition
+    distance: 1
+    seed_score: 4.0
+    score: 2.0
+    seed_id: seed-1
+    provenance: "defined in the seed's file, mythic_agent/core/compaction_glassbox.py"
+  - node_id: node-3
+    path: "mythic_agent/agents/llm.py"
+    symbol: "register_compaction_record"
+    kind: function
+    relation: caller
+    distance: 1
+    seed_score: 4.0
+    score: 2.0
+    seed_id: seed-1
+    provenance: "calls CompactionRecord from the agent layer, one hop from the seed"
+  - node_id: node-4
+    path: "mythic_agent/context/budget.py"
+    symbol: "TokenEstimator"
+    kind: class
+    relation: callee
+    distance: 1
+    seed_score: 4.0
+    score: 2.0
+    seed_id: seed-1
+    provenance: "called by CompactionRecord for its token figures"
+  - node_id: node-5
+    path: "tests/test_compaction_glassbox.py"
+    symbol: "test_record_validation"
+    kind: function
+    relation: reference
+    distance: 1
+    seed_score: 4.0
+    score: 2.0
+    seed_id: seed-1
+    provenance: "references CompactionRecord from the glass-box tests"
+  - node_id: node-6
+    path: "mythic_agent/context/budget.py"
+    kind: file
+    relation: import
+    distance: 1
+    seed_score: 4.0
+    score: 2.0
+    seed_id: seed-1
+    provenance: "imported by the seed's file as mythic_agent.context.budget"
+  total_nodes: 6
+  total_seeds: 1
+  file_count: 4
+  omitted: 0
+  skipped: []
+  relation_counts:
+  - relation: seed
+    nodes: 1
+  - relation: definition
+    nodes: 1
+  - relation: caller
+    nodes: 1
+  - relation: callee
+    nodes: 1
+  - relation: reference
+    nodes: 1
+  - relation: import
+    nodes: 1
+  account:
+  - "The bundle holds 6 connected pieces from 1 seed(s): seed 1, definition 1, caller 1, callee 1, reference 1, import 1."
+  - "They span 4 file(s); every piece names its seed and how it connects - retrieval returns connected code, not confetti."
+  - "No seed was skipped: every seed named code the graph holds."
+  - "Nothing stood beyond the node cap."
+  - "Ranking is deterministic: seed score first, halved at each hop, then distance, relation, path, symbol and line."
+panels:
+- panel_id: panel-m151-boundary
+  rows:
+  - node_id: node-1
+    path: "mythic_agent/core/compaction_glassbox.py"
+    symbol: "CompactionRecord"
+    kind: class
+    relation: seed
+    distance: 0
+    seed_score: 4.0
+    score: 4.0
+    seed_id: seed-1
+    provenance: "the seed itself: a semantic hit scoring 4.0"
+  - node_id: node-2
+    path: "mythic_agent/core/compaction_glassbox.py"
+    symbol: "CompactionPanel"
+    kind: class
+    relation: definition
+    distance: 1
+    seed_score: 4.0
+    score: 2.0
+    seed_id: seed-1
+    provenance: "defined in the seed's file, mythic_agent/core/compaction_glassbox.py"
+  - node_id: node-3
+    path: "mythic_agent/agents/llm.py"
+    symbol: "register_compaction_record"
+    kind: function
+    relation: caller
+    distance: 1
+    seed_score: 4.0
+    score: 2.0
+    seed_id: seed-1
+    provenance: "calls CompactionRecord from the agent layer, one hop from the seed"
+  - node_id: node-4
+    path: "mythic_agent/context/budget.py"
+    symbol: "TokenEstimator"
+    kind: class
+    relation: callee
+    distance: 1
+    seed_score: 4.0
+    score: 2.0
+    seed_id: seed-1
+    provenance: "called by CompactionRecord for its token figures"
+  - node_id: node-5
+    path: "tests/test_compaction_glassbox.py"
+    symbol: "test_record_validation"
+    kind: function
+    relation: reference
+    distance: 1
+    seed_score: 4.0
+    score: 2.0
+    seed_id: seed-1
+    provenance: "references CompactionRecord from the glass-box tests"
+  - node_id: node-6
+    path: "mythic_agent/context/budget.py"
+    kind: file
+    relation: import
+    distance: 1
+    seed_score: 4.0
+    score: 2.0
+    seed_id: seed-1
+    provenance: "imported by the seed's file as mythic_agent.context.budget"
+  total_nodes: 6
+  total_seeds: 1
+  file_count: 4
+  omitted: 0
+  skipped: []
+  relation_counts:
+  - relation: seed
+    nodes: 1
+  - relation: definition
+    nodes: 1
+  - relation: caller
+    nodes: 1
+  - relation: callee
+    nodes: 1
+  - relation: reference
+    nodes: 1
+  - relation: import
+    nodes: 1
+  account:
+  - "The bundle holds 6 connected pieces from 1 seed(s): seed 1, definition 1, caller 1, callee 1, reference 1, import 1."
+  - "They span 4 file(s); every piece names its seed and how it connects - retrieval returns connected code, not confetti."
+  - "No seed was skipped: every seed named code the graph holds."
+  - "Nothing stood beyond the node cap."
+  - "Ranking is deterministic: seed score first, halved at each hop, then distance, relation, path, symbol and line."
