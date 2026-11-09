@@ -1064,7 +1064,7 @@ slices:
   title: The TUI redesign charter
   summary: every screen re-judged against M-004's kindness rules and the Visual Design Lawbook; a written
     verdict per screen before code moves.
-  status: queued
+  status: done
 - id: M-172
   part: 8
   title: Streaming work view
