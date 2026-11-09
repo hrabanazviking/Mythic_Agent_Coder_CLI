@@ -1,0 +1,152 @@
+schema: mythic.long_session_endurance/1
+slice: M-161
+part: 7
+part_title: Memory & Context
+canon_note: 'Long-session endurance: a 500-turn session stays responsive - journal and retrieval
+  performance budgets set and measured. An endurance record is one measurement of one subject
+  under one endurance kind, carried with its provenance whole: what was measured, the kind,
+  the reference it stands under, the budget set for it against the value measured, who recorded
+  it, the day it was recorded on, and where it was read from. A budget is set before it is
+  measured: a record naming no budget refuses, because a measurement with no budget set first
+  is a number, not an endurance claim. A measurement that exceeds its budget is reported over
+  budget, never silently passed: the verdict is derived from the two figures, never stored.
+  One thing is measured once per kind in a book: the same kind and reference named twice refuses.
+  The ENDURANCE PANEL is derived from the whole book: its rows are the records carried whole,
+  by kind - session length first, then journal appends, then retrieval, then responsiveness,
+  then context size - then by subject, then record id, and its tallies are the records'' own
+  verdict counts and its kind counts the records'' own tallies, and a stored panel that disagrees
+  with its derived shape is refused. The ENDURANCE VERDICT is derived for the whole book:
+  enduring when nothing stands over budget, strained when anything does, naming the worst
+  overage. This file is ONE EXAMPLE BOOK, in the shape a real book file takes: the M-160 slice
+  boundary - five measurements standing at the close of the token-thrift day, the session
+  at its 500-turn budget, its journal appends fast, its graph retrieval fast, its late responsiveness
+  honestly over its budget, and its carried context under its budget, with the one panel of
+  the book. A real book is a new file in this same shape - it is never this file edited in
+  place. This layer holds endurance as data only: it runs no live session, appends to no live
+  journal, times no live retrieval, calls no model and persists nothing - a 500-turn figure
+  stands here as a budget and a recorded measured value, never as a claim that a live 500-turn
+  run happened in this layer.'
+guide:
+  title: Long-session endurance at the M-160 slice boundary
+records:
+- record_id: endurance-session-m160
+  subject: the M-160 token-thrift session, at 500 turns
+  kind: session-length
+  ref: session-m160-thrift
+  budget: 500
+  measured: 500
+  recorded_by: Volmarr
+  recorded_on: '2026-11-08'
+  source: session transcript
+- record_id: endurance-journal-m160
+  subject: the session journal appends, late in the M-160 session
+  kind: journal-append
+  ref: journal-session-store
+  budget: 50
+  measured: 12
+  recorded_by: Volmarr
+  recorded_on: '2026-11-08'
+  source: session journal
+- record_id: endurance-retrieval-m160
+  subject: retrieval over the code graph for the thrift wiring
+  kind: retrieval
+  ref: retrieval-m151-boundary
+  budget: 250
+  measured: 96
+  recorded_by: Volmarr
+  recorded_on: '2026-11-08'
+  source: graph retrieval
+- record_id: endurance-response-m160
+  subject: turn responsiveness, late in the M-160 session
+  kind: responsiveness
+  ref: session-m160-thrift
+  budget: 2000
+  measured: 2140
+  recorded_by: Volmarr
+  recorded_on: '2026-11-08'
+  source: session transcript
+- record_id: endurance-context-m160
+  subject: the context the M-160 session carried at its close
+  kind: context-size
+  ref: map-session-context
+  budget: 8000
+  measured: 6940
+  recorded_by: Volmarr
+  recorded_on: '2026-11-08'
+  source: context budget
+panels:
+- panel_id: panel-m160-boundary
+  rows:
+  - record_id: endurance-session-m160
+    subject: the M-160 token-thrift session, at 500 turns
+    kind: session-length
+    ref: session-m160-thrift
+    budget: 500
+    measured: 500
+    verdict: within-budget
+    recorded_by: Volmarr
+    recorded_on: '2026-11-08'
+  - record_id: endurance-journal-m160
+    subject: the session journal appends, late in the M-160 session
+    kind: journal-append
+    ref: journal-session-store
+    budget: 50
+    measured: 12
+    verdict: within-budget
+    recorded_by: Volmarr
+    recorded_on: '2026-11-08'
+  - record_id: endurance-retrieval-m160
+    subject: retrieval over the code graph for the thrift wiring
+    kind: retrieval
+    ref: retrieval-m151-boundary
+    budget: 250
+    measured: 96
+    verdict: within-budget
+    recorded_by: Volmarr
+    recorded_on: '2026-11-08'
+  - record_id: endurance-response-m160
+    subject: turn responsiveness, late in the M-160 session
+    kind: responsiveness
+    ref: session-m160-thrift
+    budget: 2000
+    measured: 2140
+    verdict: over-budget
+    recorded_by: Volmarr
+    recorded_on: '2026-11-08'
+  - record_id: endurance-context-m160
+    subject: the context the M-160 session carried at its close
+    kind: context-size
+    ref: map-session-context
+    budget: 8000
+    measured: 6940
+    verdict: within-budget
+    recorded_by: Volmarr
+    recorded_on: '2026-11-08'
+  total_records: 5
+  total_within: 4
+  total_over: 1
+  kind_counts:
+  - kind: session-length
+    records: 1
+    over: 0
+  - kind: journal-append
+    records: 1
+    over: 0
+  - kind: retrieval
+    records: 1
+    over: 0
+  - kind: responsiveness
+    records: 1
+    over: 1
+  - kind: context-size
+    records: 1
+    over: 0
+  account:
+  - 'The endurance panel holds 5 measurements: 4 within budget, 1 over budget: context-size
+    1, journal-append 1, responsiveness 1, retrieval 1, session-length 1.'
+  - Measurements stand by kind - session length first, then journal appends, then retrieval,
+    then responsiveness, then context size - then by subject, then record id, so two panels
+    of one book diff cleanly, line by line.
+  - 'Every measurement stands against a budget set before it was measured: a measurement that
+    exceeds its budget is reported over budget, never silently passed.'
+  - The panel is read off the book at call time - it is derived, never stored loose.
