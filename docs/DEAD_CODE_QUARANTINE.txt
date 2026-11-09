@@ -589,3 +589,15 @@ mythic_agent/agents/llm.py:35813:record_themes_grown_up_book:method
 mythic_agent/agents/llm.py:35886:report_themes_grown_up:method
 mythic_agent/core/themes_grown_up.py:1563:row_for:method
 mythic_agent/core/themes_grown_up.py:2248:latest_view:method
+mythic_agent/agents/llm.py:36219:voice_in_out_with_kind:method
+mythic_agent/agents/llm.py:36225:voice_in_out_passing:method
+mythic_agent/agents/llm.py:36268:register_dictation_session:method
+mythic_agent/agents/llm.py:36298:register_spoken_standup:method
+mythic_agent/agents/llm.py:36328:register_voice_action:method
+mythic_agent/agents/llm.py:36359:register_voice_view:method
+mythic_agent/agents/llm.py:36388:view_voice_in_out:method
+mythic_agent/agents/llm.py:36451:register_voice_in_out_book:method
+mythic_agent/agents/llm.py:36510:record_voice_in_out_book:method
+mythic_agent/agents/llm.py:36596:report_voice_in_out:method
+mythic_agent/core/voice_in_out.py:1853:row_for:method
+mythic_agent/core/voice_in_out.py:2691:latest_view:method

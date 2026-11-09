@@ -1117,7 +1117,7 @@ slices:
   title: Voice in and out
   summary: push-to-talk dictation for prompts, and spoken stand-ups via the existing TTS (direct catalog
     casting, the house voice law) — voice is an extra door, never the only door.
-  status: queued
+  status: done
 - id: M-181
   part: 8
   title: Notifications with manners
