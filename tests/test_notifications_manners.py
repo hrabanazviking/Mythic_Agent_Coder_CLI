@@ -1043,7 +1043,7 @@ class TestNotificationsMannersAgentHolding:
         assert result["job"]["job_id"] == "job-test"
         assert result["record_news"]["type"] == (
             "notifications_manners_job")
-        assert "Notifications with Manners" in result["screen"]
+        assert "job-test: job completed after 900s" in result["screen"]
         agent.register_channel_notice(_channel())
         events = _manners_events(
             store, session_id, "notifications_manners_job")
