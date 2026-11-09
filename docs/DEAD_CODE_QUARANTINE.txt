@@ -507,3 +507,14 @@ mythic_agent/core/cold_start.py:2159:completed_stages:method
 mythic_agent/core/part7_gate.py:317:piece_ids:method
 mythic_agent/core/part7_gate.py:390:handoff_claim_ids:method
 mythic_agent/core/tui_redesign_charter.py:239:derived_verdict:method
+mythic_agent/agents/llm.py:31751:work_view_event_detail:method
+mythic_agent/agents/llm.py:31761:work_view_events_for_kind:method
+mythic_agent/agents/llm.py:31776:register_work_view_event:method
+mythic_agent/agents/llm.py:31806:stream_work_view_action:method
+mythic_agent/agents/llm.py:31867:register_work_view_book:method
+mythic_agent/agents/llm.py:31913:record_work_view_book:method
+mythic_agent/agents/llm.py:31973:report_work_view:method
+mythic_agent/core/work_view.py:311:_EXAMPLE_FIRST_EVENT_ID:variable
+mythic_agent/core/work_view.py:1046:row_for:method
+mythic_agent/core/work_view.py:1619:detail_for:method
+mythic_agent/core/work_view.py:1623:latest_event:method
