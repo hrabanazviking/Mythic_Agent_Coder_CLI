@@ -985,7 +985,7 @@ slices:
   title: Forget and quarantine
   summary: any memory can be inspected, edited, or forgotten on the user's word, with the forgetting itself
     journaled (what class of thing, never its content).
-  status: queued
+  status: done
 - id: M-158
   part: 7
   title: Context recipes
