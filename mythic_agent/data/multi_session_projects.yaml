@@ -1,0 +1,150 @@
+schema: mythic.multi_session_projects/1
+slice: M-162
+part: 7
+part_title: Memory & Context
+canon_note: 'Multi-session per project: parallel sessions on one repo (different branches)
+  with shared memory map and no journal crosstalk. A parallel session is one session standing
+  on one project, carried with its provenance whole: the project, the branch it works, the
+  session and journal it stands under, its state, the journal entries that are its own, how
+  many shared memory-map entries it has read, who recorded it, the day it was recorded on,
+  and where it was read from. Two sessions of one book never stand on the same branch, and
+  every session stands under its own journal: a journal entry named by one session never appears
+  in another - a book naming one entry in two sessions refuses as crosstalk. The MULTI-SESSION
+  PANEL is derived from the whole book: its rows are the sessions carried whole, by state
+  - active first, then paused, then done - then by branch, then title, then session id, and
+  its tallies are the sessions'' own counts, and a stored panel that disagrees with its derived
+  shape is refused. The ISOLATION VERDICT is derived for the whole book: parallel-isolated
+  when two or more sessions stand under as many journals and branches as there are sessions,
+  single-session when one stands alone. This file is ONE EXAMPLE BOOK, in the shape a real
+  book file takes: the M-161 slice boundary - four sessions standing on the one mythic-agent-coder
+  project at the close of the endurance day, the main-line and memory sessions active, the
+  graph session paused, the thrift session done, each on its own branch with its own journal
+  and no entry shared, all reading the one shared memory map, with the one panel of the book.
+  A real book is a new file in this same shape - it is never this file edited in place. This
+  layer holds parallel sessions as data only: it spawns no live session, appends to no live
+  journal, calls no model and persists nothing - a session standing in a book is a recorded
+  standing, never a claim that a live session is running in this layer.'
+guide:
+  title: Multi-session per project at the M-161 slice boundary
+sessions:
+- session_id: multisession-main
+  title: the endurance session, carried forward on the main line
+  project: mythic-agent-coder
+  branch: main
+  session_ref: session-m161-endurance
+  journal_ref: journal-endurance
+  state: active
+  journal_entries:
+  - entry-endurance-1
+  - entry-endurance-2
+  shared_reads: 5
+  recorded_by: Volmarr
+  recorded_on: '2026-11-08'
+  source: session memory
+- session_id: multisession-memory
+  title: the session-memory care session, reading the shared map
+  project: mythic-agent-coder
+  branch: work/session-memory-care
+  session_ref: session-m153-memory
+  journal_ref: journal-memory
+  state: active
+  journal_entries:
+  - entry-memory-1
+  - entry-memory-2
+  shared_reads: 5
+  recorded_by: Volmarr
+  recorded_on: '2026-11-08'
+  source: session memory
+- session_id: multisession-graph
+  title: the graph-retrieval care session, paused at its boundary
+  project: mythic-agent-coder
+  branch: work/graph-retrieval-care
+  session_ref: session-m152-graph
+  journal_ref: journal-graph
+  state: paused
+  journal_entries:
+  - entry-graph-1
+  shared_reads: 4
+  recorded_by: Volmarr
+  recorded_on: '2026-11-08'
+  source: graph retrieval
+- session_id: multisession-thrift
+  title: the token-thrift follow-up session, done at its boundary
+  project: mythic-agent-coder
+  branch: work/token-thrift-followup
+  session_ref: session-m160-thrift
+  journal_ref: journal-thrift
+  state: done
+  journal_entries:
+  - entry-thrift-1
+  - entry-thrift-2
+  - entry-thrift-3
+  shared_reads: 5
+  recorded_by: Volmarr
+  recorded_on: '2026-11-08'
+  source: token thrift
+panels:
+- panel_id: panel-m161-boundary
+  rows:
+  - session_id: multisession-main
+    title: the endurance session, carried forward on the main line
+    project: mythic-agent-coder
+    branch: main
+    session_ref: session-m161-endurance
+    journal_ref: journal-endurance
+    state: active
+    journal_count: 2
+    shared_reads: 5
+    recorded_by: Volmarr
+    recorded_on: '2026-11-08'
+  - session_id: multisession-memory
+    title: the session-memory care session, reading the shared map
+    project: mythic-agent-coder
+    branch: work/session-memory-care
+    session_ref: session-m153-memory
+    journal_ref: journal-memory
+    state: active
+    journal_count: 2
+    shared_reads: 5
+    recorded_by: Volmarr
+    recorded_on: '2026-11-08'
+  - session_id: multisession-graph
+    title: the graph-retrieval care session, paused at its boundary
+    project: mythic-agent-coder
+    branch: work/graph-retrieval-care
+    session_ref: session-m152-graph
+    journal_ref: journal-graph
+    state: paused
+    journal_count: 1
+    shared_reads: 4
+    recorded_by: Volmarr
+    recorded_on: '2026-11-08'
+  - session_id: multisession-thrift
+    title: the token-thrift follow-up session, done at its boundary
+    project: mythic-agent-coder
+    branch: work/token-thrift-followup
+    session_ref: session-m160-thrift
+    journal_ref: journal-thrift
+    state: done
+    journal_count: 3
+    shared_reads: 5
+    recorded_by: Volmarr
+    recorded_on: '2026-11-08'
+  total_sessions: 4
+  total_journal_entries: 8
+  total_shared_reads: 19
+  state_counts:
+  - state: active
+    sessions: 2
+  - state: paused
+    sessions: 1
+  - state: done
+    sessions: 1
+  account:
+  - 'The multi-session panel holds 4 sessions: 8 journal entries in all, 19 shared memory-map
+    reads: active 2, done 1, paused 1.'
+  - Sessions stand by state - active first, then paused, then done - then by branch, then
+    title, then session id, so two panels of one book diff cleanly, line by line.
+  - 'Every session stands on its own branch with its own journal: a journal entry named by
+    one session never appears in another - no crosstalk.'
+  - The panel is read off the book at call time - it is derived, never stored loose.
