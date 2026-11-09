@@ -529,3 +529,14 @@ mythic_agent/agents/llm.py:32494:report_slice_board:method
 mythic_agent/core/slice_board.py:304:_EXAMPLE_FIRST_CARD_ID:variable
 mythic_agent/core/slice_board.py:1354:row_for:method
 mythic_agent/core/slice_board.py:2063:latest_action:method
+mythic_agent/agents/llm.py:32749:approval_cards_with_alarm:method
+mythic_agent/agents/llm.py:32764:register_approval_card:method
+mythic_agent/agents/llm.py:32793:register_approval_decision:method
+mythic_agent/agents/llm.py:32827:decide_approval_card:method
+mythic_agent/agents/llm.py:32891:register_approval_cards_book:method
+mythic_agent/agents/llm.py:32945:record_approval_cards_book:method
+mythic_agent/agents/llm.py:33014:report_approval_cards:method
+mythic_agent/core/approval_cards.py:1373:row_for:method
+mythic_agent/core/approval_cards.py:1774:answer_for:method
+mythic_agent/core/approval_cards.py:2081:answer_for:method
+mythic_agent/core/approval_cards.py:2090:latest_decision:method

@@ -1082,7 +1082,7 @@ slices:
   title: Approval cards perfected
   summary: one decision per card, full context on the card, remembered-scope offered precisely, keyboard
     and mouse equal.
-  status: queued
+  status: done
 - id: M-175
   part: 8
   title: The fuzzy everything picker
