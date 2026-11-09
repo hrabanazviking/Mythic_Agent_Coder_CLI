@@ -355,6 +355,8 @@ class CommandHandler:
                 self._handle_thrift(args)
             elif cmd == "/endurance":
                 self._handle_endurance(args)
+            elif cmd == "/multisession":
+                self._handle_multisession(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -5959,6 +5961,74 @@ class CommandHandler:
                 text = format_verdict(primary.long_session_endurance_book())
             else:
                 text = primary.long_session_endurance_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_multisession(self, args: str):
+        """M-162: /multisession - multi-session per project.
+
+        ``/multisession`` shows the multi-session book
+        held this session (the shipped example book -
+        four sessions at the M-161 slice boundary, with
+        its one pinned panel - when none is held yet);
+        ``/multisession session <session-id>`` shows one
+        session with its provenance whole;
+        ``/multisession branch <branch>`` shows the
+        session standing on one branch;
+        ``/multisession panel`` shows the multi-session
+        panel derived from the whole book;
+        ``/multisession isolation`` shows the isolation
+        verdict derived for the whole book - no journal
+        crosstalk, ever. Reading registers and publishes
+        nothing as session news: sessions are held only
+        when they are given through the agent's
+        multi-session roads or stood from the session's
+        memory, and every session held for the session
+        is journaled as a multi_session_projects_session
+        session event, every derived panel as a
+        multi_session_projects_panel session event and
+        every derived verdict as a
+        multi_session_projects_isolation session event.
+        This surface spawns no live session, and there
+        is no Part VIII board yet, so the book is
+        visible on this surface, not on a board.
+        """
+        from ..core.multi_session_projects import (
+            format_isolation,
+            format_parallel_session,
+            format_parallel_sessions,
+            format_panel,
+            parse_multisession_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_multisession_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "session":
+                text = format_parallel_session(
+                    primary.get_parallel_session(target))
+            elif action == "branch":
+                text = format_parallel_sessions(
+                    primary.multi_session_projects_book(), target)
+            elif action == "panel":
+                text = format_panel(primary.multi_session_projects_book())
+            elif action == "isolation":
+                text = format_isolation(primary.multi_session_projects_book())
+            else:
+                text = primary.multi_session_projects_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
