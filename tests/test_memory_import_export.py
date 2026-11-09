@@ -757,3 +757,459 @@ def test_parse_memoryxport_args():
         parse_memoryxport_args("project bad project")
     with pytest.raises(ValueError):
         parse_memoryxport_args(42)
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-164 agent layer: the agent holds a
+# MemoryPackageRegistry for the session (session
+# state only, no new setting), packages are held by
+# being registered - published as their package_record
+# session news with the derived panel_record and
+# verdict_record, through the checkpoint road, deduped
+# per shape - the report road renders the held book
+# (or the shipped example when unheld) through the
+# pure formatters, an export road reads the session's
+# memory map + ledger onto a package and holds it
+# (mutating no live holding), an import road holds a
+# package judged whole before anything is held, and
+# the /memoryxport surface rides both roads on the
+# pure parser + formatters. Status, get, panel,
+# verdict and report reads register and publish
+# nothing, answer from the held registry first and
+# from the shipped example only while nothing is held
+# - a held package never falls back to the example.
+# The panel and the verdict derive at call time from
+# the whole book, never held. This layer sends
+# nothing, posts nothing, schedules nothing, calls no
+# model, persists nothing beyond the session journal
+# news and writes no live memory, and there is no
+# Part VIII board yet, so the screen is where the
+# book is visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _package_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_package_book(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data"
+           / "memory_import_export.yaml").read_text(encoding="utf-8")
+    path = tmp_path / "memory_import_export.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestPackageAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.memory_import_export_status()
+        assert status["packages"] == []
+        assert status["book"] is None
+        assert status["package"]["title"] == EXAMPLE_TITLE
+        assert len(status["package"]["packages"]) == 2
+        assert status["panel"]["total_packages"] == 2
+        assert status["panel"]["total_pieces"] == 14
+        assert status["panels"][0]["panel_id"] == "panel-m163-boundary"
+        assert status["book_record"]["package_count"] == 2
+        assert status["verdict"]["verdict"] == "partially-portable"
+        assert status["verdict"]["total_complete"] == 1
+        assert status["verdict"]["distinct_projects"] == 2
+        assert "Memory Import/Export (M-164)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._memory_import_export_registry()
+        assert agent._memory_import_export_registry() is first
+        assert agent._memory_import_export_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.memory_import_export_status()
+        agent.get_memory_package("package-samtal-memory")
+        agent.memory_import_export_panel()
+        agent.memory_import_export_verdict()
+        agent.report_memory_import_export()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("memory_import_export")] == []
+        with pytest.raises(KeyError):
+            agent.get_memory_package("package-nope")
+        agent.close()
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_memory_package(_package())
+        status = agent.memory_import_export_status()
+        assert [item["package_id"] for item in status["packages"]] == [
+            "package-test"]
+        assert status["book"]["title"] == "Memory import/export"
+        assert status["panel"]["total_packages"] == 1
+        assert status["verdict"]["verdict"] == "fully-portable"
+
+    def test_held_package_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_memory_package(_package())
+        with pytest.raises(KeyError):
+            agent.get_memory_package("package-samtal-memory")
+        package = agent.get_memory_package("package-test")
+        assert package.title == "the test project memory, packed for the road"
+        assert agent.memory_import_export_book().title == (
+            "Memory import/export")
+
+
+class TestPackageAgentHolding:
+    def test_register_package_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_memory_package(_package())
+        assert outcome["package"]["package_id"] == "package-test"
+        assert outcome["record_news"]["type"] == (
+            "memory_import_export_package")
+        events = _package_events(
+            store, session_id, "memory_import_export_package")
+        assert len(events) == 1
+        assert events[0]["package_id"] == "package-test"
+        agent._publish_memory_package_record(outcome["record_news"])
+        assert len(_package_events(
+            store, session_id, "memory_import_export_package")) == 1
+        agent._publish_memory_package_record(
+            {"type": "mentions_mention", "mention_id": "mention-x"})
+        agent._publish_memory_package_record(
+            book_record(load_memory_import_export()))
+        for kind in ("mentions_mention", "memory_import_export_book"):
+            assert _package_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_duplicate_package_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_memory_package(_package())
+        with pytest.raises(ValueError):
+            agent.register_memory_package(_package())
+        with pytest.raises(ValueError):
+            agent.register_memory_package(_package(
+                package_id="package-copy",
+                map_entry_ids=["map-gamma"], candidate_ids=[],
+                map_sections=["gotcha"], ledger_states=[]))
+        assert len(_package_events(
+            store, session_id, "memory_import_export_package")) == 1
+        agent.close()
+
+    def test_export_composes_the_session_books_by_id_only(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        map_before = agent.project_memory_map_book()
+        ledger_before = agent.self_improving_book()
+        outcome = agent.export_memory_package(
+            project="mythic-agent-coder",
+            source_session="session-export-1",
+            exported_by="Volmarr", exported_on="2026-11-09")
+        assert outcome["count"] == 1
+        assert outcome["total_pieces"] == 12
+        held = outcome["package"]
+        assert held["map_entry_ids"] == list(map_before.entry_ids())
+        assert held["candidate_ids"] == list(ledger_before.candidate_ids())
+        assert held["map_sections"] == [
+            "architecture", "decision", "gotcha", "location"]
+        assert held["ledger_states"] == [
+            "candidate", "promoted", "declined"]
+        events = _package_events(
+            store, session_id, "memory_import_export_package")
+        assert len(events) == 1
+        assert len(_package_events(
+            store, session_id, "memory_import_export_panel")) == 1
+        assert len(_package_events(
+            store, session_id, "memory_import_export_verdict")) == 1
+        blob = str(events) + str(outcome["package"])
+        for entry in map_before.entries:
+            assert entry.title not in blob
+            assert entry.detail not in blob
+        for candidate in ledger_before.candidates:
+            assert candidate.title not in blob
+            assert candidate.detail not in blob
+        # Exporting mutates no live holding.
+        assert agent.project_memory_map_book().entry_ids() == (
+            map_before.entry_ids())
+        assert agent.self_improving_book().candidate_ids() == (
+            ledger_before.candidate_ids())
+        assert agent.memory_import_export_panel().total_packages == 1
+        assert agent.memory_import_export_verdict().verdict == (
+            "fully-portable")
+        agent.close()
+
+    def test_export_reads_held_entries_not_the_example(
+            self, agent):
+        agent.register_memory_map_entry({
+            "entry_id": "map-held-one", "section": "gotcha",
+            "title": "The held fact", "detail": "A held map fact.",
+            "source": "test source", "ref": "tests/held.py"})
+        agent.register_self_improving_candidate({
+            "candidate_id": "candidate-held-one", "kind": "lesson",
+            "title": "The held lesson", "detail": "A held lesson.",
+            "source_work": "held-work", "context": "The held test.",
+            "evidence": "The held run.", "source": "test source",
+            "ref": "tests/held.py"})
+        outcome = agent.export_memory_package(
+            project="held-project", source_session="session-held",
+            exported_by="Volmarr", exported_on="2026-11-09")
+        held = outcome["package"]
+        assert held["map_entry_ids"] == ["map-held-one"]
+        assert held["candidate_ids"] == ["candidate-held-one"]
+        assert held["map_sections"] == ["gotcha"]
+        assert held["ledger_states"] == ["candidate"]
+        assert outcome["total_pieces"] == 2
+
+    def test_second_export_of_one_project_session_refuses(
+            self, agent):
+        agent.export_memory_package(
+            project="mythic-agent-coder",
+            source_session="session-export-1",
+            exported_by="Volmarr", exported_on="2026-11-09")
+        with pytest.raises(ValueError, match="stands once"):
+            agent.export_memory_package(
+                project="mythic-agent-coder",
+                source_session="session-export-1",
+                exported_by="Volmarr", exported_on="2026-11-09")
+
+    def test_import_holds_a_judged_package_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.import_memory_package(_stored_package(_package()))
+        assert outcome["count"] == 1
+        assert outcome["package"]["package_id"] == "package-test"
+        assert outcome["record_news"]["type"] == (
+            "memory_import_export_package")
+        assert len(_package_events(
+            store, session_id, "memory_import_export_package")) == 1
+        assert len(_package_events(
+            store, session_id, "memory_import_export_panel")) == 1
+        assert agent.get_memory_package("package-test").project == (
+            "test-project")
+        agent.close()
+
+    def test_import_malformed_refuses_and_holds_nothing(
+            self, agent):
+        broken = _stored_package(_package())
+        broken.pop("exported_by")
+        with pytest.raises(ValueError, match="missing its"):
+            agent.import_memory_package(broken)
+        empty = _stored_package(_package())
+        empty["map_entry_ids"] = []
+        empty["candidate_ids"] = []
+        empty["map_sections"] = []
+        empty["ledger_states"] = []
+        with pytest.raises(ValueError, match="at least one piece"):
+            agent.import_memory_package(empty)
+        status = agent.memory_import_export_status()
+        assert status["packages"] == []
+        assert status["package"]["title"] == EXAMPLE_TITLE
+
+    def test_import_foreign_refuses_by_name_and_holds_nothing(
+            self, agent):
+        foreign = _stored_package(_package())
+        foreign["schema"] = "mythic.handoff_summaries/1"
+        with pytest.raises(ValueError, match="unknown package keys"):
+            agent.import_memory_package(foreign)
+        foreign = _stored_package(_package())
+        foreign["payload"] = "run me"
+        with pytest.raises(ValueError, match="unknown package keys"):
+            agent.import_memory_package(foreign)
+        assert agent.memory_import_export_status()["packages"] == []
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent):
+        book = _book()
+        outcome = agent.register_memory_package_book(book)
+        assert outcome["count"] == 1
+        assert [item["type"] for item in outcome["records_news"]] == [
+            "memory_import_export_package"]
+        assert agent.memory_import_export_book().title == (
+            "A test memory export book")
+        with pytest.raises(ValueError):
+            agent.register_memory_package_book(book)
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_memory_package_book()
+        assert outcome["count"] == 2
+        assert outcome["book"]["title"] == EXAMPLE_TITLE
+        assert len(_package_events(
+            store, session_id, "memory_import_export_package")) == 2
+        assert len(_package_events(
+            store, session_id, "memory_import_export_panel")) == 1
+        assert agent.memory_import_export_book().panels[0].panel_id == (
+            "panel-m163-boundary")
+        with pytest.raises(ValueError):
+            agent.record_memory_package_book()
+        agent.close()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_package_book(tmp_path)
+        book = load_memory_import_export_file(path)
+        outcome = agent.record_memory_package_book(book)
+        assert outcome["count"] == 2
+        assert agent.get_memory_package(
+            "package-samtal-memory").project == "samtal"
+
+    def test_report_renders_the_example_when_unheld(self, agent):
+        report = agent.report_memory_import_export()
+        assert report["book"]["package_count"] == 2
+        assert "package-coder-memory" in report["packages_text"]
+        assert "Memory panel in Memory import/export" in (
+            report["panel_text"])
+        assert "partially-portable" in report["verdict_text"]
+        assert "package-samtal-memory" in report["packages_text"]
+
+    def test_report_renders_the_held_book_only(self, agent):
+        agent.register_memory_package(_package())
+        report = agent.report_memory_import_export()
+        assert report["book"]["title"] == "Memory import/export"
+        assert "package-coder-memory" not in report["packages_text"]
+        assert "package-test" in report["packages_text"]
+        assert "fully-portable" in report["verdict_text"]
+
+    def test_import_writes_no_live_memory(
+            self, agent, tmp_path):
+        # HONEST BOUNDARY: holding an imported package
+        # writes no live memory - the session's own map
+        # and ledger stand exactly as they stood, and
+        # there is no road here that applies a package
+        # into them.
+        assert not hasattr(agent, "apply_memory_package")
+        assert not hasattr(agent, "apply_memory_import_export")
+        assert not hasattr(agent, "run_memory_import_export")
+        assert not hasattr(agent, "persist_memory_import_export")
+        assert not hasattr(agent, "memory_import_export_board")
+        assert not hasattr(agent, "send_memory_package")
+        assert not hasattr(agent, "post_memory_package")
+        assert not hasattr(agent, "schedule_memory_package")
+        map_before = agent.project_memory_map_book()
+        ledger_before = agent.self_improving_book()
+        (tmp_path / "alpha.py").write_text(
+            "def greet(name):\n    return name\n", encoding="utf-8")
+        before = {
+            p.name: p.read_bytes()
+            for p in tmp_path.glob("*.py")}
+        from mythic_agent.agents.context import ContextBuilder
+        builder = ContextBuilder(max_tokens=4000)
+        builder.add_system("You are the coder.")
+        builder.add_turn("user", "Build the slice.")
+        built_before = builder.build()
+        agent.import_memory_package(_stored_package(_package()))
+        agent.export_memory_package(
+            project="other-project", source_session="session-other",
+            exported_by="Volmarr", exported_on="2026-11-09")
+        assert agent.project_memory_map_book().entry_ids() == (
+            map_before.entry_ids())
+        assert agent.self_improving_book().candidate_ids() == (
+            ledger_before.candidate_ids())
+        assert agent.self_improving_book().decision_ids() == (
+            ledger_before.decision_ids())
+        assert builder.build() == built_before
+        assert {
+            p.name: p.read_bytes()
+            for p in tmp_path.glob("*.py")} == before
+
+
+class TestPackageTerminalSurface:
+    def test_show_package_project_panel_verdict(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/memoryxport")
+        assert "Memory Import/Export (M-164)" in text
+        _, _, text = _slash(
+            agent, "/memoryxport package package-samtal-memory")
+        assert "map-samtal-server" in text
+        _, _, text = _slash(agent, "/memoryxport project samtal")
+        assert "package-samtal-memory" in text
+        assert "package-coder-memory" not in text
+        _, _, text = _slash(agent, "/memoryxport panel")
+        assert "Memory panel in Memory import/export" in text
+        _, _, text = _slash(agent, "/memoryxport verdict")
+        assert "partially-portable" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/memoryxport [show|package <package-id>"
+                "|project <project>|panel|verdict]") in text
+        _, _, text = _slash(agent, "/memoryxport dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/memoryxport package package-nope")
+        assert "no package in the book" in text
+
+
+@pytest.fixture()
+def package_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _package_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestPackageCommand:
+    def test_show_is_default(self, package_handler, agent):
+        package_handler._handle_memoryxport("")
+        assert "Memory Import/Export (M-164)" in (
+            _package_published_text(package_handler))
+
+    def test_package_project_panel_verdict(self, package_handler, agent):
+        package_handler._handle_memoryxport("package package-samtal-memory")
+        assert "map-samtal-server" in _package_published_text(package_handler)
+        package_handler._handle_memoryxport("project samtal")
+        assert "package-samtal-memory" in _package_published_text(package_handler)
+        package_handler._handle_memoryxport("panel")
+        assert "Memory panel in Memory import/export" in (
+            _package_published_text(package_handler))
+        package_handler._handle_memoryxport("verdict")
+        assert "partially-portable" in _package_published_text(package_handler)
+
+    def test_bad_grammar_is_published(self, package_handler, agent):
+        package_handler._handle_memoryxport("dance party")
+        assert USAGE in _package_published_text(package_handler)
+
+
+class TestChatScreenRoutingPackage:
+    def test_memoryxport_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command(
+            "/memoryxport project samtal", _FakeLog())
+        assert calls == [("/memoryxport", "project samtal")]
