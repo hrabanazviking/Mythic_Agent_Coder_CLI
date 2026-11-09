@@ -1105,7 +1105,7 @@ slices:
   title: Status line of truth
   summary: model, posture, context meter, cost so far, crew state, sandbox state — six facts, always visible,
     each opening its panel on a keypress.
-  status: queued
+  status: done
 - id: M-179
   part: 8
   title: Themes grown up
