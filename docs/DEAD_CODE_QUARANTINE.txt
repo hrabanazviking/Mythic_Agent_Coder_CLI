@@ -443,3 +443,13 @@ mythic_agent/core/handoff_summaries.py:1344:row_for:method
 mythic_agent/core/handoff_summaries.py:1792:handoff_for_session:method
 mythic_agent/core/handoff_summaries.py:2032:handoff_for_session:method
 mythic_agent/core/handoff_summaries.py:2041:latest_handoff:method
+mythic_agent/agents/llm.py:28711:register_memory_package:method
+mythic_agent/agents/llm.py:28742:export_memory_package:method
+mythic_agent/agents/llm.py:28798:import_memory_package:method
+mythic_agent/agents/llm.py:28839:register_memory_package_book:method
+mythic_agent/agents/llm.py:28885:record_memory_package_book:method
+mythic_agent/agents/llm.py:28944:report_memory_import_export:method
+mythic_agent/core/memory_import_export.py:1282:row_for:method
+mythic_agent/core/memory_import_export.py:1774:package_for_project:method
+mythic_agent/core/memory_import_export.py:2021:package_for_project:method
+mythic_agent/core/memory_import_export.py:2030:latest_package:method
