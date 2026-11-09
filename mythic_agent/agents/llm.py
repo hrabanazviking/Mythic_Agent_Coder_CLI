@@ -26378,6 +26378,417 @@ class Agent:
             self._checkpoint(record)
 
 
+    def _pinning_protection_registry(self):
+        """The held pinning-protection registry (M-159).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer pins one by one,
+        beside the session context-recipes registry
+        (M-158) and never in it: the pinning book is
+        one book of protected files and facts. It is
+        created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named
+        ``_pinning_protection_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_pinning_protection_store", None)
+        if registry is None:
+            from ..core.pinning_protection import PinningRegistry
+            registry = PinningRegistry()
+            self._pinning_protection_store = registry
+        return registry
+
+    def pinning_protection_book(self):
+        """The session's pinning-protection book, as data (M-159).
+
+        The held registry's book when the session holds
+        any pin - the protections the session has
+        actually declared (pins held one by one, before
+        any whole book stands recorded, stand under a
+        session pinning book composed here in the agent
+        layer, so a later whole book recorded under its
+        own title is never refused by a shim title at
+        the registry) - otherwise the book recorded
+        whole through :meth:`record_pinning_book`, or
+        the shipped example pinning book until one is
+        recorded. Reading registers and publishes
+        nothing.
+        """
+        from ..core.pinning_protection import (
+            PinningBook, load_pinning_protection)
+        registry = self._pinning_protection_registry()
+        if registry.list_pins():
+            try:
+                book = registry.book()
+            except ValueError:
+                return PinningBook(
+                    title="Pinning and protection",
+                    pins=registry.list_pins())
+            held = getattr(self, "_pinning_protection_held", None)
+            if held is not None and held.title == book.title \
+                    and held.pin_ids() == book.pin_ids():
+                return held
+            return book
+        book = getattr(self, "_pinning_protection_held", None)
+        if book is None:
+            return load_pinning_protection()
+        return book
+
+    def _pinning_protection_screen(self) -> str:
+        """The /pins screen for the session's state (M-159).
+
+        Rendered from the held book when one stands,
+        and from the shipped example book while nothing
+        is held.
+        """
+        from ..core import pinning_protection as pins_module
+        registry = self._pinning_protection_registry()
+        if not registry.list_pins():
+            return pins_module.format_pinning_protection_screen()
+        return pins_module.format_pinning_protection_screen(
+            self.pinning_protection_book())
+
+    def pinning_protection_status(self) -> dict[str, Any]:
+        """The pinning-protection account, in plain data (M-159).
+
+        The pins held this session as plain records,
+        the held book's record (none until a pin stands
+        held), the session pinning book's pins as plain
+        records (the shipped example book - four pins
+        at the M-158 slice boundary - until pins are
+        held), its whole-book record, the pin panel
+        derived from the whole book and every panel the
+        book holds as plain records, the latest pin in
+        plain words and the panel told in plain words,
+        the one screen - rendered from the held book,
+        or from the shipped example book when nothing
+        is held yet - and the plain explanation. Reading
+        registers and publishes nothing, calls no model
+        and compacts nothing: this layer holds pins as
+        data only. There is no Part VIII board yet; the
+        screen is where the book is visible.
+        """
+        from ..core import pinning_protection as pins_module
+        registry = self._pinning_protection_registry()
+        held_pins = registry.list_pins()
+        book = self.pinning_protection_book()
+        latest = book.pins[-1]
+        return {
+            "pins": [item.to_record() for item in held_pins],
+            "book": (book.to_record() if held_pins else None),
+            "protecting": {
+                "title": book.title,
+                "pins": [item.to_record() for item in book.pins],
+            },
+            "book_record": pins_module.book_record(book),
+            "panel": (pins_module.derive_panel(book).to_record()
+                      if book.pins else None),
+            "panels": [p.to_record() for p in book.panels],
+            "plain_words": pins_module.plain_words(latest),
+            "panel_plain_words": (
+                pins_module.panel_plain_words(book)
+                if book.pins else ""),
+            "screen": self._pinning_protection_screen(),
+            "explanation": pins_module.PLAIN_EXPLANATION,
+        }
+
+    def get_pin(self, pin_id: Any):
+        """The one pin an id names (M-159).
+
+        The session's held registry answers when the
+        session holds any pin; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). A held session answers
+        for its own book alone: an id the held book
+        holds no pin for raises KeyError, with no
+        silent fall back to the example, exactly as the
+        pure layer answers. Reading registers and
+        publishes nothing.
+        """
+        registry = self._pinning_protection_registry()
+        if registry.list_pins():
+            return registry.get_pin(pin_id)
+        return self.pinning_protection_book().pin_for(pin_id)
+
+    def pinning_protection_panel(self):
+        """The pin panel derived for the whole book (M-159).
+
+        The panel is derived at call time from the
+        session book whole - the held registry's book
+        when the session holds any pin, otherwise the
+        shipped example book's (or the book recorded
+        whole for the session) - so its rows are the
+        pins carried whole, in panel order, and its
+        totals are the pins' own counts, read at call
+        time. Reading registers and publishes nothing.
+        """
+        from ..core.pinning_protection import (
+            derive_panel as _derive_panel)
+        return _derive_panel(self.pinning_protection_book())
+
+    def register_pin(
+            self, pin: Any) -> dict[str, Any]:
+        """Hold one pin for the session (M-159).
+
+        The pin is held by the pure registry under its
+        id or the deterministic pin-N id - a pin id
+        already standing here refuses, as does a pin of
+        a thing a held pin already protects; a refusal
+        holds nothing new and publishes nothing. A held
+        pin is published as its ``pin_record``
+        session-news record through the checkpoint
+        road, so a protection declared into the session
+        is news. Returns the held pin, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding a pin calls no model
+        and compacts nothing: the registry holds the
+        pin as data, provenance whole.
+        """
+        from ..core import pinning_protection as pins_module
+        registry = self._pinning_protection_registry()
+        held = registry.register_pin(pin)
+        pin_news = pins_module.pin_record(held)
+        self._publish_pinning_record(pin_news)
+        return {
+            "pin": held.to_record(),
+            "pin_news": pin_news,
+            "screen": self._pinning_protection_screen(),
+            "explanation": pins_module.PLAIN_EXPLANATION,
+        }
+
+    def protect_session_compactions(
+            self, *, why: Any, pinned_by: Any,
+            pinned_on: Any,
+            source: Any = "compaction glass-box") -> dict[str, Any]:
+        """Pin this session's compactions against dropping (M-159).
+
+        This slice's own composing road: the session's
+        compaction glass-box book (M-151) is read onto
+        pins BY IMPORT through the pure layer's
+        ``pin_from_compaction_record`` - every record
+        of the book, under one named reason and one
+        named pinner - and each pin is held and
+        published as its ``pin_record`` session news,
+        with the pin panel derived from the whole held
+        registry as its ``panel_record`` session news.
+        Only ids cross the seam: no record's title,
+        summary or replaced material stands in any pin,
+        record or headline this road publishes. A thing
+        already pinned refuses before anything new is
+        held past it. Returns the held pins, their news
+        records, the panel news record, the count, the
+        screen, and the explanation. Protecting calls
+        no model, compacts nothing and mutates no live
+        compaction - the session's glass-box book itself
+        stands exactly as it stood: this road declares
+        protection, and the holdings keep the records.
+        """
+        from ..core import pinning_protection as pins_module
+        book = self.compaction_glassbox_book()
+        pins = []
+        for record in book.records:
+            if record.record_id is None:
+                continue
+            pins.append(pins_module.pin_from_compaction_record(
+                record, why=why, pinned_by=pinned_by,
+                pinned_on=pinned_on, source=source))
+        if not pins:
+            raise ValueError(
+                "the session's glass-box holds no compaction "
+                "record to protect")
+        registry = self._pinning_protection_registry()
+        held_pins = []
+        pins_news = []
+        for pin in pins:
+            held = registry.register_pin(pin)
+            held_pins.append(held)
+            pin_news = pins_module.pin_record(held)
+            pins_news.append(pin_news)
+            self._publish_pinning_record(pin_news)
+        panel = pins_module.derive_panel(registry)
+        panel_news = pins_module.panel_record(panel)
+        self._publish_pinning_record(panel_news)
+        return {
+            "pins": [item.to_record() for item in held_pins],
+            "pins_news": pins_news,
+            "panel_record": panel_news,
+            "count": len(held_pins),
+            "screen": self._pinning_protection_screen(),
+            "explanation": pins_module.PLAIN_EXPLANATION,
+        }
+
+    def register_pinning_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole pinning book for the session (M-159).
+
+        Every pin of the book is held by the pure
+        registry, in book order - the first book held
+        sets the registry's title, a later book under a
+        different title refuses, as does a book naming
+        a held pin id or a held protected thing. The
+        book's panels are derivations, not holdings,
+        and are not held. Every pin is published as its
+        ``pin_record`` session news, in book order, and
+        the pin panel derived from the whole book as
+        its ``panel_record`` session news. Returns the
+        held book, its pins, their news records, the
+        panel news record, the count of pins held, the
+        screen, and the explanation. Registering calls
+        no model and compacts nothing.
+        """
+        from ..core import pinning_protection as pins_module
+        validated = pins_module.build_book(book)
+        registry = self._pinning_protection_registry()
+        registry.register_book(validated)
+        pins = [
+            pins_module.pin_record(pin)
+            for pin in validated.pins]
+        for pin_news in pins:
+            self._publish_pinning_record(pin_news)
+        panel_news = pins_module.panel_record(
+            pins_module.derive_panel(validated))
+        self._publish_pinning_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "pins": [
+                item.to_record() for item in validated.pins],
+            "pins_news": pins,
+            "panel_record": panel_news,
+            "count": len(pins),
+            "screen": self._pinning_protection_screen(),
+            "explanation": pins_module.PLAIN_EXPLANATION,
+        }
+
+    def record_pinning_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole pinning book for the session (M-159).
+
+        With no book named, the shipped example pinning
+        book is recorded through the pure layer - four
+        pins at the M-158 slice boundary, with its one
+        pinned panel. A book loaded from a file (the
+        pure layer's ``load_pinning_protection_file``
+        road) may be passed instead, so a real pinning
+        book is recorded as it stands. Every pin is
+        held and published as its ``pin_record`` session
+        news, in book order, and the pin panel as its
+        ``panel_record`` session news; the book is
+        remembered whole as the session's - its held
+        panel and all - and the same book recorded twice
+        refuses - fingerprinted on its pin ids and
+        title - a book is recorded once, never
+        duplicated into the session. Returns the held
+        book, its pins, their news records, the panel
+        news record, the count, the screen, and the
+        explanation. Recording calls no model.
+        """
+        from ..core import pinning_protection as pins_module
+        book = book if book is not None \
+            else pins_module.load_pinning_protection()
+        validated = pins_module.build_book(book)
+        fingerprint = (tuple(validated.pin_ids()), validated.title)
+        recorded = getattr(self, "_pinning_protection_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._pinning_protection_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this pinning book is already recorded for "
+                "the session; a book is recorded once")
+        registry = self._pinning_protection_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._pinning_protection_held = validated
+        pins = [
+            pins_module.pin_record(pin)
+            for pin in validated.pins]
+        for pin_news in pins:
+            self._publish_pinning_record(pin_news)
+        panel_news = pins_module.panel_record(
+            pins_module.derive_panel(validated))
+        self._publish_pinning_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "pins": [
+                item.to_record() for item in validated.pins],
+            "pins_news": pins,
+            "panel_record": panel_news,
+            "count": len(pins),
+            "screen": pins_module.format_pinning_protection_screen(
+                validated),
+            "explanation": pins_module.PLAIN_EXPLANATION,
+        }
+
+    def report_pinning_protection(self) -> dict[str, Any]:
+        """Render the session pinning book, as a report (M-159).
+
+        The book - the held registry's book when the
+        session holds any pin, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - is rendered through the pure
+        formatters alone: its pins, its derived panel
+        and its one screen. Rendering registers and
+        publishes nothing, calls no model and compacts
+        nothing: the agent layer renders the book as
+        data. Returns the book, its pins and panels as
+        plain records, the derived panel, the rendered
+        pins and panel, the screen, and the plain
+        explanation.
+        """
+        from ..core import pinning_protection as pins_module
+        book = self.pinning_protection_book()
+        return {
+            "book": book.to_record(),
+            "pins": [item.to_record() for item in book.pins],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (pins_module.derive_panel(book).to_record()
+                      if book.pins else None),
+            "pins_text": pins_module.format_pins(book),
+            "panel_text": pins_module.format_panel(book),
+            "screen": self._pinning_protection_screen(),
+            "explanation": pins_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_pinning_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one pinning-protection record as session news (M-159).
+
+        The pure layer's ``pin_record`` and
+        ``panel_record`` are journaled through the same
+        checkpoint road every sibling slice uses, when
+        a session is attached. Each record is announced
+        at most once per shape: a pin under its own pin
+        id, kind and reference, and a panel under its
+        whole derived shape (its rows and totals), so a
+        panel grown by a newly held pin announces again
+        as the new figure it is. A foreign record type
+        is never published on this road.
+        """
+        if record.get("type") == "pinning_protection_pin":
+            key = ("pinning_protection_pin",
+                   record.get("pin_id"),
+                   record.get("kind"),
+                   record.get("ref"))
+        elif record.get("type") == "pinning_protection_panel":
+            key = ("pinning_protection_panel", record.get("panel_id"),
+                   tuple(row.get("pin_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_pins"))
+        else:
+            return
+        announced = getattr(self, "_pinning_protection_announced", None)
+        if announced is None:
+            announced = set()
+            self._pinning_protection_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):

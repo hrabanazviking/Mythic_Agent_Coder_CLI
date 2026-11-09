@@ -349,6 +349,8 @@ class CommandHandler:
                 self._handle_forget(args)
             elif cmd == "/recipes":
                 self._handle_recipes(args)
+            elif cmd == "/pins":
+                self._handle_pins(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -5758,6 +5760,65 @@ class CommandHandler:
                 text = format_panel(primary.context_recipes_book())
             else:
                 text = primary.context_recipes_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_pins(self, args: str):
+        """M-159: /pins - pinning and protection.
+
+        ``/pins`` shows the pinning book held this
+        session (the shipped example book - four pins
+        at the M-158 slice boundary, with its one
+        pinned panel - when none is held yet);
+        ``/pins pin <pin-id>`` shows one pin with its
+        provenance whole; ``/pins kind <kind>`` shows
+        the pins of one kind; ``/pins panel`` shows
+        the pin panel derived from the whole book, its
+        rows in panel order. Reading registers and
+        publishes nothing as session news: pins are
+        held only when they are given through the
+        agent's pin roads or protected from the
+        session's compactions, and every pin held for
+        the session is journaled as a
+        pinning_protection_pin session event and every
+        derived panel as a pinning_protection_panel
+        session event. This surface calls no model and
+        compacts nothing, and there is no Part VIII
+        board yet, so the book is visible on this
+        surface, not on a board.
+        """
+        from ..core.pinning_protection import (
+            format_panel,
+            format_pin,
+            format_pins,
+            parse_pin_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_pin_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "pin":
+                text = format_pin(primary.get_pin(target))
+            elif action == "kind":
+                text = format_pins(
+                    primary.pinning_protection_book(), target)
+            elif action == "panel":
+                text = format_panel(primary.pinning_protection_book())
+            else:
+                text = primary.pinning_protection_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

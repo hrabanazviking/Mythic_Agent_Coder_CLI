@@ -619,3 +619,346 @@ def test_registry_constructor_and_titleless_book_refusal():
     assert direct == _pin()
 
 
+# -- agent layer -----------------------------------------------------------
+#
+# M-159 agent layer: the agent holds a PinningRegistry
+# for the session (session state only, no new setting),
+# pins are held by being registered - published as
+# their pin_record session news with the derived
+# panel_record, through the checkpoint road, deduped
+# per shape - the report road renders the held book
+# (or the shipped example when unheld) through the
+# pure formatters, a protection road reads the
+# session's compaction glass-box book onto pins and
+# holds them (mutating no live compaction record), and
+# the /pins surface rides both roads on the pure
+# parser + formatters. Status, get, panel and report
+# reads register and publish nothing, answer from the
+# held registry first and from the shipped example
+# only while nothing is held - a held session never
+# falls back to the example. The panel derives at call
+# time from the whole book, never held. This layer
+# calls no model, compacts nothing, drops nothing and
+# persists nothing beyond the session journal news,
+# and there is no Part VIII board yet, so the screen
+# is where the book is visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _pin_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_pin_book(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data"
+           / "pinning_protection.yaml").read_text(encoding="utf-8")
+    path = tmp_path / "pinning_protection.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestPinningAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.pinning_protection_status()
+        assert status["pins"] == []
+        assert status["book"] is None
+        assert status["protecting"]["title"] == EXAMPLE_TITLE
+        assert len(status["protecting"]["pins"]) == 4
+        assert status["panel"]["total_pins"] == 4
+        assert status["panels"][0]["panel_id"] == "panel-m158-boundary"
+        assert status["book_record"]["pin_count"] == 4
+        assert "Pinning and Protection (M-159)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._pinning_protection_registry()
+        assert agent._pinning_protection_registry() is first
+        assert agent._pinning_protection_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.pinning_protection_status()
+        agent.get_pin("pin-the-task")
+        agent.pinning_protection_panel()
+        agent.report_pinning_protection()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("pinning_protection")] == []
+        agent.close()
+
+    def test_unheld_reads_raise(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_pin("pin-nope")
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_pin(_pin())
+        status = agent.pinning_protection_status()
+        assert [item["pin_id"] for item in status["pins"]] == [
+            "pin-test"]
+        assert status["book"]["title"] == "Pinning and protection"
+
+    def test_held_session_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_pin(_pin())
+        with pytest.raises(KeyError):
+            agent.get_pin("pin-the-task")
+        pin = agent.get_pin("pin-test")
+        assert pin.subject == "the test fact"
+        assert agent.pinning_protection_book().title == (
+            "Pinning and protection")
+
+
+class TestPinningAgentHolding:
+    def test_register_pin_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_pin(_pin())
+        assert outcome["pin"]["pin_id"] == "pin-test"
+        assert outcome["pin_news"]["type"] == "pinning_protection_pin"
+        events = _pin_events(
+            store, session_id, "pinning_protection_pin")
+        assert len(events) == 1
+        assert events[0]["pin_id"] == "pin-test"
+        agent._publish_pinning_record(outcome["pin_news"])
+        assert len(_pin_events(
+            store, session_id, "pinning_protection_pin")) == 1
+        agent._publish_pinning_record(
+            {"type": "mentions_mention", "mention_id": "mention-x"})
+        agent._publish_pinning_record(
+            book_record(load_pinning_protection()))
+        for kind in ("mentions_mention", "pinning_protection_book"):
+            assert _pin_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_duplicate_pin_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_pin(_pin())
+        with pytest.raises(ValueError):
+            agent.register_pin(_pin())
+        with pytest.raises(ValueError):
+            agent.register_pin(_pin(pin_id="pin-copy"))
+        assert len(_pin_events(
+            store, session_id, "pinning_protection_pin")) == 1
+        agent.close()
+
+    def test_protect_session_compactions_carries_ids_only(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        glassbox_book = load_compaction_glassbox()
+        records = [r for r in glassbox_book.records if r.record_id]
+        expected = len(records)
+        outcome = agent.protect_session_compactions(
+            why="A compaction the session still stands on.",
+            pinned_by="Volmarr", pinned_on="2026-11-08")
+        assert outcome["count"] == expected
+        events = _pin_events(
+            store, session_id, "pinning_protection_pin")
+        assert len(events) == expected
+        blob = str(events) + str(outcome["pins"])
+        for record in records:
+            assert record.title not in blob
+            assert record.summary not in blob
+            for piece in record.replaced:
+                assert piece not in blob
+        # Protecting mutated no live compaction: the
+        # session's glass-box book stands whole.
+        assert agent.compaction_glassbox_book().records == (
+            glassbox_book.records)
+        assert agent.pinning_protection_panel().total_pins == expected
+        with pytest.raises(ValueError):
+            agent.protect_session_compactions(
+                why="Again.", pinned_by="Volmarr",
+                pinned_on="2026-11-08")
+        agent.close()
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent):
+        book = _book()
+        outcome = agent.register_pinning_book(book)
+        assert outcome["count"] == 1
+        assert [item["type"] for item in outcome["pins_news"]] == [
+            "pinning_protection_pin"]
+        assert agent.pinning_protection_book().title == (
+            "A test pinning book")
+
+    def test_register_book_twice_refuses(self, agent):
+        agent.register_pinning_book(load_pinning_protection())
+        with pytest.raises(ValueError):
+            agent.register_pinning_book(load_pinning_protection())
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_pinning_book()
+        assert outcome["count"] == 4
+        assert outcome["book"]["title"] == EXAMPLE_TITLE
+        assert len(_pin_events(
+            store, session_id, "pinning_protection_pin")) == 4
+        assert agent.pinning_protection_book().panels[0].panel_id == (
+            "panel-m158-boundary")
+        agent.close()
+
+    def test_record_same_book_twice_refuses(self, agent):
+        agent.record_pinning_book()
+        with pytest.raises(ValueError):
+            agent.record_pinning_book()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_pin_book(tmp_path)
+        book = load_pinning_protection_file(path)
+        outcome = agent.record_pinning_book(book)
+        assert outcome["count"] == 4
+        assert agent.get_pin("pin-the-task").kind == "task"
+
+    def test_report_renders_the_example_when_unheld(self, agent):
+        report = agent.report_pinning_protection()
+        assert report["book"]["pin_count"] == 4
+        assert "pin-the-task" in report["pins_text"]
+        assert "Pin panel in Pinning and protection" in (
+            report["panel_text"])
+
+    def test_report_renders_the_held_book_only(self, agent):
+        agent.register_pin(_pin())
+        report = agent.report_pinning_protection()
+        assert report["book"]["title"] == "Pinning and protection"
+        assert "pin-the-task" not in report["pins_text"]
+        assert "pin-test" in report["pins_text"]
+
+    def test_report_registers_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.report_pinning_protection()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("pinning_protection")] == []
+        agent.close()
+
+    def test_no_live_compact_or_persist_road(
+            self, agent, tmp_path):
+        # This layer holds pins as data: it calls no
+        # model, compacts no live context, drops no
+        # message, writes no project files and persists
+        # nothing - and there is no Part VIII board yet.
+        # Holding, recording or protecting changes no
+        # workspace file and no built context.
+        assert not hasattr(agent, "apply_pinning_protection")
+        assert not hasattr(agent, "compact_pinning_protection")
+        assert not hasattr(agent, "persist_pinning_protection")
+        assert not hasattr(agent, "pinning_protection_board")
+        (tmp_path / "alpha.py").write_text(
+            "def greet(name):\n    return name\n", encoding="utf-8")
+        before = {
+            p.name: p.read_bytes()
+            for p in tmp_path.glob("*.py")}
+        from mythic_agent.agents.context import ContextBuilder
+        builder = ContextBuilder(max_tokens=4000)
+        builder.add_system("You are the coder.")
+        builder.add_turn("user", "Build the slice.")
+        built_before = builder.build()
+        agent.register_pin(_pin())
+        agent.record_pinning_book()
+        agent.protect_session_compactions(
+            why="A compaction the session still stands on.",
+            pinned_by="Volmarr", pinned_on="2026-11-08")
+        assert builder.build() == built_before
+        assert {
+            p.name: p.read_bytes()
+            for p in tmp_path.glob("*.py")} == before
+
+
+class TestPinningTerminalSurface:
+    def test_show_pin_kind_panel(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/pins")
+        assert "Pinning and Protection (M-159)" in text
+        _, _, text = _slash(agent, "/pins pin pin-the-task")
+        assert "task-m159" in text
+        _, _, text = _slash(agent, "/pins kind laws")
+        assert "pin-forge-laws" in text
+        assert "pin-the-task" not in text
+        _, _, text = _slash(agent, "/pins panel")
+        assert "Pin panel in Pinning and protection" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/pins [show|pin <pin-id>"
+                "|kind <kind>|panel]") in text
+        _, _, text = _slash(agent, "/pins dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/pins pin pin-nope")
+        assert "no pin in the book" in text
+
+
+@pytest.fixture()
+def pins_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _pins_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestPinningCommand:
+    def test_show_is_default(self, pins_handler, agent):
+        pins_handler._handle_pins("")
+        assert "Pinning and Protection (M-159)" in (
+            _pins_published_text(pins_handler))
+
+    def test_pin_kind_panel(self, pins_handler, agent):
+        pins_handler._handle_pins("pin pin-the-task")
+        assert "task-m159" in _pins_published_text(pins_handler)
+        pins_handler._handle_pins("kind laws")
+        assert "pin-forge-laws" in _pins_published_text(pins_handler)
+        pins_handler._handle_pins("panel")
+        assert "Pin panel in Pinning and protection" in (
+            _pins_published_text(pins_handler))
+
+    def test_bad_grammar_is_published(self, pins_handler, agent):
+        pins_handler._handle_pins("dance party")
+        assert USAGE in _pins_published_text(pins_handler)
+
+
+class TestChatScreenRoutingPins:
+    def test_pins_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command(
+            "/pins pin pin-the-task", _FakeLog())
+        assert calls == [("/pins", "pin pin-the-task")]
