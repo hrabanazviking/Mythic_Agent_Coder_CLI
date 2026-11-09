@@ -31607,6 +31607,449 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _work_view_registry(self):
+        """The held work-view registry (M-172).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer events one by one,
+        beside the session cold-start registry
+        (M-169) and never in it: the work book is
+        one stream of actions. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named ``_work_view_store``,
+        never the method's own name (the M-108
+        lesson).
+        """
+        registry = getattr(self, "_work_view_store", None)
+        if registry is None:
+            from ..core.work_view import WorkRegistry
+            registry = WorkRegistry()
+            self._work_view_store = registry
+        return registry
+
+    def work_view_book(self):
+        """The session's work book, as data (M-172).
+
+        The held registry's book when the session
+        holds any event - the actions the session
+        has actually raised (events held one by
+        one, before any whole book stands recorded,
+        stand under a session work book composed
+        here in the agent layer, so a later whole
+        book recorded under its own title is never
+        refused by a shim title at the registry) -
+        otherwise the book recorded whole through
+        :meth:`record_work_view_book`, or the
+        shipped example work book until one is
+        recorded. Reading registers and publishes
+        nothing.
+        """
+        from ..core.work_view import WorkBook, load_work_view
+        registry = self._work_view_registry()
+        if registry.list_events():
+            try:
+                book = registry.book()
+            except ValueError:
+                return WorkBook(
+                    title="Work View",
+                    events=registry.list_events())
+            held = getattr(self, "_work_view_held", None)
+            if held is not None and held.title == book.title \
+                    and held.event_ids() == book.event_ids():
+                return held
+            return book
+        book = getattr(self, "_work_view_held", None)
+        if book is None:
+            return load_work_view()
+        return book
+
+    def _work_view_screen(self, detail: bool = False) -> str:
+        """The /workview screen for the session's state (M-172)."""
+        from ..core import work_view as work_module
+        registry = self._work_view_registry()
+        if not registry.list_events():
+            return work_module.format_work_view_screen(detail=detail)
+        return work_module.format_work_view_screen(
+            self.work_view_book(), detail=detail)
+
+    def work_view_status(self) -> dict[str, Any]:
+        """The work-view book account, in plain data (M-172).
+
+        The events held this session as plain
+        records, the held book's record (none until
+        an event stands held), the session work
+        book's events as plain records (the shipped
+        example book - six actions at the M-171
+        slice boundary, five done and the verdict
+        check still standing started - until events
+        are held), its whole-book record, the panel
+        derived from the whole book and every panel
+        the book holds as plain records, the verdict
+        derived for the whole book, the latest event
+        in plain words, the panel and the verdict
+        told in plain words, the one screen -
+        rendered from the held book, or from the
+        shipped example book when nothing is held
+        yet - and the plain explanation. Reading
+        registers and publishes nothing, sends
+        nothing and schedules nothing: this layer
+        holds actions as data only, and no tool is
+        run or streamed live here. The screen is
+        where the book is visible; the slice board
+        is M-173's road, not this slice's.
+        """
+        from ..core import work_view as work_module
+        registry = self._work_view_registry()
+        held_events = registry.list_events()
+        book = self.work_view_book()
+        latest = book.events[-1]
+        return {
+            "events": [item.to_record() for item in held_events],
+            "book": (book.to_record() if held_events else None),
+            "work_view": {
+                "title": book.title,
+                "events": [item.to_record() for item in book.events],
+            },
+            "book_record": work_module.book_record(book),
+            "panel": (work_module.derive_panel(book).to_record()
+                      if book.events else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (
+                work_module.derive_verdict(book).to_record()
+                if book.events else None),
+            "plain_words": work_module.plain_words(latest),
+            "panel_plain_words": (
+                work_module.panel_plain_words(book)
+                if book.events else ""),
+            "verdict_plain_words": (
+                work_module.verdict_plain_words(book)
+                if book.events else ""),
+            "screen": self._work_view_screen(),
+            "explanation": work_module.PLAIN_EXPLANATION,
+        }
+
+    def get_work_view_event(self, event_id: Any):
+        """The one event an id names (M-172).
+
+        The session's held registry answers when the
+        session holds any event; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held
+        event answers for its own book alone: an id
+        the held book holds no event for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._work_view_registry()
+        if registry.list_events():
+            return registry.get_event(event_id)
+        return self.work_view_book().event_for(event_id)
+
+    def work_view_event_detail(self, event_id: Any) -> str:
+        """The held detail of one event (M-172).
+
+        The one-keystroke-away road: the detail the
+        narrative, panel and verdict hold back,
+        spoken only when it is asked for by name.
+        Reading registers and publishes nothing.
+        """
+        return self.get_work_view_event(event_id).detail
+
+    def work_view_events_for_kind(self, kind: Any):
+        """The session book's events of one kind (M-172)."""
+        from ..core.work_view import events_of_kind as _of_kind
+        return _of_kind(self.work_view_book(), kind)
+
+    def work_view_panel(self):
+        """The work panel derived for the whole book (M-172)."""
+        from ..core.work_view import derive_panel as _derive_panel
+        return _derive_panel(self.work_view_book())
+
+    def work_view_verdict(self):
+        """The work verdict derived for the whole book (M-172)."""
+        from ..core.work_view import derive_verdict as _derive_verdict
+        return _derive_verdict(self.work_view_book())
+
+    def register_work_view_event(
+            self, event: Any) -> dict[str, Any]:
+        """Hold one work event for the session (M-172).
+
+        The event is held by the pure registry under
+        its id or the deterministic event-N id - an
+        event id or a sequence already standing here
+        refuses, and a refusal holds nothing new and
+        publishes nothing. A held event is published
+        as its ``event_record`` session-news record
+        through the checkpoint road. Returns the
+        held event, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding an event changes no
+        shipped holding and runs no tool: the action
+        stands on this layer's book, as data,
+        provenance whole.
+        """
+        from ..core import work_view as work_module
+        registry = self._work_view_registry()
+        held = registry.register_event(event)
+        event_news = work_module.event_record(held)
+        self._publish_work_view_record(event_news)
+        return {
+            "event": held.to_record(),
+            "record_news": event_news,
+            "screen": self._work_view_screen(),
+            "explanation": work_module.PLAIN_EXPLANATION,
+        }
+
+    def stream_work_view_action(
+            self, tool: Any = None, *,
+            target: Any, detail: Any,
+            state: Any = "done",
+            occurred_on: Any = "2026-11-09",
+            actor: Any = "the coder",
+            origin_session: Any = "session-m172",
+            source: Any = "work view",
+            event_id: Any = None) -> dict[str, Any]:
+        """Raise one event over a tool action (M-172).
+
+        This slice's own raising road: the event is
+        composed by the pure layer over the shipped
+        tool's own name - its kind derived from the
+        tool, never chosen, an unknown tool refusing
+        plainly - at the next sequence of the
+        session's held stream, and held by the pure
+        registry. The tool's own words cross only
+        into the detail the event holds back. The
+        event is published as its ``event_record``
+        session news, the panel derived from the
+        whole book as its ``panel_record`` session
+        news, and the verdict derived for the whole
+        book as its ``verdict_record`` session news.
+        Returns the held event, its derived kind and
+        narrative, its news records, the screen
+        rendered after it landed and the plain
+        explanation. HONEST BOUNDARY: raising an
+        event runs no tool and streams nothing live -
+        the action stands on the held book as data.
+        """
+        from ..core import work_view as work_module
+        registry = self._work_view_registry()
+        held_events = registry.list_events()
+        seq = (max(e.seq for e in held_events) + 1) if held_events else 1
+        event = work_module.event_from_tool_call(
+            tool, target=target, detail=detail, state=state,
+            seq=seq, occurred_on=occurred_on, actor=actor,
+            source=source, origin_session=origin_session,
+            event_id=event_id)
+        held = registry.register_event(event)
+        event_news = work_module.event_record(held)
+        self._publish_work_view_record(event_news)
+        book = self.work_view_book()
+        panel_news = work_module.panel_record(
+            work_module.derive_panel(book))
+        self._publish_work_view_record(panel_news)
+        verdict_news = work_module.verdict_record(
+            work_module.derive_verdict(book))
+        self._publish_work_view_record(verdict_news)
+        return {
+            "event": held.to_record(),
+            "kind": held.kind,
+            "narrative": work_module.narrative_of(held),
+            "record_news": event_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._work_view_screen(),
+            "explanation": work_module.PLAIN_EXPLANATION,
+        }
+
+    def register_work_view_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole work book for the session (M-172).
+
+        Every event of the book is held by the pure
+        registry, in stream order - the book is
+        judged whole, and against the held book,
+        before any event is held, so a refusal holds
+        nothing new. The first book held sets the
+        registry's title, a later book under a
+        different title refuses, as does a book
+        naming a held event id or sequence. The
+        book's panels are derivations, not holdings,
+        and are not held. Every event is published
+        as its ``event_record`` session news, in
+        stream order, and the panel derived from
+        the whole book as its ``panel_record``
+        session news. Returns the held book, its
+        events, their news records, the panel news
+        record, the count of events held, the
+        screen, and the explanation. Registering
+        runs no tool and streams nothing live.
+        """
+        from ..core import work_view as work_module
+        validated = work_module.build_book(book)
+        registry = self._work_view_registry()
+        registry.register_book(validated)
+        records = [
+            work_module.event_record(event)
+            for event in validated.events]
+        for event_news in records:
+            self._publish_work_view_record(event_news)
+        panel_news = work_module.panel_record(
+            work_module.derive_panel(validated))
+        self._publish_work_view_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "events": [
+                item.to_record() for item in validated.events],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": self._work_view_screen(),
+            "explanation": work_module.PLAIN_EXPLANATION,
+        }
+
+    def record_work_view_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole work book for the session (M-172).
+
+        With no book named, the shipped example
+        work book is recorded through the pure
+        layer - six actions at the M-171 slice
+        boundary, with its one pinned panel. A book
+        loaded from a file (the pure layer's
+        ``load_work_view_file`` road) may be passed
+        instead. The book is judged whole before
+        anything is held. Every event is held and
+        published as its ``event_record`` session
+        news, in stream order, and the panel as its
+        ``panel_record`` session news; the book is
+        remembered whole as the session's - its
+        held panel and all - and the same book
+        recorded twice refuses - fingerprinted on
+        its event ids and title. Returns the held
+        book, its events, their news records, the
+        panel news record, the count, the screen,
+        and the explanation. Recording runs no tool
+        and streams nothing live.
+        """
+        from ..core import work_view as work_module
+        book = book if book is not None \
+            else work_module.load_work_view()
+        validated = work_module.build_book(book)
+        fingerprint = (tuple(validated.event_ids()), validated.title)
+        recorded = getattr(self, "_work_view_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._work_view_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this work book is already recorded "
+                "for the session; a book is recorded once")
+        registry = self._work_view_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._work_view_held = validated
+        records = [
+            work_module.event_record(event)
+            for event in validated.events]
+        for event_news in records:
+            self._publish_work_view_record(event_news)
+        panel_news = work_module.panel_record(
+            work_module.derive_panel(validated))
+        self._publish_work_view_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "events": [
+                item.to_record() for item in validated.events],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": work_module.format_work_view_screen(validated),
+            "explanation": work_module.PLAIN_EXPLANATION,
+        }
+
+    def report_work_view(self) -> dict[str, Any]:
+        """Render the session work book, as a report (M-172).
+
+        The book - the held registry's book when the
+        session holds any event, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone. Rendering
+        registers and publishes nothing and reads no
+        file. Returns the book, its events and
+        panels as plain records, the derived panel
+        and verdict, the rendered stream, panel and
+        verdict, the screen, and the plain
+        explanation.
+        """
+        from ..core import work_view as work_module
+        book = self.work_view_book()
+        return {
+            "book": book.to_record(),
+            "events": [item.to_record() for item in book.events],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (work_module.derive_panel(book).to_record()
+                      if book.events else None),
+            "verdict": (
+                work_module.derive_verdict(book).to_record()
+                if book.events else None),
+            "stream_text": work_module.format_stream(book),
+            "panel_text": work_module.format_panel(book),
+            "verdict_text": work_module.format_verdict(book),
+            "screen": self._work_view_screen(),
+            "explanation": work_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_work_view_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one work-view record as session news (M-172).
+
+        The pure layer's ``event_record``,
+        ``panel_record`` and ``verdict_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once per shape: an event under its own
+        event id, sequence, kind and state, a panel
+        under its whole derived shape, and a verdict
+        under its word and tallies, so a panel or
+        verdict grown by a newly held event
+        announces again as the new figure it is. A
+        foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "work_view_event":
+            key = ("work_view_event",
+                   record.get("event_id"),
+                   record.get("seq"),
+                   record.get("kind"),
+                   record.get("state"))
+        elif record.get("type") == "work_view_panel":
+            key = ("work_view_panel", record.get("panel_id"),
+                   record.get("as_of"),
+                   tuple(row.get("event_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_events"))
+        elif record.get("type") == "work_view_verdict":
+            key = ("work_view_verdict",
+                   record.get("verdict"),
+                   record.get("total_events"),
+                   record.get("distinct_targets"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(self, "_work_view_announced", None)
+        if announced is None:
+            announced = set()
+            self._work_view_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):

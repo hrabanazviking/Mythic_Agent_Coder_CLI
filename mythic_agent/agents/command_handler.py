@@ -371,6 +371,8 @@ class CommandHandler:
                 self._handle_memorydoctor(args)
             elif cmd == "/coldstart":
                 self._handle_coldstart(args)
+            elif cmd == "/workview":
+                self._handle_workview(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -6589,6 +6591,88 @@ class CommandHandler:
                     for r in book.records)
             else:
                 text = primary.cold_start_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_workview(self, args: str):
+        """M-172: /workview - streaming work view.
+
+        ``/workview`` shows the work book held this
+        session as a calm narrative stream (the
+        shipped example book - six actions at the
+        M-171 slice boundary, five done and the
+        verdict check still standing started, with
+        its one pinned panel - when none is held
+        yet); ``/workview event <event-id>`` shows
+        one event as its narrative line, its detail
+        still held back; ``/workview detail`` shows
+        the whole stream with its tool detail, and
+        ``/workview detail <event-id>`` shows one
+        event with its detail - the one-keystroke
+        -away road; ``/workview kind <kind>`` shows
+        one kind's actions; ``/workview panel``
+        shows the work panel derived from the whole
+        book - the stream at a glance, narrative
+        only; ``/workview verdict`` shows the work
+        verdict derived for the whole book. Reading
+        registers and publishes nothing as session
+        news: events are held only when they are
+        given through the agent's register roads,
+        raised over a shipped tool action on the
+        streaming road, or held on the book roads,
+        and every event held for the session is
+        journaled as a work_view_event session
+        event, every derived panel as a
+        work_view_panel session event and every
+        derived verdict as a work_view_verdict
+        session event. This surface runs no tool
+        and streams nothing live, and the slice
+        board is M-173's road, so the book is
+        visible on this surface, not on a board.
+        """
+        from ..core.work_view import (
+            format_event,
+            format_event_detail,
+            format_panel,
+            format_stream,
+            format_verdict,
+            parse_work_view_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_work_view_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "event":
+                text = format_event(
+                    primary.get_work_view_event(target))
+            elif action == "detail" and target is not None:
+                text = format_event_detail(
+                    primary.get_work_view_event(target))
+            elif action == "detail":
+                text = format_stream(
+                    primary.work_view_book(), detail=True)
+            elif action == "kind":
+                text = format_stream(
+                    primary.work_view_book(), kind=target)
+            elif action == "panel":
+                text = format_panel(primary.work_view_book())
+            elif action == "verdict":
+                text = format_verdict(primary.work_view_book())
+            else:
+                text = primary.work_view_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
