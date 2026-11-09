@@ -343,6 +343,8 @@ class CommandHandler:
                 self._handle_crossmemory(args)
             elif cmd == "/ledger":
                 self._handle_ledger(args)
+            elif cmd == "/decisions":
+                self._handle_decisions(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -5562,6 +5564,75 @@ class CommandHandler:
                 text = format_panel(primary.self_improving_book())
             else:
                 text = primary.self_improving_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_decisions(self, args: str):
+        """M-156: /decisions - decision records.
+
+        ``/decisions`` shows the decision book held
+        this session (the shipped example book - three
+        records at the M-155 slice boundary, one
+        accepted as the project's road, one still
+        proposed and one superseded by the accepted
+        record, with its one pinned panel - when none
+        is held yet); ``/decisions record <record-id>``
+        shows one decision record with its provenance
+        whole; ``/decisions adr <record-id>`` renders
+        one record as the small ADR that would land
+        in the project docs; ``/decisions accepted``
+        shows the records standing accepted;
+        ``/decisions panel`` shows the decision panel
+        derived from the whole book, its rows in panel
+        order. Reading registers and publishes nothing
+        as session news: records are held only when
+        they are given through the agent's decision
+        roads or drafted from the session's standing
+        decisions, and every record held for the
+        session is journaled as a decision_record
+        session event and every derived panel as a
+        decision_panel session event. This surface
+        calls no model and writes no project docs,
+        and there is no Part VIII board yet, so the
+        records are visible on this surface, not on a
+        board.
+        """
+        from ..core.decision_records import (
+            format_accepted,
+            format_adr,
+            format_panel,
+            format_record,
+            parse_decision_records_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_decision_records_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "record":
+                text = format_record(
+                    primary.get_decision_record(target))
+            elif action == "adr":
+                text = format_adr(
+                    primary.get_decision_record(target))
+            elif action == "accepted":
+                text = format_accepted(primary.decision_records_book())
+            elif action == "panel":
+                text = format_panel(primary.decision_records_book())
+            else:
+                text = primary.decision_records_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
