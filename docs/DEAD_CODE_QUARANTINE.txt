@@ -494,3 +494,13 @@ mythic_agent/core/memory_doctor.py:1741:row_for:method
 mythic_agent/core/memory_doctor.py:2220:_check_repair_ref:function
 mythic_agent/core/memory_doctor.py:2698:latest_finding:method
 mythic_agent/core/memory_doctor.py:2727:is_repaired:method
+mythic_agent/agents/llm.py:31264:register_cold_start_record:method
+mythic_agent/agents/llm.py:31296:open_cold_start_project:method
+mythic_agent/agents/llm.py:31371:record_cold_start_progress:method
+mythic_agent/agents/llm.py:31405:register_cold_start_book:method
+mythic_agent/agents/llm.py:31453:record_cold_start_book:method
+mythic_agent/agents/llm.py:31513:report_cold_start:method
+mythic_agent/core/cold_start.py:666:area_for:method
+mythic_agent/core/cold_start.py:1334:row_for:method
+mythic_agent/core/cold_start.py:2129:latest_record:method
+mythic_agent/core/cold_start.py:2159:completed_stages:method
