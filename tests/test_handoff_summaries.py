@@ -713,3 +713,390 @@ def test_parse_handoffsummary_args():
         parse_handoffsummary_args("session bad session")
     with pytest.raises(ValueError):
         parse_handoffsummary_args(42)
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-163 agent layer: the agent holds a HandoffRegistry
+# for the session (session state only, no new setting),
+# handoffs are held by being registered - published as
+# their handoff_record session news with the derived
+# panel_record and verdict_record, through the
+# checkpoint road, deduped per shape - the report road
+# renders the held book (or the shipped example when
+# unheld) through the pure formatters, a handoff road
+# reads the session's stand-up report onto a handoff
+# and holds it (mutating no live stand-up), and the
+# /handoffsummary surface rides both roads on the pure
+# parser + formatters. Status, get, panel, verdict and
+# report reads register and publish nothing, answer
+# from the held registry first and from the shipped
+# example only while nothing is held - a held handoff
+# never falls back to the example. The panel and the
+# verdict derive at call time from the whole book,
+# never held. This layer sends nothing, posts nothing,
+# schedules nothing, calls no model and persists
+# nothing beyond the session journal news, and there
+# is no Part VIII board yet, so the screen is where
+# the book is visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _handoff_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_handoff_book(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data"
+           / "handoff_summaries.yaml").read_text(encoding="utf-8")
+    path = tmp_path / "handoff_summaries.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestHandoffAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.handoff_summaries_status()
+        assert status["handoffs"] == []
+        assert status["book"] is None
+        assert status["handoff"]["title"] == EXAMPLE_TITLE
+        assert len(status["handoff"]["handoffs"]) == 3
+        assert status["panel"]["total_handoffs"] == 3
+        assert status["panel"]["total_claims"] == 7
+        assert status["panels"][0]["panel_id"] == "panel-m162-boundary"
+        assert status["book_record"]["handoff_count"] == 3
+        assert status["verdict"]["verdict"] == "awaiting-you"
+        assert status["verdict"]["total_needs_you"] == 1
+        assert status["verdict"]["distinct_sessions"] == 3
+        assert "Handoff Summaries (M-163)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._handoff_summaries_registry()
+        assert agent._handoff_summaries_registry() is first
+        assert agent._handoff_summaries_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.handoff_summaries_status()
+        agent.get_handoff("handoff-graph-pause")
+        agent.handoff_summaries_panel()
+        agent.handoff_summaries_verdict()
+        agent.report_handoff_summaries()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("handoff_summaries")] == []
+        agent.close()
+
+    def test_unheld_reads_raise(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_handoff("handoff-nope")
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_handoff(_handoff())
+        status = agent.handoff_summaries_status()
+        assert [item["handoff_id"] for item in status["handoffs"]] == [
+            "handoff-test"]
+        assert status["book"]["title"] == "Handoff summaries"
+        assert status["panel"]["total_handoffs"] == 1
+        assert status["verdict"]["verdict"] == "standing-clear"
+
+    def test_held_handoff_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_handoff(_handoff())
+        with pytest.raises(KeyError):
+            agent.get_handoff("handoff-graph-pause")
+        handoff = agent.get_handoff("handoff-test")
+        assert handoff.title == "the test session, handed off at its close"
+        assert agent.handoff_summaries_book().title == (
+            "Handoff summaries")
+
+
+class TestHandoffAgentHolding:
+    def test_register_handoff_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_handoff(_handoff())
+        assert outcome["handoff"]["handoff_id"] == "handoff-test"
+        assert outcome["record_news"]["type"] == (
+            "handoff_summaries_handoff")
+        events = _handoff_events(
+            store, session_id, "handoff_summaries_handoff")
+        assert len(events) == 1
+        assert events[0]["handoff_id"] == "handoff-test"
+        agent._publish_handoff_record(outcome["record_news"])
+        assert len(_handoff_events(
+            store, session_id, "handoff_summaries_handoff")) == 1
+        agent._publish_handoff_record(
+            {"type": "mentions_mention", "mention_id": "mention-x"})
+        agent._publish_handoff_record(
+            book_record(load_handoff_summaries()))
+        for kind in ("mentions_mention", "handoff_summaries_book"):
+            assert _handoff_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_duplicate_handoff_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_handoff(_handoff())
+        with pytest.raises(ValueError):
+            agent.register_handoff(_handoff())
+        with pytest.raises(ValueError):
+            agent.register_handoff(_handoff(
+                handoff_id="handoff-copy",
+                done=["m-101-copy-done"], doing=[],
+                evidence_refs=["entry-copy-1"]))
+        assert len(_handoff_events(
+            store, session_id, "handoff_summaries_handoff")) == 1
+        agent.close()
+
+    def test_handoff_from_stand_up_carries_ids_only(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        report = agent.stand_up()
+        digest = digest_stand_up(report)
+        outcome = agent.handoff_from_stand_up(
+            session_ref="session-m134-standup",
+            project="mythic-agent-coder", branch="work/standup-care",
+            evidence_refs=["entry-standup-1"],
+            written_by="Volmarr", written_on="2026-11-08")
+        assert outcome["count"] == 1
+        assert outcome["total_claims"] == digest.total()
+        held = outcome["handoff"]
+        assert held["done"] == list(digest.done)
+        assert held["doing"] == list(digest.doing)
+        assert held["blocked"] == list(digest.blocked)
+        assert held["needs_you"] == list(digest.needs_you)
+        assert held["title"] == "handoff at the M-133 boundary"
+        events = _handoff_events(
+            store, session_id, "handoff_summaries_handoff")
+        assert len(events) == 1
+        assert len(_handoff_events(
+            store, session_id, "handoff_summaries_panel")) == 1
+        assert len(_handoff_events(
+            store, session_id, "handoff_summaries_verdict")) == 1
+        blob = str(events) + str(outcome["handoff"])
+        for entry in report.entries:
+            assert entry.title not in blob
+            assert entry.detail not in blob
+        assert agent.stand_up().entries == report.entries
+        assert agent.handoff_summaries_panel().total_handoffs == 1
+        assert agent.handoff_summaries_verdict().verdict == (
+            "awaiting-you")
+        with pytest.raises(ValueError):
+            agent.handoff_from_stand_up(
+                session_ref="session-m134-standup",
+                project="mythic-agent-coder",
+                branch="work/standup-care",
+                evidence_refs=["entry-standup-1"],
+                written_by="Volmarr", written_on="2026-11-08")
+        agent.close()
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent):
+        book = _book()
+        outcome = agent.register_handoff_book(book)
+        assert outcome["count"] == 1
+        assert [item["type"] for item in outcome["records_news"]] == [
+            "handoff_summaries_handoff"]
+        assert agent.handoff_summaries_book().title == (
+            "A test handoff book")
+
+    def test_register_book_twice_refuses(self, agent):
+        agent.register_handoff_book(load_handoff_summaries())
+        with pytest.raises(ValueError):
+            agent.register_handoff_book(load_handoff_summaries())
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_handoff_book()
+        assert outcome["count"] == 3
+        assert outcome["book"]["title"] == EXAMPLE_TITLE
+        assert len(_handoff_events(
+            store, session_id, "handoff_summaries_handoff")) == 3
+        assert len(_handoff_events(
+            store, session_id, "handoff_summaries_panel")) == 1
+        assert agent.handoff_summaries_book().panels[0].panel_id == (
+            "panel-m162-boundary")
+        agent.close()
+
+    def test_record_same_book_twice_refuses(self, agent):
+        agent.record_handoff_book()
+        with pytest.raises(ValueError):
+            agent.record_handoff_book()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_handoff_book(tmp_path)
+        book = load_handoff_summaries_file(path)
+        outcome = agent.record_handoff_book(book)
+        assert outcome["count"] == 3
+        assert agent.get_handoff(
+            "handoff-graph-pause").branch == "work/graph-retrieval-care"
+
+    def test_report_renders_the_example_when_unheld(self, agent):
+        report = agent.report_handoff_summaries()
+        assert report["book"]["handoff_count"] == 3
+        assert "handoff-main-close" in report["handoffs_text"]
+        assert "Handoff panel in Handoff summaries" in (
+            report["panel_text"])
+        assert "awaiting-you" in report["verdict_text"]
+        assert "handoff-graph-pause" in report["handoffs_text"]
+
+    def test_report_renders_the_held_book_only(self, agent):
+        agent.register_handoff(_handoff())
+        report = agent.report_handoff_summaries()
+        assert report["book"]["title"] == "Handoff summaries"
+        assert "handoff-main-close" not in report["handoffs_text"]
+        assert "handoff-test" in report["handoffs_text"]
+        assert "standing-clear" in report["verdict_text"]
+
+    def test_report_registers_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.report_handoff_summaries()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("handoff_summaries")] == []
+        agent.close()
+
+    def test_no_live_send_schedule_or_persist_road(
+            self, agent, tmp_path):
+        # This layer holds handoffs as data: it sends
+        # nothing, posts nothing, schedules nothing,
+        # calls no model and persists nothing - and
+        # there is no Part VIII board yet. Holding,
+        # recording or writing changes no workspace
+        # file and no built context.
+        assert not hasattr(agent, "apply_handoff_summaries")
+        assert not hasattr(agent, "run_handoff_summaries")
+        assert not hasattr(agent, "persist_handoff_summaries")
+        assert not hasattr(agent, "handoff_summaries_board")
+        assert not hasattr(agent, "send_handoff")
+        assert not hasattr(agent, "post_handoff")
+        assert not hasattr(agent, "schedule_handoff")
+        (tmp_path / "alpha.py").write_text(
+            "def greet(name):\n    return name\n", encoding="utf-8")
+        before = {
+            p.name: p.read_bytes()
+            for p in tmp_path.glob("*.py")}
+        from mythic_agent.agents.context import ContextBuilder
+        builder = ContextBuilder(max_tokens=4000)
+        builder.add_system("You are the coder.")
+        builder.add_turn("user", "Build the slice.")
+        built_before = builder.build()
+        agent.register_handoff(_handoff())
+        agent.handoff_from_stand_up(
+            session_ref="session-m134-standup",
+            project="mythic-agent-coder", branch="work/standup-care",
+            evidence_refs=["entry-standup-1"],
+            written_by="Volmarr", written_on="2026-11-08")
+        assert builder.build() == built_before
+        assert {
+            p.name: p.read_bytes()
+            for p in tmp_path.glob("*.py")} == before
+
+
+class TestHandoffTerminalSurface:
+    def test_show_handoff_session_panel_verdict(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/handoffsummary")
+        assert "Handoff Summaries (M-163)" in text
+        _, _, text = _slash(
+            agent, "/handoffsummary handoff handoff-graph-pause")
+        assert "entry-graph-1" in text
+        _, _, text = _slash(
+            agent, "/handoffsummary session session-m161-endurance")
+        assert "handoff-main-close" in text
+        assert "handoff-graph-pause" not in text
+        _, _, text = _slash(agent, "/handoffsummary panel")
+        assert "Handoff panel in Handoff summaries" in text
+        _, _, text = _slash(agent, "/handoffsummary verdict")
+        assert "awaiting-you" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/handoffsummary [show|handoff <handoff-id>"
+                "|session <session-ref>|panel|verdict]") in text
+        _, _, text = _slash(agent, "/handoffsummary dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/handoffsummary handoff handoff-nope")
+        assert "no handoff in the book" in text
+
+
+@pytest.fixture()
+def handoff_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _handoff_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestHandoffCommand:
+    def test_show_is_default(self, handoff_handler, agent):
+        handoff_handler._handle_handoffsummary("")
+        assert "Handoff Summaries (M-163)" in (
+            _handoff_published_text(handoff_handler))
+
+    def test_handoff_session_panel_verdict(self, handoff_handler, agent):
+        handoff_handler._handle_handoffsummary("handoff handoff-graph-pause")
+        assert "entry-graph-1" in _handoff_published_text(handoff_handler)
+        handoff_handler._handle_handoffsummary(
+            "session session-m161-endurance")
+        assert "handoff-main-close" in _handoff_published_text(handoff_handler)
+        handoff_handler._handle_handoffsummary("panel")
+        assert "Handoff panel in Handoff summaries" in (
+            _handoff_published_text(handoff_handler))
+        handoff_handler._handle_handoffsummary("verdict")
+        assert "awaiting-you" in _handoff_published_text(handoff_handler)
+
+    def test_bad_grammar_is_published(self, handoff_handler, agent):
+        handoff_handler._handle_handoffsummary("dance party")
+        assert USAGE in _handoff_published_text(handoff_handler)
+
+
+class TestChatScreenRoutingHandoff:
+    def test_handoffsummary_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command(
+            "/handoffsummary session session-m161-endurance", _FakeLog())
+        assert calls == [("/handoffsummary",
+                          "session session-m161-endurance")]
