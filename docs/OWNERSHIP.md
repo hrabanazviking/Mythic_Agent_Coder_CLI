@@ -2,18 +2,18 @@
 
 > **GENERATED FILE — do not edit by hand.**
 > Regenerate with: `python scripts/gen_ownership.py`
-> Generated at: 2026-11-09T12:28:51Z
+> Generated at: 2026-11-09T13:00:06Z
 
 Ownership is derived from real git history: for each module the owner is the top author by commit count touching that file (ties resolve to the most recently active author). Share is the owner's commit count divided by the total commit count on the file.
 
 ## Per-author rollup
 
-Total modules: **288**
+Total modules: **289**
 
 | Author | Modules owned | File commits | Share of modules |
 | --- | ---: | ---: | ---: |
-| Yrsa Freydisdottir | 161 | 279 | 55.9% |
-| Volmarr Wyrd | 127 | 687 | 44.1% |
+| Yrsa Freydisdottir | 161 | 279 | 55.7% |
+| Volmarr Wyrd | 128 | 688 | 44.3% |
 
 ## Per-module ownership
 
@@ -214,6 +214,7 @@ Total modules: **288**
 | `mythic_agent/core/transcript.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
 | `mythic_agent/core/tree_sitter_foundation.py` | Yrsa Freydisdottir | 100.0% | 1 / 1 | 2026-11-01 |
 | `mythic_agent/core/tts.py` | Volmarr Wyrd | 87.5% | 7 / 8 | 2026-10-10 |
+| `mythic_agent/core/tui_redesign_charter.py` | Volmarr Wyrd | 100.0% | 1 / 1 | 2026-11-09 |
 | `mythic_agent/core/type_coverage.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
 | `mythic_agent/core/undo_timeline.py` | Volmarr Wyrd | 100.0% | 1 / 1 | 2026-11-05 |
 | `mythic_agent/core/ux_charter.py` | Yrsa Freydisdottir | 100.0% | 1 / 1 | 2026-10-31 |
@@ -1876,6 +1877,14 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
       "last_touch": "2026-10-10"
     },
     {
+      "module": "mythic_agent/core/tui_redesign_charter.py",
+      "owner": "Volmarr Wyrd",
+      "owner_commits": 1,
+      "total_commits": 1,
+      "share": 1.0,
+      "last_touch": "2026-11-09"
+    },
+    {
       "module": "mythic_agent/core/type_coverage.py",
       "owner": "Yrsa Freydisdottir",
       "owner_commits": 2,
@@ -2628,10 +2637,10 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
     },
     {
       "author": "Volmarr Wyrd",
-      "modules_owned": 127,
-      "file_commits": 687
+      "modules_owned": 128,
+      "file_commits": 688
     }
   ],
-  "total_modules": 288
+  "total_modules": 289
 }
 ```
