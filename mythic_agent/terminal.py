@@ -2823,7 +2823,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
             return True, False, str(_exc)
         if _act == "handoff":
             try:
-                _ho = agent.get_handoff(_tgt)
+                _ho = agent.get_handoff_summary(_tgt)
             except (KeyError, ValueError) as _exc:
                 return True, False, str(_exc)
             return True, False, _fmt_hho(_ho)

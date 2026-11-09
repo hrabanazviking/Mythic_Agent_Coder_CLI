@@ -6089,7 +6089,7 @@ class CommandHandler:
         try:
             if action == "handoff":
                 text = format_handoff(
-                    primary.get_handoff(target))
+                    primary.get_handoff_summary(target))
             elif action == "session":
                 text = format_handoffs(
                     primary.handoff_summaries_book(), target)
