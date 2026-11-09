@@ -351,6 +351,8 @@ class CommandHandler:
                 self._handle_recipes(args)
             elif cmd == "/pins":
                 self._handle_pins(args)
+            elif cmd == "/thrift":
+                self._handle_thrift(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -5819,6 +5821,73 @@ class CommandHandler:
                 text = format_panel(primary.pinning_protection_book())
             else:
                 text = primary.pinning_protection_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_thrift(self, args: str):
+        """M-160: /thrift - token thrift.
+
+        ``/thrift`` shows the thrift book held this
+        session (the shipped example book - four
+        records at the M-159 slice boundary, with its
+        one pinned panel - when none is held yet);
+        ``/thrift record <record-id>`` shows one record
+        with its provenance whole; ``/thrift road
+        <road>`` shows the records of one road;
+        ``/thrift panel`` shows the thrift panel
+        derived from the whole book, its rows in panel
+        order; ``/thrift costs`` shows the thrift cost
+        line derived for the whole book - the line
+        mythic costs reports for thrift. Reading
+        registers and publishes nothing as session
+        news: records are held only when they are given
+        through the agent's thrift roads or counted
+        from the session's context, and every record
+        held for the session is journaled as a
+        token_thrift_record session event, every
+        derived panel as a token_thrift_panel session
+        event and every derived cost line as a
+        token_thrift_cost_line session event. This
+        surface calls no model and reads no file, and
+        there is no Part VIII board yet, so the book is
+        visible on this surface, not on a board.
+        """
+        from ..core.token_thrift import (
+            format_cost_line,
+            format_panel,
+            format_thrift_record,
+            format_thrift_records,
+            parse_thrift_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_thrift_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "record":
+                text = format_thrift_record(
+                    primary.get_thrift_record(target))
+            elif action == "road":
+                text = format_thrift_records(
+                    primary.token_thrift_book(), target)
+            elif action == "panel":
+                text = format_panel(primary.token_thrift_book())
+            elif action == "costs":
+                text = format_cost_line(primary.token_thrift_book())
+            else:
+                text = primary.token_thrift_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

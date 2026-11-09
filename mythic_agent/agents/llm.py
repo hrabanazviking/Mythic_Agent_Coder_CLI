@@ -26788,6 +26788,463 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _token_thrift_registry(self):
+        """The held token-thrift registry (M-160).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer thrift records one by
+        one, beside the session pinning-protection
+        registry (M-159) and never in it: the thrift
+        book is one book of measured cheaper reads,
+        loads and edits. It is created on first use,
+        so an agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_token_thrift_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_token_thrift_store", None)
+        if registry is None:
+            from ..core.token_thrift import ThriftRegistry
+            registry = ThriftRegistry()
+            self._token_thrift_store = registry
+        return registry
+
+    def token_thrift_book(self):
+        """The session's token-thrift book, as data (M-160).
+
+        The held registry's book when the session holds
+        any thrift record - the savings the session has
+        actually recorded (records held one by one,
+        before any whole book stands recorded, stand
+        under a session thrift book composed here in
+        the agent layer, so a later whole book recorded
+        under its own title is never refused by a shim
+        title at the registry) - otherwise the book
+        recorded whole through
+        :meth:`record_thrift_book`, or the shipped
+        example thrift book until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.token_thrift import (
+            ThriftBook, load_token_thrift)
+        registry = self._token_thrift_registry()
+        if registry.list_records():
+            try:
+                book = registry.book()
+            except ValueError:
+                return ThriftBook(
+                    title="Token thrift",
+                    records=registry.list_records())
+            held = getattr(self, "_token_thrift_held", None)
+            if held is not None and held.title == book.title \
+                    and held.record_ids() == book.record_ids():
+                return held
+            return book
+        book = getattr(self, "_token_thrift_held", None)
+        if book is None:
+            return load_token_thrift()
+        return book
+
+    def _token_thrift_screen(self) -> str:
+        """The /thrift screen for the session's state (M-160).
+
+        Rendered from the held book when one stands,
+        and from the shipped example book while nothing
+        is held.
+        """
+        from ..core import token_thrift as thrift_module
+        registry = self._token_thrift_registry()
+        if not registry.list_records():
+            return thrift_module.format_token_thrift_screen()
+        return thrift_module.format_token_thrift_screen(
+            self.token_thrift_book())
+
+    def token_thrift_status(self) -> dict[str, Any]:
+        """The token-thrift account, in plain data (M-160).
+
+        The records held this session as plain records,
+        the held book's record (none until a record
+        stands held), the session thrift book's records
+        as plain records (the shipped example book -
+        four records at the M-159 slice boundary -
+        until records are held), its whole-book record,
+        the thrift panel derived from the whole book
+        and every panel the book holds as plain
+        records, the thrift cost line derived for the
+        whole book, the latest record in plain words,
+        the panel and the cost line told in plain
+        words, the one screen - rendered from the held
+        book, or from the shipped example book when
+        nothing is held yet - and the plain
+        explanation. Reading registers and publishes
+        nothing, calls no model and reads no file:
+        this layer holds thrift as data only. There is
+        no Part VIII board yet; the screen is where the
+        book is visible.
+        """
+        from ..core import token_thrift as thrift_module
+        registry = self._token_thrift_registry()
+        held_records = registry.list_records()
+        book = self.token_thrift_book()
+        latest = book.records[-1]
+        return {
+            "records": [item.to_record() for item in held_records],
+            "book": (book.to_record() if held_records else None),
+            "thrifting": {
+                "title": book.title,
+                "records": [item.to_record() for item in book.records],
+            },
+            "book_record": thrift_module.book_record(book),
+            "panel": (thrift_module.derive_panel(book).to_record()
+                      if book.records else None),
+            "panels": [p.to_record() for p in book.panels],
+            "cost_line": (
+                thrift_module.derive_cost_line(book).to_record()
+                if book.records else None),
+            "plain_words": thrift_module.plain_words(latest),
+            "panel_plain_words": (
+                thrift_module.panel_plain_words(book)
+                if book.records else ""),
+            "cost_line_plain_words": (
+                thrift_module.cost_line_plain_words(book)
+                if book.records else ""),
+            "screen": self._token_thrift_screen(),
+            "explanation": thrift_module.PLAIN_EXPLANATION,
+        }
+
+    def get_thrift_record(self, record_id: Any):
+        """The one thrift record an id names (M-160).
+
+        The session's held registry answers when the
+        session holds any record; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). A held session answers
+        for its own book alone: an id the held book
+        holds no record for raises KeyError, with no
+        silent fall back to the example, exactly as the
+        pure layer answers. Reading registers and
+        publishes nothing.
+        """
+        registry = self._token_thrift_registry()
+        if registry.list_records():
+            return registry.get_record(record_id)
+        return self.token_thrift_book().record_for(record_id)
+
+    def token_thrift_panel(self):
+        """The thrift panel derived for the whole book (M-160).
+
+        The panel is derived at call time from the
+        session book whole - the held registry's book
+        when the session holds any record, otherwise
+        the shipped example book's (or the book
+        recorded whole for the session) - so its rows
+        are the records carried whole, in panel order,
+        and its totals are the records' own sums, read
+        at call time. Reading registers and publishes
+        nothing.
+        """
+        from ..core.token_thrift import (
+            derive_panel as _derive_panel)
+        return _derive_panel(self.token_thrift_book())
+
+    def token_thrift_cost_line(self, model: Any = "gpt-4o"):
+        """The thrift cost line derived for the whole book (M-160).
+
+        The line is derived at call time from the
+        session book whole, its token totals the
+        derived panel's own totals and its costs those
+        totals priced through the shared rate table -
+        the line ``mythic costs`` reports for thrift.
+        Reading registers and publishes nothing, bills
+        no one and charges nothing.
+        """
+        from ..core.token_thrift import (
+            derive_cost_line as _derive_line)
+        return _derive_line(self.token_thrift_book(), model)
+
+    def register_thrift_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one thrift record for the session (M-160).
+
+        The record is held by the pure registry under
+        its id or the deterministic thrift-N id - a
+        record id already standing here refuses, as
+        does a record measuring a thing a held record
+        already counts by the same road; a refusal
+        holds nothing new and publishes nothing. A held
+        record is published as its ``thrift_record``
+        session-news record through the checkpoint
+        road, so a saving declared into the session is
+        news. Returns the held record, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding a record calls no
+        model and reads no file: the registry holds the
+        record as data, provenance whole.
+        """
+        from ..core import token_thrift as thrift_module
+        registry = self._token_thrift_registry()
+        held = registry.register_record(record)
+        record_news = thrift_module.thrift_record(held)
+        self._publish_thrift_record(record_news)
+        return {
+            "record": held.to_record(),
+            "record_news": record_news,
+            "screen": self._token_thrift_screen(),
+            "explanation": thrift_module.PLAIN_EXPLANATION,
+        }
+
+    def thrift_from_session_context(
+            self, *, baselines: Any, recorded_by: Any,
+            recorded_on: Any,
+            road: Any = "map-first") -> dict[str, Any]:
+        """Count this session's context loading as thrift (M-160).
+
+        This slice's own composing road: the session's
+        context-budget panel (M-147) is read onto
+        thrift records BY IMPORT through the pure
+        layer's ``thrift_records_from_context`` - every
+        item of the panel, under one named road and one
+        named recorder, each item's baseline named in
+        *baselines* (an item with no named baseline
+        refuses the whole road before anything is
+        held, because an unmeasured saving is a claim,
+        not a measure) - and each record is held and
+        published as its ``thrift_record`` session
+        news, with the thrift panel derived from the
+        whole held registry as its ``panel_record``
+        session news and the cost line derived for the
+        whole held registry as its ``cost_line_record``
+        session news. Only ids and counts cross the
+        seam: no item's title, source or reason stands
+        in any record or headline this road publishes.
+        Returns the held records, their news records,
+        the panel and cost-line news records, the
+        count, the total tokens saved, the screen, and
+        the explanation. Counting calls no model, reads
+        no file and mutates no live context - the
+        session's context panel itself stands exactly
+        as it stood: this road records thrift, and the
+        holdings keep the measures.
+        """
+        from ..core import token_thrift as thrift_module
+        panel = self.context_budget_panel()
+        records = thrift_module.thrift_records_from_context(
+            panel, baselines=baselines, recorded_by=recorded_by,
+            recorded_on=recorded_on, road=road)
+        if not records:
+            raise ValueError(
+                "the session's context panel holds no item "
+                "to count as thrift")
+        registry = self._token_thrift_registry()
+        held_records = []
+        records_news = []
+        for record in records:
+            held = registry.register_record(record)
+            held_records.append(held)
+            record_news = thrift_module.thrift_record(held)
+            records_news.append(record_news)
+            self._publish_thrift_record(record_news)
+        panel_news = thrift_module.panel_record(
+            thrift_module.derive_panel(registry))
+        self._publish_thrift_record(panel_news)
+        line_news = thrift_module.cost_line_record(
+            thrift_module.derive_cost_line(registry))
+        self._publish_thrift_record(line_news)
+        return {
+            "records": [item.to_record() for item in held_records],
+            "records_news": records_news,
+            "panel_record": panel_news,
+            "cost_line_record": line_news,
+            "count": len(held_records),
+            "total_saved": sum(
+                item.tokens_saved for item in held_records),
+            "screen": self._token_thrift_screen(),
+            "explanation": thrift_module.PLAIN_EXPLANATION,
+        }
+
+    def register_thrift_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole thrift book for the session (M-160).
+
+        Every record of the book is held by the pure
+        registry, in book order - the first book held
+        sets the registry's title, a later book under a
+        different title refuses, as does a book naming
+        a held record id or a held measured thing. The
+        book's panels are derivations, not holdings,
+        and are not held. Every record is published as
+        its ``thrift_record`` session news, in book
+        order, and the thrift panel derived from the
+        whole book as its ``panel_record`` session
+        news. Returns the held book, its records, their
+        news records, the panel news record, the count
+        of records held, the screen, and the
+        explanation. Registering calls no model and
+        reads no file.
+        """
+        from ..core import token_thrift as thrift_module
+        validated = thrift_module.build_book(book)
+        registry = self._token_thrift_registry()
+        registry.register_book(validated)
+        records = [
+            thrift_module.thrift_record(record)
+            for record in validated.records]
+        for record_news in records:
+            self._publish_thrift_record(record_news)
+        panel_news = thrift_module.panel_record(
+            thrift_module.derive_panel(validated))
+        self._publish_thrift_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "records": [
+                item.to_record() for item in validated.records],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": self._token_thrift_screen(),
+            "explanation": thrift_module.PLAIN_EXPLANATION,
+        }
+
+    def record_thrift_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole thrift book for the session (M-160).
+
+        With no book named, the shipped example thrift
+        book is recorded through the pure layer - four
+        records at the M-159 slice boundary, with its
+        one pinned panel. A book loaded from a file
+        (the pure layer's ``load_token_thrift_file``
+        road) may be passed instead, so a real thrift
+        book is recorded as it stands. Every record is
+        held and published as its ``thrift_record``
+        session news, in book order, and the thrift
+        panel as its ``panel_record`` session news; the
+        book is remembered whole as the session's - its
+        held panel and all - and the same book recorded
+        twice refuses - fingerprinted on its record ids
+        and title - a book is recorded once, never
+        duplicated into the session. Returns the held
+        book, its records, their news records, the
+        panel news record, the count, the screen, and
+        the explanation. Recording calls no model.
+        """
+        from ..core import token_thrift as thrift_module
+        book = book if book is not None \
+            else thrift_module.load_token_thrift()
+        validated = thrift_module.build_book(book)
+        fingerprint = (tuple(validated.record_ids()), validated.title)
+        recorded = getattr(self, "_token_thrift_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._token_thrift_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this thrift book is already recorded for "
+                "the session; a book is recorded once")
+        registry = self._token_thrift_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._token_thrift_held = validated
+        records = [
+            thrift_module.thrift_record(record)
+            for record in validated.records]
+        for record_news in records:
+            self._publish_thrift_record(record_news)
+        panel_news = thrift_module.panel_record(
+            thrift_module.derive_panel(validated))
+        self._publish_thrift_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "records": [
+                item.to_record() for item in validated.records],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": thrift_module.format_token_thrift_screen(
+                validated),
+            "explanation": thrift_module.PLAIN_EXPLANATION,
+        }
+
+    def report_token_thrift(self) -> dict[str, Any]:
+        """Render the session thrift book, as a report (M-160).
+
+        The book - the held registry's book when the
+        session holds any record, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - is rendered through the pure
+        formatters alone: its records, its derived
+        panel, its derived cost line and its one
+        screen. Rendering registers and publishes
+        nothing, calls no model and reads no file: the
+        agent layer renders the book as data. Returns
+        the book, its records and panels as plain
+        records, the derived panel and cost line, the
+        rendered records, panel and cost line, the
+        screen, and the plain explanation.
+        """
+        from ..core import token_thrift as thrift_module
+        book = self.token_thrift_book()
+        return {
+            "book": book.to_record(),
+            "records": [item.to_record() for item in book.records],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (thrift_module.derive_panel(book).to_record()
+                      if book.records else None),
+            "cost_line": (
+                thrift_module.derive_cost_line(book).to_record()
+                if book.records else None),
+            "records_text": thrift_module.format_thrift_records(book),
+            "panel_text": thrift_module.format_panel(book),
+            "cost_line_text": thrift_module.format_cost_line(book),
+            "screen": self._token_thrift_screen(),
+            "explanation": thrift_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_thrift_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one token-thrift record as session news (M-160).
+
+        The pure layer's ``thrift_record``,
+        ``panel_record`` and ``cost_line_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most once
+        per shape: a record under its own record id,
+        road and reference, a panel under its whole
+        derived shape (its rows and totals), and a cost
+        line under its model and totals, so a panel or
+        line grown by a newly held record announces
+        again as the new figure it is. A foreign record
+        type is never published on this road.
+        """
+        if record.get("type") == "token_thrift_record":
+            key = ("token_thrift_record",
+                   record.get("record_id"),
+                   record.get("road"),
+                   record.get("ref"))
+        elif record.get("type") == "token_thrift_panel":
+            key = ("token_thrift_panel", record.get("panel_id"),
+                   tuple(row.get("record_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_records"),
+                   record.get("total_saved"))
+        elif record.get("type") == "token_thrift_cost_line":
+            key = ("token_thrift_cost_line", record.get("model"),
+                   record.get("tokens_saved"),
+                   record.get("saved_cost_usd"))
+        else:
+            return
+        announced = getattr(self, "_token_thrift_announced", None)
+        if announced is None:
+            announced = set()
+            self._token_thrift_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
