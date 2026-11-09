@@ -353,6 +353,8 @@ class CommandHandler:
                 self._handle_pins(args)
             elif cmd == "/thrift":
                 self._handle_thrift(args)
+            elif cmd == "/endurance":
+                self._handle_endurance(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -5888,6 +5890,75 @@ class CommandHandler:
                 text = format_cost_line(primary.token_thrift_book())
             else:
                 text = primary.token_thrift_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_endurance(self, args: str):
+        """M-161: /endurance - long-session endurance.
+
+        ``/endurance`` shows the endurance book held
+        this session (the shipped example book - five
+        measurements at the M-160 slice boundary, with
+        its one pinned panel - when none is held yet);
+        ``/endurance record <record-id>`` shows one
+        record with its provenance whole;
+        ``/endurance kind <kind>`` shows the records
+        of one kind; ``/endurance panel`` shows the
+        endurance panel derived from the whole book,
+        its rows in panel order; ``/endurance verdict``
+        shows the endurance verdict derived for the
+        whole book - over budget reported, never
+        passed. Reading registers and publishes
+        nothing as session news: records are held only
+        when they are given through the agent's
+        endurance roads or measured from the session's
+        memory, and every record held for the session
+        is journaled as a long_session_endurance_record
+        session event, every derived panel as a
+        long_session_endurance_panel session event and
+        every derived verdict as a
+        long_session_endurance_verdict session event.
+        This surface runs no live session and times
+        nothing, and there is no Part VIII board yet,
+        so the book is visible on this surface, not on
+        a board.
+        """
+        from ..core.long_session_endurance import (
+            format_endurance_record,
+            format_endurance_records,
+            format_panel,
+            format_verdict,
+            parse_endurance_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_endurance_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "record":
+                text = format_endurance_record(
+                    primary.get_endurance_record(target))
+            elif action == "kind":
+                text = format_endurance_records(
+                    primary.long_session_endurance_book(), target)
+            elif action == "panel":
+                text = format_panel(primary.long_session_endurance_book())
+            elif action == "verdict":
+                text = format_verdict(primary.long_session_endurance_book())
+            else:
+                text = primary.long_session_endurance_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
