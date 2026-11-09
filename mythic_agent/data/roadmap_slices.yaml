@@ -1035,7 +1035,7 @@ slices:
   title: Contradiction watch
   summary: when new evidence contradicts a stored memory, the newer truth wins *visibly* — the map shows
     the correction.
-  status: queued
+  status: done
 - id: M-167
   part: 7
   title: Private by architecture
