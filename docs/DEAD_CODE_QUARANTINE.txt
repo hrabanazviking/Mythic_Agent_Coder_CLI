@@ -426,3 +426,12 @@ mythic_agent/core/long_session_endurance.py:1249:row_for:method
 mythic_agent/core/long_session_endurance.py:1680:record_for_ref:method
 mythic_agent/core/long_session_endurance.py:1979:record_for_ref:method
 mythic_agent/core/long_session_endurance.py:1991:latest_record:method
+mythic_agent/agents/llm.py:27864:register_parallel_session:method
+mythic_agent/agents/llm.py:27895:multi_session_from_session_memory:method
+mythic_agent/agents/llm.py:27963:register_multi_session_book:method
+mythic_agent/agents/llm.py:28006:record_multi_session_book:method
+mythic_agent/agents/llm.py:28065:report_multi_session_projects:method
+mythic_agent/core/multi_session_projects.py:1226:row_for:method
+mythic_agent/core/multi_session_projects.py:1690:session_for_branch:method
+mythic_agent/core/multi_session_projects.py:1946:session_for_branch:method
+mythic_agent/core/multi_session_projects.py:1955:latest_session:method
