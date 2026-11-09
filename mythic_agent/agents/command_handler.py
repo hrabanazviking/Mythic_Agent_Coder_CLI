@@ -387,6 +387,8 @@ class CommandHandler:
                 self._handle_statusline(args)
             elif cmd == "/themesgrownup":
                 self._handle_themesgrownup(args)
+            elif cmd == "/voiceinout":
+                self._handle_voiceinout(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -7298,6 +7300,105 @@ class CommandHandler:
                 text = format_verdict(primary.themes_grown_up_book())
             else:
                 text = primary.themes_grown_up_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_voiceinout(self, args: str):
+        """M-180: /voiceinout - voice in and out.
+
+        ``/voiceinout`` shows the voice in and out
+        held this session - push-to-talk dictation
+        for prompts and spoken stand-ups via the
+        existing TTS (direct catalog casting, the
+        house voice law), voice an extra door and
+        never the only door (the shipped example
+        book - seven items at the M-179 slice
+        boundary, two dictations, two stand-ups and
+        three actions, with its two views and its
+        one pinned panel - when none is held yet);
+        ``/voiceinout dictation <dictation-id>``
+        shows one dictation session whole, its
+        state, transcript, backends, availability
+        and draft as their own lines;
+        ``/voiceinout standup <standup-id>`` shows
+        one spoken stand-up whole; ``/voiceinout
+        action <action-id>`` shows one voice action
+        and the text equivalent beside it;
+        ``/voiceinout view <view-id>`` shows one
+        held view record; ``/voiceinout kind
+        <kind>`` shows the book's items of one kind;
+        ``/voiceinout panel`` shows the panel
+        derived from the whole book under its
+        default view; ``/voiceinout verdict`` shows
+        the verdict derived for the whole book.
+        Reading registers and publishes nothing as
+        session news: items and views are held only
+        when they are given through the agent's
+        register roads, stood on the book on the
+        viewing road, or held on the book roads, and
+        every dictation held for the session is
+        journaled as a voice_in_out_dictation
+        session event, every stand-up as a
+        voice_in_out_standup session event, every
+        action as a voice_in_out_action session
+        event, every view as a voice_in_out_view
+        session event, every derived panel as a
+        voice_in_out_panel session event and every
+        derived verdict as a voice_in_out_verdict
+        session event. This surface captures no live
+        audio, builds no TTS engine, speaks nothing
+        live and banks nothing - and it sends no
+        prompt: a dictation held here is a draft,
+        never a send.
+        """
+        from ..core.voice_in_out import (
+            format_action,
+            format_book,
+            format_dictation,
+            format_panel,
+            format_standup,
+            format_verdict,
+            format_view,
+            parse_voice_in_out_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_voice_in_out_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "dictation":
+                text = format_dictation(
+                    primary.get_dictation_session(target))
+            elif action == "standup":
+                text = format_standup(
+                    primary.get_spoken_standup(target))
+            elif action == "action":
+                text = format_action(
+                    primary.get_voice_action(target))
+            elif action == "view":
+                text = format_view(
+                    primary.get_voice_view(target))
+            elif action == "kind":
+                text = format_book(
+                    primary.voice_in_out_book(), target)
+            elif action == "panel":
+                text = format_panel(primary.voice_in_out_book())
+            elif action == "verdict":
+                text = format_verdict(primary.voice_in_out_book())
+            else:
+                text = primary.voice_in_out_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

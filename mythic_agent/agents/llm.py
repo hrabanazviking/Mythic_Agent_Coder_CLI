@@ -35976,6 +35976,733 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _voice_in_out_registry(self):
+        """The held voice-in-and-out registry (M-180).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer dictation, stand-up,
+        action and view records one by one, beside
+        the session themes-grown-up registry (M-179)
+        and never in it: the book is one voice book
+        to look at. It is created on first use, so
+        an agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_voice_in_out_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_voice_in_out_store", None)
+        if registry is None:
+            from ..core.voice_in_out import VoiceRegistry
+            registry = VoiceRegistry()
+            self._voice_in_out_store = registry
+        return registry
+
+    def voice_in_out_book(self):
+        """The session's book of voice in and out, as data (M-180).
+
+        The held registry's book when the session
+        holds any item - the things the session can
+        actually be viewed for (items held one by
+        one stand under a session book composed here
+        in the agent layer, so a later whole book
+        recorded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book recorded whole through
+        :meth:`record_voice_in_out_book`, or the
+        shipped example book until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.voice_in_out import (
+            VoiceBook, load_voice_in_out)
+        registry = self._voice_in_out_registry()
+        if registry.list_items():
+            try:
+                book = registry.book()
+            except ValueError:
+                return VoiceBook(
+                    title="Voice In and Out",
+                    dictations=registry.list_dictations(),
+                    standups=registry.list_standups(),
+                    actions=registry.list_actions(),
+                    views=registry.list_views())
+            held = getattr(self, "_voice_in_out_held", None)
+            if held is not None and held.title == book.title \
+                    and held.dictation_ids() == book.dictation_ids() \
+                    and held.standup_ids() == book.standup_ids() \
+                    and held.action_ids() == book.action_ids() \
+                    and held.view_ids() == book.view_ids():
+                return held
+            return book
+        book = getattr(self, "_voice_in_out_held", None)
+        if book is None:
+            return load_voice_in_out()
+        return book
+
+    def _voice_in_out_default_view(self, book: Any):
+        """The view a book derives under by default (M-180).
+
+        The view its own stored panel stands under,
+        else its first held view, else None - a book
+        holding items but no view yet derives no
+        panel and no verdict, and says so plainly.
+        """
+        for panel in book.panels:
+            if panel.view_id is not None:
+                try:
+                    return book.view_for(panel.view_id)
+                except KeyError:
+                    continue
+        if book.views:
+            return book.views[0]
+        return None
+
+    def _voice_in_out_screen(self) -> str:
+        """The /voiceinout screen for the session's state (M-180)."""
+        from ..core import voice_in_out as voice_module
+        registry = self._voice_in_out_registry()
+        if not registry.list_items():
+            return voice_module.format_voice_in_out_screen()
+        book = self.voice_in_out_book()
+        if not book.views:
+            return voice_module.format_book(book)
+        return voice_module.format_voice_in_out_screen(book)
+
+    def voice_in_out_status(self) -> dict[str, Any]:
+        """The voice-in-and-out account, in plain data (M-180).
+
+        The dictation, stand-up, action and view
+        records held this session as plain records,
+        the held book's record (none until an item
+        stands held), the session book's items and
+        views as plain records (the shipped example
+        book - seven items at the M-179 slice
+        boundary, two dictations, two stand-ups and
+        three actions, with its two views and its
+        one pinned panel - until items are held),
+        its whole-book record, the panel derived
+        from the whole book under its default view
+        and every panel the book holds as plain
+        records, the verdict derived for the whole
+        book, the last item in plain words, the
+        panel and the verdict told in plain words,
+        the one screen - rendered from the held
+        book, or from the shipped example book when
+        nothing is held yet - and the plain
+        explanation. A book holding items but no
+        view yet derives no panel and no verdict.
+        Reading registers and publishes nothing,
+        sends nothing and schedules nothing: this
+        layer holds voice as data only, captures no
+        live audio, speaks nothing and sends no
+        prompt. The screen is where the book is
+        visible.
+        """
+        from ..core import voice_in_out as voice_module
+        registry = self._voice_in_out_registry()
+        held_dictations = registry.list_dictations()
+        held_standups = registry.list_standups()
+        held_actions = registry.list_actions()
+        held_views = registry.list_views()
+        held_items = registry.list_items()
+        book = self.voice_in_out_book()
+        default = self._voice_in_out_default_view(book)
+        latest = book.items()[-1] if book.items() else None
+        if latest is None:
+            latest_words = ""
+        elif latest.kind == "dictation":
+            latest_words = voice_module.plain_words(latest)
+        elif latest.kind == "standup":
+            latest_words = voice_module.standup_plain_words(latest)
+        else:
+            latest_words = voice_module.action_plain_words(latest)
+        return {
+            "dictations": [
+                item.to_record() for item in held_dictations],
+            "standups": [
+                item.to_record() for item in held_standups],
+            "actions": [
+                item.to_record() for item in held_actions],
+            "views": [
+                item.to_record() for item in held_views],
+            "book": (book.to_record() if held_items else None),
+            "voice_in_out": {
+                "title": book.title,
+                "dictations": [
+                    item.to_record() for item in book.dictations],
+                "standups": [
+                    item.to_record() for item in book.standups],
+                "actions": [
+                    item.to_record() for item in book.actions],
+                "views": [
+                    item.to_record() for item in book.views],
+            },
+            "book_record": voice_module.book_record(book),
+            "panel": (voice_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (voice_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "plain_words": latest_words,
+            "panel_plain_words": (
+                voice_module.panel_plain_words(book)
+                if default is not None else ""),
+            "verdict_plain_words": (
+                voice_module.verdict_plain_words(book)
+                if default is not None else ""),
+            "screen": self._voice_in_out_screen(),
+            "explanation": voice_module.PLAIN_EXPLANATION,
+        }
+
+    def get_dictation_session(self, dictation_id: Any):
+        """The one dictation an id names (M-180).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held item
+        answers for its own book alone: an id the
+        held book holds no dictation for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._voice_in_out_registry()
+        if registry.list_items():
+            return registry.get_dictation(dictation_id)
+        return self.voice_in_out_book().dictation_for(dictation_id)
+
+    def get_spoken_standup(self, standup_id: Any):
+        """The one stand-up an id names (M-180).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). Reading
+        registers and publishes nothing.
+        """
+        registry = self._voice_in_out_registry()
+        if registry.list_items():
+            return registry.get_standup(standup_id)
+        return self.voice_in_out_book().standup_for(standup_id)
+
+    def get_voice_action(self, action_id: Any):
+        """The one voice action an id names (M-180).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). Reading
+        registers and publishes nothing.
+        """
+        registry = self._voice_in_out_registry()
+        if registry.list_items():
+            return registry.get_action(action_id)
+        return self.voice_in_out_book().action_for(action_id)
+
+    def get_voice_view(self, view_id: Any):
+        """The one view record an id names (M-180).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). Reading
+        registers and publishes nothing.
+        """
+        registry = self._voice_in_out_registry()
+        if registry.list_items():
+            return registry.get_view(view_id)
+        return self.voice_in_out_book().view_for(view_id)
+
+    def voice_in_out_with_kind(self, kind: Any):
+        """The session book's items of one kind (M-180)."""
+        from ..core.voice_in_out import (
+            items_for_kind as _for_kind)
+        return _for_kind(self.voice_in_out_book(), kind)
+
+    def voice_in_out_passing(self):
+        """The session book's items standing whole (M-180)."""
+        from ..core.voice_in_out import (
+            passing_items as _passing)
+        return _passing(self.voice_in_out_book())
+
+    def voice_in_out_panel(self, view: Any = None):
+        """The panel derived for the whole book (M-180).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a
+        book holding no view at all refuses plainly
+        rather than inventing one.
+        """
+        from ..core.voice_in_out import derive_panel as _derive_panel
+        book = self.voice_in_out_book()
+        resolved = view if view is not None \
+            else self._voice_in_out_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive "
+                "a panel under")
+        return _derive_panel(book, resolved)
+
+    def voice_in_out_verdict(self, view: Any = None):
+        """The verdict derived for the whole book (M-180).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a
+        book holding no view at all refuses plainly
+        rather than inventing one.
+        """
+        from ..core.voice_in_out import (
+            derive_verdict as _derive_verdict)
+        book = self.voice_in_out_book()
+        resolved = view if view is not None \
+            else self._voice_in_out_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive "
+                "a verdict under")
+        return _derive_verdict(book, resolved)
+
+    def register_dictation_session(
+            self, session: Any) -> dict[str, Any]:
+        """Hold one dictation session for the session (M-180).
+
+        The session is held by the pure registry
+        under its dictation id - a dictation id or
+        a sequence already standing here refuses,
+        and a refusal holds nothing new and
+        publishes nothing. A held session is
+        published as its ``dictation_record``
+        session-news record through the checkpoint
+        road. Returns the held session, its news
+        record, the screen rendered after it landed,
+        and the plain explanation. Holding a session
+        captures no audio and sends no prompt: the
+        thing stands on this layer's book, as data,
+        provenance whole, waiting to be looked at.
+        """
+        from ..core import voice_in_out as voice_module
+        registry = self._voice_in_out_registry()
+        held = registry.register_dictation(session)
+        news = voice_module.dictation_record(held)
+        self._publish_voice_in_out_record(news)
+        return {
+            "dictation": held.to_record(),
+            "record_news": news,
+            "screen": self._voice_in_out_screen(),
+            "explanation": voice_module.PLAIN_EXPLANATION,
+        }
+
+    def register_spoken_standup(
+            self, standup: Any) -> dict[str, Any]:
+        """Hold one spoken stand-up for the session (M-180).
+
+        The stand-up is held by the pure registry
+        under its stand-up id - a stand-up id or a
+        sequence already standing here refuses, and
+        a refusal holds nothing new and publishes
+        nothing. A held stand-up is published as
+        its ``standup_record`` session-news record
+        through the checkpoint road. Returns the
+        held stand-up, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a stand-up speaks
+        nothing: the text stands on this layer's
+        book, as data, waiting to be spoken through
+        the TTS seam at a caller's word.
+        """
+        from ..core import voice_in_out as voice_module
+        registry = self._voice_in_out_registry()
+        held = registry.register_standup(standup)
+        news = voice_module.standup_record(held)
+        self._publish_voice_in_out_record(news)
+        return {
+            "standup": held.to_record(),
+            "record_news": news,
+            "screen": self._voice_in_out_screen(),
+            "explanation": voice_module.PLAIN_EXPLANATION,
+        }
+
+    def register_voice_action(
+            self, action: Any) -> dict[str, Any]:
+        """Hold one voice action for the session (M-180).
+
+        The action is held by the pure registry
+        under its action id - an action id, an
+        action name or a sequence already standing
+        here refuses, and a refusal holds nothing
+        new and publishes nothing. A held action is
+        published as its ``action_record``
+        session-news record through the checkpoint
+        road. Returns the held action, its news
+        record, the screen rendered after it
+        landed, and the plain explanation. The
+        action stands judged whole by the pure
+        layer before it is held: a voice-only
+        action never reaches this road, because the
+        pure layer refuses it by name at build.
+        """
+        from ..core import voice_in_out as voice_module
+        registry = self._voice_in_out_registry()
+        held = registry.register_action(action)
+        news = voice_module.action_record(held)
+        self._publish_voice_in_out_record(news)
+        return {
+            "action": held.to_record(),
+            "record_news": news,
+            "screen": self._voice_in_out_screen(),
+            "explanation": voice_module.PLAIN_EXPLANATION,
+        }
+
+    def register_voice_view(
+            self, view: Any) -> dict[str, Any]:
+        """Hold one view record for the session (M-180).
+
+        The view is held by the pure registry under
+        its id, or under a fresh view-N id when it
+        names none - a view id or a sequence
+        already standing here refuses, and a refusal
+        holds nothing new and publishes nothing. A
+        held view is published as its ``view_record``
+        session-news record through the checkpoint
+        road. Returns the held view, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding a view only ever
+        looks: it captures nothing, speaks nothing
+        and sends nothing.
+        """
+        from ..core import voice_in_out as voice_module
+        registry = self._voice_in_out_registry()
+        held = registry.register_view(view)
+        news = voice_module.view_record(held)
+        self._publish_voice_in_out_record(news)
+        return {
+            "view": held.to_record(),
+            "record_news": news,
+            "screen": self._voice_in_out_screen(),
+            "explanation": voice_module.PLAIN_EXPLANATION,
+        }
+
+    def view_voice_in_out(
+            self, kind_filter: Any, *,
+            detail: Any = None,
+            recorded_on: Any = "2026-11-09",
+            actor: Any = "the jarl",
+            source: Any = "voice in and out",
+            origin_session: Any = "session-m180",
+            view_id: Any = None) -> dict[str, Any]:
+        """Stand one view on the session's held book (M-180).
+
+        This slice's own viewing road: the view
+        record is composed by the pure layer at the
+        next sequence of the session's held book,
+        judged whole, and held by the pure registry.
+        The view is published as its ``view_record``
+        session news, the panel derived from the
+        whole book as its ``panel_record`` session
+        news, and the verdict derived for the whole
+        book as its ``verdict_record`` session news.
+        Returns the held view, its kind filter, its
+        news records, the screen rendered after it
+        landed and the plain explanation. HONEST
+        BOUNDARY: viewing captures no audio, speaks
+        nothing and sends no prompt - the view moves
+        this book alone, as data.
+        """
+        from ..core import voice_in_out as voice_module
+        registry = self._voice_in_out_registry()
+        held_views = registry.list_views()
+        seq = (max(v.seq for v in held_views) + 1) \
+            if held_views else 1
+        fields: dict[str, Any] = {
+            "seq": seq, "kind_filter": kind_filter,
+            "detail": detail if detail is not None else (
+                f"View kind {kind_filter!r} in the "
+                "session's held book, composed on the "
+                "viewing road."),
+            "recorded_on": recorded_on,
+            "actor": actor, "source": source,
+            "origin_session": origin_session}
+        if view_id is not None:
+            fields["view_id"] = view_id
+        view = voice_module.build_view(fields)
+        held = registry.register_view(view)
+        view_news = voice_module.view_record(held)
+        self._publish_voice_in_out_record(view_news)
+        book = self.voice_in_out_book()
+        panel_news = voice_module.panel_record(
+            voice_module.derive_panel(book, held))
+        self._publish_voice_in_out_record(panel_news)
+        verdict_news = voice_module.verdict_record(
+            voice_module.derive_verdict(book, held))
+        self._publish_voice_in_out_record(verdict_news)
+        return {
+            "view": held.to_record(),
+            "kind_filter": held.kind_filter,
+            "record_news": view_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._voice_in_out_screen(),
+            "explanation": voice_module.PLAIN_EXPLANATION,
+        }
+
+    def register_voice_in_out_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole book of voice in and out (M-180).
+
+        Every dictation, stand-up, action and view
+        record of the book is held by the pure
+        registry, in held and recorded order - the
+        book is judged whole, and against the held
+        book, before anything is held, so a refusal
+        holds nothing new. The first book held sets
+        the registry's title, a later book under a
+        different title refuses, as does a book
+        naming a held dictation id, stand-up id,
+        action id, action name or sequence, or a
+        view id or sequence. The book's panels are
+        derivations, not holdings, and are not held.
+        Every item is published as its session news
+        and every view as its ``view_record``
+        session news, in order. Returns the held
+        book, its items and views, their news
+        records, the count of items held, the
+        screen, and the explanation. Registering
+        captures nothing, speaks nothing and sends
+        nothing.
+        """
+        from ..core import voice_in_out as voice_module
+        validated = voice_module.build_book(book)
+        registry = self._voice_in_out_registry()
+        registry.register_book(validated)
+        records = [
+            voice_module.dictation_record(item)
+            for item in validated.dictations]
+        records += [
+            voice_module.standup_record(item)
+            for item in validated.standups]
+        records += [
+            voice_module.action_record(item)
+            for item in validated.actions]
+        records += [
+            voice_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_voice_in_out_record(news)
+        return {
+            "book": validated.to_record(),
+            "dictations": [
+                item.to_record() for item in validated.dictations],
+            "standups": [
+                item.to_record() for item in validated.standups],
+            "actions": [
+                item.to_record() for item in validated.actions],
+            "views": [
+                item.to_record() for item in validated.views],
+            "records_news": records,
+            "count": len(validated.items()),
+            "screen": self._voice_in_out_screen(),
+            "explanation": voice_module.PLAIN_EXPLANATION,
+        }
+
+    def record_voice_in_out_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole book of voice in and out (M-180).
+
+        With no book named, the shipped example book
+        is recorded through the pure layer - seven
+        items at the M-179 slice boundary, with its
+        two views and its one pinned panel. A book
+        loaded from a file (the pure layer's
+        ``load_voice_in_out_file`` road) may be
+        passed instead. The book is judged whole
+        before anything is held. Every item and
+        view is held and published as its session
+        news, in order, and the panel derived under
+        the book's default view as its
+        ``panel_record`` session news; the book is
+        remembered whole as the session's - its held
+        panel and all - and the same book recorded
+        twice refuses - fingerprinted on its item
+        ids, view ids and title. Returns the held
+        book, its items and views, their news
+        records, the panel news record, the count,
+        the screen, and the explanation. Recording
+        captures nothing, speaks nothing and sends
+        nothing.
+        """
+        from ..core import voice_in_out as voice_module
+        book = book if book is not None \
+            else voice_module.load_voice_in_out()
+        validated = voice_module.build_book(book)
+        fingerprint = (tuple(validated.dictation_ids()),
+                       tuple(validated.standup_ids()),
+                       tuple(validated.action_ids()),
+                       tuple(validated.view_ids()),
+                       validated.title)
+        recorded = getattr(self, "_voice_in_out_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._voice_in_out_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this book of voice in and out is already "
+                "recorded for the session; a book is "
+                "recorded once")
+        registry = self._voice_in_out_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._voice_in_out_held = validated
+        records = [
+            voice_module.dictation_record(item)
+            for item in validated.dictations]
+        records += [
+            voice_module.standup_record(item)
+            for item in validated.standups]
+        records += [
+            voice_module.action_record(item)
+            for item in validated.actions]
+        records += [
+            voice_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_voice_in_out_record(news)
+        panel_news = voice_module.panel_record(
+            voice_module.derive_panel(
+                validated,
+                self._voice_in_out_default_view(validated)),
+            validated)
+        self._publish_voice_in_out_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "dictations": [
+                item.to_record() for item in validated.dictations],
+            "standups": [
+                item.to_record() for item in validated.standups],
+            "actions": [
+                item.to_record() for item in validated.actions],
+            "views": [
+                item.to_record() for item in validated.views],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(validated.items()),
+            "screen": voice_module.format_voice_in_out_screen(
+                validated),
+            "explanation": voice_module.PLAIN_EXPLANATION,
+        }
+
+    def report_voice_in_out(self) -> dict[str, Any]:
+        """Render the session voice book, as a report (M-180).
+
+        The book - the held registry's book when the
+        session holds any item, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone. Rendering
+        registers and publishes nothing, captures
+        nothing, speaks nothing and sends nothing.
+        Returns the book, its items, views and
+        panels as plain records, the derived panel
+        and verdict (none while the book holds no
+        view), the rendered book, panel and verdict,
+        the screen, and the plain explanation.
+        """
+        from ..core import voice_in_out as voice_module
+        book = self.voice_in_out_book()
+        default = self._voice_in_out_default_view(book)
+        return {
+            "book": book.to_record(),
+            "dictations": [
+                item.to_record() for item in book.dictations],
+            "standups": [
+                item.to_record() for item in book.standups],
+            "actions": [
+                item.to_record() for item in book.actions],
+            "views": [
+                item.to_record() for item in book.views],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (voice_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "verdict": (voice_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "book_text": voice_module.format_book(book),
+            "panel_text": (voice_module.format_panel(book)
+                           if default is not None else ""),
+            "verdict_text": (voice_module.format_verdict(book)
+                             if default is not None else ""),
+            "screen": self._voice_in_out_screen(),
+            "explanation": voice_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_voice_in_out_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one voice-in-and-out record as session news (M-180).
+
+        The pure layer's ``dictation_record``,
+        ``standup_record``, ``action_record``,
+        ``view_record``, ``panel_record`` and
+        ``verdict_record`` are journaled through the
+        same checkpoint road every sibling slice
+        uses, when a session is attached. Each
+        record is announced at most once per shape:
+        a dictation under its own dictation id and
+        segment, a stand-up under its own stand-up
+        id and segment, an action under its own
+        action id, name and segment, a view under
+        its own view id, sequence and kind filter,
+        a panel under its whole derived shape, and
+        a verdict under its word and tallies, so a
+        panel or verdict grown by a newly held item
+        or view announces again as the new figure
+        it is. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") == "voice_in_out_dictation":
+            key = ("voice_in_out_dictation",
+                   record.get("dictation_id"),
+                   record.get("segment"))
+        elif record.get("type") == "voice_in_out_standup":
+            key = ("voice_in_out_standup",
+                   record.get("standup_id"),
+                   record.get("segment"))
+        elif record.get("type") == "voice_in_out_action":
+            key = ("voice_in_out_action",
+                   record.get("action_id"),
+                   record.get("name"),
+                   record.get("segment"))
+        elif record.get("type") == "voice_in_out_view":
+            key = ("voice_in_out_view",
+                   record.get("view_id"),
+                   record.get("seq"),
+                   record.get("kind_filter"))
+        elif record.get("type") == "voice_in_out_panel":
+            key = ("voice_in_out_panel", record.get("panel_id"),
+                   record.get("view_id"),
+                   tuple(row.get("item_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_shown"))
+        elif record.get("type") == "voice_in_out_verdict":
+            key = ("voice_in_out_verdict",
+                   record.get("verdict"),
+                   record.get("total_shown"),
+                   record.get("passing_shown"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(self, "_voice_in_out_announced", None)
+        if announced is None:
+            announced = set()
+            self._voice_in_out_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
