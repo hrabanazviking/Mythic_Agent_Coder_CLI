@@ -1,0 +1,195 @@
+schema: mythic.command_palace/1
+slice: M-176
+part: 8
+part_title: The Beautiful Face
+canon_note: 'The Slash-Command Palace: every command discoverable from / with a plain-language description
+  and an example, and custom commands (Part X skills) joining the same palace on the same terms. An entry
+  is one command held as data - its kind (shipped or custom), its command in the shape the surfaces speak,
+  its plain words, one example of its use and its tags, each held with its provenance whole. A browse is
+  the words typed after /, read into tokens by the shipped M-175 picker''s one token road, and an entry''s
+  score under a browse is derived from those tokens against the entry''s own command, tags, description and
+  example - never stored, never ranked by hand. A kind filter narrows which entries stand in a browse,
+  never how they are judged. A custom command is first held as its own record, judged whole - its template
+  held as data, never rendered or run - and joins the palace as an entry of the custom kind. The M-171
+  charter judged the subagent picker modal (its S-06 row) KEEP and names M-176, beside M-175, among its
+  owning slices: the heading takes plain words first (its K-01 judgement strains), and the auto-dismiss on
+  change is re-judged here (its K-09 judgement strains) - in the palace''s own shape browsing commits no
+  choice at all and runs nothing at all, so there is nothing a browsing keystroke can commit or execute by
+  accident. This file is ONE EXAMPLE BOOK, in the shape a real palace file takes: the M-175 slice boundary
+  - eight entries, six shipped commands of the two surfaces and two custom commands of Part X standing
+  beside them, two browses, and the one pinned panel of the session browse, whose shown entries span both
+  kinds, so the book''s verdict under it stands spanning; under the picker browse the verdict stands
+  shelved. A real book is a new file in this same shape - it is never this file edited in place. This layer
+  holds entries and browses as data only - it executes nothing, renders no live UI, sends nothing, posts
+  nothing, schedules nothing, calls no model and persists nothing: an entry held here is a finding, never
+  the act of running the command found.'
+guide:
+  title: Command Palace at the M-175 slice boundary
+entries:
+- entry_id: entry-help
+  kind: shipped
+  command: /help
+  description: Shows every command the palace holds, in plain words, with an example for each.
+  example: /help
+  tags:
+  - help
+  - commands
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: command palace
+  origin_session: session-m176
+- entry_id: entry-model
+  kind: shipped
+  command: /model
+  description: Shows the model this session talks to, or changes it when a name is given.
+  example: /model claude-3-5-sonnet
+  tags:
+  - model
+  - session
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: command palace
+  origin_session: session-m176
+- entry_id: entry-approvalcards
+  kind: shipped
+  command: /approvalcards
+  description: 'Shows the approval cards: one decision per card, with the target and the consequence as
+    their own lines.'
+  example: /approvalcards panel
+  tags:
+  - approval
+  - cards
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: command palace
+  origin_session: session-m176
+- entry_id: entry-sliceboard
+  kind: shipped
+  command: /sliceboard
+  description: 'Shows the slice board: plans and roadmaps as cards standing in columns.'
+  example: /sliceboard
+  tags:
+  - board
+  - slices
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: command palace
+  origin_session: session-m176
+- entry_id: entry-fuzzypicker
+  kind: shipped
+  command: /fuzzypicker
+  description: 'Shows the fuzzy everything picker: files, symbols, commands, sessions, models and themes
+    under one finder grammar.'
+  example: /fuzzypicker find approval
+  tags:
+  - fuzzy
+  - picker
+  - find
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: command palace
+  origin_session: session-m176
+- entry_id: entry-compact
+  kind: shipped
+  command: /compact
+  description: Compacts the conversation so a long session can keep going.
+  example: /compact
+  tags:
+  - compact
+  - session
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: command palace
+  origin_session: session-m176
+- entry_id: entry-standup
+  kind: custom
+  command: /standup
+  description: 'A custom command from a Part X skill: drafts the morning stand-up from the session
+    journal.'
+  example: /standup today
+  tags:
+  - standup
+  - custom
+  - skill
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: command palace
+  origin_session: session-m176
+- entry_id: entry-verse
+  kind: custom
+  command: /verse
+  description: 'A custom command from a Part X skill: answers in a short verse in the old style.'
+  example: /verse on courage
+  tags:
+  - verse
+  - custom
+  - skill
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: command palace
+  origin_session: session-m176
+browses:
+- browse_id: browse-session
+  seq: 1
+  text: session
+  kind_filter: all
+  detail: Find the commands that speak of the session.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: command palace
+  origin_session: session-m176
+- browse_id: browse-picker
+  seq: 2
+  text: picker
+  kind_filter: shipped
+  detail: Find the picker command among the shipped ones alone.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: command palace
+  origin_session: session-m176
+panels:
+- panel_id: panel-m175-boundary
+  browse_id: browse-session
+  query_text: session
+  kind_filter: all
+  rows:
+  - entry_id: entry-compact
+    kind: shipped
+    command: /compact
+    score: 25
+    line: /compact - shipped
+    recorded_on: '2026-11-09'
+  - entry_id: entry-model
+    kind: shipped
+    command: /model
+    score: 25
+    line: /model - shipped
+    recorded_on: '2026-11-09'
+  - entry_id: entry-fuzzypicker
+    kind: shipped
+    command: /fuzzypicker
+    score: 5
+    line: /fuzzypicker - shipped
+    recorded_on: '2026-11-09'
+  - entry_id: entry-standup
+    kind: custom
+    command: /standup
+    score: 5
+    line: /standup - custom
+    recorded_on: '2026-11-09'
+  total_entries: 8
+  total_matched: 4
+  kind_counts:
+  - kind: shipped
+    items: 3
+  - kind: custom
+    items: 1
+  as_of: '2026-11-09'
+  account:
+  - 'The command palace holds 8 commands as of 2026-11-09: the browse ''session'' under the all filter
+    shows 4 of them: shipped 3, custom 1.'
+  - Rows stand in derived order, best match first, so two panels of one browse diff cleanly, line by line.
+  - Every score is derived from the browse's tokens against the entry's own command, tags, description and
+    example - no score is stored on any entry, and no order is chosen by hand.
+  - 'The palace''s words are plain words first, and a browse only ever looks: it runs no command it shows,
+    renders no custom command''s template and changes no session.'
