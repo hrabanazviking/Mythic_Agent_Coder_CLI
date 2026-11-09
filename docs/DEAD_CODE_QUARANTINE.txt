@@ -435,3 +435,11 @@ mythic_agent/core/multi_session_projects.py:1226:row_for:method
 mythic_agent/core/multi_session_projects.py:1690:session_for_branch:method
 mythic_agent/core/multi_session_projects.py:1946:session_for_branch:method
 mythic_agent/core/multi_session_projects.py:1955:latest_session:method
+mythic_agent/agents/llm.py:28294:register_handoff_summary:method
+mythic_agent/agents/llm.py:28379:register_handoff_book:method
+mythic_agent/agents/llm.py:28422:record_handoff_book:method
+mythic_agent/agents/llm.py:28481:report_handoff_summaries:method
+mythic_agent/core/handoff_summaries.py:1344:row_for:method
+mythic_agent/core/handoff_summaries.py:1792:handoff_for_session:method
+mythic_agent/core/handoff_summaries.py:2032:handoff_for_session:method
+mythic_agent/core/handoff_summaries.py:2041:latest_handoff:method
