@@ -383,6 +383,8 @@ class CommandHandler:
                 self._handle_commandpalace(args)
             elif cmd == "/promptcraft":
                 self._handle_promptcraft(args)
+            elif cmd == "/statusline":
+                self._handle_statusline(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -7131,6 +7133,95 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
+    def _handle_statusline(self, args: str):
+        """M-178: /statusline - status line of truth.
+
+        ``/statusline`` shows the status line held
+        this session - the six facts as data: the
+        model, the posture, the context meter, the
+        cost so far, the crew state and the sandbox
+        state (the shipped example book - six facts
+        at the M-177 slice boundary, five standing
+        measured and the cost fact standing honestly
+        unknown, with its two views and its one
+        pinned panel - when none is held yet);
+        ``/statusline fact <fact-id>`` shows one fact
+        whole, its kind, value, words, panel and
+        keypress and provenance as their own lines;
+        ``/statusline view <view-id>`` shows one held
+        view record; ``/statusline kind <kind>``
+        shows the book's facts of one kind;
+        ``/statusline line`` shows the status line
+        derived from the whole book; ``/statusline
+        panel`` shows the panel derived from the
+        whole book under its default view;
+        ``/statusline verdict`` shows the verdict
+        derived for the whole book. Reading registers
+        and publishes nothing as session news: facts
+        and views are held only when they are given
+        through the agent's register roads, stood on
+        the book on the viewing road, or held on the
+        book roads, and every fact held for the
+        session is journaled as a status_line_fact
+        session event, every view as a
+        status_line_view session event, every derived
+        panel as a status_line_panel session event
+        and every derived verdict as a
+        status_line_verdict session event. This
+        surface measures nothing live, reads no live
+        model, context, cost, crew or sandbox state,
+        binds no key, opens no panel, renders no live
+        UI, rebuilds no live screen and banks
+        nothing - a fact held here is a finding,
+        never the live state of the screen it
+        describes.
+        """
+        from ..core.status_line import (
+            format_book,
+            format_fact,
+            format_line,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_status_line_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_status_line_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "fact":
+                text = format_fact(
+                    primary.get_status_fact(target))
+            elif action == "view":
+                text = format_view(
+                    primary.get_status_view(target))
+            elif action == "kind":
+                text = format_book(
+                    primary.status_line_book(), target)
+            elif action == "line":
+                text = format_line(primary.status_line_book())
+            elif action == "panel":
+                text = format_panel(primary.status_line_book())
+            elif action == "verdict":
+                text = format_verdict(primary.status_line_book())
+            else:
+                text = primary.status_line_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.
 
