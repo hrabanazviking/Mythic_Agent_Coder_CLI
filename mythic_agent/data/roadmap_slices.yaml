@@ -990,7 +990,7 @@ slices:
   part: 7
   title: Context recipes
   summary: saved bundles ("the auth stack", "the Mojo build") summonable by name into any session.
-  status: queued
+  status: done
 - id: M-159
   part: 7
   title: Pinning and protection
