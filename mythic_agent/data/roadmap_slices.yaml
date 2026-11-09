@@ -1007,7 +1007,7 @@ slices:
   part: 7
   title: Long-session endurance
   summary: a 500-turn session stays responsive; journal and retrieval performance budgets set and measured.
-  status: queued
+  status: done
 - id: M-162
   part: 7
   title: Multi-session per project

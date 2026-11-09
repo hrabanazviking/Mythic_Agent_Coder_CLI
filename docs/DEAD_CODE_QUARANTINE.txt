@@ -417,3 +417,12 @@ mythic_agent/core/token_thrift.py:1266:row_for:method
 mythic_agent/core/token_thrift.py:1717:record_for_ref:method
 mythic_agent/core/token_thrift.py:2015:record_for_ref:method
 mythic_agent/core/token_thrift.py:2027:latest_record:method
+mythic_agent/agents/llm.py:27423:register_endurance_record:method
+mythic_agent/agents/llm.py:27455:endurance_from_session_memory:method
+mythic_agent/agents/llm.py:27527:register_endurance_book:method
+mythic_agent/agents/llm.py:27570:record_endurance_book:method
+mythic_agent/agents/llm.py:27631:report_long_session_endurance:method
+mythic_agent/core/long_session_endurance.py:1249:row_for:method
+mythic_agent/core/long_session_endurance.py:1680:record_for_ref:method
+mythic_agent/core/long_session_endurance.py:1979:record_for_ref:method
+mythic_agent/core/long_session_endurance.py:1991:latest_record:method
