@@ -369,6 +369,8 @@ class CommandHandler:
                 self._handle_private(args)
             elif cmd == "/memorydoctor":
                 self._handle_memorydoctor(args)
+            elif cmd == "/coldstart":
+                self._handle_coldstart(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -6501,6 +6503,92 @@ class CommandHandler:
                 text = format_repairs(primary.memory_doctor_book())
             else:
                 text = primary.memory_doctor_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_coldstart(self, args: str):
+        """M-169: /coldstart - cold-start kindness.
+
+        ``/coldstart`` shows the cold-start book
+        held this session (the shipped example book
+        - three openings at the M-168 slice boundary,
+        one huge old project warming in the
+        background, one project with no map at all
+        and one small fresh project served as it
+        stands, with its one pinned panel - when
+        none is held yet); ``/coldstart record
+        <record-id>`` shows one record with its
+        derived plan shown - the evidence it stands
+        on and the stages its evidence derives, in
+        order; ``/coldstart project <project-ref>``
+        shows the opening one project stands under;
+        ``/coldstart panel`` shows the readiness
+        panel derived from the whole book - what is
+        usable now beside what is still rebuilding;
+        ``/coldstart verdict`` shows the cold-start
+        verdict derived for the whole book;
+        ``/coldstart stages`` shows every record's
+        derived stage plan. Reading registers and
+        publishes nothing as session news: records
+        are held only when they are given through
+        the agent's record roads, raised over the
+        session's own held map on the opening road,
+        or held on the book roads, and every record
+        held for the session is journaled as a
+        cold_start_record session event, every
+        derived panel as a cold_start_panel session
+        event, every derived verdict as a
+        cold_start_verdict session event and every
+        marked stage as a cold_start_progress
+        session event. This surface starts no
+        thread, rebuilds no live map and opens no
+        live project, and there is no Part VIII
+        board yet, so the book is visible on this
+        surface, not on a board.
+        """
+        from ..core.cold_start import (
+            format_panel,
+            format_record,
+            format_records,
+            format_verdict,
+            parse_cold_start_args,
+            stage_plan_of,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_cold_start_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "record":
+                text = format_record(
+                    primary.get_cold_start_record(target))
+            elif action == "project":
+                text = format_record(
+                    primary.cold_start_for_project(target))
+            elif action == "panel":
+                text = format_panel(primary.cold_start_book())
+            elif action == "verdict":
+                text = format_verdict(primary.cold_start_book())
+            elif action == "stages":
+                book = primary.cold_start_book()
+                text = "\n".join(
+                    f"{r.record_id or '-'}: "
+                    f"{', '.join(stage_plan_of(r))}"
+                    for r in book.records)
+            else:
+                text = primary.cold_start_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

@@ -31086,6 +31086,527 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _cold_start_registry(self):
+        """The held cold-start registry (M-169).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer records one by one,
+        beside the session memory doctor registry
+        (M-168) and never in it: the cold-start book
+        is one book of openings over projects. It is
+        created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly
+        one. The attribute is named
+        ``_cold_start_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_cold_start_store", None)
+        if registry is None:
+            from ..core.cold_start import ColdStartRegistry
+            registry = ColdStartRegistry()
+            self._cold_start_store = registry
+        return registry
+
+    def cold_start_book(self):
+        """The session's cold-start book, as data (M-169).
+
+        The held registry's book when the session
+        holds any record - the openings the session
+        has actually raised (records held one by
+        one, before any whole book stands recorded,
+        stand under a session cold-start book
+        composed here in the agent layer, so a later
+        whole book recorded under its own title is
+        never refused by a shim title at the
+        registry) - otherwise the book recorded
+        whole through :meth:`record_cold_start_book`,
+        or the shipped example cold-start book until
+        one is recorded. Reading registers and
+        publishes nothing.
+        """
+        from ..core.cold_start import ColdStartBook, load_cold_start
+        registry = self._cold_start_registry()
+        if registry.list_records():
+            try:
+                book = registry.book()
+            except ValueError:
+                return ColdStartBook(
+                    title="Cold Start",
+                    records=registry.list_records())
+            held = getattr(self, "_cold_start_held", None)
+            if held is not None and held.title == book.title \
+                    and held.record_ids() == book.record_ids():
+                return held
+            return book
+        book = getattr(self, "_cold_start_held", None)
+        if book is None:
+            return load_cold_start()
+        return book
+
+    def _cold_start_screen(self) -> str:
+        """The /coldstart screen for the session's state (M-169)."""
+        from ..core import cold_start as cold_module
+        registry = self._cold_start_registry()
+        if not registry.list_records():
+            return cold_module.format_cold_start_screen()
+        return cold_module.format_cold_start_screen(self.cold_start_book())
+
+    def cold_start_status(self) -> dict[str, Any]:
+        """The cold-start book account, in plain data (M-169).
+
+        The records held this session as plain
+        records, the held book's record (none until
+        a record stands held), the session cold-start
+        book's records as plain records (the shipped
+        example book - three openings at the M-168
+        slice boundary, one warming in the
+        background, one with no map at all and one
+        fresh - until records are held), its
+        whole-book record, the readiness panel
+        derived from the whole book and every panel
+        the book holds as plain records, the verdict
+        derived for the whole book, every held
+        record's derived progress, the latest record
+        in plain words, the panel and the verdict
+        told in plain words, the one screen - rendered
+        from the held book, or from the shipped
+        example book when nothing is held yet - and
+        the plain explanation. Reading registers and
+        publishes nothing, sends nothing and
+        schedules nothing: this layer holds openings
+        as data only, and no background thread
+        rebuilds any live map here. There is no Part
+        VIII board yet; the screen is where the book
+        is visible.
+        """
+        from ..core import cold_start as cold_module
+        registry = self._cold_start_registry()
+        held_records = registry.list_records()
+        book = self.cold_start_book()
+        latest = book.records[-1]
+        if held_records:
+            progress = [
+                registry.progress_for(item.record_id).to_record()
+                for item in held_records]
+        else:
+            progress = [
+                cold_module.derive_progress(item).to_record()
+                for item in book.records]
+        return {
+            "records": [item.to_record() for item in held_records],
+            "book": (book.to_record() if held_records else None),
+            "cold_start": {
+                "title": book.title,
+                "records": [item.to_record() for item in book.records],
+            },
+            "book_record": cold_module.book_record(book),
+            "panel": (cold_module.derive_panel(book).to_record()
+                      if book.records else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (
+                cold_module.derive_verdict(book).to_record()
+                if book.records else None),
+            "progress": progress,
+            "plain_words": cold_module.plain_words(latest),
+            "panel_plain_words": (
+                cold_module.panel_plain_words(book)
+                if book.records else ""),
+            "verdict_plain_words": (
+                cold_module.verdict_plain_words(book)
+                if book.records else ""),
+            "screen": self._cold_start_screen(),
+            "explanation": cold_module.PLAIN_EXPLANATION,
+        }
+
+    def get_cold_start_record(self, record_id: Any):
+        """The one record an id names (M-169).
+
+        The session's held registry answers when the
+        session holds any record; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held
+        record answers for its own book alone: an id
+        the held book holds no record for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._cold_start_registry()
+        if registry.list_records():
+            return registry.get_record(record_id)
+        return self.cold_start_book().record_for(record_id)
+
+    def cold_start_for_project(self, project_ref: Any):
+        """The opening one project stands under (M-169).
+
+        The session's held registry answers when the
+        session holds any record; otherwise the
+        session book answers. A project no opening
+        stands under raises KeyError. Reading
+        registers and publishes nothing.
+        """
+        registry = self._cold_start_registry()
+        if registry.list_records():
+            return registry.record_for_project(project_ref)
+        return self.cold_start_book().record_for_project(project_ref)
+
+    def cold_start_panel(self):
+        """The readiness panel derived for the whole book (M-169)."""
+        from ..core.cold_start import derive_panel as _derive_panel
+        return _derive_panel(self.cold_start_book())
+
+    def cold_start_verdict(self):
+        """The cold-start verdict derived for the whole book (M-169)."""
+        from ..core.cold_start import derive_verdict as _derive_verdict
+        return _derive_verdict(self.cold_start_book())
+
+    def register_cold_start_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one cold-start record for the session (M-169).
+
+        The record is held by the pure registry
+        under its id or the deterministic record-N
+        id - a record id already standing here
+        refuses, as does a second opening for a
+        project already standing open here (one
+        opening per project); a refusal holds
+        nothing new and publishes nothing. A held
+        record is published as its ``record_record``
+        session-news record through the checkpoint
+        road. Returns the held record, its news
+        record, the screen rendered after it landed,
+        and the plain explanation. Holding a record
+        changes no shipped holding and rebuilds no
+        live map: the opening stands on this layer's
+        book, as data, evidence whole.
+        """
+        from ..core import cold_start as cold_module
+        registry = self._cold_start_registry()
+        held = registry.register_record(record)
+        record_news = cold_module.record_record(held)
+        self._publish_cold_start_record(record_news)
+        return {
+            "record": held.to_record(),
+            "record_news": record_news,
+            "screen": self._cold_start_screen(),
+            "explanation": cold_module.PLAIN_EXPLANATION,
+        }
+
+    def open_cold_start_project(
+            self, project_ref: Any = None, *,
+            map_age_days: Any, project_files: Any,
+            covered_files: Any, stale: Any = None,
+            opened_on: Any = "2026-11-09",
+            opened_by: Any = "Volmarr",
+            origin_session: Any = "session-m169",
+            source: Any = "cold start", title: Any = None,
+            record_id: Any = None,
+            map_ref: Any = None) -> dict[str, Any]:
+        """Open a project over the session's own held map (M-169).
+
+        This slice's own opening road: the session's
+        held project memory map book (M-150) is read
+        by import and a cold-start record is raised
+        over it through the pure layer's
+        ``record_from_map_book`` road - the held
+        book's entries counted by area, its own
+        words never crossing, and the caller's
+        evidence (the map's age, the project's
+        files, the map's coverage, and per-area
+        stale counts) standing as the record's
+        evidence whole. The raised record is held
+        and published as its ``record_record``
+        session news, with the readiness panel
+        derived from the whole held registry as its
+        ``panel_record`` session news and the
+        verdict derived for the whole held registry
+        as its ``verdict_record`` session news.
+        Returns the held record, its news record,
+        the panel and verdict news records, the
+        derived mode and stage plan, the screen, and
+        the explanation. HONEST BOUNDARY: no live
+        project is opened and no background thread
+        rebuilds any live map on this road - the
+        opening is a judged record over the held
+        map, its derived plan is data, and progress
+        is marked stage by stage on the held book
+        through :meth:`record_cold_start_progress`.
+        The held map book stands exactly as it stood.
+        """
+        from ..core import cold_start as cold_module
+        map_book = self.project_memory_map_book()
+        if project_ref is None:
+            project_ref = "held-map-project"
+        if map_ref is None:
+            map_ref = f"map-{project_ref}"
+        record = cold_module.record_from_map_book(
+            map_book, project_ref=project_ref, map_ref=map_ref,
+            map_age_days=map_age_days, project_files=project_files,
+            covered_files=covered_files, stale=stale,
+            opened_on=opened_on, opened_by=opened_by,
+            origin_session=origin_session, source=source,
+            title=title, record_id=record_id)
+        registry = self._cold_start_registry()
+        held = registry.register_record(record)
+        record_news = cold_module.record_record(held)
+        self._publish_cold_start_record(record_news)
+        panel_news = cold_module.panel_record(
+            cold_module.derive_panel(registry))
+        self._publish_cold_start_record(panel_news)
+        verdict_news = cold_module.verdict_record(
+            cold_module.derive_verdict(registry))
+        self._publish_cold_start_record(verdict_news)
+        return {
+            "record": held.to_record(),
+            "record_news": record_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "mode": cold_module.mode_of(held),
+            "stage_plan": list(cold_module.stage_plan_of(held)),
+            "screen": self._cold_start_screen(),
+            "explanation": cold_module.PLAIN_EXPLANATION,
+        }
+
+    def record_cold_start_progress(
+            self, record_id: Any,
+            stage: Any = None) -> dict[str, Any]:
+        """Mark one derived rebuild stage done on the held book (M-169).
+
+        This slice's own progress road: the stage is
+        marked through the pure registry - with no
+        stage named, the plan's next stage; a stage
+        that is not the plan's next refuses, plainly
+        naming the stage that stands next, and a
+        completed plan marks nothing more. The new
+        progress is published as its
+        ``progress_record`` session news. Returns
+        the progress, its news record, whether the
+        plan stands complete, the screen, and the
+        explanation. HONEST BOUNDARY: marking a
+        stage touches the held book only - no live
+        map is rebuilt, no thread is started, and
+        the held map book stands exactly as it
+        stood.
+        """
+        from ..core import cold_start as cold_module
+        registry = self._cold_start_registry()
+        progress = registry.mark_stage(record_id, stage)
+        record_news = cold_module.progress_record(progress)
+        self._publish_cold_start_record(record_news)
+        return {
+            "progress": progress.to_record(),
+            "record_news": record_news,
+            "complete": progress.complete,
+            "screen": self._cold_start_screen(),
+            "explanation": cold_module.PLAIN_EXPLANATION,
+        }
+
+    def register_cold_start_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole cold-start book for the session (M-169).
+
+        Every record of the book is held by the
+        pure registry, in book order - the book is
+        judged whole, and against the held book,
+        before any record is held, so a refusal
+        holds nothing new. The first book held sets
+        the registry's title, a later book under a
+        different title refuses, as does a book
+        naming a held record id or a project already
+        standing open. The book's panels are
+        derivations, not holdings, and are not held.
+        Every record is published as its
+        ``record_record`` session news, in book
+        order, and the readiness panel derived from
+        the whole book as its ``panel_record``
+        session news. Returns the held book, its
+        records, their news records, the panel news
+        record, the count of records held, the
+        screen, and the explanation. Registering
+        reads no file, opens no live project and
+        rebuilds no live map.
+        """
+        from ..core import cold_start as cold_module
+        validated = cold_module.build_book(book)
+        registry = self._cold_start_registry()
+        registry.register_book(validated)
+        records = [
+            cold_module.record_record(record)
+            for record in validated.records]
+        for record_news in records:
+            self._publish_cold_start_record(record_news)
+        panel_news = cold_module.panel_record(
+            cold_module.derive_panel(validated))
+        self._publish_cold_start_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "records": [
+                item.to_record() for item in validated.records],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": self._cold_start_screen(),
+            "explanation": cold_module.PLAIN_EXPLANATION,
+        }
+
+    def record_cold_start_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole cold-start book for the session (M-169).
+
+        With no book named, the shipped example
+        cold-start book is recorded through the pure
+        layer - three openings at the M-168 slice
+        boundary, with its one pinned panel. A book
+        loaded from a file (the pure layer's
+        ``load_cold_start_file`` road) may be passed
+        instead. The book is judged whole before
+        anything is held. Every record is held and
+        published as its ``record_record`` session
+        news, in book order, and the readiness panel
+        as its ``panel_record`` session news; the
+        book is remembered whole as the session's -
+        its held panel and all - and the same book
+        recorded twice refuses - fingerprinted on
+        its record ids and title. Returns the held
+        book, its records, their news records, the
+        panel news record, the count, the screen,
+        and the explanation. Recording opens no live
+        project and rebuilds no live map.
+        """
+        from ..core import cold_start as cold_module
+        book = book if book is not None \
+            else cold_module.load_cold_start()
+        validated = cold_module.build_book(book)
+        fingerprint = (tuple(validated.record_ids()), validated.title)
+        recorded = getattr(self, "_cold_start_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._cold_start_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this cold-start book is already recorded "
+                "for the session; a book is recorded once")
+        registry = self._cold_start_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._cold_start_held = validated
+        records = [
+            cold_module.record_record(record)
+            for record in validated.records]
+        for record_news in records:
+            self._publish_cold_start_record(record_news)
+        panel_news = cold_module.panel_record(
+            cold_module.derive_panel(validated))
+        self._publish_cold_start_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "records": [
+                item.to_record() for item in validated.records],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": cold_module.format_cold_start_screen(validated),
+            "explanation": cold_module.PLAIN_EXPLANATION,
+        }
+
+    def report_cold_start(self) -> dict[str, Any]:
+        """Render the session cold-start book, as a report (M-169).
+
+        The book - the held registry's book when the
+        session holds any record, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone. Rendering
+        registers and publishes nothing and reads no
+        file. Returns the book, its records and
+        panels as plain records, the derived panel
+        and verdict, every record's progress, the
+        rendered records, panel and verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import cold_start as cold_module
+        registry = self._cold_start_registry()
+        book = self.cold_start_book()
+        if registry.list_records():
+            progress = [
+                registry.progress_for(item.record_id).to_record()
+                for item in registry.list_records()]
+        else:
+            progress = [
+                cold_module.derive_progress(item).to_record()
+                for item in book.records]
+        return {
+            "book": book.to_record(),
+            "records": [item.to_record() for item in book.records],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (cold_module.derive_panel(book).to_record()
+                      if book.records else None),
+            "verdict": (
+                cold_module.derive_verdict(book).to_record()
+                if book.records else None),
+            "progress": progress,
+            "records_text": cold_module.format_records(book),
+            "panel_text": cold_module.format_panel(book),
+            "verdict_text": cold_module.format_verdict(book),
+            "screen": self._cold_start_screen(),
+            "explanation": cold_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_cold_start_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one cold-start record as session news (M-169).
+
+        The pure layer's ``record_record``,
+        ``panel_record``, ``verdict_record`` and
+        ``progress_record`` are journaled through
+        the same checkpoint road every sibling slice
+        uses, when a session is attached. Each
+        record is announced at most once per shape:
+        a record under its own record id, project
+        and opened day, a panel under its whole
+        derived shape, a verdict under its word and
+        tallies, and a progress under its record id
+        and completed stages, so a panel or verdict
+        grown by a newly held record announces again
+        as the new figure it is. A foreign record
+        type is never published on this road.
+        """
+        if record.get("type") == "cold_start_record":
+            key = ("cold_start_record",
+                   record.get("record_id"),
+                   record.get("project_ref"),
+                   record.get("map_ref"),
+                   record.get("opened_on"))
+        elif record.get("type") == "cold_start_panel":
+            key = ("cold_start_panel", record.get("panel_id"),
+                   record.get("as_of"),
+                   tuple(row.get("record_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_records"))
+        elif record.get("type") == "cold_start_verdict":
+            key = ("cold_start_verdict",
+                   record.get("verdict"),
+                   record.get("total_records"),
+                   record.get("distinct_projects"),
+                   record.get("latest_on"))
+        elif record.get("type") == "cold_start_progress":
+            key = ("cold_start_progress",
+                   record.get("record_id"),
+                   tuple(record.get("completed", [])),
+                   record.get("next_stage"))
+        else:
+            return
+        announced = getattr(self, "_cold_start_announced", None)
+        if announced is None:
+            announced = set()
+            self._cold_start_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
