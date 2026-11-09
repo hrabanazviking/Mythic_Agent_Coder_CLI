@@ -1111,7 +1111,7 @@ slices:
   title: Themes grown up
   summary: the theme system gains the Design Lawbook's discipline (darkness ladders, accent budgets),
     plus a high-contrast and a no-colour theme that lose nothing.
-  status: queued
+  status: done
 - id: M-180
   part: 8
   title: Voice in and out
