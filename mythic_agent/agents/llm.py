@@ -33676,6 +33676,580 @@ class Agent:
             self._checkpoint(record)
 
 
+    # -- M-176: slash-command palace --
+
+    def _command_palace_registry(self):
+        """The held command-palace registry (M-176).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer entries and browse
+        records one by one, beside the session
+        approval-cards registry (M-174) and never in
+        it: the book is one set of commands to discover. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly
+        one. The attribute is named
+        ``_command_palace_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_command_palace_store", None)
+        if registry is None:
+            from ..core.command_palace import CommandPalaceRegistry
+            registry = CommandPalaceRegistry()
+            self._command_palace_store = registry
+        return registry
+
+    def command_palace_book(self):
+        """The session's book of palace entries, as data (M-176).
+
+        The held registry's book when the session
+        holds any entry - the things the session
+        can actually be browseed for (entries held
+        one by one stand under a session book composed
+        here in the agent layer, so a later whole book
+        recorded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book recorded whole through
+        :meth:`record_command_palace_book`, or the
+        shipped example book until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.command_palace import (
+            CommandPalaceBook, load_command_palace)
+        registry = self._command_palace_registry()
+        if registry.list_entries():
+            try:
+                book = registry.book()
+            except ValueError:
+                return CommandPalaceBook(
+                    title="Command Palace",
+                    entries=registry.list_entries(),
+                    browses=registry.list_browses())
+            held = getattr(self, "_command_palace_held", None)
+            if held is not None and held.title == book.title \
+                    and held.entry_ids() == book.entry_ids() \
+                    and held.browse_ids() == book.browse_ids():
+                return held
+            return book
+        book = getattr(self, "_command_palace_held", None)
+        if book is None:
+            return load_command_palace()
+        return book
+
+    def _command_palace_default_browse(self, book: Any):
+        """The browse a book derives under by default (M-176).
+
+        The browse its own stored panel stands under,
+        else its first held browse, else None - a book
+        holding entries but no browse yet derives
+        no panel and no verdict, and says so plainly.
+        """
+        for panel in book.panels:
+            if panel.browse_id is not None:
+                try:
+                    return book.browse_for(panel.browse_id)
+                except KeyError:
+                    continue
+        if book.browses:
+            return book.browses[0]
+        return None
+
+    def _command_palace_screen(self) -> str:
+        """The /commandpalace screen for the session's state (M-176)."""
+        from ..core import command_palace as palace_module
+        registry = self._command_palace_registry()
+        if not registry.list_entries():
+            return palace_module.format_command_palace_screen()
+        book = self.command_palace_book()
+        if not book.browses:
+            return palace_module.format_book(book)
+        return palace_module.format_command_palace_screen(book)
+
+    def command_palace_status(self) -> dict[str, Any]:
+        """The command-palace account, in plain data (M-176).
+
+        The entries and browse records held this
+        session as plain records, the held book's
+        record (none until a entry stands held),
+        the session book's entries and browses as
+        plain records (the shipped example book -
+        eight entries at the M-175 slice boundary,
+        six of them shipped and two of them custom, with its
+        two browses and its one pinned panel - until
+        entries are held), its whole-book record,
+        the panel derived from the whole book under
+        its default browse and every panel the book
+        holds as plain records, the verdict derived
+        for the whole book, the last entry in
+        plain words, the panel and the verdict told in
+        plain words, the one screen - rendered from
+        the held book, or from the shipped example
+        book when nothing is held yet - and the plain
+        explanation. A book holding entries but no
+        browse yet derives no panel and no verdict.
+        Reading registers and publishes nothing, sends
+        nothing and schedules nothing: this layer
+        holds listings as data only, and no entry
+        is opened or executed here. The screen is
+        where the palace is visible.
+        """
+        from ..core import command_palace as palace_module
+        registry = self._command_palace_registry()
+        held_entries = registry.list_entries()
+        held_browses = registry.list_browses()
+        book = self.command_palace_book()
+        default = self._command_palace_default_browse(book)
+        latest = book.entries[-1] if book.entries else None
+        return {
+            "entries": [
+                item.to_record() for item in held_entries],
+            "browses": [
+                item.to_record() for item in held_browses],
+            "book": (book.to_record() if held_entries else None),
+            "command_palace": {
+                "title": book.title,
+                "entries": [
+                    item.to_record() for item in book.entries],
+                "browses": [
+                    item.to_record() for item in book.browses],
+            },
+            "book_record": palace_module.book_record(book),
+            "panel": (palace_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (palace_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "plain_words": (
+                palace_module.plain_words(latest)
+                if latest is not None else ""),
+            "panel_plain_words": (
+                palace_module.panel_plain_words(book)
+                if default is not None else ""),
+            "verdict_plain_words": (
+                palace_module.verdict_plain_words(book)
+                if default is not None else ""),
+            "screen": self._command_palace_screen(),
+            "explanation": palace_module.PLAIN_EXPLANATION,
+        }
+
+    def get_palace_entry(self, entry_id: Any):
+        """The one palace entry an id names (M-176).
+
+        The session's held registry answers when the
+        session holds any entry; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held
+        entry answers for its own book alone: an
+        id the held book holds no entry for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._command_palace_registry()
+        if registry.list_entries():
+            return registry.get_entry(entry_id)
+        return self.command_palace_book().entry_for(entry_id)
+
+    def get_palace_browse(self, browse_id: Any):
+        """The one browse record an id names (M-176).
+
+        The session's held registry answers when the
+        session holds any entry; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). Reading
+        registers and publishes nothing.
+        """
+        registry = self._command_palace_registry()
+        if registry.list_entries():
+            return registry.get_browse(browse_id)
+        return self.command_palace_book().browse_for(browse_id)
+
+    def command_palace_with_kind(self, kind: Any):
+        """The session book's entries of one kind (M-176)."""
+        from ..core.command_palace import (
+            entries_with_kind as _with_kind)
+        return _with_kind(self.command_palace_book(), kind)
+
+    def command_palace_panel(self, browse: Any = None):
+        """The panel derived for the whole book (M-176).
+
+        Derived under the named browse, or under the
+        book's default browse when none is named; a
+        book holding no browse at all refuses plainly
+        rather than inventing one.
+        """
+        from ..core.command_palace import derive_panel as _derive_panel
+        book = self.command_palace_book()
+        resolved = browse if browse is not None \
+            else self._command_palace_default_browse(book)
+        if resolved is None:
+            raise ValueError(
+                "no browse stands in the book to derive "
+                "a panel under")
+        return _derive_panel(book, resolved)
+
+    def command_palace_verdict(self, browse: Any = None):
+        """The verdict derived for the whole book (M-176).
+
+        Derived under the named browse, or under the
+        book's default browse when none is named; a
+        book holding no browse at all refuses plainly
+        rather than inventing one.
+        """
+        from ..core.command_palace import (
+            derive_verdict as _derive_verdict)
+        book = self.command_palace_book()
+        resolved = browse if browse is not None \
+            else self._command_palace_default_browse(book)
+        if resolved is None:
+            raise ValueError(
+                "no browse stands in the book to derive "
+                "a verdict under")
+        return _derive_verdict(book, resolved)
+
+    def register_palace_entry(
+            self, entry: Any) -> dict[str, Any]:
+        """Hold one palace entry for the session (M-176).
+
+        The entry is held by the pure registry
+        under its entry id - a entry id
+        already standing here refuses, and a refusal
+        holds nothing new and publishes nothing. A
+        held entry is published as its
+        ``entry_record`` session-news record
+        through the checkpoint road. Returns the held
+        entry, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a entry opens
+        nothing and executes nothing: the thing stands
+        on this layer's book, as data, provenance
+        whole, waiting to be discovered.
+        """
+        from ..core import command_palace as palace_module
+        registry = self._command_palace_registry()
+        held = registry.register_entry(entry)
+        entry_news = palace_module.entry_record(held)
+        self._publish_command_palace_record(entry_news)
+        return {
+            "entry": held.to_record(),
+            "record_news": entry_news,
+            "screen": self._command_palace_screen(),
+            "explanation": palace_module.PLAIN_EXPLANATION,
+        }
+
+    def register_palace_browse(
+            self, browse: Any) -> dict[str, Any]:
+        """Hold one browse record for the session (M-176).
+
+        The browse is held by the pure registry under
+        its id, or under a fresh browse-N id when it
+        names none - a browse id or a sequence already
+        standing here refuses, and a refusal holds
+        nothing new and publishes nothing. A held
+        browse is published as its ``browse_record``
+        session-news record through the checkpoint
+        road. Returns the held browse, its news
+        record, the screen rendered after it landed,
+        and the plain explanation. Holding a browse
+        only ever looks: it opens nothing the browse
+        matches and commits no choice at all.
+        """
+        from ..core import command_palace as palace_module
+        registry = self._command_palace_registry()
+        held = registry.register_browse(browse)
+        browse_news = palace_module.browse_record(held)
+        self._publish_command_palace_record(browse_news)
+        return {
+            "browse": held.to_record(),
+            "record_news": browse_news,
+            "screen": self._command_palace_screen(),
+            "explanation": palace_module.PLAIN_EXPLANATION,
+        }
+
+    def browse_command_palace(
+            self, text: Any, *,
+            kind_filter: Any = "all",
+            detail: Any = None,
+            recorded_on: Any = "2026-11-09",
+            actor: Any = "the jarl",
+            source: Any = "command palace",
+            origin_session: Any = "session-m176",
+            browse_id: Any = None) -> dict[str, Any]:
+        """Stand one browse on the session's held book (M-176).
+
+        This slice's own browsing road: the browse
+        record is composed by the pure layer at the
+        next sequence of the session's held book,
+        judged whole, and held by the pure registry; a
+        query with no tokens refuses and holds nothing
+        new. The browse is published as its
+        ``browse_record`` session news, the panel
+        derived from the whole book as its
+        ``panel_record`` session news, and the verdict
+        derived for the whole book as its
+        ``verdict_record`` session news. Returns the
+        held browse, its text, its news records, the
+        screen rendered after it landed and the plain
+        explanation. HONEST BOUNDARY: browsing executes
+        nothing and opens nothing - the browse moves
+        this book alone, as data, and a browse commits
+        no choice at all.
+        """
+        from ..core import command_palace as palace_module
+        registry = self._command_palace_registry()
+        held_browses = registry.list_browses()
+        seq = (max(s.seq for s in held_browses) + 1) \
+            if held_browses else 1
+        fields: dict[str, Any] = {
+            "seq": seq, "text": text,
+            "kind_filter": kind_filter,
+            "detail": detail if detail is not None else (
+                f"Browse {text!r} in the session's held "
+                "book, composed on the browsing road."),
+            "recorded_on": recorded_on,
+            "actor": actor, "source": source,
+            "origin_session": origin_session}
+        if browse_id is not None:
+            fields["browse_id"] = browse_id
+        browse = palace_module.build_browse(fields)
+        held = registry.register_browse(browse)
+        browse_news = palace_module.browse_record(held)
+        self._publish_command_palace_record(browse_news)
+        book = self.command_palace_book()
+        panel_news = palace_module.panel_record(
+            palace_module.derive_panel(book, held))
+        self._publish_command_palace_record(panel_news)
+        verdict_news = palace_module.verdict_record(
+            palace_module.derive_verdict(book, held))
+        self._publish_command_palace_record(verdict_news)
+        return {
+            "browse": held.to_record(),
+            "text": held.text,
+            "record_news": browse_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._command_palace_screen(),
+            "explanation": palace_module.PLAIN_EXPLANATION,
+        }
+
+    def register_command_palace_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole book of palace entries (M-176).
+
+        Every entry and browse record of the book
+        is held by the pure registry, in held and
+        recorded order - the book is judged whole, and
+        against the held book, before anything is
+        held, so a refusal holds nothing new. The
+        first book held sets the registry's title, a
+        later book under a different title refuses, as
+        does a book naming a held entry id, browse
+        id or sequence. The book's panels are
+        derivations, not holdings, and are not held.
+        Every entry is published as its
+        ``entry_record`` session news and every
+        browse as its ``browse_record`` session news,
+        in order. Returns the held book, its
+        entries and browses, their news records,
+        the count of entries held, the screen, and
+        the explanation. Registering opens nothing
+        and executes nothing.
+        """
+        from ..core import command_palace as palace_module
+        validated = palace_module.build_book(book)
+        registry = self._command_palace_registry()
+        registry.register_book(validated)
+        records = [
+            palace_module.entry_record(entry)
+            for entry in validated.entries]
+        records += [
+            palace_module.browse_record(browse)
+            for browse in validated.browses]
+        for news in records:
+            self._publish_command_palace_record(news)
+        return {
+            "book": validated.to_record(),
+            "entries": [
+                item.to_record() for item in validated.entries],
+            "browses": [
+                item.to_record() for item in validated.browses],
+            "records_news": records,
+            "count": len(validated.entries),
+            "screen": self._command_palace_screen(),
+            "explanation": palace_module.PLAIN_EXPLANATION,
+        }
+
+    def record_command_palace_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole book of palace entries (M-176).
+
+        With no book named, the shipped example book
+        is recorded through the pure layer - eight
+        entries at the M-175 slice boundary, with
+        its two browses and its one pinned panel. A
+        book loaded from a file (the pure layer's
+        ``load_command_palace_file`` road) may be passed
+        instead. The book is judged whole before
+        anything is held. Every entry and browse
+        is held and published as its session news, in
+        order, and the panel derived under the book's
+        default browse as its ``panel_record`` session
+        news; the book is remembered whole as the
+        session's - its held panel and all - and the
+        same book recorded twice refuses -
+        fingerprinted on its entry ids, browse ids
+        and title. Returns the held book, its
+        entries and browses, their news records,
+        the panel news record, the count, the screen,
+        and the explanation. Recording opens nothing
+        and executes nothing.
+        """
+        from ..core import command_palace as palace_module
+        book = book if book is not None \
+            else palace_module.load_command_palace()
+        validated = palace_module.build_book(book)
+        fingerprint = (tuple(validated.entry_ids()),
+                       tuple(validated.browse_ids()),
+                       validated.title)
+        recorded = getattr(self, "_command_palace_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._command_palace_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this book of palace entries is already "
+                "recorded for the session; a book is "
+                "recorded once")
+        registry = self._command_palace_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._command_palace_held = validated
+        records = [
+            palace_module.entry_record(entry)
+            for entry in validated.entries]
+        records += [
+            palace_module.browse_record(browse)
+            for browse in validated.browses]
+        for news in records:
+            self._publish_command_palace_record(news)
+        panel_news = palace_module.panel_record(
+            palace_module.derive_panel(
+                validated,
+                self._command_palace_default_browse(validated)),
+            validated)
+        self._publish_command_palace_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "entries": [
+                item.to_record() for item in validated.entries],
+            "browses": [
+                item.to_record() for item in validated.browses],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(validated.entries),
+            "screen": palace_module.format_command_palace_screen(
+                validated),
+            "explanation": palace_module.PLAIN_EXPLANATION,
+        }
+
+    def report_command_palace(self) -> dict[str, Any]:
+        """Render the session command palace, as a report (M-176).
+
+        The book - the held registry's book when the
+        session holds any entry, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone. Rendering registers
+        and publishes nothing and reads no file.
+        Returns the book, its entries, browses and
+        panels as plain records, the derived panel and
+        verdict (none while the book holds no browse),
+        the rendered book, panel and verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import command_palace as palace_module
+        book = self.command_palace_book()
+        default = self._command_palace_default_browse(book)
+        return {
+            "book": book.to_record(),
+            "entries": [
+                item.to_record() for item in book.entries],
+            "browses": [
+                item.to_record() for item in book.browses],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (palace_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "verdict": (palace_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "book_text": palace_module.format_book(book),
+            "panel_text": (palace_module.format_panel(book)
+                           if default is not None else ""),
+            "verdict_text": (palace_module.format_verdict(book)
+                             if default is not None else ""),
+            "screen": self._command_palace_screen(),
+            "explanation": palace_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_command_palace_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one command-palace record as session news (M-176).
+
+        The pure layer's ``entry_record``,
+        ``browse_record``, ``panel_record`` and
+        ``verdict_record`` are journaled through the
+        same checkpoint road every sibling slice uses,
+        when a session is attached. Each record is
+        announced at most once per shape: a entry
+        under its own entry id, kind and line, a
+        browse under its own browse id, sequence, text
+        and kind filter, a panel under its whole
+        derived shape, and a verdict under its word
+        and tallies, so a panel or verdict grown by a
+        newly held entry or browse announces again
+        as the new figure it is. A foreign record type
+        is never published on this road.
+        """
+        if record.get("type") == "command_palace_entry":
+            key = ("command_palace_entry",
+                   record.get("entry_id"),
+                   record.get("kind"),
+                   record.get("line"))
+        elif record.get("type") == "command_palace_browse":
+            key = ("command_palace_browse",
+                   record.get("browse_id"),
+                   record.get("seq"),
+                   record.get("text"),
+                   record.get("kind_filter"))
+        elif record.get("type") == "command_palace_panel":
+            key = ("command_palace_panel", record.get("panel_id"),
+                   record.get("browse_id"),
+                   tuple(row.get("entry_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_matched"))
+        elif record.get("type") == "command_palace_verdict":
+            key = ("command_palace_verdict",
+                   record.get("verdict"),
+                   record.get("total_matched"),
+                   record.get("distinct_kinds"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(self, "_command_palace_announced", None)
+        if announced is None:
+            announced = set()
+            self._command_palace_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
