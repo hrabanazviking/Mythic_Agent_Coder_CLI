@@ -25044,6 +25044,447 @@ class Agent:
         announced.add(key)
         if self._session_store and self.session_id:
             self._checkpoint(record)
+    def _decision_records_registry(self):
+        """The held decision-records registry (M-156).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer decision records one
+        by one, beside the session self-improving
+        registry (M-155) and never in it: the decision
+        book is one book of choices with their
+        provenance whole. It is created on first use,
+        so an agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_decision_records_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_decision_records_store", None)
+        if registry is None:
+            from ..core.decision_records import DecisionRegistry
+            registry = DecisionRegistry()
+            self._decision_records_store = registry
+        return registry
+
+    def decision_records_book(self):
+        """The session's decision book, as data (M-156).
+
+        The held registry's book when the session holds
+        any record - the choices the session has
+        actually gathered (records held one by one,
+        before any whole book stands recorded, stand
+        under a session decision book composed here in
+        the agent layer, so a later whole book recorded
+        under its own title is never refused by a shim
+        title at the registry) - otherwise the book
+        recorded whole through
+        :meth:`record_decision_book`, or the shipped
+        example decision book until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.decision_records import (
+            DecisionBook, load_decision_records)
+        registry = self._decision_records_registry()
+        if registry.list_records():
+            try:
+                book = registry.book()
+            except ValueError:
+                return DecisionBook(
+                    title="Decision records",
+                    records=registry.list_records())
+            held = getattr(self, "_decision_records_held", None)
+            if held is not None and held.title == book.title \
+                    and held.record_ids() == book.record_ids():
+                return held
+            return book
+        book = getattr(self, "_decision_records_held", None)
+        if book is None:
+            return load_decision_records()
+        return book
+
+    def _decision_records_screen(self) -> str:
+        """The /decisions screen for the session's state (M-156).
+
+        Rendered from the held book when one stands,
+        and from the shipped example book while nothing
+        is held.
+        """
+        from ..core import decision_records as decisions_module
+        registry = self._decision_records_registry()
+        if not registry.list_records():
+            return decisions_module.format_decision_records_screen()
+        return decisions_module.format_decision_records_screen(
+            self.decision_records_book())
+
+    def decision_records_status(self) -> dict[str, Any]:
+        """The decision-records account, in plain data (M-156).
+
+        The records held this session as plain
+        records, the held book's record (none until a
+        record stands held), the session decision
+        book's pieces as plain records (the shipped
+        example book - three records at the M-155
+        slice boundary, one accepted, one proposed
+        and one superseded by the accepted record,
+        with its one pinned panel - until records are
+        held), its whole-book record, the decision
+        panel derived from the whole book and every
+        panel the book holds as plain records, the
+        latest record in plain words and the panel
+        told in plain words, the one screen - rendered
+        from the held book, or from the shipped
+        example book when nothing is held yet - and
+        the plain explanation. Reading registers and
+        publishes nothing, calls no model and writes
+        no project docs: this layer holds records as
+        data only. There is no Part VIII board yet;
+        the screen is where the records are visible.
+        """
+        from ..core import decision_records as decisions_module
+        registry = self._decision_records_registry()
+        held_records = registry.list_records()
+        book = self.decision_records_book()
+        latest = book.records[-1]
+        return {
+            "records": [item.to_record() for item in held_records],
+            "book": (book.to_record() if held_records else None),
+            "decisions": {
+                "title": book.title,
+                "records": [item.to_record() for item in book.records],
+            },
+            "book_record": decisions_module.book_record(book),
+            "panel": (decisions_module.derive_panel(book).to_record()
+                      if book.records else None),
+            "panels": [p.to_record() for p in book.panels],
+            "plain_words": decisions_module.plain_words(latest),
+            "panel_plain_words": (
+                decisions_module.panel_plain_words(book)
+                if book.records else ""),
+            "screen": self._decision_records_screen(),
+            "explanation": decisions_module.PLAIN_EXPLANATION,
+        }
+
+    def get_decision_record(self, record_id: Any):
+        """The one decision record an id names (M-156).
+
+        The session's held registry answers when the
+        session holds any record; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held session
+        answers for its own book alone: an id the held
+        book holds no record for raises KeyError, with
+        no silent fall back to the example, exactly as
+        the pure layer answers. Reading registers and
+        publishes nothing.
+        """
+        registry = self._decision_records_registry()
+        if registry.list_records():
+            return registry.get_record(record_id)
+        return self.decision_records_book().record_for(record_id)
+
+    def decision_records_panel(self):
+        """The decision panel derived for the whole book (M-156).
+
+        The panel is derived at call time from the
+        session book whole - the held registry's book
+        when the session holds any record, otherwise
+        the shipped example book's (or the book
+        recorded whole for the session) - so its rows
+        are the records carried whole, in panel order,
+        and its totals are the records' own counts,
+        read at call time. Reading registers and
+        publishes nothing.
+        """
+        from ..core.decision_records import (
+            derive_panel as _derive_panel)
+        return _derive_panel(self.decision_records_book())
+
+    def accepted_decision_records(self):
+        """The records standing accepted (M-156).
+
+        Read off the session book whole at call time:
+        only accepted records stand, each with its
+        provenance whole. A proposed or superseded
+        record stands nowhere here. Reading registers
+        and publishes nothing, and writes nothing
+        into any project's docs.
+        """
+        from ..core.decision_records import (
+            accepted_records as _accepted)
+        return _accepted(self.decision_records_book())
+
+    def register_decision_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one decision record for the session (M-156).
+
+        The record is held by the pure registry under
+        its id or the deterministic record-N id - a
+        record id already standing here refuses, as
+        does a choice one session already stands here,
+        and a superseded record naming a superseder
+        not yet held refuses; a refusal holds nothing
+        new and publishes nothing. A held record is
+        published as its ``record_record`` session-news
+        record through the checkpoint road, so a choice
+        named into the session is news. Returns the
+        held record, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a record calls no model
+        and writes no project docs: the registry holds
+        the record as data, provenance whole.
+        """
+        from ..core import decision_records as decisions_module
+        registry = self._decision_records_registry()
+        held = registry.register_record(record)
+        record_news = decisions_module.record_record(held)
+        self._publish_decision_record(record_news)
+        return {
+            "record": held.to_record(),
+            "record_news": record_news,
+            "screen": self._decision_records_screen(),
+            "explanation": decisions_module.PLAIN_EXPLANATION,
+        }
+
+    def draft_decision_records_from_session_memory(
+            self, *, session_ref: Any, decided_on: Any,
+            alternatives: Any, rationale: Any, context: Any,
+            consequences: Any) -> dict[str, Any]:
+        """Draft records from this session's standing decisions (M-156).
+
+        This slice's own road: the session's standing
+        decisions (the M-153 session-memory book) are
+        read onto decision records BY IMPORT through
+        the pure layer's
+        ``records_from_session_memory`` - every
+        standing decision of the book, under one frame
+        (the session the choices were decided in, the
+        day, the roads not taken, why, the context and
+        what follows, all named by the caller) - and
+        each drafted record is held for the session. A
+        record already standing here refuses before
+        anything new is held: the road drafts nothing
+        twice. Every record is published as its
+        ``record_record`` session news, in situation
+        order, and the decision panel derived from the
+        whole held registry as its ``panel_record``
+        session news. Returns the held records, their
+        news records, the panel news record, the
+        count, the screen, and the explanation.
+        Drafting calls no model and writes no project
+        docs - and it accepts nothing: every drafted
+        record stands proposed until its state is
+        changed by a record held in that state.
+        """
+        from ..core import decision_records as decisions_module
+        records = decisions_module.records_from_session_memory(
+            self.session_memory_book(),
+            session_ref=session_ref, decided_on=decided_on,
+            alternatives=alternatives, rationale=rationale,
+            context=context, consequences=consequences)
+        if not records:
+            raise ValueError(
+                "the session's memory holds no standing "
+                "decisions to draft")
+        registry = self._decision_records_registry()
+        held_ids = {item.record_id for item in registry.list_records()}
+        for record in records:
+            if record.record_id in held_ids:
+                raise ValueError(
+                    f"a record named {record.record_id!r} "
+                    f"already exists")
+        record_news = []
+        for record in records:
+            held_record = registry.register_record(record)
+            news = decisions_module.record_record(held_record)
+            self._publish_decision_record(news)
+            record_news.append(news)
+        panel = decisions_module.derive_panel(registry)
+        panel_news = decisions_module.panel_record(panel)
+        self._publish_decision_record(panel_news)
+        return {
+            "records": [item.to_record() for item in records],
+            "records_news": record_news,
+            "panel_record": panel_news,
+            "count": len(record_news),
+            "screen": self._decision_records_screen(),
+            "explanation": decisions_module.PLAIN_EXPLANATION,
+        }
+
+    def register_decision_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole decision book for the session (M-156).
+
+        Every record of the book is held by the pure
+        registry, in book order - the first book held
+        sets the registry's title, a later book under
+        a different title refuses, as does a book
+        naming a held record id. The book's panels
+        are derivations, not holdings, and are not
+        held. Every record is published as its
+        ``record_record`` session news, in book order,
+        and the decision panel derived from the whole
+        book as its ``panel_record`` session news.
+        Returns the held book, its records, their news
+        records, the panel news record, the count of
+        records held, the screen, and the explanation.
+        Registering calls no model and writes no
+        project docs.
+        """
+        from ..core import decision_records as decisions_module
+        validated = decisions_module.build_book(book)
+        registry = self._decision_records_registry()
+        registry.register_book(validated)
+        records = [
+            decisions_module.record_record(record)
+            for record in validated.records]
+        for record_news in records:
+            self._publish_decision_record(record_news)
+        panel_news = decisions_module.panel_record(
+            decisions_module.derive_panel(validated))
+        self._publish_decision_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "records": [
+                item.to_record() for item in validated.records],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": self._decision_records_screen(),
+            "explanation": decisions_module.PLAIN_EXPLANATION,
+        }
+
+    def record_decision_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole decision book for the session (M-156).
+
+        With no book named, the shipped example
+        decision book is recorded through the pure
+        layer - three records at the M-155 slice
+        boundary, one accepted, one proposed and one
+        superseded by the accepted record, with its
+        one pinned panel. A book loaded from a file
+        (the pure layer's ``load_decision_records_file``
+        road) may be passed instead, so a real decision
+        book is recorded as it stands. Every record is
+        held and published as its ``record_record``
+        session news, in book order, and the decision
+        panel as its ``panel_record`` session news; the
+        book is remembered whole as the session's - its
+        held panel and all - and the same book recorded
+        twice refuses - fingerprinted on its record ids
+        and title - a book is recorded once, never
+        duplicated into the session. Returns the held
+        book, its records, their news records, the
+        panel news record, the count, the screen, and
+        the explanation. Recording calls no model.
+        """
+        from ..core import decision_records as decisions_module
+        book = book if book is not None \
+            else decisions_module.load_decision_records()
+        validated = decisions_module.build_book(book)
+        fingerprint = (
+            tuple(validated.record_ids()), validated.title)
+        recorded = getattr(self, "_decision_records_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._decision_records_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this decision book is already recorded "
+                "for the session; a book is recorded once")
+        registry = self._decision_records_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._decision_records_held = validated
+        records = [
+            decisions_module.record_record(record)
+            for record in validated.records]
+        for record_news in records:
+            self._publish_decision_record(record_news)
+        panel_news = decisions_module.panel_record(
+            decisions_module.derive_panel(validated))
+        self._publish_decision_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "records": [
+                item.to_record() for item in validated.records],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": decisions_module.format_decision_records_screen(
+                validated),
+            "explanation": decisions_module.PLAIN_EXPLANATION,
+        }
+
+    def report_decision_records(self) -> dict[str, Any]:
+        """Render the session decision book, as a report (M-156).
+
+        The book - the held registry's book when the
+        session holds any record, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - is rendered through the pure
+        formatters alone: its records, its ADRs, its
+        derived panel and its one screen. Rendering
+        registers and publishes nothing, calls no model
+        and writes no project docs: the agent layer
+        renders the records as data. Returns the book,
+        its records and panels as plain records, the
+        derived panel, the rendered records, ADRs and
+        panel, the screen, and the plain explanation.
+        """
+        from ..core import decision_records as decisions_module
+        book = self.decision_records_book()
+        return {
+            "book": book.to_record(),
+            "records": [item.to_record() for item in book.records],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (decisions_module.derive_panel(book).to_record()
+                      if book.records else None),
+            "records_text": decisions_module.format_records(book),
+            "adrs_text": decisions_module.format_adrs(book),
+            "panel_text": decisions_module.format_panel(book),
+            "screen": self._decision_records_screen(),
+            "explanation": decisions_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_decision_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one decision record as session news (M-156).
+
+        The pure layer's ``record_record`` and
+        ``panel_record`` are journaled through the same
+        checkpoint road every sibling slice uses, when
+        a session is attached. Each record is announced
+        at most once per shape: a record under its own
+        record id, session and title, and a panel under
+        its whole derived shape (its rows and totals),
+        so a panel grown by a newly held record
+        announces again as the new figure it is. A
+        foreign record type is never published on this
+        road.
+        """
+        if record.get("type") == "decision_record":
+            key = ("decision_record",
+                   record.get("record_id"),
+                   record.get("session_ref"),
+                   record.get("title"))
+        elif record.get("type") == "decision_panel":
+            key = ("decision_panel", record.get("panel_id"),
+                   tuple(row.get("record_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_items"))
+        else:
+            return
+        announced = getattr(self, "_decision_records_announced", None)
+        if announced is None:
+            announced = set()
+            self._decision_records_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
