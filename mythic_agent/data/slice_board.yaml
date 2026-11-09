@@ -1,0 +1,252 @@
+schema: mythic.slice_board/1
+slice: M-173
+part: 8
+part_title: The Beautiful Face
+canon_note: 'The Slice Board: plans and roadmaps as a visible board - every slice a card standing in one
+  of four columns, queued, building, verifying or banked, with its provenance whole (the day it was recorded,
+  who recorded it, its source and the session it was recorded in). The board line is derived from the
+  card''s slice id, title, column and hand flags alone, never chosen, and a card composed from the shipped
+  roadmap takes its column from the slice''s own ledger status: done reads banked, queued reads queued.
+  What the human does by hand - advance, re-order, pause, resume or strike a slice - is held as its own
+  action record, and the effective board, its panel and its verdict are derived by standing the held actions
+  on the held cards in recorded order: a hand action moves this board alone, rewrites no shipped roadmap
+  data, banks nothing and deletes nothing - a struck slice still stands on the board, struck and seen.
+  This file is ONE EXAMPLE BOARD, in the shape a real board file takes: the M-172 slice boundary - seven
+  cards of Part VIII, M-171 and M-172 banked, M-173 opened to building by hand, M-176 re-ordered up the
+  board, M-175 paused by hand and M-177 struck by hand, with its one pinned panel; the verdict flows.
+  A real board is a new file in this same shape - it is never this file edited in place. This layer holds
+  plans as data only - it runs no build, banks nothing, sends nothing, posts nothing, schedules nothing,
+  calls no model and persists nothing.'
+guide:
+  title: Slice Board at the M-172 slice boundary
+cards:
+- slice_id: M-171
+  position: 1
+  part: 8
+  title: The TUI redesign charter
+  summary: every screen re-judged against M-004's kindness rules and the Visual Design Lawbook; a written
+    verdict per screen before code moves.
+  column: banked
+  paused: false
+  struck: false
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: slice board
+  origin_session: session-m173
+- slice_id: M-172
+  position: 2
+  part: 8
+  title: Streaming work view
+  summary: the coder's actions stream as a calm narrative (reading…, editing `auth.py`…, running tests…)
+    with tool detail one keystroke away, never in the face.
+  column: banked
+  paused: false
+  struck: false
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: slice board
+  origin_session: session-m173
+- slice_id: M-173
+  position: 3
+  part: 8
+  title: The Slice Board
+  summary: plans and roadmaps as a visible board (queued / building / verifying / banked) — the Mythic
+    way of working *seen*; the human can re-order, pause, or strike a slice by hand.
+  column: queued
+  paused: false
+  struck: false
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: slice board
+  origin_session: session-m173
+- slice_id: M-174
+  position: 4
+  part: 8
+  title: Approval cards perfected
+  summary: one decision per card, full context on the card, remembered-scope offered precisely, keyboard
+    and mouse equal.
+  column: queued
+  paused: false
+  struck: false
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: slice board
+  origin_session: session-m173
+- slice_id: M-175
+  position: 5
+  part: 8
+  title: The fuzzy everything picker
+  summary: files, symbols, commands, sessions, models, themes — one fuzzy finder grammar everywhere.
+  column: queued
+  paused: false
+  struck: false
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: slice board
+  origin_session: session-m173
+- slice_id: M-176
+  position: 6
+  part: 8
+  title: Slash-command palace
+  summary: every command discoverable from `/` with plain-language descriptions and examples; custom commands
+    (Part X skills) join the same palace.
+  column: queued
+  paused: false
+  struck: false
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: slice board
+  origin_session: session-m173
+- slice_id: M-177
+  position: 7
+  part: 8
+  title: Prompt craft
+  summary: multi-line editing, history per project, image paste, file drop, dictation (M-180) — the input
+    box is a small editor, not a slot.
+  column: queued
+  paused: false
+  struck: false
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: slice board
+  origin_session: session-m173
+actions:
+- action_id: act-open-m173
+  seq: 1
+  kind: advance
+  slice_id: M-173
+  detail: 'The board opens on M-173: the slice board itself is the work in hand, so its card moves from
+    queued to building.'
+  target_position: null
+  target_column: building
+  recorded_on: '2026-11-09'
+  actor: the jarl
+  source: slice board
+  origin_session: session-m173
+- action_id: act-pause-m175
+  seq: 2
+  kind: pause
+  slice_id: M-175
+  detail: The fuzzy everything picker waits by hand while the board and the approval cards land first.
+  target_position: null
+  target_column: null
+  recorded_on: '2026-11-09'
+  actor: the jarl
+  source: slice board
+  origin_session: session-m173
+- action_id: act-reorder-m176
+  seq: 3
+  kind: reorder
+  slice_id: M-176
+  detail: The slash-command palace moves up the board, ahead of the approval cards, so every command on
+    the board is discoverable sooner.
+  target_position: 4
+  target_column: null
+  recorded_on: '2026-11-09'
+  actor: the jarl
+  source: slice board
+  origin_session: session-m173
+- action_id: act-strike-m177
+  seq: 4
+  kind: strike
+  slice_id: M-177
+  detail: 'Prompt craft is struck by hand for this pass: the input box keeps its shipped shape until the
+    board itself is proven.'
+  target_position: null
+  target_column: null
+  recorded_on: '2026-11-09'
+  actor: the jarl
+  source: slice board
+  origin_session: session-m173
+panels:
+- panel_id: panel-m172-boundary
+  rows:
+  - slice_id: M-171
+    position: 1
+    part: 8
+    title: The TUI redesign charter
+    column: banked
+    paused: false
+    struck: false
+    line: M-171 The TUI redesign charter - banked
+    recorded_on: '2026-11-09'
+  - slice_id: M-172
+    position: 2
+    part: 8
+    title: Streaming work view
+    column: banked
+    paused: false
+    struck: false
+    line: M-172 Streaming work view - banked
+    recorded_on: '2026-11-09'
+  - slice_id: M-173
+    position: 3
+    part: 8
+    title: The Slice Board
+    column: building
+    paused: false
+    struck: false
+    line: M-173 The Slice Board - building
+    recorded_on: '2026-11-09'
+  - slice_id: M-176
+    position: 4
+    part: 8
+    title: Slash-command palace
+    column: queued
+    paused: false
+    struck: false
+    line: M-176 Slash-command palace - queued
+    recorded_on: '2026-11-09'
+  - slice_id: M-174
+    position: 5
+    part: 8
+    title: Approval cards perfected
+    column: queued
+    paused: false
+    struck: false
+    line: M-174 Approval cards perfected - queued
+    recorded_on: '2026-11-09'
+  - slice_id: M-175
+    position: 6
+    part: 8
+    title: The fuzzy everything picker
+    column: queued
+    paused: true
+    struck: false
+    line: M-175 The fuzzy everything picker - queued, paused
+    recorded_on: '2026-11-09'
+  - slice_id: M-177
+    position: 7
+    part: 8
+    title: Prompt craft
+    column: queued
+    paused: false
+    struck: true
+    line: M-177 Prompt craft - queued, struck
+    recorded_on: '2026-11-09'
+  total_cards: 7
+  total_queued: 4
+  total_building: 1
+  total_verifying: 0
+  total_banked: 2
+  total_paused: 1
+  total_struck: 1
+  distinct_parts: 1
+  column_counts:
+  - column: queued
+    items: 4
+  - column: building
+    items: 1
+  - column: banked
+    items: 2
+  next_slice_id: M-176
+  as_of: '2026-11-09'
+  account:
+  - 'The slice board holds 7 slices as of 2026-11-09: 4 queued, 1 building, 0 verifying and 2 banked over
+    1 parts: queued 4, building 1, banked 2; 1 stand paused by hand and 1 stand struck by hand.'
+  - Rows stand in board order, first slice first, so two panels of one board diff cleanly, line by line.
+  - 'The next slice standing ready is M-176: the first queued slice no hand has paused or struck, read
+    off the board at call time.'
+  - 'Every row carries its derived board line and its column as words: a hand action held on this board
+    moves this board alone - it rewrites no shipped roadmap data, banks nothing and deletes nothing, and
+    standing on this panel runs no build.'
