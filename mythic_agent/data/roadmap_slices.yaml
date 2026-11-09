@@ -1093,7 +1093,7 @@ slices:
   title: Slash-command palace
   summary: every command discoverable from `/` with plain-language descriptions and examples; custom commands
     (Part X skills) join the same palace.
-  status: queued
+  status: done
 - id: M-177
   part: 8
   title: Prompt craft
