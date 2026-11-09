@@ -783,7 +783,7 @@ class TestHandoffAgentStatus:
         store = _SessionStore(tmp_path, tmp_path / "state")
         session_id = agent.attach_session(store)
         agent.handoff_summaries_status()
-        agent.get_handoff("handoff-graph-pause")
+        agent.get_handoff_summary("handoff-graph-pause")
         agent.handoff_summaries_panel()
         agent.handoff_summaries_verdict()
         agent.report_handoff_summaries()
@@ -793,11 +793,11 @@ class TestHandoffAgentStatus:
 
     def test_unheld_reads_raise(self, agent):
         with pytest.raises(KeyError):
-            agent.get_handoff("handoff-nope")
+            agent.get_handoff_summary("handoff-nope")
 
     def test_status_after_register_shows_the_held_pieces(
             self, agent):
-        agent.register_handoff(_handoff())
+        agent.register_handoff_summary(_handoff())
         status = agent.handoff_summaries_status()
         assert [item["handoff_id"] for item in status["handoffs"]] == [
             "handoff-test"]
@@ -807,10 +807,10 @@ class TestHandoffAgentStatus:
 
     def test_held_handoff_never_falls_back_to_the_example(
             self, agent):
-        agent.register_handoff(_handoff())
+        agent.register_handoff_summary(_handoff())
         with pytest.raises(KeyError):
-            agent.get_handoff("handoff-graph-pause")
-        handoff = agent.get_handoff("handoff-test")
+            agent.get_handoff_summary("handoff-graph-pause")
+        handoff = agent.get_handoff_summary("handoff-test")
         assert handoff.title == "the test session, handed off at its close"
         assert agent.handoff_summaries_book().title == (
             "Handoff summaries")
@@ -821,7 +821,7 @@ class TestHandoffAgentHolding:
             self, agent, tmp_path):
         store = _SessionStore(tmp_path, tmp_path / "state")
         session_id = agent.attach_session(store)
-        outcome = agent.register_handoff(_handoff())
+        outcome = agent.register_handoff_summary(_handoff())
         assert outcome["handoff"]["handoff_id"] == "handoff-test"
         assert outcome["record_news"]["type"] == (
             "handoff_summaries_handoff")
@@ -844,11 +844,11 @@ class TestHandoffAgentHolding:
             self, agent, tmp_path):
         store = _SessionStore(tmp_path, tmp_path / "state")
         session_id = agent.attach_session(store)
-        agent.register_handoff(_handoff())
+        agent.register_handoff_summary(_handoff())
         with pytest.raises(ValueError):
-            agent.register_handoff(_handoff())
+            agent.register_handoff_summary(_handoff())
         with pytest.raises(ValueError):
-            agent.register_handoff(_handoff(
+            agent.register_handoff_summary(_handoff(
                 handoff_id="handoff-copy",
                 done=["m-101-copy-done"], doing=[],
                 evidence_refs=["entry-copy-1"]))
@@ -940,7 +940,7 @@ class TestHandoffAgentHolding:
         book = load_handoff_summaries_file(path)
         outcome = agent.record_handoff_book(book)
         assert outcome["count"] == 3
-        assert agent.get_handoff(
+        assert agent.get_handoff_summary(
             "handoff-graph-pause").branch == "work/graph-retrieval-care"
 
     def test_report_renders_the_example_when_unheld(self, agent):
@@ -953,7 +953,7 @@ class TestHandoffAgentHolding:
         assert "handoff-graph-pause" in report["handoffs_text"]
 
     def test_report_renders_the_held_book_only(self, agent):
-        agent.register_handoff(_handoff())
+        agent.register_handoff_summary(_handoff())
         report = agent.report_handoff_summaries()
         assert report["book"]["title"] == "Handoff summaries"
         assert "handoff-main-close" not in report["handoffs_text"]
@@ -994,7 +994,7 @@ class TestHandoffAgentHolding:
         builder.add_system("You are the coder.")
         builder.add_turn("user", "Build the slice.")
         built_before = builder.build()
-        agent.register_handoff(_handoff())
+        agent.register_handoff_summary(_handoff())
         agent.handoff_from_stand_up(
             session_ref="session-m134-standup",
             project="mythic-agent-coder", branch="work/standup-care",

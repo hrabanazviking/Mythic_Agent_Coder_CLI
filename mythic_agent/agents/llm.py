@@ -28261,7 +28261,7 @@ class Agent:
             "explanation": handoff_module.PLAIN_EXPLANATION,
         }
 
-    def get_handoff(self, handoff_id: Any):
+    def get_handoff_summary(self, handoff_id: Any):
         """The one handoff an id names (M-163).
 
         The session's held registry answers when the
@@ -28291,7 +28291,7 @@ class Agent:
             derive_verdict as _derive_verdict)
         return _derive_verdict(self.handoff_summaries_book())
 
-    def register_handoff(
+    def register_handoff_summary(
             self, handoff: Any) -> dict[str, Any]:
         """Hold one handoff for the session (M-163).
 
