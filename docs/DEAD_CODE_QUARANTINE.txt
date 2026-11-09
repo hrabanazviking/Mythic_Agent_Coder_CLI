@@ -383,3 +383,12 @@ mythic_agent/agents/llm.py:25356:record_decision_book:method
 mythic_agent/agents/llm.py:25419:report_decision_records:method
 mythic_agent/core/decision_records.py:1046:row_for:method
 mythic_agent/core/decision_records.py:1833:latest_record:method
+mythic_agent/agents/llm.py:25624:forget_quarantine_panel:method
+mythic_agent/agents/llm.py:25641:forgotten_memories:method
+mythic_agent/agents/llm.py:25656:register_forget_entry:method
+mythic_agent/agents/llm.py:25690:journal_forgetting_from_session_memory:method
+mythic_agent/agents/llm.py:25758:register_forget_book:method
+mythic_agent/agents/llm.py:25800:record_forget_book:method
+mythic_agent/agents/llm.py:25862:report_forget_quarantine:method
+mythic_agent/core/forget_quarantine.py:1350:row_for:method
+mythic_agent/core/forget_quarantine.py:1939:latest_entry:method
