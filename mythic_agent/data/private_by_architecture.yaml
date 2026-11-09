@@ -1,0 +1,148 @@
+schema: mythic.private_by_architecture/1
+slice: M-167
+part: 7
+part_title: Memory & Context
+canon_note: 'Private by architecture: memories live in the workspace/ user stores; nothing
+  syncs anywhere unless Part X bridges are explicitly opened by the user. A posting stands
+  over one stored memory, named by the kind of holding it stands in (the project memory
+  map, session memory, cross-project memory, the self-improving ledger, crew memory, the
+  subconscious v2, the contradiction watch, a vector record, or a memory held by hand) and
+  the shipped piece id alone - the piece own words never cross into the posting. The posting
+  names the store the memory lives in, the workspace store or the user store, and the one
+  Part X bridge the user has explicitly opened over it - which bridge, who opened it and
+  the day - or that no bridge stands open over it at all, with who recorded the posting and
+  the session it was raised in. The standing is derived, never chosen: sealed while no
+  bridge stands open, bridge-open only through the one named bridge the user opened. One
+  stored memory is posted once in a book, so the privacy standing never forks. The PRIVACY
+  PANEL is derived from the whole book: its rows are the postings carried whole, by home -
+  the workspace store first, then the user store - then title, then posting id, each showing
+  its boundary, and a stored panel that disagrees with its derived shape is refused. The
+  PRIVACY VERDICT is derived for the whole book: sealed while nothing stands open, guarded
+  when one or two stand open at the user own hand, and bridged when three or more have been
+  opened through Part X bridges. This file is ONE EXAMPLE BOOK, in the shape a real book
+  file takes: the M-166 slice boundary - five postings standing over the campaign own stored
+  memories at the close of the contradiction watch day, four sealed in their stores and one
+  carried out through the export bridge the user explicitly opened, with the one panel of
+  the book read as of that day. A real book is a new file in this same shape - it is never
+  this file edited in place. A posting moves nothing: the memory itself is never carried
+  anywhere by it, and the bridges are Part X roads, not this layer. This layer holds
+  postings as data only: it sends nothing, posts nothing, schedules nothing, calls no model,
+  persists nothing, syncs nothing and writes no live memory.'
+guide:
+  title: Private by architecture at the M-166 slice boundary
+postings:
+- posting_id: posting-no-docker-map
+  title: the no-Docker law stays in the workspace
+  memory_kind: memory-map
+  memory_ref: map-no-docker
+  home: workspace
+  bridge: none
+  posted_on: '2026-11-06'
+  recorded_by: Volmarr
+  source: private by architecture
+  origin_session: session-m166-contradiction
+- posting_id: posting-lesson-export
+  title: bank incrementally, carried out by export alone
+  memory_kind: cross-project-lesson
+  memory_ref: lesson-bank-incrementally
+  home: workspace
+  bridge: export
+  opened_by: Volmarr
+  opened_on: '2026-11-08'
+  posted_on: '2026-11-08'
+  recorded_by: Volmarr
+  source: private by architecture
+  origin_session: session-m166-contradiction
+- posting_id: posting-samtal-wal
+  title: the samtal WAL lesson stays in the workspace
+  memory_kind: subconscious-memory
+  memory_ref: memory-samtal-wal
+  home: workspace
+  bridge: none
+  posted_on: '2026-11-07'
+  recorded_by: Volmarr
+  source: private by architecture
+  origin_session: session-m166-contradiction
+- posting_id: posting-campaign-home
+  title: campaign home notes stay with the user
+  memory_kind: session-note
+  memory_ref: note-campaign-home
+  home: user
+  bridge: none
+  posted_on: '2026-11-09'
+  recorded_by: Volmarr
+  source: private by architecture
+  origin_session: session-m166-contradiction
+- posting_id: posting-verify-remote
+  title: verify the remote moved stays with the user
+  memory_kind: crew-fact
+  memory_ref: verify-remote-moved
+  home: user
+  bridge: none
+  posted_on: '2026-11-09'
+  recorded_by: Volmarr
+  source: private by architecture
+  origin_session: session-m166-contradiction
+panels:
+- panel_id: panel-m166-boundary
+  rows:
+  - posting_id: posting-lesson-export
+    title: bank incrementally, carried out by export alone
+    memory_kind: cross-project-lesson
+    memory_ref: lesson-bank-incrementally
+    home: workspace
+    bridge: export
+    standing: bridge-open
+    posted_on: '2026-11-08'
+  - posting_id: posting-no-docker-map
+    title: the no-Docker law stays in the workspace
+    memory_kind: memory-map
+    memory_ref: map-no-docker
+    home: workspace
+    bridge: none
+    standing: sealed
+    posted_on: '2026-11-06'
+  - posting_id: posting-samtal-wal
+    title: the samtal WAL lesson stays in the workspace
+    memory_kind: subconscious-memory
+    memory_ref: memory-samtal-wal
+    home: workspace
+    bridge: none
+    standing: sealed
+    posted_on: '2026-11-07'
+  - posting_id: posting-campaign-home
+    title: campaign home notes stay with the user
+    memory_kind: session-note
+    memory_ref: note-campaign-home
+    home: user
+    bridge: none
+    standing: sealed
+    posted_on: '2026-11-09'
+  - posting_id: posting-verify-remote
+    title: verify the remote moved stays with the user
+    memory_kind: crew-fact
+    memory_ref: verify-remote-moved
+    home: user
+    bridge: none
+    standing: sealed
+    posted_on: '2026-11-09'
+  total_postings: 5
+  total_sealed: 4
+  total_open: 1
+  distinct_memories: 5
+  home_counts:
+  - home: workspace
+    items: 3
+  - home: user
+    items: 2
+  as_of: '2026-11-09'
+  account:
+  - 'The privacy panel holds 5 postings as of 2026-11-09: 4 sealed and 1 standing bridge-open
+    over 5 stored memories: user 2, workspace 3.'
+  - Rows stand by home - the workspace store first, then the user store - then title, then
+    posting id, so two panels of one book diff cleanly, line by line.
+  - 'Every row shows its boundary: a sealed memory syncs nowhere, and a bridge-open memory
+    may leave only through the one bridge the user explicitly opened over it - no posting
+    opens a road it does not name.'
+  - 'The panel is read off the book at call time - it is derived, never stored loose - and
+    a posting moves nothing: no memory leaves its store by standing on this panel.'
