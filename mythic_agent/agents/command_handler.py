@@ -363,6 +363,8 @@ class CommandHandler:
                 self._handle_memoryxport(args)
             elif cmd == "/subconscious":
                 self._handle_subconscious(args)
+            elif cmd == "/contradiction":
+                self._handle_contradiction(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -6247,6 +6249,80 @@ class CommandHandler:
                 text = format_verdict(primary.subconscious_book())
             else:
                 text = primary.subconscious_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_contradiction(self, args: str):
+        """M-166: /contradiction - contradiction watch.
+
+        ``/contradiction`` shows the contradiction
+        book held this session (the shipped example
+        book - four watches at the M-165 slice
+        boundary, one over each of the memory map,
+        session memory, the subconscious v2 and crew
+        memory, with its one pinned panel - when none
+        is held yet); ``/contradiction watch
+        <watch-id>`` shows one watch with its
+        correction shown - the stored claim and the
+        newer evidence that replaces it;
+        ``/contradiction kind <memory-kind>`` shows
+        the watches standing over one holding;
+        ``/contradiction panel`` shows the
+        contradiction panel derived from the whole
+        book; ``/contradiction verdict`` shows the
+        correction verdict derived for the whole
+        book - a map broadly overturned named plainly.
+        Reading registers and publishes nothing as
+        session news: watches are held only when they
+        are given through the agent's watch roads,
+        raised over a subconscious memory on the
+        composing road, or held on the book roads,
+        and every watch held for the session is
+        journaled as a contradiction_watch_watch
+        session event, every derived panel as a
+        contradiction_watch_panel session event and
+        every derived verdict as a
+        contradiction_watch_verdict session event.
+        This surface overwrites no stored memory, and
+        there is no Part VIII board yet, so the book
+        is visible on this surface, not on a board.
+        """
+        from ..core.contradiction_watch import (
+            format_panel,
+            format_verdict,
+            format_watch,
+            format_watches,
+            parse_contradiction_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_contradiction_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "watch":
+                text = format_watch(
+                    primary.get_contradiction_watch(target))
+            elif action == "kind":
+                text = format_watches(
+                    primary.contradiction_book(), kind=target)
+            elif action == "panel":
+                text = format_panel(primary.contradiction_book())
+            elif action == "verdict":
+                text = format_verdict(primary.contradiction_book())
+            else:
+                text = primary.contradiction_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

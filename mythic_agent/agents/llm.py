@@ -29516,6 +29516,458 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _contradiction_registry(self):
+        """The held contradiction watch registry (M-166).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer watches one by one,
+        beside the session subconscious registry
+        (M-165) and never in it: the contradiction
+        book is one book of corrections standing over
+        stored memories. It is created on first use,
+        so an agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_contradiction_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_contradiction_store", None)
+        if registry is None:
+            from ..core.contradiction_watch import ContradictionRegistry
+            registry = ContradictionRegistry()
+            self._contradiction_store = registry
+        return registry
+
+    def contradiction_book(self):
+        """The session's contradiction book, as data (M-166).
+
+        The held registry's book when the session
+        holds any watch - the corrections the session
+        has actually raised (watches held one by one,
+        before any whole book stands recorded, stand
+        under a session contradiction book composed
+        here in the agent layer, so a later whole
+        book recorded under its own title is never
+        refused by a shim title at the registry) -
+        otherwise the book recorded whole through
+        :meth:`record_contradiction_book`, or the
+        shipped example contradiction book until one
+        is recorded. Reading registers and publishes
+        nothing.
+        """
+        from ..core.contradiction_watch import (
+            ContradictionBook, load_contradiction_watch)
+        registry = self._contradiction_registry()
+        if registry.list_watches():
+            try:
+                book = registry.book()
+            except ValueError:
+                return ContradictionBook(
+                    title="Contradiction watch",
+                    watches=registry.list_watches())
+            held = getattr(self, "_contradiction_held", None)
+            if held is not None and held.title == book.title \
+                    and held.watch_ids() == book.watch_ids():
+                return held
+            return book
+        book = getattr(self, "_contradiction_held", None)
+        if book is None:
+            return load_contradiction_watch()
+        return book
+
+    def _contradiction_screen(self) -> str:
+        """The /contradiction screen for the session's state (M-166)."""
+        from ..core import contradiction_watch as watch_module
+        registry = self._contradiction_registry()
+        if not registry.list_watches():
+            return watch_module.format_contradiction_screen()
+        return watch_module.format_contradiction_screen(
+            self.contradiction_book())
+
+    def contradiction_status(self) -> dict[str, Any]:
+        """The contradiction watch account, in plain data (M-166).
+
+        The watches held this session as plain
+        records, the held book's record (none until a
+        watch stands held), the session contradiction
+        book's watches as plain records (the shipped
+        example book - four watches at the M-165
+        slice boundary, one over each of the memory
+        map, session memory, the subconscious v2 and
+        crew memory - until watches are held), its
+        whole-book record, the contradiction panel
+        derived from the whole book and every panel
+        the book holds as plain records, the
+        correction verdict derived for the whole
+        book, the latest watch in plain words, the
+        panel and the verdict told in plain words,
+        the one screen - rendered from the held book,
+        or from the shipped example book when nothing
+        is held yet - and the plain explanation.
+        Reading registers and publishes nothing, sends
+        nothing and schedules nothing: this layer
+        holds corrections as data only. There is no
+        Part VIII board yet; the screen is where the
+        book is visible.
+        """
+        from ..core import contradiction_watch as watch_module
+        registry = self._contradiction_registry()
+        held_watches = registry.list_watches()
+        book = self.contradiction_book()
+        latest = book.watches[-1]
+        return {
+            "watches": [item.to_record() for item in held_watches],
+            "book": (book.to_record() if held_watches else None),
+            "contradiction": {
+                "title": book.title,
+                "watches": [item.to_record() for item in book.watches],
+            },
+            "book_record": watch_module.book_record(book),
+            "panel": (watch_module.derive_panel(book).to_record()
+                      if book.watches else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (
+                watch_module.derive_verdict(book).to_record()
+                if book.watches else None),
+            "plain_words": watch_module.plain_words(latest),
+            "panel_plain_words": (
+                watch_module.panel_plain_words(book)
+                if book.watches else ""),
+            "verdict_plain_words": (
+                watch_module.verdict_plain_words(book)
+                if book.watches else ""),
+            "screen": self._contradiction_screen(),
+            "explanation": watch_module.PLAIN_EXPLANATION,
+        }
+
+    def get_contradiction_watch(self, watch_id: Any):
+        """The one watch an id names (M-166).
+
+        The session's held registry answers when the
+        session holds any watch; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held watch
+        answers for its own book alone: an id the
+        held book holds no watch for raises KeyError,
+        with no silent fall back to the example,
+        exactly as the pure layer answers. Reading
+        registers and publishes nothing.
+        """
+        registry = self._contradiction_registry()
+        if registry.list_watches():
+            return registry.get_watch(watch_id)
+        return self.contradiction_book().watch_for(watch_id)
+
+    def watch_for_memory(self, memory_kind: Any, memory_ref: Any):
+        """The watch standing over one stored memory (M-166).
+
+        The session's held registry answers when the
+        session holds any watch; otherwise the
+        session book answers. A memory no watch
+        stands over raises KeyError. Reading
+        registers and publishes nothing.
+        """
+        registry = self._contradiction_registry()
+        if registry.list_watches():
+            return registry.watch_for_memory(memory_kind, memory_ref)
+        return self.contradiction_book().watch_for_memory(
+            memory_kind, memory_ref)
+
+    def contradiction_panel(self):
+        """The contradiction panel derived for the whole book (M-166)."""
+        from ..core.contradiction_watch import derive_panel as _derive_panel
+        return _derive_panel(self.contradiction_book())
+
+    def contradiction_verdict(self):
+        """The correction verdict derived for the whole book (M-166)."""
+        from ..core.contradiction_watch import (
+            derive_verdict as _derive_verdict)
+        return _derive_verdict(self.contradiction_book())
+
+    def register_contradiction_watch(
+            self, watch: Any) -> dict[str, Any]:
+        """Hold one contradiction watch for the session (M-166).
+
+        The watch is held by the pure registry under
+        its id or the deterministic watch-N id - a
+        watch id already standing here refuses, as
+        does a watch over a memory already corrected
+        here (one correction per memory); a refusal
+        holds nothing new and publishes nothing. A
+        held watch is published as its
+        ``watch_record`` session-news record through
+        the checkpoint road. Returns the held watch,
+        its news record, the screen rendered after it
+        landed, and the plain explanation. Holding a
+        watch writes no live memory and overwrites
+        no stored memory: the correction stands on
+        this layer's map, as data, provenance whole.
+        """
+        from ..core import contradiction_watch as watch_module
+        registry = self._contradiction_registry()
+        held = registry.register_watch(watch)
+        record_news = watch_module.watch_record(held)
+        self._publish_contradiction_record(record_news)
+        return {
+            "watch": held.to_record(),
+            "record_news": record_news,
+            "screen": self._contradiction_screen(),
+            "explanation": watch_module.PLAIN_EXPLANATION,
+        }
+
+    def watch_subconscious_memory(
+            self, memory_id: Any, *, stored_claim: Any,
+            evidence_claim: Any, evidence_source: Any,
+            found_on: Any, recorded_by: Any,
+            origin_session: Any,
+            source: Any = "contradiction watch",
+            title: Any = None, evidence_ref: Any = None,
+            watch_id: Any = None) -> dict[str, Any]:
+        """Raise a watch over one of the session's v2 memories (M-166).
+
+        This slice's own composing road: one memory
+        of the session's subconscious book (M-165) -
+        the held registry's memory when the session
+        holds any, otherwise the shipped example
+        book's (or the recorded book's) - is judged
+        whole by the subconscious layer's own
+        validation through the pure layer's
+        ``watch_from_subconscious_memory`` road, its
+        id alone crossing as the watch's memory ref,
+        and the raised watch is held and published
+        as its ``watch_record`` session news, with
+        the contradiction panel derived from the
+        whole held registry as its ``panel_record``
+        session news and the correction verdict
+        derived for the whole held registry as its
+        ``verdict_record`` session news. The stored
+        claim stands in the watcher's own words,
+        named on this road - the v2 memory's own
+        words never cross. An id no session memory
+        carries raises KeyError, and a memory already
+        corrected here refuses, exactly as the pure
+        layers answer. Returns the held watch, its
+        news record, the panel and verdict news
+        records, the screen, and the explanation.
+        Raising the watch overwrites nothing: the v2
+        memory stands exactly as it stood, corrected
+        on this layer's map only.
+        """
+        from ..core import contradiction_watch as watch_module
+        memory = self.get_subconscious_memory(memory_id)
+        watch = watch_module.watch_from_subconscious_memory(
+            memory, stored_claim=stored_claim,
+            evidence_claim=evidence_claim,
+            evidence_source=evidence_source, found_on=found_on,
+            recorded_by=recorded_by, origin_session=origin_session,
+            source=source, title=title, evidence_ref=evidence_ref,
+            watch_id=watch_id)
+        registry = self._contradiction_registry()
+        held = registry.register_watch(watch)
+        record_news = watch_module.watch_record(held)
+        self._publish_contradiction_record(record_news)
+        panel_news = watch_module.panel_record(
+            watch_module.derive_panel(registry))
+        self._publish_contradiction_record(panel_news)
+        verdict_news = watch_module.verdict_record(
+            watch_module.derive_verdict(registry))
+        self._publish_contradiction_record(verdict_news)
+        return {
+            "watch": held.to_record(),
+            "record_news": record_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._contradiction_screen(),
+            "explanation": watch_module.PLAIN_EXPLANATION,
+        }
+
+    def register_contradiction_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole contradiction book for the session (M-166).
+
+        Every watch of the book is held by the pure
+        registry, in book order - the book is judged
+        whole, and against the held book, before any
+        watch is held, so a refusal holds nothing
+        new. The first book held sets the registry's
+        title, a later book under a different title
+        refuses, as does a book naming a held watch
+        id or a held memory. The book's panels are
+        derivations, not holdings, and are not held.
+        Every watch is published as its
+        ``watch_record`` session news, in book order,
+        and the contradiction panel derived from the
+        whole book as its ``panel_record`` session
+        news. Returns the held book, its watches,
+        their news records, the panel news record,
+        the count of watches held, the screen, and
+        the explanation. Registering reads no file
+        and writes no live memory.
+        """
+        from ..core import contradiction_watch as watch_module
+        validated = watch_module.build_book(book)
+        registry = self._contradiction_registry()
+        registry.register_book(validated)
+        records = [
+            watch_module.watch_record(watch)
+            for watch in validated.watches]
+        for record_news in records:
+            self._publish_contradiction_record(record_news)
+        panel_news = watch_module.panel_record(
+            watch_module.derive_panel(validated))
+        self._publish_contradiction_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "watches": [
+                item.to_record() for item in validated.watches],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": self._contradiction_screen(),
+            "explanation": watch_module.PLAIN_EXPLANATION,
+        }
+
+    def record_contradiction_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole contradiction book for the session (M-166).
+
+        With no book named, the shipped example
+        contradiction book is recorded through the
+        pure layer - four watches at the M-165 slice
+        boundary, with its one pinned panel. A book
+        loaded from a file (the pure layer's
+        ``load_contradiction_watch_file`` road) may
+        be passed instead. The book is judged whole
+        before anything is held. Every watch is held
+        and published as its ``watch_record`` session
+        news, in book order, and the contradiction
+        panel as its ``panel_record`` session news;
+        the book is remembered whole as the
+        session's - its held panel and all - and the
+        same book recorded twice refuses -
+        fingerprinted on its watch ids and title.
+        Returns the held book, its watches, their
+        news records, the panel news record, the
+        count, the screen, and the explanation.
+        Recording writes no live memory and
+        overwrites no stored memory.
+        """
+        from ..core import contradiction_watch as watch_module
+        book = book if book is not None \
+            else watch_module.load_contradiction_watch()
+        validated = watch_module.build_book(book)
+        fingerprint = (tuple(validated.watch_ids()), validated.title)
+        recorded = getattr(self, "_contradiction_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._contradiction_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this contradiction book is already recorded "
+                "for the session; a book is recorded once")
+        registry = self._contradiction_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._contradiction_held = validated
+        records = [
+            watch_module.watch_record(watch)
+            for watch in validated.watches]
+        for record_news in records:
+            self._publish_contradiction_record(record_news)
+        panel_news = watch_module.panel_record(
+            watch_module.derive_panel(validated))
+        self._publish_contradiction_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "watches": [
+                item.to_record() for item in validated.watches],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": watch_module.format_contradiction_screen(validated),
+            "explanation": watch_module.PLAIN_EXPLANATION,
+        }
+
+    def report_contradiction(self) -> dict[str, Any]:
+        """Render the session contradiction book, as a report (M-166).
+
+        The book - the held registry's book when the
+        session holds any watch, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone. Rendering registers
+        and publishes nothing and reads no file.
+        Returns the book, its watches and panels as
+        plain records, the derived panel and
+        correction verdict, the rendered watches,
+        panel and verdict, the screen, and the plain
+        explanation.
+        """
+        from ..core import contradiction_watch as watch_module
+        book = self.contradiction_book()
+        return {
+            "book": book.to_record(),
+            "watches": [item.to_record() for item in book.watches],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (watch_module.derive_panel(book).to_record()
+                      if book.watches else None),
+            "verdict": (
+                watch_module.derive_verdict(book).to_record()
+                if book.watches else None),
+            "watches_text": watch_module.format_watches(book),
+            "panel_text": watch_module.format_panel(book),
+            "verdict_text": watch_module.format_verdict(book),
+            "screen": self._contradiction_screen(),
+            "explanation": watch_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_contradiction_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one contradiction record as session news (M-166).
+
+        The pure layer's ``watch_record``,
+        ``panel_record`` and ``verdict_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once per shape: a watch under its own watch
+        id, memory and found day, a panel under its
+        whole derived shape, and a verdict under its
+        word and tallies, so a panel or verdict grown
+        by a newly held watch announces again as the
+        new figure it is. A foreign record type is
+        never published on this road.
+        """
+        if record.get("type") == "contradiction_watch_watch":
+            key = ("contradiction_watch_watch",
+                   record.get("watch_id"),
+                   record.get("memory_kind"),
+                   record.get("memory_ref"),
+                   record.get("found_on"))
+        elif record.get("type") == "contradiction_watch_panel":
+            key = ("contradiction_watch_panel", record.get("panel_id"),
+                   record.get("as_of"),
+                   tuple(row.get("watch_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_watches"))
+        elif record.get("type") == "contradiction_watch_verdict":
+            key = ("contradiction_watch_verdict",
+                   record.get("verdict"),
+                   record.get("total_watches"),
+                   record.get("distinct_memories"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(self, "_contradiction_announced", None)
+        if announced is None:
+            announced = set()
+            self._contradiction_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
