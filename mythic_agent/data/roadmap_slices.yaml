@@ -1029,7 +1029,7 @@ slices:
   title: The subconscious v2
   summary: the dual-layer vector memory gains provenance (where each memory came from), confidence, and
     decay — stale memories fade unless re-earned.
-  status: queued
+  status: done
 - id: M-166
   part: 7
   title: Contradiction watch
