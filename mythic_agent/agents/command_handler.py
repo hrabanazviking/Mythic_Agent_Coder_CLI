@@ -345,6 +345,8 @@ class CommandHandler:
                 self._handle_ledger(args)
             elif cmd == "/decisions":
                 self._handle_decisions(args)
+            elif cmd == "/forget":
+                self._handle_forget(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -5633,6 +5635,70 @@ class CommandHandler:
                 text = format_panel(primary.decision_records_book())
             else:
                 text = primary.decision_records_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_forget(self, args: str):
+        """M-157: /forget - forget and quarantine.
+
+        ``/forget`` shows the forget book held this
+        session (the shipped example book - four entries
+        at the M-156 slice boundary, two forgotten, one
+        quarantined and one restored, with its one pinned
+        panel - when none is held yet); ``/forget entry
+        <entry-id>`` shows one forget entry with its
+        provenance whole; ``/forget forgotten`` shows the
+        entries standing forgotten; ``/forget quarantined``
+        shows the memories still held apart; ``/forget
+        panel`` shows the forget panel derived from the
+        whole book, its rows in panel order. Reading
+        registers and publishes nothing as session news:
+        entries are held only when they are given through
+        the agent's forget roads or journaled from the
+        session's carried memory, and every entry held
+        for the session is journaled as a forget_entry
+        session event and every derived panel as a
+        forget_panel session event - by class and
+        reference only, never the forgotten thing's
+        content. This surface calls no model and mutates
+        no live memory, and there is no Part VIII board
+        yet, so the journal is visible on this surface,
+        not on a board.
+        """
+        from ..core.forget_quarantine import (
+            format_entry,
+            format_forgotten,
+            format_panel,
+            format_quarantined,
+            parse_forget_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_forget_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "entry":
+                text = format_entry(primary.get_forget_entry(target))
+            elif action == "forgotten":
+                text = format_forgotten(primary.forget_quarantine_book())
+            elif action == "quarantined":
+                text = format_quarantined(primary.forget_quarantine_book())
+            elif action == "panel":
+                text = format_panel(primary.forget_quarantine_book())
+            else:
+                text = primary.forget_quarantine_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

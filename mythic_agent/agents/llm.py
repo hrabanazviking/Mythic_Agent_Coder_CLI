@@ -25485,6 +25485,453 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _forget_quarantine_registry(self):
+        """The held forget-quarantine registry (M-157).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer forget entries one by
+        one, beside the session decision-records
+        registry (M-156) and never in it: the forget
+        book is one journal of acts of forgetting, by
+        class and reference only. It is created on
+        first use, so an agent whose ``__init__`` never
+        ran still holds exactly one. The attribute is
+        named ``_forget_quarantine_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_forget_quarantine_store", None)
+        if registry is None:
+            from ..core.forget_quarantine import ForgetRegistry
+            registry = ForgetRegistry()
+            self._forget_quarantine_store = registry
+        return registry
+
+    def forget_quarantine_book(self):
+        """The session's forget book, as data (M-157).
+
+        The held registry's book when the session holds
+        any entry - the acts the session has actually
+        journaled (entries held one by one, before any
+        whole book stands recorded, stand under a
+        session forget book composed here in the agent
+        layer, so a later whole book recorded under its
+        own title is never refused by a shim title at
+        the registry) - otherwise the book recorded
+        whole through :meth:`record_forget_book`, or
+        the shipped example forget book until one is
+        recorded. Reading registers and publishes
+        nothing.
+        """
+        from ..core.forget_quarantine import (
+            ForgetBook, load_forget_quarantine)
+        registry = self._forget_quarantine_registry()
+        if registry.list_entries():
+            try:
+                book = registry.book()
+            except ValueError:
+                return ForgetBook(
+                    title="Forget and quarantine",
+                    entries=registry.list_entries())
+            held = getattr(self, "_forget_quarantine_held", None)
+            if held is not None and held.title == book.title \
+                    and held.entry_ids() == book.entry_ids():
+                return held
+            return book
+        book = getattr(self, "_forget_quarantine_held", None)
+        if book is None:
+            return load_forget_quarantine()
+        return book
+
+    def _forget_quarantine_screen(self) -> str:
+        """The /forget screen for the session's state (M-157).
+
+        Rendered from the held book when one stands,
+        and from the shipped example book while nothing
+        is held.
+        """
+        from ..core import forget_quarantine as forget_module
+        registry = self._forget_quarantine_registry()
+        if not registry.list_entries():
+            return forget_module.format_forget_quarantine_screen()
+        return forget_module.format_forget_quarantine_screen(
+            self.forget_quarantine_book())
+
+    def forget_quarantine_status(self) -> dict[str, Any]:
+        """The forget-quarantine account, in plain data (M-157).
+
+        The entries held this session as plain records,
+        the held book's record (none until an entry
+        stands held), the session forget book's pieces
+        as plain records (the shipped example book -
+        four entries at the M-156 slice boundary, two
+        forgotten, one quarantined and one restored -
+        until entries are held), its whole-book record,
+        the forget panel derived from the whole book
+        and every panel the book holds as plain records,
+        the latest entry in plain words and the panel
+        told in plain words, the one screen - rendered
+        from the held book, or from the shipped example
+        book when nothing is held yet - and the plain
+        explanation. Reading registers and publishes
+        nothing, calls no model and mutates no live
+        memory: this layer journals acts of forgetting
+        as data only. There is no Part VIII board yet;
+        the screen is where the journal is visible.
+        """
+        from ..core import forget_quarantine as forget_module
+        registry = self._forget_quarantine_registry()
+        held_entries = registry.list_entries()
+        book = self.forget_quarantine_book()
+        latest = book.entries[-1]
+        return {
+            "entries": [item.to_record() for item in held_entries],
+            "book": (book.to_record() if held_entries else None),
+            "forgetting": {
+                "title": book.title,
+                "entries": [item.to_record() for item in book.entries],
+            },
+            "book_record": forget_module.book_record(book),
+            "panel": (forget_module.derive_panel(book).to_record()
+                      if book.entries else None),
+            "panels": [p.to_record() for p in book.panels],
+            "plain_words": forget_module.plain_words(latest),
+            "panel_plain_words": (
+                forget_module.panel_plain_words(book)
+                if book.entries else ""),
+            "screen": self._forget_quarantine_screen(),
+            "explanation": forget_module.PLAIN_EXPLANATION,
+        }
+
+    def get_forget_entry(self, entry_id: Any):
+        """The one forget entry an id names (M-157).
+
+        The session's held registry answers when the
+        session holds any entry; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). A held session answers
+        for its own book alone: an id the held book
+        holds no entry for raises KeyError, with no
+        silent fall back to the example, exactly as the
+        pure layer answers. Reading registers and
+        publishes nothing.
+        """
+        registry = self._forget_quarantine_registry()
+        if registry.list_entries():
+            return registry.get_entry(entry_id)
+        return self.forget_quarantine_book().entry_for(entry_id)
+
+    def forget_quarantine_panel(self):
+        """The forget panel derived for the whole book (M-157).
+
+        The panel is derived at call time from the
+        session book whole - the held registry's book
+        when the session holds any entry, otherwise the
+        shipped example book's (or the book recorded
+        whole for the session) - so its rows are the
+        entries carried whole, in panel order, and its
+        totals are the entries' own counts, read at
+        call time. Reading registers and publishes
+        nothing.
+        """
+        from ..core.forget_quarantine import (
+            derive_panel as _derive_panel)
+        return _derive_panel(self.forget_quarantine_book())
+
+    def forgotten_memories(self):
+        """The entries standing forgotten (M-157).
+
+        Read off the session book whole at call time:
+        only forgotten entries stand, each with its
+        provenance whole - and each naming its memory
+        by class and reference only. A quarantined or
+        restored entry stands nowhere here. Reading
+        registers and publishes nothing, and deletes
+        nothing from any holding.
+        """
+        from ..core.forget_quarantine import (
+            forgotten_entries as _forgotten)
+        return _forgotten(self.forget_quarantine_book())
+
+    def register_forget_entry(
+            self, entry: Any) -> dict[str, Any]:
+        """Hold one forget entry for the session (M-157).
+
+        The entry is held by the pure registry under
+        its id or the deterministic entry-N id - an
+        entry id already standing here refuses, as does
+        a memory one action already stands for here,
+        and a restored entry naming a memory no
+        quarantined entry held here holds apart; a
+        refusal holds nothing new and publishes nothing.
+        A held entry is published as its
+        ``entry_record`` session-news record through
+        the checkpoint road, so an act of forgetting
+        named into the session is news - by class and
+        reference only, never the thing's content.
+        Returns the held entry, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding an entry calls no model
+        and mutates no live memory: the registry holds
+        the journal as data, provenance whole.
+        """
+        from ..core import forget_quarantine as forget_module
+        registry = self._forget_quarantine_registry()
+        held = registry.register_entry(entry)
+        entry_news = forget_module.entry_record(held)
+        self._publish_forget_record(entry_news)
+        return {
+            "entry": held.to_record(),
+            "entry_news": entry_news,
+            "screen": self._forget_quarantine_screen(),
+            "explanation": forget_module.PLAIN_EXPLANATION,
+        }
+
+    def journal_forgetting_from_session_memory(
+            self, *, action: Any = None, requested_by: Any,
+            acted_on: Any, reason: Any) -> dict[str, Any]:
+        """Journal the forgetting of this session's carried memory (M-157).
+
+        This slice's own road: the session's carried
+        memory (the M-153 session-memory book) is read
+        onto forget entries BY IMPORT through the pure
+        layer's ``entries_from_session_memory`` - every
+        carried note of the book, under one frame (the
+        act, the word it is done on, the day and the
+        class-level reason, all named by the caller) -
+        and each entry is held for the session. Only
+        ids cross the seam: no note's title or detail
+        stands in any entry, record or headline this
+        road publishes. An entry already standing here
+        refuses before anything new is held: the road
+        journals nothing twice. Every entry is
+        published as its ``entry_record`` session news,
+        in book order, and the forget panel derived
+        from the whole held registry as its
+        ``panel_record`` session news. Returns the held
+        entries, their news records, the panel news
+        record, the count, the screen, and the
+        explanation. Journaling calls no model and
+        mutates no live memory - the session's carried
+        memory itself stands exactly as it stood: this
+        road writes the journal, and the holding's own
+        road is where a thing itself is dropped.
+        """
+        from ..core import forget_quarantine as forget_module
+        entries = forget_module.entries_from_session_memory(
+            self.session_memory_book(), action=action,
+            requested_by=requested_by, acted_on=acted_on,
+            reason=reason)
+        if not entries:
+            raise ValueError(
+                "the session's memory holds no carried "
+                "memory to journal")
+        registry = self._forget_quarantine_registry()
+        held_keys = {
+            (item.action, item.memory_class, item.memory_ref)
+            for item in registry.list_entries()}
+        for entry in entries:
+            key = (entry.action, entry.memory_class, entry.memory_ref)
+            if key in held_keys:
+                raise ValueError(
+                    f"the {entry.memory_class} memory "
+                    f"{entry.memory_ref!r} already stands "
+                    f"{entry.action} in this book")
+        entry_news = []
+        for entry in entries:
+            held_entry = registry.register_entry(entry)
+            news = forget_module.entry_record(held_entry)
+            self._publish_forget_record(news)
+            entry_news.append(news)
+        panel = forget_module.derive_panel(registry)
+        panel_news = forget_module.panel_record(panel)
+        self._publish_forget_record(panel_news)
+        return {
+            "entries": [item.to_record() for item in entries],
+            "entries_news": entry_news,
+            "panel_record": panel_news,
+            "count": len(entry_news),
+            "screen": self._forget_quarantine_screen(),
+            "explanation": forget_module.PLAIN_EXPLANATION,
+        }
+
+    def register_forget_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole forget book for the session (M-157).
+
+        Every entry of the book is held by the pure
+        registry, in book order - the first book held
+        sets the registry's title, a later book under a
+        different title refuses, as does a book naming
+        a held entry id. The book's panels are
+        derivations, not holdings, and are not held.
+        Every entry is published as its ``entry_record``
+        session news, in book order, and the forget
+        panel derived from the whole book as its
+        ``panel_record`` session news. Returns the held
+        book, its entries, their news records, the panel
+        news record, the count of entries held, the
+        screen, and the explanation. Registering calls
+        no model and mutates no live memory.
+        """
+        from ..core import forget_quarantine as forget_module
+        validated = forget_module.build_book(book)
+        registry = self._forget_quarantine_registry()
+        registry.register_book(validated)
+        entries = [
+            forget_module.entry_record(entry)
+            for entry in validated.entries]
+        for entry_news in entries:
+            self._publish_forget_record(entry_news)
+        panel_news = forget_module.panel_record(
+            forget_module.derive_panel(validated))
+        self._publish_forget_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "entries": [
+                item.to_record() for item in validated.entries],
+            "entries_news": entries,
+            "panel_record": panel_news,
+            "count": len(entries),
+            "screen": self._forget_quarantine_screen(),
+            "explanation": forget_module.PLAIN_EXPLANATION,
+        }
+
+    def record_forget_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole forget book for the session (M-157).
+
+        With no book named, the shipped example forget
+        book is recorded through the pure layer - four
+        entries at the M-156 slice boundary, two
+        forgotten, one quarantined and one restored,
+        with its one pinned panel. A book loaded from a
+        file (the pure layer's
+        ``load_forget_quarantine_file`` road) may be
+        passed instead, so a real forget book is
+        recorded as it stands. Every entry is held and
+        published as its ``entry_record`` session news,
+        in book order, and the forget panel as its
+        ``panel_record`` session news; the book is
+        remembered whole as the session's - its held
+        panel and all - and the same book recorded
+        twice refuses - fingerprinted on its entry ids
+        and title - a book is recorded once, never
+        duplicated into the session. Returns the held
+        book, its entries, their news records, the
+        panel news record, the count, the screen, and
+        the explanation. Recording calls no model.
+        """
+        from ..core import forget_quarantine as forget_module
+        book = book if book is not None \
+            else forget_module.load_forget_quarantine()
+        validated = forget_module.build_book(book)
+        fingerprint = (tuple(validated.entry_ids()), validated.title)
+        recorded = getattr(self, "_forget_quarantine_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._forget_quarantine_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this forget book is already recorded for "
+                "the session; a book is recorded once")
+        registry = self._forget_quarantine_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._forget_quarantine_held = validated
+        entries = [
+            forget_module.entry_record(entry)
+            for entry in validated.entries]
+        for entry_news in entries:
+            self._publish_forget_record(entry_news)
+        panel_news = forget_module.panel_record(
+            forget_module.derive_panel(validated))
+        self._publish_forget_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "entries": [
+                item.to_record() for item in validated.entries],
+            "entries_news": entries,
+            "panel_record": panel_news,
+            "count": len(entries),
+            "screen": forget_module.format_forget_quarantine_screen(
+                validated),
+            "explanation": forget_module.PLAIN_EXPLANATION,
+        }
+
+    def report_forget_quarantine(self) -> dict[str, Any]:
+        """Render the session forget book, as a report (M-157).
+
+        The book - the held registry's book when the
+        session holds any entry, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - is rendered through the pure
+        formatters alone: its entries, its forgotten
+        and quarantined standings, its derived panel
+        and its one screen. Rendering registers and
+        publishes nothing, calls no model and mutates
+        no live memory: the agent layer renders the
+        journal as data. Returns the book, its entries
+        and panels as plain records, the derived panel,
+        the rendered entries, forgotten and quarantined
+        lists and panel, the screen, and the plain
+        explanation.
+        """
+        from ..core import forget_quarantine as forget_module
+        book = self.forget_quarantine_book()
+        return {
+            "book": book.to_record(),
+            "entries": [item.to_record() for item in book.entries],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (forget_module.derive_panel(book).to_record()
+                      if book.entries else None),
+            "entries_text": forget_module.format_entries(book),
+            "forgotten_text": forget_module.format_forgotten(book),
+            "quarantined_text": forget_module.format_quarantined(book),
+            "panel_text": forget_module.format_panel(book),
+            "screen": self._forget_quarantine_screen(),
+            "explanation": forget_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_forget_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one forget record as session news (M-157).
+
+        The pure layer's ``entry_record`` and
+        ``panel_record`` are journaled through the same
+        checkpoint road every sibling slice uses, when
+        a session is attached. Each record is announced
+        at most once per shape: an entry under its own
+        entry id, class and reference, and a panel under
+        its whole derived shape (its rows and totals),
+        so a panel grown by a newly held entry announces
+        again as the new figure it is. A foreign record
+        type is never published on this road - and no
+        record on this road carries a forgotten thing's
+        content, by the pure layer's construction.
+        """
+        if record.get("type") == "forget_entry":
+            key = ("forget_entry",
+                   record.get("entry_id"),
+                   record.get("memory_class"),
+                   record.get("memory_ref"))
+        elif record.get("type") == "forget_panel":
+            key = ("forget_panel", record.get("panel_id"),
+                   tuple(row.get("entry_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_items"))
+        else:
+            return
+        announced = getattr(self, "_forget_quarantine_announced", None)
+        if announced is None:
+            announced = set()
+            self._forget_quarantine_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
