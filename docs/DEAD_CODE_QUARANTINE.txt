@@ -518,3 +518,14 @@ mythic_agent/core/work_view.py:311:_EXAMPLE_FIRST_EVENT_ID:variable
 mythic_agent/core/work_view.py:1046:row_for:method
 mythic_agent/core/work_view.py:1619:detail_for:method
 mythic_agent/core/work_view.py:1623:latest_event:method
+mythic_agent/agents/llm.py:32202:get_slice_board_base_card:method
+mythic_agent/agents/llm.py:32228:slice_board_cards_in_column:method
+mythic_agent/agents/llm.py:32243:register_slice_board_card:method
+mythic_agent/agents/llm.py:32272:register_slice_board_action:method
+mythic_agent/agents/llm.py:32303:apply_slice_board_action:method
+mythic_agent/agents/llm.py:32373:register_slice_board_board:method
+mythic_agent/agents/llm.py:32426:record_slice_board_board:method
+mythic_agent/agents/llm.py:32494:report_slice_board:method
+mythic_agent/core/slice_board.py:304:_EXAMPLE_FIRST_CARD_ID:variable
+mythic_agent/core/slice_board.py:1354:row_for:method
+mythic_agent/core/slice_board.py:2063:latest_action:method
