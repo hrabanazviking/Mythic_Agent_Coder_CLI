@@ -453,3 +453,15 @@ mythic_agent/core/memory_import_export.py:1282:row_for:method
 mythic_agent/core/memory_import_export.py:1774:package_for_project:method
 mythic_agent/core/memory_import_export.py:2021:package_for_project:method
 mythic_agent/core/memory_import_export.py:2030:latest_package:method
+mythic_agent/agents/llm.py:29165:subconscious_panel:method
+mythic_agent/agents/llm.py:29170:subconscious_verdict:method
+mythic_agent/agents/llm.py:29176:register_subconscious_memory:method
+mythic_agent/agents/llm.py:29206:harvest_subconscious_memories:method
+mythic_agent/agents/llm.py:29292:reearn_subconscious_memory:method
+mythic_agent/agents/llm.py:29327:register_subconscious_book:method
+mythic_agent/agents/llm.py:29373:record_subconscious_book:method
+mythic_agent/agents/llm.py:29433:report_subconscious:method
+mythic_agent/core/subconscious_v2.py:1548:row_for:method
+mythic_agent/core/subconscious_v2.py:2042:memory_for_source:method
+mythic_agent/core/subconscious_v2.py:2330:memory_for_source:method
+mythic_agent/core/subconscious_v2.py:2341:latest_memory:method
