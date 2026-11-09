@@ -601,3 +601,16 @@ mythic_agent/agents/llm.py:36510:record_voice_in_out_book:method
 mythic_agent/agents/llm.py:36596:report_voice_in_out:method
 mythic_agent/core/voice_in_out.py:1853:row_for:method
 mythic_agent/core/voice_in_out.py:2691:latest_view:method
+mythic_agent/agents/llm.py:36944:notifications_manners_with_kind:method
+mythic_agent/agents/llm.py:36950:notifications_manners_passing:method
+mythic_agent/agents/llm.py:36993:register_job_notice:method
+mythic_agent/agents/llm.py:37023:register_channel_notice:method
+mythic_agent/agents/llm.py:37052:register_manners_rule:method
+mythic_agent/agents/llm.py:37080:register_notifications_view:method
+mythic_agent/agents/llm.py:37109:view_notifications_manners:method
+mythic_agent/agents/llm.py:37172:register_notifications_manners_book:method
+mythic_agent/agents/llm.py:37226:record_notifications_manners_book:method
+mythic_agent/agents/llm.py:37309:report_notifications_manners:method
+mythic_agent/agents/llm.py:37351:announce_notifications:method
+mythic_agent/core/notifications_manners.py:2118:row_for:method
+mythic_agent/core/notifications_manners.py:2949:latest_view:method

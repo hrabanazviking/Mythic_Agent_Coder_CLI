@@ -1123,7 +1123,7 @@ slices:
   title: Notifications with manners
   summary: long jobs announce completion (terminal bell/OS notification, once), failures announce once
     with the one action that matters; silence is the default posture.
-  status: queued
+  status: done
 - id: M-182
   part: 8
   title: The plain-language skin
