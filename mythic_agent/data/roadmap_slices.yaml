@@ -1087,7 +1087,7 @@ slices:
   part: 8
   title: The fuzzy everything picker
   summary: files, symbols, commands, sessions, models, themes — one fuzzy finder grammar everywhere.
-  status: queued
+  status: done
 - id: M-176
   part: 8
   title: Slash-command palace
