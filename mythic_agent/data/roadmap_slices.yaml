@@ -1018,7 +1018,7 @@ slices:
   title: Handoff summaries
   summary: ending a session writes "where things stand" for the next session or the next human — the stand-up
     (M-134) in durable form.
-  status: queued
+  status: done
 - id: M-164
   part: 7
   title: Memory import/export
