@@ -1070,7 +1070,7 @@ slices:
   title: Streaming work view
   summary: the coder's actions stream as a calm narrative (reading…, editing `auth.py`…, running tests…)
     with tool detail one keystroke away, never in the face.
-  status: queued
+  status: done
 - id: M-173
   part: 8
   title: The Slice Board
