@@ -1,0 +1,142 @@
+schema: mythic.contradiction_watch/1
+slice: M-166
+part: 7
+part_title: Memory & Context
+canon_note: 'Contradiction watch: when new evidence contradicts a stored memory, the newer
+  truth wins visibly - the map shows the correction. A watch stands over one stored memory,
+  named by the kind of holding it stands in (the project memory map, session memory, cross-project
+  memory, the self-improving ledger, crew memory, the subconscious v2, a vector record, or
+  a memory held by hand) and the shipped piece''s id alone - the piece''s own words never
+  cross into the watch; the stored claim stands in the watcher''s own words, recorded when
+  the watch is raised. The newer evidence stands whole beside it: what it says, where it was
+  read from, and the day the contradiction was found, with who recorded the watch and the
+  session it was raised in. The winner is derived, never chosen: the evidence wins on every
+  watch, and the correction the map shows is the stored claim struck through by the evidence
+  that replaces it. One stored memory is corrected once in a book, so the correction never
+  forks. The CONTRADICTION PANEL is derived from the whole book: its rows are the watches
+  carried whole, by the day each contradiction was found, then title, then watch id, each
+  showing its correction, and a stored panel that disagrees with its derived shape is refused.
+  The CORRECTION VERDICT is derived for the whole book: correcting while one stored memory
+  stands corrected, contested when two or three stand corrected, and overturned when four
+  or more have been overturned by newer evidence. This file is ONE EXAMPLE BOOK, in the shape
+  a real book file takes: the M-165 slice boundary - four corrections standing over the campaign''s
+  own stored memories at the close of the subconscious v2 day, one over the memory map, one
+  over session memory, one over the subconscious v2 and one over crew memory, with the one
+  panel of the book read as of that day. A real book is a new file in this same shape - it
+  is never this file edited in place. A watch corrects the map only: the stored memory''s
+  own holding is never overwritten, edited or deleted by it. This layer holds corrections
+  as data only: it sends nothing, posts nothing, schedules nothing, calls no model, persists
+  nothing and writes no live memory.'
+guide:
+  title: Contradiction watch at the M-165 slice boundary
+watches:
+- watch_id: watch-verify-on-devices
+  title: verify on his devices, not the VM
+  memory_kind: memory-map
+  memory_ref: map-verify-on-vm
+  stored_claim: campaign slices are verified in VM-local copies of the tree
+  evidence_claim: verification runs on Volmarr's own devices first - purplelongship is the
+    default verify host, and a VM verify copy is only a fallback, reaped at bank
+  evidence_source: the verify-on-devices ruling
+  found_on: '2026-11-05'
+  recorded_by: Volmarr
+  source: contradiction watch
+  origin_session: session-m165-subconscious
+- watch_id: watch-kubuntu-lts
+  title: the new laptop takes the LTS
+  memory_kind: session-note
+  memory_ref: note-kubuntu-version
+  stored_claim: the new laptop takes Kubuntu 25.10
+  evidence_claim: Kubuntu 25.10 reaches end of life on 2026-07-09 - the new laptop takes Kubuntu
+    26.04.1 LTS
+  evidence_source: the Kubuntu release check
+  found_on: '2026-11-09'
+  recorded_by: Volmarr
+  source: contradiction watch
+  origin_session: session-m165-subconscious
+- watch_id: watch-muse-renewal
+  title: the plan renews at eighty
+  memory_kind: subconscious-memory
+  memory_ref: memory-muse-stepdown
+  stored_claim: at the Muse billing end the plan steps down to the $16 tier
+  evidence_claim: at the November 26 billing end the plan renews at $80 for that month; what
+    follows is not yet decided
+  evidence_source: the November 6 voice call
+  found_on: '2026-11-06'
+  recorded_by: Volmarr
+  source: contradiction watch
+  origin_session: session-m165-subconscious
+- watch_id: watch-reap-at-bank
+  title: reap the verify copy at bank
+  memory_kind: crew-fact
+  memory_ref: crew-verify-copies
+  stored_claim: verify copies may be kept just in case, against a rainy day
+  evidence_claim: a verify copy's purpose ends the moment its slice banks - it is reaped in
+    the same step, never kept just in case
+  evidence_source: the reap-at-bank ruling
+  found_on: '2026-11-07'
+  recorded_by: Volmarr
+  source: contradiction watch
+  origin_session: session-m165-subconscious
+panels:
+- panel_id: panel-m165-boundary
+  rows:
+  - watch_id: watch-verify-on-devices
+    title: verify on his devices, not the VM
+    memory_kind: memory-map
+    memory_ref: map-verify-on-vm
+    stored_claim: campaign slices are verified in VM-local copies of the tree
+    evidence_claim: verification runs on Volmarr's own devices first - purplelongship is the
+      default verify host, and a VM verify copy is only a fallback, reaped at bank
+    winner: evidence
+    found_on: '2026-11-05'
+  - watch_id: watch-muse-renewal
+    title: the plan renews at eighty
+    memory_kind: subconscious-memory
+    memory_ref: memory-muse-stepdown
+    stored_claim: at the Muse billing end the plan steps down to the $16 tier
+    evidence_claim: at the November 26 billing end the plan renews at $80 for that month;
+      what follows is not yet decided
+    winner: evidence
+    found_on: '2026-11-06'
+  - watch_id: watch-reap-at-bank
+    title: reap the verify copy at bank
+    memory_kind: crew-fact
+    memory_ref: crew-verify-copies
+    stored_claim: verify copies may be kept just in case, against a rainy day
+    evidence_claim: a verify copy's purpose ends the moment its slice banks - it is reaped
+      in the same step, never kept just in case
+    winner: evidence
+    found_on: '2026-11-07'
+  - watch_id: watch-kubuntu-lts
+    title: the new laptop takes the LTS
+    memory_kind: session-note
+    memory_ref: note-kubuntu-version
+    stored_claim: the new laptop takes Kubuntu 25.10
+    evidence_claim: Kubuntu 25.10 reaches end of life on 2026-07-09 - the new laptop takes
+      Kubuntu 26.04.1 LTS
+    winner: evidence
+    found_on: '2026-11-09'
+  total_watches: 4
+  total_corrected: 4
+  distinct_memories: 4
+  kind_counts:
+  - kind: memory-map
+    items: 1
+  - kind: session-note
+    items: 1
+  - kind: crew-fact
+    items: 1
+  - kind: subconscious-memory
+    items: 1
+  as_of: '2026-11-09'
+  account:
+  - 'The contradiction panel holds 4 watches as of 2026-11-09: 4 corrections shown over 4
+    stored memories: crew-fact 1, memory-map 1, session-note 1, subconscious-memory 1.'
+  - Rows stand by the day the contradiction was found, then title, then watch id, so two panels
+    of one book diff cleanly, line by line.
+  - 'Every row shows its correction: the stored claim and the newer evidence that replaces
+    it, with the evidence named the winner - the newer truth wins visibly, and no stored claim
+    stands beside its contradiction as if both were true.'
+  - 'The panel is read off the book at call time - it is derived, never stored loose - and
+    a watch corrects the map only: no stored memory''s own holding is overwritten by it.'
