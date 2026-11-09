@@ -33102,6 +33102,580 @@ class Agent:
             self._checkpoint(record)
 
 
+    # -- M-175: fuzzy everything picker --
+
+    def _fuzzy_picker_registry(self):
+        """The held fuzzy-picker registry (M-175).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer candidates and search
+        records one by one, beside the session
+        approval-cards registry (M-174) and never in
+        it: the book is one set of things to find. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly
+        one. The attribute is named
+        ``_fuzzy_picker_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_fuzzy_picker_store", None)
+        if registry is None:
+            from ..core.fuzzy_picker import FuzzyPickerRegistry
+            registry = FuzzyPickerRegistry()
+            self._fuzzy_picker_store = registry
+        return registry
+
+    def fuzzy_picker_book(self):
+        """The session's book of picker candidates, as data (M-175).
+
+        The held registry's book when the session
+        holds any candidate - the things the session
+        can actually be searched for (candidates held
+        one by one stand under a session book composed
+        here in the agent layer, so a later whole book
+        recorded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book recorded whole through
+        :meth:`record_fuzzy_picker_book`, or the
+        shipped example book until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.fuzzy_picker import (
+            FuzzyPickerBook, load_fuzzy_picker)
+        registry = self._fuzzy_picker_registry()
+        if registry.list_candidates():
+            try:
+                book = registry.book()
+            except ValueError:
+                return FuzzyPickerBook(
+                    title="Fuzzy Picker",
+                    candidates=registry.list_candidates(),
+                    searches=registry.list_searches())
+            held = getattr(self, "_fuzzy_picker_held", None)
+            if held is not None and held.title == book.title \
+                    and held.candidate_ids() == book.candidate_ids() \
+                    and held.search_ids() == book.search_ids():
+                return held
+            return book
+        book = getattr(self, "_fuzzy_picker_held", None)
+        if book is None:
+            return load_fuzzy_picker()
+        return book
+
+    def _fuzzy_picker_default_search(self, book: Any):
+        """The search a book derives under by default (M-175).
+
+        The search its own stored panel stands under,
+        else its first held search, else None - a book
+        holding candidates but no search yet derives
+        no panel and no verdict, and says so plainly.
+        """
+        for panel in book.panels:
+            if panel.search_id is not None:
+                try:
+                    return book.search_for(panel.search_id)
+                except KeyError:
+                    continue
+        if book.searches:
+            return book.searches[0]
+        return None
+
+    def _fuzzy_picker_screen(self) -> str:
+        """The /fuzzypicker screen for the session's state (M-175)."""
+        from ..core import fuzzy_picker as picker_module
+        registry = self._fuzzy_picker_registry()
+        if not registry.list_candidates():
+            return picker_module.format_fuzzy_picker_screen()
+        book = self.fuzzy_picker_book()
+        if not book.searches:
+            return picker_module.format_book(book)
+        return picker_module.format_fuzzy_picker_screen(book)
+
+    def fuzzy_picker_status(self) -> dict[str, Any]:
+        """The fuzzy-picker account, in plain data (M-175).
+
+        The candidates and search records held this
+        session as plain records, the held book's
+        record (none until a candidate stands held),
+        the session book's candidates and searches as
+        plain records (the shipped example book -
+        eight candidates at the M-174 slice boundary,
+        one per kind and two more besides, with its
+        two searches and its one pinned panel - until
+        candidates are held), its whole-book record,
+        the panel derived from the whole book under
+        its default search and every panel the book
+        holds as plain records, the verdict derived
+        for the whole book, the last candidate in
+        plain words, the panel and the verdict told in
+        plain words, the one screen - rendered from
+        the held book, or from the shipped example
+        book when nothing is held yet - and the plain
+        explanation. A book holding candidates but no
+        search yet derives no panel and no verdict.
+        Reading registers and publishes nothing, sends
+        nothing and schedules nothing: this layer
+        holds findings as data only, and no candidate
+        is opened or executed here. The screen is
+        where the picker is visible.
+        """
+        from ..core import fuzzy_picker as picker_module
+        registry = self._fuzzy_picker_registry()
+        held_candidates = registry.list_candidates()
+        held_searches = registry.list_searches()
+        book = self.fuzzy_picker_book()
+        default = self._fuzzy_picker_default_search(book)
+        latest = book.candidates[-1] if book.candidates else None
+        return {
+            "candidates": [
+                item.to_record() for item in held_candidates],
+            "searches": [
+                item.to_record() for item in held_searches],
+            "book": (book.to_record() if held_candidates else None),
+            "fuzzy_picker": {
+                "title": book.title,
+                "candidates": [
+                    item.to_record() for item in book.candidates],
+                "searches": [
+                    item.to_record() for item in book.searches],
+            },
+            "book_record": picker_module.book_record(book),
+            "panel": (picker_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (picker_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "plain_words": (
+                picker_module.plain_words(latest)
+                if latest is not None else ""),
+            "panel_plain_words": (
+                picker_module.panel_plain_words(book)
+                if default is not None else ""),
+            "verdict_plain_words": (
+                picker_module.verdict_plain_words(book)
+                if default is not None else ""),
+            "screen": self._fuzzy_picker_screen(),
+            "explanation": picker_module.PLAIN_EXPLANATION,
+        }
+
+    def get_fuzzy_candidate(self, candidate_id: Any):
+        """The one picker candidate an id names (M-175).
+
+        The session's held registry answers when the
+        session holds any candidate; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held
+        candidate answers for its own book alone: an
+        id the held book holds no candidate for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._fuzzy_picker_registry()
+        if registry.list_candidates():
+            return registry.get_candidate(candidate_id)
+        return self.fuzzy_picker_book().candidate_for(candidate_id)
+
+    def get_fuzzy_search(self, search_id: Any):
+        """The one search record an id names (M-175).
+
+        The session's held registry answers when the
+        session holds any candidate; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). Reading
+        registers and publishes nothing.
+        """
+        registry = self._fuzzy_picker_registry()
+        if registry.list_candidates():
+            return registry.get_search(search_id)
+        return self.fuzzy_picker_book().search_for(search_id)
+
+    def fuzzy_picker_with_kind(self, kind: Any):
+        """The session book's candidates of one kind (M-175)."""
+        from ..core.fuzzy_picker import (
+            candidates_with_kind as _with_kind)
+        return _with_kind(self.fuzzy_picker_book(), kind)
+
+    def fuzzy_picker_panel(self, search: Any = None):
+        """The panel derived for the whole book (M-175).
+
+        Derived under the named search, or under the
+        book's default search when none is named; a
+        book holding no search at all refuses plainly
+        rather than inventing one.
+        """
+        from ..core.fuzzy_picker import derive_panel as _derive_panel
+        book = self.fuzzy_picker_book()
+        resolved = search if search is not None \
+            else self._fuzzy_picker_default_search(book)
+        if resolved is None:
+            raise ValueError(
+                "no search stands in the book to derive "
+                "a panel under")
+        return _derive_panel(book, resolved)
+
+    def fuzzy_picker_verdict(self, search: Any = None):
+        """The verdict derived for the whole book (M-175).
+
+        Derived under the named search, or under the
+        book's default search when none is named; a
+        book holding no search at all refuses plainly
+        rather than inventing one.
+        """
+        from ..core.fuzzy_picker import (
+            derive_verdict as _derive_verdict)
+        book = self.fuzzy_picker_book()
+        resolved = search if search is not None \
+            else self._fuzzy_picker_default_search(book)
+        if resolved is None:
+            raise ValueError(
+                "no search stands in the book to derive "
+                "a verdict under")
+        return _derive_verdict(book, resolved)
+
+    def register_fuzzy_candidate(
+            self, candidate: Any) -> dict[str, Any]:
+        """Hold one picker candidate for the session (M-175).
+
+        The candidate is held by the pure registry
+        under its candidate id - a candidate id
+        already standing here refuses, and a refusal
+        holds nothing new and publishes nothing. A
+        held candidate is published as its
+        ``candidate_record`` session-news record
+        through the checkpoint road. Returns the held
+        candidate, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a candidate opens
+        nothing and executes nothing: the thing stands
+        on this layer's book, as data, provenance
+        whole, waiting to be found.
+        """
+        from ..core import fuzzy_picker as picker_module
+        registry = self._fuzzy_picker_registry()
+        held = registry.register_candidate(candidate)
+        candidate_news = picker_module.candidate_record(held)
+        self._publish_fuzzy_picker_record(candidate_news)
+        return {
+            "candidate": held.to_record(),
+            "record_news": candidate_news,
+            "screen": self._fuzzy_picker_screen(),
+            "explanation": picker_module.PLAIN_EXPLANATION,
+        }
+
+    def register_fuzzy_search(
+            self, search: Any) -> dict[str, Any]:
+        """Hold one search record for the session (M-175).
+
+        The search is held by the pure registry under
+        its id, or under a fresh search-N id when it
+        names none - a search id or a sequence already
+        standing here refuses, and a refusal holds
+        nothing new and publishes nothing. A held
+        search is published as its ``search_record``
+        session-news record through the checkpoint
+        road. Returns the held search, its news
+        record, the screen rendered after it landed,
+        and the plain explanation. Holding a search
+        only ever looks: it opens nothing the search
+        matches and commits no choice at all.
+        """
+        from ..core import fuzzy_picker as picker_module
+        registry = self._fuzzy_picker_registry()
+        held = registry.register_search(search)
+        search_news = picker_module.search_record(held)
+        self._publish_fuzzy_picker_record(search_news)
+        return {
+            "search": held.to_record(),
+            "record_news": search_news,
+            "screen": self._fuzzy_picker_screen(),
+            "explanation": picker_module.PLAIN_EXPLANATION,
+        }
+
+    def find_fuzzy_search(
+            self, text: Any, *,
+            kind_filter: Any = "all",
+            detail: Any = None,
+            recorded_on: Any = "2026-11-09",
+            actor: Any = "the jarl",
+            source: Any = "fuzzy picker",
+            origin_session: Any = "session-m175",
+            search_id: Any = None) -> dict[str, Any]:
+        """Stand one search on the session's held book (M-175).
+
+        This slice's own finding road: the search
+        record is composed by the pure layer at the
+        next sequence of the session's held book,
+        judged whole, and held by the pure registry; a
+        query with no tokens refuses and holds nothing
+        new. The search is published as its
+        ``search_record`` session news, the panel
+        derived from the whole book as its
+        ``panel_record`` session news, and the verdict
+        derived for the whole book as its
+        ``verdict_record`` session news. Returns the
+        held search, its text, its news records, the
+        screen rendered after it landed and the plain
+        explanation. HONEST BOUNDARY: finding executes
+        nothing and opens nothing - the search moves
+        this book alone, as data, and a search commits
+        no choice at all.
+        """
+        from ..core import fuzzy_picker as picker_module
+        registry = self._fuzzy_picker_registry()
+        held_searches = registry.list_searches()
+        seq = (max(s.seq for s in held_searches) + 1) \
+            if held_searches else 1
+        fields: dict[str, Any] = {
+            "seq": seq, "text": text,
+            "kind_filter": kind_filter,
+            "detail": detail if detail is not None else (
+                f"Find {text!r} in the session's held "
+                "book, composed on the finding road."),
+            "recorded_on": recorded_on,
+            "actor": actor, "source": source,
+            "origin_session": origin_session}
+        if search_id is not None:
+            fields["search_id"] = search_id
+        search = picker_module.build_search(fields)
+        held = registry.register_search(search)
+        search_news = picker_module.search_record(held)
+        self._publish_fuzzy_picker_record(search_news)
+        book = self.fuzzy_picker_book()
+        panel_news = picker_module.panel_record(
+            picker_module.derive_panel(book, held))
+        self._publish_fuzzy_picker_record(panel_news)
+        verdict_news = picker_module.verdict_record(
+            picker_module.derive_verdict(book, held))
+        self._publish_fuzzy_picker_record(verdict_news)
+        return {
+            "search": held.to_record(),
+            "text": held.text,
+            "record_news": search_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._fuzzy_picker_screen(),
+            "explanation": picker_module.PLAIN_EXPLANATION,
+        }
+
+    def register_fuzzy_picker_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole book of picker candidates (M-175).
+
+        Every candidate and search record of the book
+        is held by the pure registry, in held and
+        recorded order - the book is judged whole, and
+        against the held book, before anything is
+        held, so a refusal holds nothing new. The
+        first book held sets the registry's title, a
+        later book under a different title refuses, as
+        does a book naming a held candidate id, search
+        id or sequence. The book's panels are
+        derivations, not holdings, and are not held.
+        Every candidate is published as its
+        ``candidate_record`` session news and every
+        search as its ``search_record`` session news,
+        in order. Returns the held book, its
+        candidates and searches, their news records,
+        the count of candidates held, the screen, and
+        the explanation. Registering opens nothing
+        and executes nothing.
+        """
+        from ..core import fuzzy_picker as picker_module
+        validated = picker_module.build_book(book)
+        registry = self._fuzzy_picker_registry()
+        registry.register_book(validated)
+        records = [
+            picker_module.candidate_record(candidate)
+            for candidate in validated.candidates]
+        records += [
+            picker_module.search_record(search)
+            for search in validated.searches]
+        for news in records:
+            self._publish_fuzzy_picker_record(news)
+        return {
+            "book": validated.to_record(),
+            "candidates": [
+                item.to_record() for item in validated.candidates],
+            "searches": [
+                item.to_record() for item in validated.searches],
+            "records_news": records,
+            "count": len(validated.candidates),
+            "screen": self._fuzzy_picker_screen(),
+            "explanation": picker_module.PLAIN_EXPLANATION,
+        }
+
+    def record_fuzzy_picker_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole book of picker candidates (M-175).
+
+        With no book named, the shipped example book
+        is recorded through the pure layer - eight
+        candidates at the M-174 slice boundary, with
+        its two searches and its one pinned panel. A
+        book loaded from a file (the pure layer's
+        ``load_fuzzy_picker_file`` road) may be passed
+        instead. The book is judged whole before
+        anything is held. Every candidate and search
+        is held and published as its session news, in
+        order, and the panel derived under the book's
+        default search as its ``panel_record`` session
+        news; the book is remembered whole as the
+        session's - its held panel and all - and the
+        same book recorded twice refuses -
+        fingerprinted on its candidate ids, search ids
+        and title. Returns the held book, its
+        candidates and searches, their news records,
+        the panel news record, the count, the screen,
+        and the explanation. Recording opens nothing
+        and executes nothing.
+        """
+        from ..core import fuzzy_picker as picker_module
+        book = book if book is not None \
+            else picker_module.load_fuzzy_picker()
+        validated = picker_module.build_book(book)
+        fingerprint = (tuple(validated.candidate_ids()),
+                       tuple(validated.search_ids()),
+                       validated.title)
+        recorded = getattr(self, "_fuzzy_picker_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._fuzzy_picker_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this book of picker candidates is already "
+                "recorded for the session; a book is "
+                "recorded once")
+        registry = self._fuzzy_picker_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._fuzzy_picker_held = validated
+        records = [
+            picker_module.candidate_record(candidate)
+            for candidate in validated.candidates]
+        records += [
+            picker_module.search_record(search)
+            for search in validated.searches]
+        for news in records:
+            self._publish_fuzzy_picker_record(news)
+        panel_news = picker_module.panel_record(
+            picker_module.derive_panel(
+                validated,
+                self._fuzzy_picker_default_search(validated)),
+            validated)
+        self._publish_fuzzy_picker_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "candidates": [
+                item.to_record() for item in validated.candidates],
+            "searches": [
+                item.to_record() for item in validated.searches],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(validated.candidates),
+            "screen": picker_module.format_fuzzy_picker_screen(
+                validated),
+            "explanation": picker_module.PLAIN_EXPLANATION,
+        }
+
+    def report_fuzzy_picker(self) -> dict[str, Any]:
+        """Render the session fuzzy picker, as a report (M-175).
+
+        The book - the held registry's book when the
+        session holds any candidate, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone. Rendering registers
+        and publishes nothing and reads no file.
+        Returns the book, its candidates, searches and
+        panels as plain records, the derived panel and
+        verdict (none while the book holds no search),
+        the rendered book, panel and verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import fuzzy_picker as picker_module
+        book = self.fuzzy_picker_book()
+        default = self._fuzzy_picker_default_search(book)
+        return {
+            "book": book.to_record(),
+            "candidates": [
+                item.to_record() for item in book.candidates],
+            "searches": [
+                item.to_record() for item in book.searches],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (picker_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "verdict": (picker_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "book_text": picker_module.format_book(book),
+            "panel_text": (picker_module.format_panel(book)
+                           if default is not None else ""),
+            "verdict_text": (picker_module.format_verdict(book)
+                             if default is not None else ""),
+            "screen": self._fuzzy_picker_screen(),
+            "explanation": picker_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_fuzzy_picker_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one fuzzy-picker record as session news (M-175).
+
+        The pure layer's ``candidate_record``,
+        ``search_record``, ``panel_record`` and
+        ``verdict_record`` are journaled through the
+        same checkpoint road every sibling slice uses,
+        when a session is attached. Each record is
+        announced at most once per shape: a candidate
+        under its own candidate id, kind and label, a
+        search under its own search id, sequence, text
+        and kind filter, a panel under its whole
+        derived shape, and a verdict under its word
+        and tallies, so a panel or verdict grown by a
+        newly held candidate or search announces again
+        as the new figure it is. A foreign record type
+        is never published on this road.
+        """
+        if record.get("type") == "fuzzy_picker_candidate":
+            key = ("fuzzy_picker_candidate",
+                   record.get("candidate_id"),
+                   record.get("kind"),
+                   record.get("label"))
+        elif record.get("type") == "fuzzy_picker_search":
+            key = ("fuzzy_picker_search",
+                   record.get("search_id"),
+                   record.get("seq"),
+                   record.get("text"),
+                   record.get("kind_filter"))
+        elif record.get("type") == "fuzzy_picker_panel":
+            key = ("fuzzy_picker_panel", record.get("panel_id"),
+                   record.get("search_id"),
+                   tuple(row.get("candidate_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_matched"))
+        elif record.get("type") == "fuzzy_picker_verdict":
+            key = ("fuzzy_picker_verdict",
+                   record.get("verdict"),
+                   record.get("total_matched"),
+                   record.get("distinct_kinds"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(self, "_fuzzy_picker_announced", None)
+        if announced is None:
+            announced = set()
+            self._fuzzy_picker_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):

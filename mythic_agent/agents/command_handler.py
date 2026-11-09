@@ -377,6 +377,8 @@ class CommandHandler:
                 self._handle_sliceboard(args)
             elif cmd == "/approvalcards":
                 self._handle_approvalcards(args)
+            elif cmd == "/fuzzypicker":
+                self._handle_fuzzypicker(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -6830,6 +6832,102 @@ class CommandHandler:
                 text = format_verdict(primary.approval_cards_book())
             else:
                 text = primary.approval_cards_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_fuzzypicker(self, args: str):
+        """M-175: /fuzzypicker - the fuzzy everything picker.
+
+        ``/fuzzypicker`` shows the fuzzy picker held
+        this session - files, symbols, commands,
+        sessions, models and themes under one fuzzy
+        finder grammar (the shipped example book -
+        eight candidates at the M-174 slice boundary,
+        with its two searches and its one pinned
+        panel - when none is held yet);
+        ``/fuzzypicker candidate <candidate-id>``
+        shows one candidate whole, its kind, source,
+        tags and detail as their own lines;
+        ``/fuzzypicker search <search-id>`` shows one
+        held search record; ``/fuzzypicker find
+        <words>`` runs the grammar on the spot under
+        an ad-hoc search and shows the derived panel;
+        ``/fuzzypicker kind <kind>`` shows the book's
+        candidates of one kind; ``/fuzzypicker panel``
+        shows the panel derived from the whole book
+        under its default search; ``/fuzzypicker
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: candidates and
+        searches are held only when they are given
+        through the agent's register roads, stood on
+        the book on the finding road, or held on the
+        book roads, and every candidate held for the
+        session is journaled as a fuzzy_picker_candidate
+        session event, every search as a
+        fuzzy_picker_search session event, every
+        derived panel as a fuzzy_picker_panel session
+        event and every derived verdict as a
+        fuzzy_picker_verdict session event. This
+        surface opens nothing the picker finds,
+        executes nothing, renders no live UI and banks
+        nothing - a match held here is a finding, never
+        the act of opening the thing found, and a
+        search commits no choice at all.
+        """
+        from ..core.fuzzy_picker import (
+            build_search,
+            format_book,
+            format_candidate,
+            format_panel,
+            format_search,
+            format_verdict,
+            parse_fuzzy_picker_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_fuzzy_picker_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "candidate":
+                text = format_candidate(
+                    primary.get_fuzzy_candidate(target))
+            elif action == "search":
+                text = format_search(
+                    primary.get_fuzzy_search(target))
+            elif action == "find":
+                search = build_search({
+                    "seq": 1, "text": target,
+                    "kind_filter": "all",
+                    "detail": "An on-the-spot search from "
+                              "the /fuzzypicker surface.",
+                    "recorded_on": "2026-11-09",
+                    "actor": "the jarl",
+                    "source": "fuzzy picker",
+                    "origin_session": "session-m175"})
+                text = format_panel(
+                    primary.fuzzy_picker_book(), search)
+            elif action == "kind":
+                text = format_book(
+                    primary.fuzzy_picker_book(), target)
+            elif action == "panel":
+                text = format_panel(primary.fuzzy_picker_book())
+            elif action == "verdict":
+                text = format_verdict(primary.fuzzy_picker_book())
+            else:
+                text = primary.fuzzy_picker_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
