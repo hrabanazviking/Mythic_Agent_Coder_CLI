@@ -29968,6 +29968,460 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _privacy_registry(self):
+        """The held privacy posting registry (M-167).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer postings one by one,
+        beside the session contradiction registry
+        (M-166) and never in it: the privacy book is
+        one book of postings standing over stored
+        memories. It is created on first use, so an
+        agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_privacy_store``, never the method's own
+        name (the M-108 lesson).
+        """
+        registry = getattr(self, "_privacy_store", None)
+        if registry is None:
+            from ..core.private_by_architecture import PrivacyRegistry
+            registry = PrivacyRegistry()
+            self._privacy_store = registry
+        return registry
+
+    def privacy_book(self):
+        """The session's privacy book, as data (M-167).
+
+        The held registry's book when the session
+        holds any posting - the standings the
+        session has actually raised (postings held
+        one by one, before any whole book stands
+        recorded, stand under a session privacy book
+        composed here in the agent layer, so a later
+        whole book recorded under its own title is
+        never refused by a shim title at the
+        registry) - otherwise the book recorded
+        whole through :meth:`record_privacy_book`,
+        or the shipped example privacy book until
+        one is recorded. Reading registers and
+        publishes nothing.
+        """
+        from ..core.private_by_architecture import (
+            PrivacyBook, load_private_by_architecture)
+        registry = self._privacy_registry()
+        if registry.list_postings():
+            try:
+                book = registry.book()
+            except ValueError:
+                return PrivacyBook(
+                    title="Private by architecture",
+                    postings=registry.list_postings())
+            held = getattr(self, "_privacy_held", None)
+            if held is not None and held.title == book.title \
+                    and held.posting_ids() == book.posting_ids():
+                return held
+            return book
+        book = getattr(self, "_privacy_held", None)
+        if book is None:
+            return load_private_by_architecture()
+        return book
+
+    def _privacy_screen(self) -> str:
+        """The /private screen for the session's state (M-167)."""
+        from ..core import private_by_architecture as privacy_module
+        registry = self._privacy_registry()
+        if not registry.list_postings():
+            return privacy_module.format_privacy_screen()
+        return privacy_module.format_privacy_screen(
+            self.privacy_book())
+
+    def privacy_status(self) -> dict[str, Any]:
+        """The privacy book account, in plain data (M-167).
+
+        The postings held this session as plain
+        records, the held book's record (none until
+        a posting stands held), the session privacy
+        book's postings as plain records (the
+        shipped example book - five postings at the
+        M-166 slice boundary, four sealed in their
+        stores and one carried out through the
+        export bridge the user explicitly opened -
+        until postings are held), its whole-book
+        record, the privacy panel derived from the
+        whole book and every panel the book holds as
+        plain records, the privacy verdict derived
+        for the whole book, the latest posting in
+        plain words, the panel and the verdict told
+        in plain words, the one screen - rendered
+        from the held book, or from the shipped
+        example book when nothing is held yet - and
+        the plain explanation. Reading registers and
+        publishes nothing, sends nothing and
+        schedules nothing: this layer holds postings
+        as data only. There is no Part VIII board
+        yet; the screen is where the book is visible.
+        """
+        from ..core import private_by_architecture as privacy_module
+        registry = self._privacy_registry()
+        held_postings = registry.list_postings()
+        book = self.privacy_book()
+        latest = book.postings[-1]
+        return {
+            "postings": [item.to_record() for item in held_postings],
+            "book": (book.to_record() if held_postings else None),
+            "privacy": {
+                "title": book.title,
+                "postings": [item.to_record() for item in book.postings],
+            },
+            "book_record": privacy_module.book_record(book),
+            "panel": (privacy_module.derive_panel(book).to_record()
+                      if book.postings else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (
+                privacy_module.derive_verdict(book).to_record()
+                if book.postings else None),
+            "plain_words": privacy_module.plain_words(latest),
+            "panel_plain_words": (
+                privacy_module.panel_plain_words(book)
+                if book.postings else ""),
+            "verdict_plain_words": (
+                privacy_module.verdict_plain_words(book)
+                if book.postings else ""),
+            "screen": self._privacy_screen(),
+            "explanation": privacy_module.PLAIN_EXPLANATION,
+        }
+
+    def get_privacy_posting(self, posting_id: Any):
+        """The one posting an id names (M-167).
+
+        The session's held registry answers when the
+        session holds any posting; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held
+        posting answers for its own book alone: an
+        id the held book holds no posting for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._privacy_registry()
+        if registry.list_postings():
+            return registry.get_posting(posting_id)
+        return self.privacy_book().posting_for(posting_id)
+
+    def posting_for_memory(self, memory_kind: Any, memory_ref: Any):
+        """The posting standing over one stored memory (M-167).
+
+        The session's held registry answers when the
+        session holds any posting; otherwise the
+        session book answers. A memory no posting
+        stands over raises KeyError. Reading
+        registers and publishes nothing.
+        """
+        registry = self._privacy_registry()
+        if registry.list_postings():
+            return registry.posting_for_memory(memory_kind, memory_ref)
+        return self.privacy_book().posting_for_memory(
+            memory_kind, memory_ref)
+
+    def privacy_panel(self):
+        """The privacy panel derived for the whole book (M-167)."""
+        from ..core.private_by_architecture import derive_panel as _derive_panel
+        return _derive_panel(self.privacy_book())
+
+    def privacy_verdict(self):
+        """The privacy verdict derived for the whole book (M-167)."""
+        from ..core.private_by_architecture import (
+            derive_verdict as _derive_verdict)
+        return _derive_verdict(self.privacy_book())
+
+    def register_privacy_posting(
+            self, posting: Any) -> dict[str, Any]:
+        """Hold one privacy posting for the session (M-167).
+
+        The posting is held by the pure registry
+        under its id or the deterministic posting-N
+        id - a posting id already standing here
+        refuses, as does a posting over a memory
+        already posted here (one posting per
+        memory); a refusal holds nothing new and
+        publishes nothing. A held posting is
+        published as its ``posting_record``
+        session-news record through the checkpoint
+        road. Returns the held posting, its news
+        record, the screen rendered after it landed,
+        and the plain explanation. Holding a posting
+        moves no memory and opens no bridge: the
+        standing stands on this layer's book, as
+        data, provenance whole.
+        """
+        from ..core import private_by_architecture as privacy_module
+        registry = self._privacy_registry()
+        held = registry.register_posting(posting)
+        record_news = privacy_module.posting_record(held)
+        self._publish_privacy_record(record_news)
+        return {
+            "posting": held.to_record(),
+            "record_news": record_news,
+            "screen": self._privacy_screen(),
+            "explanation": privacy_module.PLAIN_EXPLANATION,
+        }
+
+    def post_over_contradiction_watch(
+            self, watch_id: Any, *, home: Any,
+            posted_on: Any, recorded_by: Any,
+            origin_session: Any,
+            source: Any = "private by architecture",
+            title: Any = None, bridge: Any = "none",
+            opened_by: Any = None, opened_on: Any = None,
+            posting_id: Any = None) -> dict[str, Any]:
+        """Raise a posting over one of the session's watches (M-167).
+
+        This slice's own composing road: one watch
+        of the session's contradiction book (M-166)
+        - the held registry's watch when the session
+        holds any, otherwise the shipped example
+        book's (or the recorded book's) - is judged
+        whole by the watch layer's own validation
+        through the pure layer's
+        ``posting_from_contradiction_watch`` road,
+        its id alone crossing as the posting's
+        memory ref, and the raised posting is held
+        and published as its ``posting_record``
+        session news, with the privacy panel derived
+        from the whole held registry as its
+        ``panel_record`` session news and the
+        privacy verdict derived for the whole held
+        registry as its ``verdict_record`` session
+        news. The store and the one bridge the user
+        opened stand named on this road - the
+        watch's own claims never cross. An id no
+        session watch carries raises KeyError, and a
+        memory already posted here refuses, exactly
+        as the pure layers answer. Returns the held
+        posting, its news record, the panel and
+        verdict news records, the screen, and the
+        explanation. Raising the posting moves
+        nothing: the watch stands exactly as it
+        stood, posted on this layer's book only.
+        """
+        from ..core import private_by_architecture as privacy_module
+        watch = self.get_contradiction_watch(watch_id)
+        posting = privacy_module.posting_from_contradiction_watch(
+            watch, home=home, posted_on=posted_on,
+            recorded_by=recorded_by, origin_session=origin_session,
+            source=source, title=title, bridge=bridge,
+            opened_by=opened_by, opened_on=opened_on,
+            posting_id=posting_id)
+        registry = self._privacy_registry()
+        held = registry.register_posting(posting)
+        record_news = privacy_module.posting_record(held)
+        self._publish_privacy_record(record_news)
+        panel_news = privacy_module.panel_record(
+            privacy_module.derive_panel(registry))
+        self._publish_privacy_record(panel_news)
+        verdict_news = privacy_module.verdict_record(
+            privacy_module.derive_verdict(registry))
+        self._publish_privacy_record(verdict_news)
+        return {
+            "posting": held.to_record(),
+            "record_news": record_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._privacy_screen(),
+            "explanation": privacy_module.PLAIN_EXPLANATION,
+        }
+
+    def register_privacy_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole privacy book for the session (M-167).
+
+        Every posting of the book is held by the
+        pure registry, in book order - the book is
+        judged whole, and against the held book,
+        before any posting is held, so a refusal
+        holds nothing new. The first book held sets
+        the registry's title, a later book under a
+        different title refuses, as does a book
+        naming a held posting id or a held memory.
+        The book's panels are derivations, not
+        holdings, and are not held. Every posting is
+        published as its ``posting_record`` session
+        news, in book order, and the privacy panel
+        derived from the whole book as its
+        ``panel_record`` session news. Returns the
+        held book, its postings, their news records,
+        the panel news record, the count of postings
+        held, the screen, and the explanation.
+        Registering reads no file and moves no
+        memory.
+        """
+        from ..core import private_by_architecture as privacy_module
+        validated = privacy_module.build_book(book)
+        registry = self._privacy_registry()
+        registry.register_book(validated)
+        records = [
+            privacy_module.posting_record(posting)
+            for posting in validated.postings]
+        for record_news in records:
+            self._publish_privacy_record(record_news)
+        panel_news = privacy_module.panel_record(
+            privacy_module.derive_panel(validated))
+        self._publish_privacy_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "postings": [
+                item.to_record() for item in validated.postings],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": self._privacy_screen(),
+            "explanation": privacy_module.PLAIN_EXPLANATION,
+        }
+
+    def record_privacy_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole privacy book for the session (M-167).
+
+        With no book named, the shipped example
+        privacy book is recorded through the pure
+        layer - five postings at the M-166 slice
+        boundary, with its one pinned panel. A book
+        loaded from a file (the pure layer's
+        ``load_private_by_architecture_file`` road)
+        may be passed instead. The book is judged
+        whole before anything is held. Every posting
+        is held and published as its
+        ``posting_record`` session news, in book
+        order, and the privacy panel as its
+        ``panel_record`` session news; the book is
+        remembered whole as the session's - its held
+        panel and all - and the same book recorded
+        twice refuses - fingerprinted on its posting
+        ids and title. Returns the held book, its
+        postings, their news records, the panel news
+        record, the count, the screen, and the
+        explanation. Recording moves no memory and
+        opens no bridge.
+        """
+        from ..core import private_by_architecture as privacy_module
+        book = book if book is not None \
+            else privacy_module.load_private_by_architecture()
+        validated = privacy_module.build_book(book)
+        fingerprint = (tuple(validated.posting_ids()), validated.title)
+        recorded = getattr(self, "_privacy_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._privacy_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this privacy book is already recorded "
+                "for the session; a book is recorded once")
+        registry = self._privacy_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._privacy_held = validated
+        records = [
+            privacy_module.posting_record(posting)
+            for posting in validated.postings]
+        for record_news in records:
+            self._publish_privacy_record(record_news)
+        panel_news = privacy_module.panel_record(
+            privacy_module.derive_panel(validated))
+        self._publish_privacy_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "postings": [
+                item.to_record() for item in validated.postings],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": privacy_module.format_privacy_screen(validated),
+            "explanation": privacy_module.PLAIN_EXPLANATION,
+        }
+
+    def report_privacy(self) -> dict[str, Any]:
+        """Render the session privacy book, as a report (M-167).
+
+        The book - the held registry's book when the
+        session holds any posting, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone. Rendering
+        registers and publishes nothing and reads no
+        file. Returns the book, its postings and
+        panels as plain records, the derived panel
+        and privacy verdict, the rendered postings,
+        panel and verdict, the screen, and the plain
+        explanation.
+        """
+        from ..core import private_by_architecture as privacy_module
+        book = self.privacy_book()
+        return {
+            "book": book.to_record(),
+            "postings": [item.to_record() for item in book.postings],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (privacy_module.derive_panel(book).to_record()
+                      if book.postings else None),
+            "verdict": (
+                privacy_module.derive_verdict(book).to_record()
+                if book.postings else None),
+            "postings_text": privacy_module.format_postings(book),
+            "panel_text": privacy_module.format_panel(book),
+            "verdict_text": privacy_module.format_verdict(book),
+            "screen": self._privacy_screen(),
+            "explanation": privacy_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_privacy_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one privacy record as session news (M-167).
+
+        The pure layer's ``posting_record``,
+        ``panel_record`` and ``verdict_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once per shape: a posting under its own
+        posting id, memory and posted day, a panel
+        under its whole derived shape, and a verdict
+        under its word and tallies, so a panel or
+        verdict grown by a newly held posting
+        announces again as the new figure it is. A
+        foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "private_by_architecture_posting":
+            key = ("private_by_architecture_posting",
+                   record.get("posting_id"),
+                   record.get("memory_kind"),
+                   record.get("memory_ref"),
+                   record.get("posted_on"))
+        elif record.get("type") == "private_by_architecture_panel":
+            key = ("private_by_architecture_panel", record.get("panel_id"),
+                   record.get("as_of"),
+                   tuple(row.get("posting_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_postings"))
+        elif record.get("type") == "private_by_architecture_verdict":
+            key = ("private_by_architecture_verdict",
+                   record.get("verdict"),
+                   record.get("total_postings"),
+                   record.get("distinct_memories"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(self, "_privacy_announced", None)
+        if announced is None:
+            announced = set()
+            self._privacy_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
