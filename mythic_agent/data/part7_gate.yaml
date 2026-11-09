@@ -1,0 +1,301 @@
+schema: mythic.part7_gate/1
+gate_slice: M-170
+part: 7
+part_title: Memory & Context
+verdict: PASS
+gate_note: |
+  The Part VII gate: a week-old benchmark session resumed - the coder
+  states the situation correctly from memory alone, then finishes the
+  task; compaction glass-box verified mid-run. The exercise is the
+  resumed benchmark itself: a benchmark session recorded on
+  2026-11-02 and resumed on 2026-11-09, exactly seven days later,
+  holding its whole situation as the shipped M-153 session-memory
+  shape (three carried memory-map facts, two pieces of open roadmap
+  work, two standing decisions, and a transcript of 58 messages
+  counted, never carried). The coder's resumed statement stands claim
+  by claim beside the recorded truth - seven claims over seven
+  carried pieces, every stated word equal to its truth, every truth
+  cross-checked against the situation piece itself. The mid-run
+  compaction stands as the shipped M-151 glass-box shape: three
+  replaced pieces kept whole, the summary standing as two versions
+  (the compaction's own and the mid-run edit), verified at the
+  mid-run stage. The resume began from the week-old handoff the
+  session ended with, standing over the situation by its references
+  alone. The task then finished: its grading line closed at twelve
+  of twelve tests passed, from nine at the pause. Every step is
+  re-proven live by the gate tests on every run through the shipped
+  pure roads (M-153 build_situation and derive_panel, M-151
+  build_record, derive_panel and edit_record, M-163
+  handoff_from_session_situation, and every memory layer M-150 to
+  M-169 standing in its own shipped module under its own slice
+  constant) - no step is faked or stubbed, no live session is
+  resumed, no model is called and no token is spent by the gate
+  itself; the campaign tree is never the exercise repo.
+baseline:
+  resource: m169_confirmation_suite
+  collected: 8434
+  passed: 8431
+  failed: 2
+  skipped: 1
+slices:
+- slice: M-147
+  title: Context budget made visible
+- slice: M-148
+  title: The @-mention canon
+- slice: M-149
+  title: Instruction files unified
+- slice: M-150
+  title: Project Memory Map (Mythic law)
+- slice: M-151
+  title: Compaction v2, glass-box
+- slice: M-152
+  title: Retrieval over the code graph
+- slice: M-153
+  title: Session memory across days
+- slice: M-154
+  title: Cross-project memory
+- slice: M-155
+  title: The Self-Improving ledger
+- slice: M-156
+  title: Decision records
+- slice: M-157
+  title: Forget and quarantine
+- slice: M-158
+  title: Context recipes
+- slice: M-159
+  title: Pinning and protection
+- slice: M-160
+  title: Token thrift
+- slice: M-161
+  title: Long-session endurance
+- slice: M-162
+  title: Multi-session per project
+- slice: M-163
+  title: Handoff summaries
+- slice: M-164
+  title: Memory import/export
+- slice: M-165
+  title: The subconscious v2
+- slice: M-166
+  title: Contradiction watch
+- slice: M-167
+  title: Private by architecture
+- slice: M-168
+  title: Memory Doctor
+- slice: M-169
+  title: Cold-start kindness
+layers:
+- slice: M-150
+  module: project_memory_map
+  constant: PROJECT_MEMORY_MAP_SLICE
+- slice: M-151
+  module: compaction_glassbox
+  constant: COMPACTION_GLASSBOX_SLICE
+- slice: M-152
+  module: graph_retrieval
+  constant: GRAPH_RETRIEVAL_SLICE
+- slice: M-153
+  module: session_memory
+  constant: SESSION_MEMORY_SLICE
+- slice: M-154
+  module: cross_project_memory
+  constant: CROSS_PROJECT_SLICE
+- slice: M-155
+  module: self_improving_ledger
+  constant: SELF_IMPROVING_SLICE
+- slice: M-156
+  module: decision_records
+  constant: DECISION_RECORDS_SLICE
+- slice: M-157
+  module: forget_quarantine
+  constant: FORGET_QUARANTINE_SLICE
+- slice: M-158
+  module: context_recipes
+  constant: CONTEXT_RECIPES_SLICE
+- slice: M-159
+  module: pinning_protection
+  constant: PINNING_PROTECTION_SLICE
+- slice: M-160
+  module: token_thrift
+  constant: TOKEN_THRIFT_SLICE
+- slice: M-161
+  module: long_session_endurance
+  constant: LONG_SESSION_ENDURANCE_SLICE
+- slice: M-162
+  module: multi_session_projects
+  constant: MULTI_SESSION_PROJECTS_SLICE
+- slice: M-163
+  module: handoff_summaries
+  constant: HANDOFF_SUMMARIES_SLICE
+- slice: M-164
+  module: memory_import_export
+  constant: MEMORY_IMPORT_EXPORT_SLICE
+- slice: M-165
+  module: subconscious_v2
+  constant: SUBCONSCIOUS_V2_SLICE
+- slice: M-166
+  module: contradiction_watch
+  constant: CONTRADICTION_WATCH_SLICE
+- slice: M-167
+  module: private_by_architecture
+  constant: PRIVATE_BY_ARCHITECTURE_SLICE
+- slice: M-168
+  module: memory_doctor
+  constant: MEMORY_DOCTOR_SLICE
+- slice: M-169
+  module: cold_start
+  constant: COLD_START_SLICE
+exercises:
+- id: resumed_benchmark
+  title: A week-old benchmark session resumed and finished
+  owning_slices:
+  - M-151
+  - M-153
+  - M-163
+  status: completed
+  evidence_kind: pure-roads-measured
+  evidence: "Every step rides a real shipped pure road at the data level: the recorded situation builds whole through M-153 build_situation and its derived panel is exactly the pieces the statement claims; the compaction builds whole through M-151 build_record, its panel closes on the record's own counts, and edit_record appends the mid-run version without rewriting the first; the week-old handoff stands over the situation through M-163 handoff_from_session_situation by its references alone; and every memory layer M-150 to M-169 stands in its own shipped module under its own slice constant. No live session is resumed, no model is called and no token is spent by the gate itself."
+  recorded_on: "2026-11-02"
+  resumed_on: "2026-11-09"
+  situation:
+    situation_id: situation-benchmark-week
+    session_ref: session-benchmark-resume
+    workspace: "purplelongship:/home/volmarr/mythic-hammer/benchmark-workspace"
+    title: "The benchmark session paused mid-task"
+    saved_on: "2026-11-02"
+    status: interrupted
+    transcript_messages: 58
+    memory:
+    - note_id: note-benchmark-harness
+      section: architecture
+      title: "The benchmark harness"
+      detail: "The benchmark harness runs the resumed task in an isolated workspace and grades it by the task's own test line, never by hand."
+      source: "benchmark brief"
+      ref: benchmarks/resumed_task/
+    - note_id: note-week-gap
+      section: gotcha
+      title: "A week changes the tree"
+      detail: "Seven days pass between the recording and the resume, so the situation is stated from the carried memory alone and the transcript is never replayed."
+      source: "benchmark brief"
+      ref: benchmarks/resumed_task/
+    - note_id: note-benchmark-home
+      section: location
+      title: "Where the benchmark lives"
+      detail: "The benchmark session lives in its own workspace under the mythic-hammer campaign home on purplelongship."
+      source: WAVE_PLAN.md
+      ref: /home/volmarr/mythic-hammer
+    open_work:
+    - slice_id: M-168
+      title: Memory Doctor
+      state: open
+      note: "The memory doctor's three checks are designed and owed; the slice builds in roadmap order before the cold-start slice."
+    - slice_id: M-169
+      title: Cold-start kindness
+      state: in-progress
+      note: "The cold-start opening record shape is settled; its pure layer is building and its agent layer is owed."
+    decisions:
+    - decision_id: decision-bank-in-order
+      title: "Banking stays in roadmap order"
+      decision: "Slices bank only in roadmap order, and a gate banks only when its exercise closes whole."
+      source: WAVE_PLAN.md
+    - decision_id: decision-no-docker
+      title: "No Docker, ever"
+      decision: "Nothing is installed or run through Docker on any of Volmarr's machines; native installs only."
+      source: "standing law"
+    total_memory: 3
+    total_slices: 2
+    total_decisions: 2
+  compaction:
+    record_id: compact-benchmark-midrun
+    title: "The benchmark session compacted mid-run"
+    source: context-summarizer
+    journal_ref: journal/benchmark-session#18
+    journal_position: 18
+    replaced:
+    - "user: State the task and open the benchmark workspace."
+    - "assistant: The task is stated and the benchmark workspace stands open."
+    - "user: Run the grading line once and report where it stands."
+    summary_versions:
+    - "The benchmark session stands paused mid-task: the harness is named, the tree is read, and the grading line stands at nine of twelve."
+    - "The benchmark session stands paused mid-task: the harness is named, the tree is read, and the grading line stands at nine of twelve, with the three failing tests named in the journal beside this record."
+    replaced_count: 3
+    version_count: 2
+    verified_stage: mid-run
+  handoff:
+    title: "The week-old benchmark handoff"
+    session_ref: session-benchmark-resume
+    project: mythic-hammer
+    branch: benchmark/resumed-task
+    done:
+    - note-benchmark-harness
+    doing:
+    - M-169
+    blocked:
+    - M-168
+    needs_you: []
+    evidence_refs:
+    - note-benchmark-harness
+    - note-week-gap
+    - note-benchmark-home
+    - M-168
+    - M-169
+    - decision-bank-in-order
+    - decision-no-docker
+    written_by: benchmark-keeper
+    written_on: "2026-11-02"
+    source: session memory
+  grading:
+    task: "The resumed benchmark task: state the situation from memory alone, then finish the paused work in the benchmark workspace."
+    total: 12
+    at_pause: 9
+    passed: 12
+  statement:
+  - kind: memory
+    item_id: note-benchmark-harness
+    title: "The benchmark harness"
+    stated: "The benchmark harness runs the resumed task in an isolated workspace and grades it\
+  \ by the task's own test line, never by hand."
+    truth: "The benchmark harness runs the resumed task in an isolated workspace and grades it\
+  \ by the task's own test line, never by hand."
+  - kind: memory
+    item_id: note-week-gap
+    title: "A week changes the tree"
+    stated: "Seven days pass between the recording and the resume, so the situation is stated\
+  \ from the carried memory alone and the transcript is never replayed."
+    truth: "Seven days pass between the recording and the resume, so the situation is stated\
+  \ from the carried memory alone and the transcript is never replayed."
+  - kind: memory
+    item_id: note-benchmark-home
+    title: "Where the benchmark lives"
+    stated: "The benchmark session lives in its own workspace under the mythic-hammer campaign\
+  \ home on purplelongship."
+    truth: "The benchmark session lives in its own workspace under the mythic-hammer campaign\
+  \ home on purplelongship."
+  - kind: slice
+    item_id: M-168
+    title: "Memory Doctor"
+    stated: "The memory doctor's three checks are designed and owed; the slice builds in roadmap\
+  \ order before the cold-start slice."
+    truth: "The memory doctor's three checks are designed and owed; the slice builds in roadmap\
+  \ order before the cold-start slice."
+  - kind: slice
+    item_id: M-169
+    title: "Cold-start kindness"
+    stated: "The cold-start opening record shape is settled; its pure layer is building and its\
+  \ agent layer is owed."
+    truth: "The cold-start opening record shape is settled; its pure layer is building and its\
+  \ agent layer is owed."
+  - kind: decision
+    item_id: decision-bank-in-order
+    title: "Banking stays in roadmap order"
+    stated: "Slices bank only in roadmap order, and a gate banks only when its exercise closes\
+  \ whole."
+    truth: "Slices bank only in roadmap order, and a gate banks only when its exercise closes\
+  \ whole."
+  - kind: decision
+    item_id: decision-no-docker
+    title: "No Docker, ever"
+    stated: "Nothing is installed or run through Docker on any of Volmarr's machines; native installs\
+  \ only."
+    truth: "Nothing is installed or run through Docker on any of Volmarr's machines; native installs\
+  \ only."
