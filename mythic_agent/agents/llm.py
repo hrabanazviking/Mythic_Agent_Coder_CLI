@@ -36703,6 +36703,763 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _notifications_manners_registry(self):
+        """The held notifications-manners registry (M-181).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer job, channel, rule
+        and view records one by one, beside the
+        session voice-in-and-out registry (M-180)
+        and never in it: the book is one manners book
+        to look at. It is created on first use, so
+        an agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_notifications_manners_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_notifications_manners_store", None)
+        if registry is None:
+            from ..core.notifications_manners import NoticeRegistry
+            registry = NoticeRegistry()
+            self._notifications_manners_store = registry
+        return registry
+
+    def notifications_manners_book(self):
+        """The session's book of notifications manners, as data (M-181).
+
+        The held registry's book when the session
+        holds any item - the things the session can
+        actually be viewed for (items held one by
+        one stand under a session book composed here
+        in the agent layer, so a later whole book
+        recorded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book recorded whole through
+        :meth:`record_notifications_manners_book`, or
+        the shipped example book until one is
+        recorded. Reading registers and publishes
+        nothing.
+        """
+        from ..core.notifications_manners import (
+            NoticeBook, load_notifications_manners)
+        registry = self._notifications_manners_registry()
+        if registry.list_items():
+            try:
+                book = registry.book()
+            except ValueError:
+                return NoticeBook(
+                    title="Notifications with Manners",
+                    jobs=registry.list_jobs(),
+                    channels=registry.list_channels(),
+                    rules=registry.list_rules(),
+                    views=registry.list_views())
+            held = getattr(self, "_notifications_manners_held", None)
+            if held is not None and held.title == book.title \
+                    and held.job_ids() == book.job_ids() \
+                    and held.channel_ids() == book.channel_ids() \
+                    and held.rule_ids() == book.rule_ids() \
+                    and held.view_ids() == book.view_ids():
+                return held
+            return book
+        book = getattr(self, "_notifications_manners_held", None)
+        if book is None:
+            return load_notifications_manners()
+        return book
+
+    def _notifications_manners_default_view(self, book: Any):
+        """The view a book derives under by default (M-181).
+
+        The view its own stored panel stands under,
+        else its first held view, else None - a book
+        holding items but no view yet derives no
+        panel and no verdict, and says so plainly.
+        """
+        for panel in book.panels:
+            if panel.view_id is not None:
+                try:
+                    return book.view_for(panel.view_id)
+                except KeyError:
+                    continue
+        if book.views:
+            return book.views[0]
+        return None
+
+    def _notifications_manners_screen(self) -> str:
+        """The /manners screen for the session's state (M-181)."""
+        from ..core import notifications_manners as manners_module
+        registry = self._notifications_manners_registry()
+        if not registry.list_items():
+            return manners_module.format_notifications_manners_screen()
+        book = self.notifications_manners_book()
+        if not book.views:
+            return manners_module.format_book(book)
+        return manners_module.format_notifications_manners_screen(book)
+
+    def notifications_manners_status(self) -> dict[str, Any]:
+        """The notifications-manners account, in plain data (M-181).
+
+        The job, channel, rule and view records held
+        this session as plain records, the held
+        book's record (none until an item stands
+        held), the session book's items and views as
+        plain records (the shipped example book -
+        seven items at the M-180 slice boundary,
+        three jobs, two channels and two rules, with
+        its two views and its one pinned panel -
+        until items are held), its whole-book record,
+        the panel derived from the whole book under
+        its default view and every panel the book
+        holds as plain records, the verdict derived
+        for the whole book, the announcements that
+        stand due for the book under the session's
+        announced-key ledger, the last item in plain
+        words, the panel and the verdict told in
+        plain words, the one screen - rendered from
+        the held book, or from the shipped example
+        book when nothing is held yet - and the
+        plain explanation. A book holding items but
+        no view yet derives no panel and no verdict.
+        Reading registers and publishes nothing,
+        rings nothing and posts nothing: this layer
+        holds manners as data only, and the screen
+        is where the book is visible.
+        """
+        from ..core import notifications_manners as manners_module
+        registry = self._notifications_manners_registry()
+        held_jobs = registry.list_jobs()
+        held_channels = registry.list_channels()
+        held_rules = registry.list_rules()
+        held_views = registry.list_views()
+        held_items = registry.list_items()
+        book = self.notifications_manners_book()
+        default = self._notifications_manners_default_view(book)
+        latest = book.items()[-1] if book.items() else None
+        if latest is None:
+            latest_words = ""
+        elif latest.kind == "job":
+            latest_words = manners_module.plain_words(latest)
+        elif latest.kind == "channel":
+            latest_words = manners_module.channel_plain_words(latest)
+        else:
+            latest_words = manners_module.rule_plain_words(latest)
+        announced = getattr(
+            self, "_notifications_manners_announced_keys", None)
+        return {
+            "jobs": [item.to_record() for item in held_jobs],
+            "channels": [item.to_record() for item in held_channels],
+            "rules": [item.to_record() for item in held_rules],
+            "views": [item.to_record() for item in held_views],
+            "book": (book.to_record() if held_items else None),
+            "notifications_manners": {
+                "title": book.title,
+                "jobs": [item.to_record() for item in book.jobs],
+                "channels": [
+                    item.to_record() for item in book.channels],
+                "rules": [item.to_record() for item in book.rules],
+                "views": [item.to_record() for item in book.views],
+            },
+            "book_record": manners_module.book_record(book),
+            "panel": (manners_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (manners_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "due": [a.to_record() for a in
+                    manners_module.due_announcements(
+                        book, announced or ())],
+            "plain_words": latest_words,
+            "panel_plain_words": (
+                manners_module.panel_plain_words(book)
+                if default is not None else ""),
+            "verdict_plain_words": (
+                manners_module.verdict_plain_words(book)
+                if default is not None else ""),
+            "screen": self._notifications_manners_screen(),
+            "explanation": manners_module.PLAIN_EXPLANATION,
+        }
+
+    def get_job_notice(self, job_id: Any):
+        """The one job an id names (M-181).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held item
+        answers for its own book alone: an id the
+        held book holds no job for raises KeyError,
+        with no silent fall back to the example,
+        exactly as the pure layer answers. Reading
+        registers and publishes nothing.
+        """
+        registry = self._notifications_manners_registry()
+        if registry.list_items():
+            return registry.get_job(job_id)
+        return self.notifications_manners_book().job_for(job_id)
+
+    def get_channel_notice(self, channel_id: Any):
+        """The one channel an id names (M-181).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). Reading
+        registers and publishes nothing.
+        """
+        registry = self._notifications_manners_registry()
+        if registry.list_items():
+            return registry.get_channel(channel_id)
+        return self.notifications_manners_book().channel_for(channel_id)
+
+    def get_manners_rule(self, rule_id: Any):
+        """The one manners rule an id names (M-181).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). Reading
+        registers and publishes nothing.
+        """
+        registry = self._notifications_manners_registry()
+        if registry.list_items():
+            return registry.get_rule(rule_id)
+        return self.notifications_manners_book().rule_for(rule_id)
+
+    def get_notifications_view(self, view_id: Any):
+        """The one view record an id names (M-181).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). Reading
+        registers and publishes nothing.
+        """
+        registry = self._notifications_manners_registry()
+        if registry.list_items():
+            return registry.get_view(view_id)
+        return self.notifications_manners_book().view_for(view_id)
+
+    def notifications_manners_with_kind(self, kind: Any):
+        """The session book's items of one kind (M-181)."""
+        from ..core.notifications_manners import (
+            items_for_kind as _for_kind)
+        return _for_kind(self.notifications_manners_book(), kind)
+
+    def notifications_manners_passing(self):
+        """The session book's items standing whole (M-181)."""
+        from ..core.notifications_manners import (
+            passing_items as _passing)
+        return _passing(self.notifications_manners_book())
+
+    def notifications_manners_panel(self, view: Any = None):
+        """The panel derived for the whole book (M-181).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a
+        book holding no view at all refuses plainly
+        rather than inventing one.
+        """
+        from ..core.notifications_manners import derive_panel as _derive_panel
+        book = self.notifications_manners_book()
+        resolved = view if view is not None \
+            else self._notifications_manners_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive "
+                "a panel under")
+        return _derive_panel(book, resolved)
+
+    def notifications_manners_verdict(self, view: Any = None):
+        """The verdict derived for the whole book (M-181).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a
+        book holding no view at all refuses plainly
+        rather than inventing one.
+        """
+        from ..core.notifications_manners import (
+            derive_verdict as _derive_verdict)
+        book = self.notifications_manners_book()
+        resolved = view if view is not None \
+            else self._notifications_manners_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive "
+                "a verdict under")
+        return _derive_verdict(book, resolved)
+
+    def register_job_notice(
+            self, job: Any) -> dict[str, Any]:
+        """Hold one job notice for the session (M-181).
+
+        The job is held by the pure registry under
+        its job id - a job id or a sequence already
+        standing here refuses, and a refusal holds
+        nothing new and publishes nothing. A held
+        job is published as its ``job_record``
+        session-news record through the checkpoint
+        road. Returns the held job, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding a job announces
+        nothing: the thing stands on this layer's
+        book, as data, provenance whole, waiting to
+        be looked at and to be polled for the
+        announcement it stands due.
+        """
+        from ..core import notifications_manners as manners_module
+        registry = self._notifications_manners_registry()
+        held = registry.register_job(job)
+        news = manners_module.job_record(held)
+        self._publish_notifications_manners_record(news)
+        return {
+            "job": held.to_record(),
+            "record_news": news,
+            "screen": self._notifications_manners_screen(),
+            "explanation": manners_module.PLAIN_EXPLANATION,
+        }
+
+    def register_channel_notice(
+            self, channel: Any) -> dict[str, Any]:
+        """Hold one channel notice for the session (M-181).
+
+        The channel is held by the pure registry
+        under its channel id - a channel id or a
+        sequence already standing here refuses, and
+        a refusal holds nothing new and publishes
+        nothing. A held channel is published as its
+        ``channel_record`` session-news record
+        through the checkpoint road. Returns the
+        held channel, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a channel rings nothing
+        and posts nothing: the road stands on this
+        layer's book, as data, waiting to be judged.
+        """
+        from ..core import notifications_manners as manners_module
+        registry = self._notifications_manners_registry()
+        held = registry.register_channel(channel)
+        news = manners_module.channel_record(held)
+        self._publish_notifications_manners_record(news)
+        return {
+            "channel": held.to_record(),
+            "record_news": news,
+            "screen": self._notifications_manners_screen(),
+            "explanation": manners_module.PLAIN_EXPLANATION,
+        }
+
+    def register_manners_rule(
+            self, rule: Any) -> dict[str, Any]:
+        """Hold one manners rule for the session (M-181).
+
+        The rule is held by the pure registry under
+        its rule id - a rule id, a rule name or a
+        sequence already standing here refuses, and
+        a refusal holds nothing new and publishes
+        nothing. A held rule is published as its
+        ``rule_record`` session-news record through
+        the checkpoint road. Returns the held rule,
+        its news record, the screen rendered after
+        it landed, and the plain explanation. The
+        rule stands judged whole by the pure layer
+        before it is held.
+        """
+        from ..core import notifications_manners as manners_module
+        registry = self._notifications_manners_registry()
+        held = registry.register_rule(rule)
+        news = manners_module.rule_record(held)
+        self._publish_notifications_manners_record(news)
+        return {
+            "rule": held.to_record(),
+            "record_news": news,
+            "screen": self._notifications_manners_screen(),
+            "explanation": manners_module.PLAIN_EXPLANATION,
+        }
+
+    def register_notifications_view(
+            self, view: Any) -> dict[str, Any]:
+        """Hold one view record for the session (M-181).
+
+        The view is held by the pure registry under
+        its id, or under a fresh view-N id when it
+        names none - a view id or a sequence already
+        standing here refuses, and a refusal holds
+        nothing new and publishes nothing. A held
+        view is published as its ``view_record``
+        session-news record through the checkpoint
+        road. Returns the held view, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding a view only ever
+        looks: it announces nothing and delivers
+        nothing.
+        """
+        from ..core import notifications_manners as manners_module
+        registry = self._notifications_manners_registry()
+        held = registry.register_view(view)
+        news = manners_module.view_record(held)
+        self._publish_notifications_manners_record(news)
+        return {
+            "view": held.to_record(),
+            "record_news": news,
+            "screen": self._notifications_manners_screen(),
+            "explanation": manners_module.PLAIN_EXPLANATION,
+        }
+
+    def view_notifications_manners(
+            self, kind_filter: Any, *,
+            detail: Any = None,
+            recorded_on: Any = "2026-11-09",
+            actor: Any = "the jarl",
+            source: Any = "notifications with manners",
+            origin_session: Any = "session-m181",
+            view_id: Any = None) -> dict[str, Any]:
+        """Stand one view on the session's held book (M-181).
+
+        This slice's own viewing road: the view
+        record is composed by the pure layer at the
+        next sequence of the session's held book,
+        judged whole, and held by the pure registry.
+        The view is published as its ``view_record``
+        session news, the panel derived from the
+        whole book as its ``panel_record`` session
+        news, and the verdict derived for the whole
+        book as its ``verdict_record`` session news.
+        Returns the held view, its kind filter, its
+        news records, the screen rendered after it
+        landed and the plain explanation. HONEST
+        BOUNDARY: viewing announces nothing and
+        delivers nothing - the view moves this book
+        alone, as data.
+        """
+        from ..core import notifications_manners as manners_module
+        registry = self._notifications_manners_registry()
+        held_views = registry.list_views()
+        seq = (max(v.seq for v in held_views) + 1) \
+            if held_views else 1
+        fields: dict[str, Any] = {
+            "seq": seq, "kind_filter": kind_filter,
+            "detail": detail if detail is not None else (
+                f"View kind {kind_filter!r} in the "
+                "session's held book, composed on the "
+                "viewing road."),
+            "recorded_on": recorded_on,
+            "actor": actor, "source": source,
+            "origin_session": origin_session}
+        if view_id is not None:
+            fields["view_id"] = view_id
+        view = manners_module.build_view(fields)
+        held = registry.register_view(view)
+        view_news = manners_module.view_record(held)
+        self._publish_notifications_manners_record(view_news)
+        book = self.notifications_manners_book()
+        panel_news = manners_module.panel_record(
+            manners_module.derive_panel(book, held))
+        self._publish_notifications_manners_record(panel_news)
+        verdict_news = manners_module.verdict_record(
+            manners_module.derive_verdict(book, held))
+        self._publish_notifications_manners_record(verdict_news)
+        return {
+            "view": held.to_record(),
+            "kind_filter": held.kind_filter,
+            "record_news": view_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._notifications_manners_screen(),
+            "explanation": manners_module.PLAIN_EXPLANATION,
+        }
+
+    def register_notifications_manners_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole book of notifications manners (M-181).
+
+        Every job, channel, rule and view record of
+        the book is held by the pure registry, in
+        held and recorded order - the book is judged
+        whole, and against the held book, before
+        anything is held, so a refusal holds nothing
+        new. The first book held sets the registry's
+        title, a later book under a different title
+        refuses, as does a book naming a held job
+        id, channel id, rule id, rule name or
+        sequence, or a view id or sequence. The
+        book's panels are derivations, not holdings,
+        and are not held. Every item is published as
+        its session news and every view as its
+        ``view_record`` session news, in order.
+        Returns the held book, its items and views,
+        their news records, the count of items held,
+        the screen, and the explanation. Registering
+        announces nothing and delivers nothing.
+        """
+        from ..core import notifications_manners as manners_module
+        validated = manners_module.build_book(book)
+        registry = self._notifications_manners_registry()
+        registry.register_book(validated)
+        records = [
+            manners_module.job_record(item)
+            for item in validated.jobs]
+        records += [
+            manners_module.channel_record(item)
+            for item in validated.channels]
+        records += [
+            manners_module.rule_record(item)
+            for item in validated.rules]
+        records += [
+            manners_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_notifications_manners_record(news)
+        return {
+            "book": validated.to_record(),
+            "jobs": [item.to_record() for item in validated.jobs],
+            "channels": [
+                item.to_record() for item in validated.channels],
+            "rules": [item.to_record() for item in validated.rules],
+            "views": [item.to_record() for item in validated.views],
+            "records_news": records,
+            "count": len(validated.items()),
+            "screen": self._notifications_manners_screen(),
+            "explanation": manners_module.PLAIN_EXPLANATION,
+        }
+
+    def record_notifications_manners_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole book of notifications manners (M-181).
+
+        With no book named, the shipped example book
+        is recorded through the pure layer - seven
+        items at the M-180 slice boundary, with its
+        two views and its one pinned panel. A book
+        loaded from a file (the pure layer's
+        ``load_notifications_manners_file`` road) may
+        be passed instead. The book is judged whole
+        before anything is held. Every item and view
+        is held and published as its session news,
+        in order, and the panel derived under the
+        book's default view as its ``panel_record``
+        session news; the book is remembered whole
+        as the session's - its held panel and all -
+        and the same book recorded twice refuses -
+        fingerprinted on its item ids, view ids and
+        title. Returns the held book, its items and
+        views, their news records, the panel news
+        record, the count, the screen, and the
+        explanation. Recording announces nothing and
+        delivers nothing.
+        """
+        from ..core import notifications_manners as manners_module
+        book = book if book is not None \
+            else manners_module.load_notifications_manners()
+        validated = manners_module.build_book(book)
+        fingerprint = (tuple(validated.job_ids()),
+                       tuple(validated.channel_ids()),
+                       tuple(validated.rule_ids()),
+                       tuple(validated.view_ids()),
+                       validated.title)
+        recorded = getattr(
+            self, "_notifications_manners_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._notifications_manners_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this book of notifications manners is "
+                "already recorded for the session; a "
+                "book is recorded once")
+        registry = self._notifications_manners_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._notifications_manners_held = validated
+        records = [
+            manners_module.job_record(item)
+            for item in validated.jobs]
+        records += [
+            manners_module.channel_record(item)
+            for item in validated.channels]
+        records += [
+            manners_module.rule_record(item)
+            for item in validated.rules]
+        records += [
+            manners_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_notifications_manners_record(news)
+        panel_news = manners_module.panel_record(
+            manners_module.derive_panel(
+                validated,
+                self._notifications_manners_default_view(validated)),
+            validated)
+        self._publish_notifications_manners_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "jobs": [item.to_record() for item in validated.jobs],
+            "channels": [
+                item.to_record() for item in validated.channels],
+            "rules": [item.to_record() for item in validated.rules],
+            "views": [item.to_record() for item in validated.views],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(validated.items()),
+            "screen": manners_module.format_notifications_manners_screen(
+                validated),
+            "explanation": manners_module.PLAIN_EXPLANATION,
+        }
+
+    def report_notifications_manners(self) -> dict[str, Any]:
+        """Render the session manners book, as a report (M-181).
+
+        The book - the held registry's book when the
+        session holds any item, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone. Rendering
+        registers and publishes nothing, announces
+        nothing and delivers nothing. Returns the
+        book, its items, views and panels as plain
+        records, the derived panel and verdict (none
+        while the book holds no view), the rendered
+        book, panel and verdict, the screen, and the
+        plain explanation.
+        """
+        from ..core import notifications_manners as manners_module
+        book = self.notifications_manners_book()
+        default = self._notifications_manners_default_view(book)
+        return {
+            "book": book.to_record(),
+            "jobs": [item.to_record() for item in book.jobs],
+            "channels": [
+                item.to_record() for item in book.channels],
+            "rules": [item.to_record() for item in book.rules],
+            "views": [item.to_record() for item in book.views],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (manners_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "verdict": (manners_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "book_text": manners_module.format_book(book),
+            "panel_text": (manners_module.format_panel(book)
+                           if default is not None else ""),
+            "verdict_text": (manners_module.format_verdict(book)
+                             if default is not None else ""),
+            "screen": self._notifications_manners_screen(),
+            "explanation": manners_module.PLAIN_EXPLANATION,
+        }
+
+    def announce_notifications(
+            self, bell: Any = None, notify: Any = None
+    ) -> dict[str, Any]:
+        """Poll the session book and announce what stands due (M-181).
+
+        The announcements due for the session's book
+        are derived by the pure layer under the
+        session's announced-key ledger - the set of
+        derived announcement keys this session has
+        already announced - so each job announces at
+        most once, however often this road is
+        walked. Each due announcement is delivered
+        through the pure layer's seams (the caller's
+        bell and notifier callables, or the shipped
+        roads by default) and its key joins the
+        ledger whether the delivery travelled or
+        stood unavailable or unknown: an announcement
+        is made once, and its outcome is named
+        honestly, never retried into a second
+        announcement. Silence stays the default: a
+        book with nothing due returns an empty poll.
+        Returns the announcements made, their
+        delivery records, the count, the screen
+        rendered after the poll, and the plain
+        explanation.
+        """
+        from ..core import notifications_manners as manners_module
+        book = self.notifications_manners_book()
+        announced = getattr(
+            self, "_notifications_manners_announced_keys", None)
+        if announced is None:
+            announced = set()
+            self._notifications_manners_announced_keys = announced
+        due = manners_module.due_announcements(book, announced)
+        deliveries = []
+        for announcement in due:
+            deliveries.append(manners_module.deliver_announcement(
+                announcement, bell=bell, notify=notify))
+            announced.add(announcement.key)
+        return {
+            "announcements": [a.to_record() for a in due],
+            "deliveries": [d.to_record() for d in deliveries],
+            "count": len(due),
+            "screen": self._notifications_manners_screen(),
+            "explanation": manners_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_notifications_manners_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one notifications-manners record as session news (M-181).
+
+        The pure layer's ``job_record``,
+        ``channel_record``, ``rule_record``,
+        ``view_record``, ``panel_record`` and
+        ``verdict_record`` are journaled through the
+        same checkpoint road every sibling slice
+        uses, when a session is attached. Each
+        record is announced at most once per shape:
+        a job under its own job id and segment, a
+        channel under its own channel id and
+        segment, a rule under its own rule id, name
+        and segment, a view under its own view id,
+        sequence and kind filter, a panel under its
+        whole derived shape, and a verdict under its
+        word and tallies, so a panel or verdict grown
+        by a newly held item or view announces again
+        as the new figure it is. A foreign record
+        type is never published on this road.
+        """
+        if record.get("type") == "notifications_manners_job":
+            key = ("notifications_manners_job",
+                   record.get("job_id"),
+                   record.get("segment"))
+        elif record.get("type") == "notifications_manners_channel":
+            key = ("notifications_manners_channel",
+                   record.get("channel_id"),
+                   record.get("segment"))
+        elif record.get("type") == "notifications_manners_rule":
+            key = ("notifications_manners_rule",
+                   record.get("rule_id"),
+                   record.get("name"),
+                   record.get("segment"))
+        elif record.get("type") == "notifications_manners_view":
+            key = ("notifications_manners_view",
+                   record.get("view_id"),
+                   record.get("seq"),
+                   record.get("kind_filter"))
+        elif record.get("type") == "notifications_manners_panel":
+            key = ("notifications_manners_panel", record.get("panel_id"),
+                   record.get("view_id"),
+                   tuple(row.get("item_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_shown"))
+        elif record.get("type") == "notifications_manners_verdict":
+            key = ("notifications_manners_verdict",
+                   record.get("verdict"),
+                   record.get("total_shown"),
+                   record.get("passing_shown"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(
+            self, "_notifications_manners_announced", None)
+        if announced is None:
+            announced = set()
+            self._notifications_manners_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):

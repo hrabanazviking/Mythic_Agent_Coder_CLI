@@ -389,6 +389,8 @@ class CommandHandler:
                 self._handle_themesgrownup(args)
             elif cmd == "/voiceinout":
                 self._handle_voiceinout(args)
+            elif cmd == "/manners":
+                self._handle_manners(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -7399,6 +7401,103 @@ class CommandHandler:
                 text = format_verdict(primary.voice_in_out_book())
             else:
                 text = primary.voice_in_out_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_manners(self, args: str):
+        """M-181: /manners - notifications with manners.
+
+        ``/manners`` shows the notifications manners
+        held this session - long jobs announce
+        completion (terminal bell/OS notification,
+        once), failures announce once with the one
+        action that matters, and silence is the
+        default posture (the shipped example book -
+        seven items at the M-180 slice boundary,
+        three jobs, two channels and two rules, with
+        its two views and its one pinned panel - when
+        none is held yet); ``/manners job <job-id>``
+        shows one job whole, its outcome, duration,
+        decision, channel and availability as their
+        own lines; ``/manners channel <channel-id>``
+        shows one notification channel whole;
+        ``/manners rule <rule-id>`` shows one manners
+        rule and the statement it stands on;
+        ``/manners view <view-id>`` shows one held
+        view record; ``/manners kind <kind>`` shows
+        the book's items of one kind; ``/manners
+        panel`` shows the panel derived from the
+        whole book under its default view;
+        ``/manners verdict`` shows the verdict
+        derived for the whole book. Reading registers
+        and publishes nothing as session news: items
+        and views are held only when they are given
+        through the agent's register roads, stood on
+        the book on the viewing road, or held on the
+        book roads, and every job held for the
+        session is journaled as a
+        notifications_manners_job session event,
+        every channel as a notifications_manners_channel
+        session event, every rule as a
+        notifications_manners_rule session event,
+        every view as a notifications_manners_view
+        session event, every derived panel as a
+        notifications_manners_panel session event
+        and every derived verdict as a
+        notifications_manners_verdict session event.
+        This surface rings no bell and posts no
+        notification - announcements travel the
+        agent's announce road, through the seams,
+        at most once each.
+        """
+        from ..core.notifications_manners import (
+            format_book,
+            format_channel,
+            format_job,
+            format_panel,
+            format_rule,
+            format_verdict,
+            format_view,
+            parse_notifications_manners_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_notifications_manners_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "job":
+                text = format_job(
+                    primary.get_job_notice(target))
+            elif action == "channel":
+                text = format_channel(
+                    primary.get_channel_notice(target))
+            elif action == "rule":
+                text = format_rule(
+                    primary.get_manners_rule(target))
+            elif action == "view":
+                text = format_view(
+                    primary.get_notifications_view(target))
+            elif action == "kind":
+                text = format_book(
+                    primary.notifications_manners_book(), target)
+            elif action == "panel":
+                text = format_panel(primary.notifications_manners_book())
+            elif action == "verdict":
+                text = format_verdict(primary.notifications_manners_book())
+            else:
+                text = primary.notifications_manners_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
