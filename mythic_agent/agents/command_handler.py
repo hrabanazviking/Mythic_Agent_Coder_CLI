@@ -357,6 +357,8 @@ class CommandHandler:
                 self._handle_endurance(args)
             elif cmd == "/multisession":
                 self._handle_multisession(args)
+            elif cmd == "/handoffsummary":
+                self._handle_handoffsummary(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -6029,6 +6031,74 @@ class CommandHandler:
                 text = format_isolation(primary.multi_session_projects_book())
             else:
                 text = primary.multi_session_projects_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_handoffsummary(self, args: str):
+        """M-163: /handoffsummary - handoff summaries.
+
+        ``/handoffsummary`` shows the handoff book
+        held this session (the shipped example book -
+        three handoffs at the M-162 slice boundary,
+        with its one pinned panel - when none is held
+        yet); ``/handoffsummary handoff <handoff-id>``
+        shows one handoff with its provenance whole;
+        ``/handoffsummary session <session-ref>`` shows
+        the handoff ending one session;
+        ``/handoffsummary panel`` shows the handoff
+        panel derived from the whole book;
+        ``/handoffsummary verdict`` shows the handoff
+        verdict derived for the whole book - what
+        needs you, named first. Reading registers and
+        publishes nothing as session news: handoffs are
+        held only when they are given through the
+        agent's handoff roads or written from the
+        session's stand-up, and every handoff held for
+        the session is journaled as a
+        handoff_summaries_handoff session event, every
+        derived panel as a handoff_summaries_panel
+        session event and every derived verdict as a
+        handoff_summaries_verdict session event. This
+        surface sends nothing, and there is no Part
+        VIII board yet, so the book is visible on this
+        surface, not on a board.
+        """
+        from ..core.handoff_summaries import (
+            format_handoff,
+            format_handoffs,
+            format_panel,
+            format_verdict,
+            parse_handoffsummary_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_handoffsummary_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "handoff":
+                text = format_handoff(
+                    primary.get_handoff(target))
+            elif action == "session":
+                text = format_handoffs(
+                    primary.handoff_summaries_book(), target)
+            elif action == "panel":
+                text = format_panel(primary.handoff_summaries_book())
+            elif action == "verdict":
+                text = format_verdict(primary.handoff_summaries_book())
+            else:
+                text = primary.handoff_summaries_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

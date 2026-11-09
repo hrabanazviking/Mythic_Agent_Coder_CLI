@@ -28141,6 +28141,421 @@ class Agent:
             self._checkpoint(record)
 
 
+    def _handoff_summaries_registry(self):
+        """The held handoff summaries registry (M-163).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer handoffs one by one,
+        beside the session multi-session registry
+        (M-162) and never in it: the handoff book is
+        one book of sessions ended and handed off. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly
+        one. The attribute is named
+        ``_handoff_summaries_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_handoff_summaries_store", None)
+        if registry is None:
+            from ..core.handoff_summaries import HandoffRegistry
+            registry = HandoffRegistry()
+            self._handoff_summaries_store = registry
+        return registry
+
+    def handoff_summaries_book(self):
+        """The session's handoff book, as data (M-163).
+
+        The held registry's book when the session
+        holds any handoff - the handoffs the session
+        has actually recorded (handoffs held one by
+        one, before any whole book stands recorded,
+        stand under a session handoff book composed
+        here in the agent layer, so a later whole
+        book recorded under its own title is never
+        refused by a shim title at the registry) -
+        otherwise the book recorded whole through
+        :meth:`record_handoff_book`, or the shipped
+        example handoff book until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.handoff_summaries import (
+            HandoffBook, load_handoff_summaries)
+        registry = self._handoff_summaries_registry()
+        if registry.list_handoffs():
+            try:
+                book = registry.book()
+            except ValueError:
+                return HandoffBook(
+                    title="Handoff summaries",
+                    handoffs=registry.list_handoffs())
+            held = getattr(self, "_handoff_summaries_held", None)
+            if held is not None and held.title == book.title \
+                    and held.handoff_ids() == book.handoff_ids():
+                return held
+            return book
+        book = getattr(self, "_handoff_summaries_held", None)
+        if book is None:
+            return load_handoff_summaries()
+        return book
+
+    def _handoff_summaries_screen(self) -> str:
+        """The /handoffsummary screen for the session's state (M-163)."""
+        from ..core import handoff_summaries as handoff_module
+        registry = self._handoff_summaries_registry()
+        if not registry.list_handoffs():
+            return handoff_module.format_handoff_summaries_screen()
+        return handoff_module.format_handoff_summaries_screen(
+            self.handoff_summaries_book())
+
+    def handoff_summaries_status(self) -> dict[str, Any]:
+        """The handoff account, in plain data (M-163).
+
+        The handoffs held this session as plain
+        records, the held book's record (none until a
+        handoff stands held), the session handoff
+        book's handoffs as plain records (the shipped
+        example book - three handoffs at the M-162
+        slice boundary - until handoffs are held), its
+        whole-book record, the handoff panel derived
+        from the whole book and every panel the book
+        holds as plain records, the handoff verdict
+        derived for the whole book, the latest handoff
+        in plain words, the panel and the verdict told
+        in plain words, the one screen - rendered from
+        the held book, or from the shipped example
+        book when nothing is held yet - and the plain
+        explanation. Reading registers and publishes
+        nothing, sends nothing and schedules nothing:
+        this layer holds handoffs as data only. There
+        is no Part VIII board yet; the screen is where
+        the book is visible.
+        """
+        from ..core import handoff_summaries as handoff_module
+        registry = self._handoff_summaries_registry()
+        held_handoffs = registry.list_handoffs()
+        book = self.handoff_summaries_book()
+        latest = book.handoffs[-1]
+        return {
+            "handoffs": [item.to_record() for item in held_handoffs],
+            "book": (book.to_record() if held_handoffs else None),
+            "handoff": {
+                "title": book.title,
+                "handoffs": [item.to_record() for item in book.handoffs],
+            },
+            "book_record": handoff_module.book_record(book),
+            "panel": (handoff_module.derive_panel(book).to_record()
+                      if book.handoffs else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (
+                handoff_module.derive_verdict(book).to_record()
+                if book.handoffs else None),
+            "plain_words": handoff_module.plain_words(latest),
+            "panel_plain_words": (
+                handoff_module.panel_plain_words(book)
+                if book.handoffs else ""),
+            "verdict_plain_words": (
+                handoff_module.verdict_plain_words(book)
+                if book.handoffs else ""),
+            "screen": self._handoff_summaries_screen(),
+            "explanation": handoff_module.PLAIN_EXPLANATION,
+        }
+
+    def get_handoff(self, handoff_id: Any):
+        """The one handoff an id names (M-163).
+
+        The session's held registry answers when the
+        session holds any handoff; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held
+        handoff answers for its own book alone: an id
+        the held book holds no handoff for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._handoff_summaries_registry()
+        if registry.list_handoffs():
+            return registry.get_handoff(handoff_id)
+        return self.handoff_summaries_book().handoff_for(handoff_id)
+
+    def handoff_summaries_panel(self):
+        """The handoff panel derived for the whole book (M-163)."""
+        from ..core.handoff_summaries import (
+            derive_panel as _derive_panel)
+        return _derive_panel(self.handoff_summaries_book())
+
+    def handoff_summaries_verdict(self):
+        """The handoff verdict derived for the whole book (M-163)."""
+        from ..core.handoff_summaries import (
+            derive_verdict as _derive_verdict)
+        return _derive_verdict(self.handoff_summaries_book())
+
+    def register_handoff(
+            self, handoff: Any) -> dict[str, Any]:
+        """Hold one handoff for the session (M-163).
+
+        The handoff is held by the pure registry under
+        its id or the deterministic handoff-N id - a
+        handoff id already standing here refuses, as
+        does a handoff ending a held session or naming
+        a held claim (a claim is handed off once); a
+        refusal holds nothing new and publishes
+        nothing. A held handoff is published as its
+        ``handoff_record`` session-news record through
+        the checkpoint road. Returns the held handoff,
+        its news record, the screen rendered after it
+        landed, and the plain explanation. Holding a
+        handoff sends nothing: the registry holds the
+        handoff as data, provenance whole.
+        """
+        from ..core import handoff_summaries as handoff_module
+        registry = self._handoff_summaries_registry()
+        held = registry.register_handoff(handoff)
+        record_news = handoff_module.handoff_record(held)
+        self._publish_handoff_record(record_news)
+        return {
+            "handoff": held.to_record(),
+            "record_news": record_news,
+            "screen": self._handoff_summaries_screen(),
+            "explanation": handoff_module.PLAIN_EXPLANATION,
+        }
+
+    def handoff_from_stand_up(
+            self, *, session_ref: Any, project: Any, branch: Any,
+            evidence_refs: Any, written_by: Any,
+            written_on: Any) -> dict[str, Any]:
+        """Write this session's handoff from its stand-up (M-163).
+
+        This slice's own composing road: the session's
+        stand-up report (M-134) is read onto a handoff
+        BY IMPORT through the pure layer's
+        ``handoff_from_stand_up`` - the digest the
+        report derives stands as the handoff's claims,
+        entry ids alone - and the handoff is held and
+        published as its ``handoff_record`` session
+        news, with the handoff panel derived from the
+        whole held registry as its ``panel_record``
+        session news and the handoff verdict derived
+        for the whole held registry as its
+        ``verdict_record`` session news. Only entry
+        ids and counts cross the seam: no entry's
+        title, detail or member stands in any record
+        or headline this road publishes. Returns the
+        held handoff, its news record, the panel and
+        verdict news records, the count, the claims in
+        all, the screen, and the explanation. Writing
+        sends nothing and mutates no live stand-up -
+        the session's stand-up stands exactly as it
+        stood.
+        """
+        from ..core import handoff_summaries as handoff_module
+        report = self.stand_up()
+        handoff = handoff_module.handoff_from_stand_up(
+            report, session_ref=session_ref, project=project,
+            branch=branch, evidence_refs=evidence_refs,
+            written_by=written_by, written_on=written_on)
+        registry = self._handoff_summaries_registry()
+        held = registry.register_handoff(handoff)
+        record_news = handoff_module.handoff_record(held)
+        self._publish_handoff_record(record_news)
+        panel_news = handoff_module.panel_record(
+            handoff_module.derive_panel(registry))
+        self._publish_handoff_record(panel_news)
+        verdict_news = handoff_module.verdict_record(
+            handoff_module.derive_verdict(registry))
+        self._publish_handoff_record(verdict_news)
+        return {
+            "handoff": held.to_record(),
+            "record_news": record_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "count": 1,
+            "total_claims": held.claim_count,
+            "screen": self._handoff_summaries_screen(),
+            "explanation": handoff_module.PLAIN_EXPLANATION,
+        }
+
+    def register_handoff_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole handoff book for the session (M-163).
+
+        Every handoff of the book is held by the pure
+        registry, in book order - the first book held
+        sets the registry's title, a later book under
+        a different title refuses, as does a book
+        naming a held handoff id, a held session or a
+        held claim. The book's panels are derivations,
+        not holdings, and are not held. Every handoff
+        is published as its ``handoff_record`` session
+        news, in book order, and the handoff panel
+        derived from the whole book as its
+        ``panel_record`` session news. Returns the held
+        book, its handoffs, their news records, the
+        panel news record, the count of handoffs held,
+        the screen, and the explanation. Registering
+        sends nothing and reads no file.
+        """
+        from ..core import handoff_summaries as handoff_module
+        validated = handoff_module.build_book(book)
+        registry = self._handoff_summaries_registry()
+        registry.register_book(validated)
+        records = [
+            handoff_module.handoff_record(handoff)
+            for handoff in validated.handoffs]
+        for record_news in records:
+            self._publish_handoff_record(record_news)
+        panel_news = handoff_module.panel_record(
+            handoff_module.derive_panel(validated))
+        self._publish_handoff_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "handoffs": [
+                item.to_record() for item in validated.handoffs],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": self._handoff_summaries_screen(),
+            "explanation": handoff_module.PLAIN_EXPLANATION,
+        }
+
+    def record_handoff_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole handoff book for the session (M-163).
+
+        With no book named, the shipped example
+        handoff book is recorded through the pure
+        layer - three handoffs at the M-162 slice
+        boundary, with its one pinned panel. A book
+        loaded from a file (the pure layer's
+        ``load_handoff_summaries_file`` road) may be
+        passed instead. Every handoff is held and
+        published as its ``handoff_record`` session
+        news, in book order, and the handoff panel as
+        its ``panel_record`` session news; the book is
+        remembered whole as the session's - its held
+        panel and all - and the same book recorded
+        twice refuses - fingerprinted on its handoff
+        ids and title. Returns the held book, its
+        handoffs, their news records, the panel news
+        record, the count, the screen, and the
+        explanation. Recording sends nothing.
+        """
+        from ..core import handoff_summaries as handoff_module
+        book = book if book is not None \
+            else handoff_module.load_handoff_summaries()
+        validated = handoff_module.build_book(book)
+        fingerprint = (tuple(validated.handoff_ids()), validated.title)
+        recorded = getattr(self, "_handoff_summaries_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._handoff_summaries_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this handoff book is already recorded "
+                "for the session; a book is recorded once")
+        registry = self._handoff_summaries_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._handoff_summaries_held = validated
+        records = [
+            handoff_module.handoff_record(handoff)
+            for handoff in validated.handoffs]
+        for record_news in records:
+            self._publish_handoff_record(record_news)
+        panel_news = handoff_module.panel_record(
+            handoff_module.derive_panel(validated))
+        self._publish_handoff_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "handoffs": [
+                item.to_record() for item in validated.handoffs],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": handoff_module.format_handoff_summaries_screen(
+                validated),
+            "explanation": handoff_module.PLAIN_EXPLANATION,
+        }
+
+    def report_handoff_summaries(self) -> dict[str, Any]:
+        """Render the session handoff book, as a report (M-163).
+
+        The book - the held registry's book when the
+        session holds any handoff, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone. Rendering registers
+        and publishes nothing, sends nothing and reads
+        no file. Returns the book, its handoffs and
+        panels as plain records, the derived panel and
+        handoff verdict, the rendered handoffs, panel
+        and verdict, the screen, and the plain
+        explanation.
+        """
+        from ..core import handoff_summaries as handoff_module
+        book = self.handoff_summaries_book()
+        return {
+            "book": book.to_record(),
+            "handoffs": [item.to_record() for item in book.handoffs],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (handoff_module.derive_panel(book).to_record()
+                      if book.handoffs else None),
+            "verdict": (
+                handoff_module.derive_verdict(book).to_record()
+                if book.handoffs else None),
+            "handoffs_text": handoff_module.format_handoffs(book),
+            "panel_text": handoff_module.format_panel(book),
+            "verdict_text": handoff_module.format_verdict(book),
+            "screen": self._handoff_summaries_screen(),
+            "explanation": handoff_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_handoff_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one handoff record as session news (M-163).
+
+        The pure layer's ``handoff_record``,
+        ``panel_record`` and ``verdict_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most once
+        per shape: a handoff under its own handoff id,
+        session and branch, a panel under its whole
+        derived shape, and a verdict under its word and
+        tallies, so a panel or verdict grown by a newly
+        held handoff announces again as the new figure
+        it is. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") == "handoff_summaries_handoff":
+            key = ("handoff_summaries_handoff",
+                   record.get("handoff_id"),
+                   record.get("session_ref"),
+                   record.get("branch"))
+        elif record.get("type") == "handoff_summaries_panel":
+            key = ("handoff_summaries_panel", record.get("panel_id"),
+                   tuple(row.get("handoff_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_handoffs"),
+                   record.get("total_claims"))
+        elif record.get("type") == "handoff_summaries_verdict":
+            key = ("handoff_summaries_verdict",
+                   record.get("verdict"),
+                   record.get("total_blocked"),
+                   record.get("total_needs_you"))
+        else:
+            return
+        announced = getattr(self, "_handoff_summaries_announced", None)
+        if announced is None:
+            announced = set()
+            self._handoff_summaries_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
