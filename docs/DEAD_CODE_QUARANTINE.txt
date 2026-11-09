@@ -364,3 +364,13 @@ mythic_agent/agents/llm.py:24346:record_cross_project_book:method
 mythic_agent/agents/llm.py:24423:report_cross_project_memory:method
 mythic_agent/core/cross_project_memory.py:1085:row_for:method
 mythic_agent/core/cross_project_memory.py:1910:latest_lesson:method
+mythic_agent/agents/llm.py:24653:get_self_improving_decision:method
+mythic_agent/agents/llm.py:24687:standing_self_improving_memories:method
+mythic_agent/agents/llm.py:24701:register_self_improving_candidate:method
+mythic_agent/agents/llm.py:24735:register_self_improving_decision:method
+mythic_agent/agents/llm.py:24776:capture_memory_map_candidates:method
+mythic_agent/agents/llm.py:24838:register_self_improving_book:method
+mythic_agent/agents/llm.py:24892:record_self_improving_book:method
+mythic_agent/agents/llm.py:24968:report_self_improving_ledger:method
+mythic_agent/core/self_improving_ledger.py:1188:row_for:method
+mythic_agent/core/self_improving_ledger.py:2080:latest_candidate:method
