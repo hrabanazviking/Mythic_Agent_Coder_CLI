@@ -558,3 +558,13 @@ mythic_agent/agents/llm.py:34085:record_command_palace_book:method
 mythic_agent/agents/llm.py:34158:report_command_palace:method
 mythic_agent/core/command_palace.py:1504:row_for:method
 mythic_agent/core/command_palace.py:2178:latest_browse:method
+mythic_agent/agents/llm.py:34442:prompt_craft_with_kind:method
+mythic_agent/agents/llm.py:34448:prompt_craft_for_project:method
+mythic_agent/agents/llm.py:34491:register_craft_item:method
+mythic_agent/agents/llm.py:34520:register_craft_view:method
+mythic_agent/agents/llm.py:34548:view_prompt_craft:method
+mythic_agent/agents/llm.py:34612:register_prompt_craft_book:method
+mythic_agent/agents/llm.py:34657:record_prompt_craft_book:method
+mythic_agent/agents/llm.py:34729:report_prompt_craft:method
+mythic_agent/core/prompt_craft.py:1457:row_for:method
+mythic_agent/core/prompt_craft.py:2116:latest_view:method
