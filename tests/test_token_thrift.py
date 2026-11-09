@@ -725,3 +725,365 @@ def test_registry_constructor_and_titleless_book_refusal():
     assert isinstance(derive_panel(load_token_thrift()), ThriftPanel)
     direct = validate_record(_stored_record(_record()))
     assert direct == _record()
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-160 agent layer: the agent holds a ThriftRegistry
+# for the session (session state only, no new setting),
+# records are held by being registered - published as
+# their thrift_record session news with the derived
+# panel_record and cost_line_record, through the
+# checkpoint road, deduped per shape - the report road
+# renders the held book (or the shipped example when
+# unheld) through the pure formatters, a thrift road
+# reads the session's context-budget panel onto thrift
+# records and holds them (mutating no live context),
+# and the /thrift surface rides both roads on the pure
+# parser + formatters. Status, get, panel, cost-line
+# and report reads register and publish nothing, answer
+# from the held registry first and from the shipped
+# example only while nothing is held - a held session
+# never falls back to the example. The panel and the
+# cost line derive at call time from the whole book,
+# never held. This layer calls no model, reads no live
+# file, edits no code and persists nothing beyond the
+# session journal news, and there is no Part VIII board
+# yet, so the screen is where the book is visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _thrift_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_thrift_book(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data"
+           / "token_thrift.yaml").read_text(encoding="utf-8")
+    path = tmp_path / "token_thrift.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestThriftAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.token_thrift_status()
+        assert status["records"] == []
+        assert status["book"] is None
+        assert status["thrifting"]["title"] == EXAMPLE_TITLE
+        assert len(status["thrifting"]["records"]) == 4
+        assert status["panel"]["total_saved"] == 31460
+        assert status["panels"][0]["panel_id"] == "panel-m159-boundary"
+        assert status["book_record"]["record_count"] == 4
+        assert status["cost_line"]["tokens_saved"] == 31460
+        assert status["cost_line"]["saved_cost_usd"] == 0.07865
+        assert "Token Thrift (M-160)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._token_thrift_registry()
+        assert agent._token_thrift_registry() is first
+        assert agent._token_thrift_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.token_thrift_status()
+        agent.get_thrift_record("thrift-diff-pinning")
+        agent.token_thrift_panel()
+        agent.token_thrift_cost_line()
+        agent.report_token_thrift()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("token_thrift")] == []
+        agent.close()
+
+    def test_unheld_reads_raise(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_thrift_record("thrift-nope")
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_thrift_record(_record())
+        status = agent.token_thrift_status()
+        assert [item["record_id"] for item in status["records"]] == [
+            "thrift-test"]
+        assert status["book"]["title"] == "Token thrift"
+        assert status["cost_line"]["tokens_saved"] == 750
+
+    def test_held_session_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_thrift_record(_record())
+        with pytest.raises(KeyError):
+            agent.get_thrift_record("thrift-diff-pinning")
+        record = agent.get_thrift_record("thrift-test")
+        assert record.subject == "the test file, read diff-first"
+        assert agent.token_thrift_book().title == "Token thrift"
+
+
+class TestThriftAgentHolding:
+    def test_register_record_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_thrift_record(_record())
+        assert outcome["record"]["record_id"] == "thrift-test"
+        assert outcome["record_news"]["type"] == "token_thrift_record"
+        events = _thrift_events(
+            store, session_id, "token_thrift_record")
+        assert len(events) == 1
+        assert events[0]["record_id"] == "thrift-test"
+        agent._publish_thrift_record(outcome["record_news"])
+        assert len(_thrift_events(
+            store, session_id, "token_thrift_record")) == 1
+        agent._publish_thrift_record(
+            {"type": "mentions_mention", "mention_id": "mention-x"})
+        agent._publish_thrift_record(
+            book_record(load_token_thrift()))
+        for kind in ("mentions_mention", "token_thrift_book"):
+            assert _thrift_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_duplicate_record_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_thrift_record(_record())
+        with pytest.raises(ValueError):
+            agent.register_thrift_record(_record())
+        with pytest.raises(ValueError):
+            agent.register_thrift_record(_record(record_id="thrift-copy"))
+        assert len(_thrift_events(
+            store, session_id, "token_thrift_record")) == 1
+        agent.close()
+
+    def test_thrift_from_session_context_carries_ids_only(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        panel = agent.context_budget_panel()
+        items = [i for i in panel.items if i.item_id]
+        expected = len(items)
+        baselines = {i.item_id: i.tokens * 4 for i in items}
+        outcome = agent.thrift_from_session_context(
+            baselines=baselines, recorded_by="Volmarr",
+            recorded_on="2026-11-08")
+        assert outcome["count"] == expected
+        assert outcome["total_saved"] == sum(
+            i.tokens * 3 for i in items)
+        events = _thrift_events(
+            store, session_id, "token_thrift_record")
+        assert len(events) == expected
+        assert len(_thrift_events(
+            store, session_id, "token_thrift_panel")) == 1
+        assert len(_thrift_events(
+            store, session_id, "token_thrift_cost_line")) == 1
+        blob = str(events) + str(outcome["records"])
+        for item in items:
+            assert item.title not in blob
+            assert item.reason not in blob
+        # Counting mutated no live context: the
+        # session's context panel stands whole.
+        assert agent.context_budget_panel().items == panel.items
+        assert agent.token_thrift_panel().total_records == expected
+        with pytest.raises(ValueError):
+            agent.thrift_from_session_context(
+                baselines=baselines, recorded_by="Volmarr",
+                recorded_on="2026-11-08")
+        agent.close()
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent):
+        book = _book()
+        outcome = agent.register_thrift_book(book)
+        assert outcome["count"] == 1
+        assert [item["type"] for item in outcome["records_news"]] == [
+            "token_thrift_record"]
+        assert agent.token_thrift_book().title == "A test thrift book"
+
+    def test_register_book_twice_refuses(self, agent):
+        agent.register_thrift_book(load_token_thrift())
+        with pytest.raises(ValueError):
+            agent.register_thrift_book(load_token_thrift())
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_thrift_book()
+        assert outcome["count"] == 4
+        assert outcome["book"]["title"] == EXAMPLE_TITLE
+        assert len(_thrift_events(
+            store, session_id, "token_thrift_record")) == 4
+        assert agent.token_thrift_book().panels[0].panel_id == (
+            "panel-m159-boundary")
+        agent.close()
+
+    def test_record_same_book_twice_refuses(self, agent):
+        agent.record_thrift_book()
+        with pytest.raises(ValueError):
+            agent.record_thrift_book()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_thrift_book(tmp_path)
+        book = load_token_thrift_file(path)
+        outcome = agent.record_thrift_book(book)
+        assert outcome["count"] == 4
+        assert agent.get_thrift_record(
+            "thrift-diff-pinning").road == "diff-first"
+
+    def test_report_renders_the_example_when_unheld(self, agent):
+        report = agent.report_token_thrift()
+        assert report["book"]["record_count"] == 4
+        assert "thrift-diff-pinning" in report["records_text"]
+        assert "Thrift panel in Token thrift" in report["panel_text"]
+        assert "31460 tokens saved" in report["cost_line_text"]
+
+    def test_report_renders_the_held_book_only(self, agent):
+        agent.register_thrift_record(_record())
+        report = agent.report_token_thrift()
+        assert report["book"]["title"] == "Token thrift"
+        assert "thrift-diff-pinning" not in report["records_text"]
+        assert "thrift-test" in report["records_text"]
+
+    def test_report_registers_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.report_token_thrift()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("token_thrift")] == []
+        agent.close()
+
+    def test_no_live_read_edit_or_persist_road(
+            self, agent, tmp_path):
+        # This layer holds thrift as data: it calls no
+        # model, reads no live file, edits no code,
+        # intercepts no live read and persists nothing
+        # - and there is no Part VIII board yet.
+        # Holding, recording or counting changes no
+        # workspace file and no built context.
+        assert not hasattr(agent, "apply_token_thrift")
+        assert not hasattr(agent, "intercept_token_thrift")
+        assert not hasattr(agent, "persist_token_thrift")
+        assert not hasattr(agent, "token_thrift_board")
+        (tmp_path / "alpha.py").write_text(
+            "def greet(name):\n    return name\n", encoding="utf-8")
+        before = {
+            p.name: p.read_bytes()
+            for p in tmp_path.glob("*.py")}
+        from mythic_agent.agents.context import ContextBuilder
+        builder = ContextBuilder(max_tokens=4000)
+        builder.add_system("You are the coder.")
+        builder.add_turn("user", "Build the slice.")
+        built_before = builder.build()
+        agent.register_thrift_record(_record())
+        agent.record_thrift_book()
+        panel = agent.context_budget_panel()
+        agent.thrift_from_session_context(
+            baselines={i.item_id: i.tokens * 2
+                       for i in panel.items if i.item_id},
+            recorded_by="Volmarr", recorded_on="2026-11-08",
+            road="diff-first")
+        assert builder.build() == built_before
+        assert {
+            p.name: p.read_bytes()
+            for p in tmp_path.glob("*.py")} == before
+
+
+class TestThriftTerminalSurface:
+    def test_show_record_road_panel_costs(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/thrift")
+        assert "Token Thrift (M-160)" in text
+        _, _, text = _slash(agent, "/thrift record thrift-diff-pinning")
+        assert "file-pinning-protection" in text
+        _, _, text = _slash(agent, "/thrift road maps")
+        assert "thrift-map-context" in text
+        assert "thrift-diff-pinning" not in text
+        _, _, text = _slash(agent, "/thrift panel")
+        assert "Thrift panel in Token thrift" in text
+        _, _, text = _slash(agent, "/thrift costs")
+        assert "31460 tokens saved" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/thrift [show|record <record-id>"
+                "|road <road>|panel|costs]") in text
+        _, _, text = _slash(agent, "/thrift dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/thrift record thrift-nope")
+        assert "no thrift record in the book" in text
+
+
+@pytest.fixture()
+def thrift_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _thrift_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestThriftCommand:
+    def test_show_is_default(self, thrift_handler, agent):
+        thrift_handler._handle_thrift("")
+        assert "Token Thrift (M-160)" in (
+            _thrift_published_text(thrift_handler))
+
+    def test_record_road_panel_costs(self, thrift_handler, agent):
+        thrift_handler._handle_thrift("record thrift-diff-pinning")
+        assert "file-pinning-protection" in (
+            _thrift_published_text(thrift_handler))
+        thrift_handler._handle_thrift("road maps")
+        assert "thrift-map-context" in (
+            _thrift_published_text(thrift_handler))
+        thrift_handler._handle_thrift("panel")
+        assert "Thrift panel in Token thrift" in (
+            _thrift_published_text(thrift_handler))
+        thrift_handler._handle_thrift("costs")
+        assert "31460 tokens saved" in (
+            _thrift_published_text(thrift_handler))
+
+    def test_bad_grammar_is_published(self, thrift_handler, agent):
+        thrift_handler._handle_thrift("dance party")
+        assert USAGE in _thrift_published_text(thrift_handler)
+
+
+class TestChatScreenRoutingThrift:
+    def test_thrift_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command(
+            "/thrift record thrift-diff-pinning", _FakeLog())
+        assert calls == [("/thrift", "record thrift-diff-pinning")]
