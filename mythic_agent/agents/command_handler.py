@@ -341,6 +341,8 @@ class CommandHandler:
                 self._handle_daymemory(args)
             elif cmd == "/crossmemory":
                 self._handle_crossmemory(args)
+            elif cmd == "/ledger":
+                self._handle_ledger(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -5491,6 +5493,75 @@ class CommandHandler:
                 text = format_panel(primary.cross_project_book())
             else:
                 text = primary.cross_project_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_ledger(self, args: str):
+        """M-155: /ledger - the self-improving ledger.
+
+        ``/ledger`` shows the self-improving book held
+        this session (the shipped example book - three
+        candidates at the M-154 slice boundary, one
+        promoted into standing memory under a named
+        standing rule, one still a candidate and one
+        declined, with its one pinned panel - when none
+        is held yet); ``/ledger candidate <candidate-id>``
+        shows one candidate memory with its provenance
+        whole; ``/ledger decisions`` shows the book's
+        promotion decisions in held order; ``/ledger
+        standing`` shows the candidates standing as
+        standing memories; ``/ledger panel`` shows the
+        ledger panel derived from the whole book, its
+        rows in panel order. Reading registers and
+        publishes nothing as session news: candidates
+        and decisions are held only when they are given
+        through the agent's self-improving roads or
+        captured from the session's memory map, and
+        every candidate held for the session is
+        journaled as a self_improving_candidate session
+        event, every decision as a
+        self_improving_decision session event and every
+        derived panel as a self_improving_panel session
+        event. This surface calls no model, writes no
+        project files and updates no live memory, and
+        there is no Part VIII board yet, so the ledger
+        is visible on this surface, not on a board.
+        """
+        from ..core.self_improving_ledger import (
+            format_candidate,
+            format_decisions,
+            format_panel,
+            format_standing,
+            parse_self_improving_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_self_improving_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "candidate":
+                text = format_candidate(
+                    primary.get_self_improving_candidate(target))
+            elif action == "decisions":
+                text = format_decisions(primary.self_improving_book())
+            elif action == "standing":
+                text = format_standing(primary.self_improving_book())
+            elif action == "panel":
+                text = format_panel(primary.self_improving_book())
+            else:
+                text = primary.self_improving_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

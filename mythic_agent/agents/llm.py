@@ -24500,6 +24500,550 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-155: the self-improving ledger --
+
+    def _self_improving_registry(self):
+        """The held self-improving registry (M-155).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer candidate and decision
+        records one by one, beside the session
+        cross-project registry (M-154) and never in it:
+        the ledger book is one book of candidates with
+        their provenance whole and the promotion
+        decisions standing on them. It is created on
+        first use, so an agent whose ``__init__`` never
+        ran still holds exactly one. The attribute is
+        named ``_self_improving_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_self_improving_store", None)
+        if registry is None:
+            from ..core.self_improving_ledger import (
+                SelfImprovingRegistry)
+            registry = SelfImprovingRegistry()
+            self._self_improving_store = registry
+        return registry
+
+    def self_improving_book(self):
+        """The session's self-improving book, as data (M-155).
+
+        The held registry's book when the session holds
+        any candidate - the candidates and decisions
+        the session has actually gathered (records held
+        one by one, before any whole book stands
+        recorded, stand under a session ledger book
+        composed here in the agent layer, so a later
+        whole book recorded under its own title is
+        never refused by a shim title at the registry)
+        - otherwise the book recorded whole through
+        :meth:`record_self_improving_book`, or the
+        shipped example ledger book until one is
+        recorded. Reading registers and publishes
+        nothing.
+        """
+        from ..core.self_improving_ledger import (
+            SelfImprovingBook, load_self_improving_ledger)
+        registry = self._self_improving_registry()
+        if registry.list_candidates():
+            try:
+                book = registry.book()
+            except ValueError:
+                return SelfImprovingBook(
+                    title="Self-improving ledger",
+                    candidates=registry.list_candidates(),
+                    decisions=registry.list_decisions())
+            held = getattr(self, "_self_improving_held", None)
+            if held is not None and held.title == book.title \
+                    and held.candidate_ids() == book.candidate_ids() \
+                    and held.decision_ids() == book.decision_ids():
+                return held
+            return book
+        book = getattr(self, "_self_improving_held", None)
+        if book is None:
+            return load_self_improving_ledger()
+        return book
+
+    def _self_improving_screen(self) -> str:
+        """The /ledger screen for the session's state (M-155).
+
+        Rendered from the held book when one stands,
+        and from the shipped example book while nothing
+        is held.
+        """
+        from ..core import self_improving_ledger as ledger_module
+        registry = self._self_improving_registry()
+        if not registry.list_candidates():
+            return ledger_module.format_self_improving_screen()
+        return ledger_module.format_self_improving_screen(
+            self.self_improving_book())
+
+    def self_improving_status(self) -> dict[str, Any]:
+        """The self-improving account, in plain data (M-155).
+
+        The candidates and decisions held this session
+        as plain records, the held book's record (none
+        until a candidate stands held), the session
+        ledger book's pieces as plain records (the
+        shipped example book - three candidates at the
+        M-154 slice boundary, one promoted into
+        standing memory under a named standing rule,
+        one still a candidate and one declined, with
+        its one pinned panel - until candidates are
+        held), its whole-book record, the ledger panel
+        derived from the whole book and every panel the
+        book holds as plain records, the latest
+        candidate in plain words and the panel told in
+        plain words, the one screen - rendered from the
+        held book, or from the shipped example book
+        when nothing is held yet - and the plain
+        explanation. Reading registers and publishes
+        nothing, calls no model and writes no project
+        files: this layer holds candidates and
+        decisions as data only. There is no Part VIII
+        board yet; the screen is where the ledger is
+        visible.
+        """
+        from ..core import self_improving_ledger as ledger_module
+        registry = self._self_improving_registry()
+        held_candidates = registry.list_candidates()
+        held_decisions = registry.list_decisions()
+        book = self.self_improving_book()
+        latest = book.candidates[-1]
+        return {
+            "candidates": [item.to_record() for item in held_candidates],
+            "decisions": [item.to_record() for item in held_decisions],
+            "book": (book.to_record() if held_candidates else None),
+            "ledger": {
+                "title": book.title,
+                "candidates": [item.to_record() for item in book.candidates],
+                "decisions": [item.to_record() for item in book.decisions],
+            },
+            "book_record": ledger_module.book_record(book),
+            "panel": (ledger_module.derive_panel(book).to_record()
+                      if book.candidates else None),
+            "panels": [p.to_record() for p in book.panels],
+            "plain_words": ledger_module.plain_words(latest),
+            "panel_plain_words": (
+                ledger_module.panel_plain_words(book)
+                if book.candidates else ""),
+            "screen": self._self_improving_screen(),
+            "explanation": ledger_module.PLAIN_EXPLANATION,
+        }
+
+    def get_self_improving_candidate(self, candidate_id: Any):
+        """The one candidate memory an id names (M-155).
+
+        The session's held registry answers when the
+        session holds any candidate; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held session
+        answers for its own book alone: an id the held
+        book holds no candidate for raises KeyError,
+        with no silent fall back to the example, exactly
+        as the pure layer answers. Reading registers
+        and publishes nothing.
+        """
+        registry = self._self_improving_registry()
+        if registry.list_candidates():
+            return registry.get_candidate(candidate_id)
+        return self.self_improving_book().candidate_for(candidate_id)
+
+    def get_self_improving_decision(self, decision_id: Any):
+        """The one promotion decision an id names (M-155).
+
+        The session's held registry answers when the
+        session holds any candidate; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held session
+        answers for its own book alone: an id the held
+        book holds no decision for raises KeyError,
+        with no silent fall back to the example. Reading
+        registers and publishes nothing.
+        """
+        registry = self._self_improving_registry()
+        if registry.list_candidates():
+            return registry.get_decision(decision_id)
+        return self.self_improving_book().decision_for(decision_id)
+
+    def self_improving_panel(self):
+        """The ledger panel derived for the whole book (M-155).
+
+        The panel is derived at call time from the
+        session book whole - the held registry's book
+        when the session holds any candidate, otherwise
+        the shipped example book's (or the book recorded
+        whole for the session) - so its rows are the
+        candidates with their standings carried whole,
+        in panel order, and its totals are the
+        candidates' own counts, read at call time.
+        Reading registers and publishes nothing.
+        """
+        from ..core.self_improving_ledger import (
+            derive_panel as _derive_panel)
+        return _derive_panel(self.self_improving_book())
+
+    def standing_self_improving_memories(self):
+        """The candidates standing as standing memories (M-155).
+
+        Read off the session book whole at call time:
+        only promoted candidates stand, each with its
+        provenance whole. An undecided, declined or
+        quarantined candidate stands nowhere here.
+        Reading registers and publishes nothing, and
+        copies nothing into any live memory.
+        """
+        from ..core.self_improving_ledger import (
+            standing_memories as _standing)
+        return _standing(self.self_improving_book())
+
+    def register_self_improving_candidate(
+            self, candidate: Any) -> dict[str, Any]:
+        """Hold one candidate memory for the session (M-155).
+
+        The candidate is held by the pure registry
+        under its id or the deterministic candidate-N
+        id - a candidate id already standing here
+        refuses, as does a fact one work already stands
+        here, and a refusal holds nothing new and
+        publishes nothing. A held candidate is
+        published as its ``candidate_record``
+        session-news record through the checkpoint
+        road, so a candidate named into the session is
+        news. Returns the held candidate, its news
+        record, the screen rendered after it landed,
+        and the plain explanation. Holding a candidate
+        calls no model, writes no project files and
+        updates no live memory: the registry holds the
+        candidate as data, provenance whole - and the
+        candidate stands as a candidate, promoted by
+        nothing here.
+        """
+        from ..core import self_improving_ledger as ledger_module
+        registry = self._self_improving_registry()
+        held = registry.register_candidate(candidate)
+        candidate_news = ledger_module.candidate_record(held)
+        self._publish_self_improving_record(candidate_news)
+        return {
+            "candidate": held.to_record(),
+            "candidate_news": candidate_news,
+            "screen": self._self_improving_screen(),
+            "explanation": ledger_module.PLAIN_EXPLANATION,
+        }
+
+    def register_self_improving_decision(
+            self, decision: Any) -> dict[str, Any]:
+        """Hold one promotion decision for the session (M-155).
+
+        The decision is held by the pure registry,
+        judged exactly as a book judges it: its
+        candidate must already stand held here, no
+        candidate carries two decisions, and a decided
+        state names its decider - the human or a named
+        standing rule - or it refuses; a refusal holds
+        nothing new and publishes nothing. A held
+        decision is published as its ``decision_record``
+        session-news record through the checkpoint
+        road, and the ledger panel derived from the
+        whole held registry as its ``panel_record``
+        session news, so a decision named into the
+        session is news. Returns the held decision, its
+        news record, the panel and its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a decision updates no live
+        memory: the state is the whole act, and only
+        the promoted state lets a candidate stand as a
+        standing memory, derived at call time.
+        """
+        from ..core import self_improving_ledger as ledger_module
+        registry = self._self_improving_registry()
+        held = registry.register_decision(decision)
+        decision_news = ledger_module.decision_record(held)
+        self._publish_self_improving_record(decision_news)
+        panel = ledger_module.derive_panel(registry)
+        panel_news = ledger_module.panel_record(panel)
+        self._publish_self_improving_record(panel_news)
+        return {
+            "decision": held.to_record(),
+            "decision_news": decision_news,
+            "panel": panel.to_record(),
+            "panel_record": panel_news,
+            "screen": self._self_improving_screen(),
+            "explanation": ledger_module.PLAIN_EXPLANATION,
+        }
+
+    def capture_memory_map_candidates(
+            self, *, kind: Any, source_work: Any,
+            context: Any, evidence: Any) -> dict[str, Any]:
+        """Capture this project's memory-map entries as candidates (M-155).
+
+        This slice's own road: the session's project
+        memory map book (the M-150 road) is read onto
+        candidate memories BY IMPORT through the pure
+        layer's ``candidates_from_memory_map`` - every
+        entry of the map, under one frame (the kind
+        the entries are captured as, the work they were
+        learned in, the context they were learned in,
+        and the evidence they stand on, all named by
+        the caller) - and each candidate is held for
+        the session. A candidate already standing here
+        refuses before anything new is held: the road
+        captures nothing twice. Every candidate is
+        published as its ``candidate_record`` session
+        news, in map order, and the ledger panel derived
+        from the whole held registry as its
+        ``panel_record`` session news. Returns the held
+        candidates, their news records, the panel news
+        record, the count, the screen, and the
+        explanation. Capturing calls no model, writes
+        no project files and updates no live memory -
+        and it promotes nothing: every captured
+        candidate stands as a candidate until a
+        promotion decision says otherwise.
+        """
+        from ..core import self_improving_ledger as ledger_module
+        candidates = ledger_module.candidates_from_memory_map(
+            self.project_memory_map_book(),
+            kind=kind, source_work=source_work,
+            context=context, evidence=evidence)
+        if not candidates:
+            raise ValueError(
+                "the session's memory map holds no entries to capture")
+        registry = self._self_improving_registry()
+        held_ids = {item.candidate_id for item in registry.list_candidates()}
+        for candidate in candidates:
+            if candidate.candidate_id in held_ids:
+                raise ValueError(
+                    f"a candidate named {candidate.candidate_id!r} "
+                    f"already exists")
+        candidate_news = []
+        for candidate in candidates:
+            held_candidate = registry.register_candidate(candidate)
+            news = ledger_module.candidate_record(held_candidate)
+            self._publish_self_improving_record(news)
+            candidate_news.append(news)
+        panel = ledger_module.derive_panel(registry)
+        panel_news = ledger_module.panel_record(panel)
+        self._publish_self_improving_record(panel_news)
+        return {
+            "candidates": [item.to_record() for item in candidates],
+            "candidates_news": candidate_news,
+            "panel_record": panel_news,
+            "count": len(candidate_news),
+            "screen": self._self_improving_screen(),
+            "explanation": ledger_module.PLAIN_EXPLANATION,
+        }
+
+    def register_self_improving_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole self-improving book for the session (M-155).
+
+        Every candidate and decision of the book is
+        held by the pure registry, in book order - the
+        first book held sets the registry's title, a
+        later book under a different title refuses, as
+        does a book naming a held candidate or decision
+        id. The book's panels are derivations, not
+        holdings, and are not held. Every candidate is
+        published as its ``candidate_record`` session
+        news, in book order, every decision as its
+        ``decision_record`` session news, and the ledger
+        panel derived from the whole book as its
+        ``panel_record`` session news. Returns the held
+        book, its candidates and decisions, their news
+        records, the panel news record, the counts of
+        candidates and decisions held, the screen, and
+        the explanation. Registering calls no model and
+        writes no project files.
+        """
+        from ..core import self_improving_ledger as ledger_module
+        validated = ledger_module.build_book(book)
+        registry = self._self_improving_registry()
+        registry.register_book(validated)
+        candidates = [
+            ledger_module.candidate_record(candidate)
+            for candidate in validated.candidates]
+        for candidate_news in candidates:
+            self._publish_self_improving_record(candidate_news)
+        decisions = [
+            ledger_module.decision_record(decision)
+            for decision in validated.decisions]
+        for decision_news in decisions:
+            self._publish_self_improving_record(decision_news)
+        panel_news = ledger_module.panel_record(
+            ledger_module.derive_panel(validated))
+        self._publish_self_improving_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "candidates": [
+                item.to_record() for item in validated.candidates],
+            "candidates_news": candidates,
+            "decisions": [
+                item.to_record() for item in validated.decisions],
+            "decisions_news": decisions,
+            "panel_record": panel_news,
+            "count": len(candidates),
+            "decision_count": len(decisions),
+            "screen": self._self_improving_screen(),
+            "explanation": ledger_module.PLAIN_EXPLANATION,
+        }
+
+    def record_self_improving_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole self-improving book for the session (M-155).
+
+        With no book named, the shipped example ledger
+        book is recorded through the pure layer - three
+        candidates at the M-154 slice boundary, one
+        promoted into standing memory under a named
+        standing rule, one still a candidate and one
+        declined, with its one pinned panel. A book
+        loaded from a file (the pure layer's
+        ``load_self_improving_ledger_file`` road) may
+        be passed instead, so a real ledger book is
+        recorded as it stands. Every candidate is held
+        and published as its ``candidate_record``
+        session news, in book order, every decision as
+        its ``decision_record`` session news, and the
+        ledger panel as its ``panel_record`` session
+        news; the book is remembered whole as the
+        session's - its held panel and all - and the
+        same book recorded twice refuses - fingerprinted
+        on its candidate ids, decision ids and title - a
+        book is recorded once, never duplicated into the
+        session. Returns the held book, its candidates
+        and decisions, their news records, the panel
+        news record, the counts, the screen, and the
+        explanation. Recording calls no model.
+        """
+        from ..core import self_improving_ledger as ledger_module
+        book = book if book is not None \
+            else ledger_module.load_self_improving_ledger()
+        validated = ledger_module.build_book(book)
+        fingerprint = (
+            tuple(validated.candidate_ids()),
+            tuple(validated.decision_ids()), validated.title)
+        recorded = getattr(self, "_self_improving_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._self_improving_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this self-improving book is already recorded "
+                "for the session; a book is recorded once")
+        registry = self._self_improving_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._self_improving_held = validated
+        candidates = [
+            ledger_module.candidate_record(candidate)
+            for candidate in validated.candidates]
+        for candidate_news in candidates:
+            self._publish_self_improving_record(candidate_news)
+        decisions = [
+            ledger_module.decision_record(decision)
+            for decision in validated.decisions]
+        for decision_news in decisions:
+            self._publish_self_improving_record(decision_news)
+        panel_news = ledger_module.panel_record(
+            ledger_module.derive_panel(validated))
+        self._publish_self_improving_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "candidates": [
+                item.to_record() for item in validated.candidates],
+            "candidates_news": candidates,
+            "decisions": [
+                item.to_record() for item in validated.decisions],
+            "decisions_news": decisions,
+            "panel_record": panel_news,
+            "count": len(candidates),
+            "decision_count": len(decisions),
+            "screen": ledger_module.format_self_improving_screen(
+                validated),
+            "explanation": ledger_module.PLAIN_EXPLANATION,
+        }
+
+    def report_self_improving_ledger(self) -> dict[str, Any]:
+        """Render the session self-improving book, as a report (M-155).
+
+        The book - the held registry's book when the
+        session holds any candidate, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone: its candidates, its
+        decisions, its derived panel and its one screen.
+        Rendering registers and publishes nothing, calls
+        no model and writes no project files: the agent
+        layer renders the ledger as data. Returns the
+        book, its candidates, decisions and panels as
+        plain records, the derived panel, the rendered
+        candidates, decisions and panel, the screen,
+        and the plain explanation.
+        """
+        from ..core import self_improving_ledger as ledger_module
+        book = self.self_improving_book()
+        return {
+            "book": book.to_record(),
+            "candidates": [item.to_record() for item in book.candidates],
+            "decisions": [item.to_record() for item in book.decisions],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (ledger_module.derive_panel(book).to_record()
+                      if book.candidates else None),
+            "candidates_text": ledger_module.format_candidates(book),
+            "decisions_text": ledger_module.format_decisions(book),
+            "panel_text": ledger_module.format_panel(book),
+            "screen": self._self_improving_screen(),
+            "explanation": ledger_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_self_improving_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one self-improving record as session news (M-155).
+
+        The pure layer's ``candidate_record``,
+        ``decision_record`` and ``panel_record`` are
+        journaled through the same checkpoint road every
+        sibling slice uses, when a session is attached.
+        Each record is announced at most once per shape:
+        a candidate under its own candidate id, source
+        work and title, a decision under its whole
+        standing (its decision id, candidate, state and
+        decider - so a decision whose state moves
+        announces again as the new figure it is), and a
+        panel under its whole derived shape (its rows
+        and totals), so a panel grown by a newly held
+        candidate announces again as the new figure it
+        is. A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "self_improving_candidate":
+            key = ("self_improving_candidate",
+                   record.get("candidate_id"),
+                   record.get("source_work"),
+                   record.get("title"))
+        elif record.get("type") == "self_improving_decision":
+            key = ("self_improving_decision", record.get("decision_id"),
+                   record.get("candidate_id"),
+                   record.get("state"),
+                   record.get("decided_by"))
+        elif record.get("type") == "self_improving_panel":
+            key = ("self_improving_panel", record.get("panel_id"),
+                   tuple(row.get("candidate_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_items"))
+        else:
+            return
+        announced = getattr(self, "_self_improving_announced", None)
+        if announced is None:
+            announced = set()
+            self._self_improving_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
