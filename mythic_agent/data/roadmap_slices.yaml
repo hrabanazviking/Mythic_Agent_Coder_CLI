@@ -979,7 +979,7 @@ slices:
   title: Decision records
   summary: choices made in session (library picked, road not taken, why) written as small ADRs into the
     project docs by the Scribe.
-  status: queued
+  status: done
 - id: M-157
   part: 7
   title: Forget and quarantine
