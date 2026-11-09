@@ -1052,7 +1052,7 @@ slices:
   part: 7
   title: Cold-start kindness
   summary: opening a huge, old project rebuilds its map in the background while the coder is already useful.
-  status: queued
+  status: done
 - id: M-170
   part: 7
   title: Part VII gate
