@@ -996,7 +996,7 @@ slices:
   title: Pinning and protection
   summary: files/facts the compaction may never drop (the task, the laws, the failing test) — pins are
     visible.
-  status: queued
+  status: done
 - id: M-160
   part: 7
   title: Token thrift
