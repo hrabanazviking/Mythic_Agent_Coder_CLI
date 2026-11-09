@@ -544,3 +544,385 @@ def test_honest_boundary_module_imports_no_live_roads():
     assert "from ..ui" not in source
     assert "from ..terminal" not in source
     assert "import agents" not in source
+
+
+def test_composition_from_crew_memory_and_direct_validate():
+    from mythic_agent.core.crew_memory import (
+        build_entry as build_crew_entry,
+    )
+    crew_entry = build_crew_entry({
+        "entry_id": "crew-note-1", "member": "cartographer",
+        "title": "A crew fact held in a notebook",
+        "fact": "The crew fact's own words, never journaled.",
+        "tags": ["roads"], "provenance": "test source"})
+    seen = inspect_memory(crew_entry)
+    assert seen == {"memory_class": "crew-memory",
+                    "memory_ref": "crew-note-1"}
+    entry = validate_entry(crew_entry, **FRAME)
+    assert entry.memory_class == "crew-memory"
+    assert entry.memory_ref == "crew-note-1"
+    assert crew_entry.fact not in str(entry.to_record())
+    assert crew_entry.title not in plain_words(entry)
+    direct = validate_entry(_stored_entry(_entry()))
+    assert direct == _entry()
+
+
+def test_registry_constructor_and_titleless_book_refusal():
+    registry = ForgetRegistry(load_forget_quarantine())
+    assert registry.book().title == EXAMPLE_TITLE
+    assert registry.panel().total_items == 4
+    bare = ForgetRegistry()
+    bare.register_entry(_entry(entry_id="entry-solo"))
+    with pytest.raises(ValueError, match="no forget book is held"):
+        bare.book()
+    # The panel still derives from what stands held,
+    # title or no title: derivation needs no book.
+    assert bare.panel().total_items == 1
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-157 agent layer: the agent holds a ForgetRegistry
+# for the session (session state only, no new setting),
+# entries are held by being registered - published as
+# their entry_record session news with the derived
+# panel_record, through the checkpoint road, deduped
+# per shape - the report road renders the held book (or
+# the shipped example when unheld) through the pure
+# formatters, a journal road reads the session's carried
+# memory onto entries and holds them (mutating no live
+# memory), and the /forget surface rides both roads on
+# the pure parser + formatters. Status, get, panel and
+# forgotten reads register and publish nothing, answer
+# from the held registry first and from the shipped
+# example only while nothing is held - a held session
+# never falls back to the example. The panel derives at
+# call time from the whole book, never held. This layer
+# calls no model, deletes nothing from any holding and
+# persists nothing beyond the session journal news, and
+# there is no Part VIII board yet, so the screen is
+# where the journal is visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _forget_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_forget_book(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data"
+           / "forget_quarantine.yaml").read_text(encoding="utf-8")
+    path = tmp_path / "forget_quarantine.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestForgetQuarantineAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.forget_quarantine_status()
+        assert status["entries"] == []
+        assert status["book"] is None
+        assert status["forgetting"]["title"] == EXAMPLE_TITLE
+        assert len(status["forgetting"]["entries"]) == 4
+        assert status["panel"]["total_items"] == 4
+        assert status["panel"]["total_forgotten"] == 2
+        assert status["panels"][0]["panel_id"] == "panel-m156-boundary"
+        assert status["book_record"]["entry_count"] == 4
+        assert "Forget and Quarantine (M-157)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._forget_quarantine_registry()
+        assert agent._forget_quarantine_registry() is first
+        assert agent._forget_quarantine_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.forget_quarantine_status()
+        agent.get_forget_entry("entry-lesson-forgotten")
+        agent.forget_quarantine_panel()
+        agent.forgotten_memories()
+        agent.report_forget_quarantine()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("forget_")] == []
+        agent.close()
+
+    def test_unheld_reads_raise(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_forget_entry("entry-nope")
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_forget_entry(_entry())
+        status = agent.forget_quarantine_status()
+        assert [item["entry_id"] for item in status["entries"]] == [
+            "entry-test"]
+        assert status["book"]["title"] == "Forget and quarantine"
+
+    def test_held_session_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_forget_entry(_entry())
+        with pytest.raises(KeyError):
+            agent.get_forget_entry("entry-lesson-forgotten")
+        entry = agent.get_forget_entry("entry-test")
+        assert entry.memory_ref == "note-test"
+        assert agent.forget_quarantine_book().title == (
+            "Forget and quarantine")
+
+
+class TestForgetQuarantineAgentHolding:
+    def test_register_entry_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_forget_entry(_entry())
+        assert outcome["entry"]["entry_id"] == "entry-test"
+        assert outcome["entry_news"]["type"] == "forget_entry"
+        events = _forget_events(store, session_id, "forget_entry")
+        assert len(events) == 1
+        assert events[0]["entry_id"] == "entry-test"
+        agent._publish_forget_record(outcome["entry_news"])
+        assert len(_forget_events(
+            store, session_id, "forget_entry")) == 1
+        agent._publish_forget_record(
+            {"type": "mentions_mention", "mention_id": "mention-x"})
+        agent._publish_forget_record(book_record(load_forget_quarantine()))
+        for kind in ("mentions_mention", "forget_book"):
+            assert _forget_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_duplicate_entry_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_forget_entry(_entry())
+        with pytest.raises(ValueError):
+            agent.register_forget_entry(_entry())
+        assert len(_forget_events(
+            store, session_id, "forget_entry")) == 1
+        agent.close()
+
+    def test_journal_from_session_memory_carries_no_content(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        memory_book = load_session_memory()
+        notes = [n for s in memory_book.situations for n in s.memory
+                 if n.note_id]
+        expected = len(notes)
+        outcome = agent.journal_forgetting_from_session_memory(**FRAME)
+        assert outcome["count"] == expected
+        events = _forget_events(store, session_id, "forget_entry")
+        assert len(events) == expected
+        # The honesty heart at the agent layer: no
+        # carried note's title or detail stands in any
+        # journaled event, entry or headline.
+        blob = str(events) + str(outcome["entries"])
+        for note in notes:
+            assert note.title not in blob
+            assert note.detail not in blob
+        # Journaling mutated no live memory: the
+        # session's carried memory stands whole.
+        assert agent.session_memory_book().situations == (
+            memory_book.situations)
+        assert agent.forget_quarantine_panel().total_forgotten == expected
+        with pytest.raises(ValueError):
+            agent.journal_forgetting_from_session_memory(**FRAME)
+        agent.close()
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent):
+        book = _book()
+        outcome = agent.register_forget_book(book)
+        assert outcome["count"] == 1
+        assert [item["type"] for item in outcome["entries_news"]] == [
+            "forget_entry"]
+        assert agent.forget_quarantine_book().title == (
+            "A test forget book")
+
+    def test_register_book_twice_refuses(self, agent):
+        agent.register_forget_book(load_forget_quarantine())
+        with pytest.raises(ValueError):
+            agent.register_forget_book(load_forget_quarantine())
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_forget_book()
+        assert outcome["count"] == 4
+        assert outcome["book"]["title"] == EXAMPLE_TITLE
+        assert len(_forget_events(
+            store, session_id, "forget_entry")) == 4
+        assert agent.forget_quarantine_book().panels[0].panel_id == (
+            "panel-m156-boundary")
+        agent.close()
+
+    def test_record_same_book_twice_refuses(self, agent):
+        agent.record_forget_book()
+        with pytest.raises(ValueError):
+            agent.record_forget_book()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_forget_book(tmp_path)
+        book = load_forget_quarantine_file(path)
+        outcome = agent.record_forget_book(book)
+        assert outcome["count"] == 4
+        assert agent.get_forget_entry(
+            "entry-record-forgotten").memory_ref == "record-stdlib-http"
+
+    def test_report_renders_the_example_when_unheld(self, agent):
+        report = agent.report_forget_quarantine()
+        assert report["book"]["entry_count"] == 4
+        assert "entry-lesson-forgotten" in report["entries_text"]
+        assert "Forget panel in Forget and quarantine" in (
+            report["panel_text"])
+        assert "entry-note-quarantined" not in report["quarantined_text"]
+        assert "No memories stand quarantined." in (
+            report["quarantined_text"])
+
+    def test_report_renders_the_held_book_only(self, agent):
+        agent.register_forget_entry(_entry())
+        report = agent.report_forget_quarantine()
+        assert report["book"]["title"] == "Forget and quarantine"
+        assert "entry-lesson-forgotten" not in report["entries_text"]
+        assert "entry-test" in report["entries_text"]
+
+    def test_report_registers_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.report_forget_quarantine()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("forget_")] == []
+        agent.close()
+
+    def test_no_live_delete_or_persist_road(
+            self, agent, tmp_path):
+        # This layer journals acts of forgetting as
+        # data: it calls no model, deletes nothing from
+        # any live holding, writes no project files and
+        # persists nothing - and there is no Part VIII
+        # board yet. Holding, recording or journaling
+        # changes no workspace file and no live context.
+        assert not hasattr(agent, "apply_forget_quarantine")
+        assert not hasattr(agent, "delete_forget_quarantine")
+        assert not hasattr(agent, "persist_forget_quarantine")
+        assert not hasattr(agent, "forget_quarantine_board")
+        (tmp_path / "alpha.py").write_text(
+            "def greet(name):\n    return name\n", encoding="utf-8")
+        before = {
+            p.name: p.read_bytes()
+            for p in tmp_path.glob("*.py")}
+        from mythic_agent.agents.context import ContextBuilder
+        builder = ContextBuilder(max_tokens=4000)
+        builder.add_system("You are the coder.")
+        builder.add_turn("user", "Build the slice.")
+        built_before = builder.build()
+        agent.register_forget_entry(_entry())
+        agent.record_forget_book()
+        assert builder.build() == built_before
+        assert {
+            p.name: p.read_bytes()
+            for p in tmp_path.glob("*.py")} == before
+
+
+class TestForgetQuarantineTerminalSurface:
+    def test_show_entry_forgotten_quarantined_panel(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/forget")
+        assert "Forget and Quarantine (M-157)" in text
+        _, _, text = _slash(agent, "/forget entry entry-lesson-forgotten")
+        assert "lesson-flaky-test" in text
+        assert "Content: not kept" in text
+        _, _, text = _slash(agent, "/forget forgotten")
+        assert "entry-record-forgotten" in text
+        _, _, text = _slash(agent, "/forget quarantined")
+        assert "No memories stand quarantined." in text
+        _, _, text = _slash(agent, "/forget panel")
+        assert "Forget panel in Forget and quarantine" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/forget [show|entry <entry-id>"
+                "|forgotten|quarantined|panel]") in text
+        _, _, text = _slash(agent, "/forget dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/forget entry entry-nope")
+        assert "no entry in the book" in text
+
+
+@pytest.fixture()
+def forget_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _forget_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestForgetQuarantineCommand:
+    def test_show_is_default(self, forget_handler, agent):
+        forget_handler._handle_forget("")
+        assert "Forget and Quarantine (M-157)" in (
+            _forget_published_text(forget_handler))
+
+    def test_entry_forgotten_quarantined_panel(
+            self, forget_handler, agent):
+        forget_handler._handle_forget("entry entry-lesson-forgotten")
+        assert "lesson-flaky-test" in (
+            _forget_published_text(forget_handler))
+        forget_handler._handle_forget("forgotten")
+        assert "entry-record-forgotten" in (
+            _forget_published_text(forget_handler))
+        forget_handler._handle_forget("quarantined")
+        assert "No memories stand quarantined." in (
+            _forget_published_text(forget_handler))
+        forget_handler._handle_forget("panel")
+        assert "Forget panel in Forget and quarantine" in (
+            _forget_published_text(forget_handler))
+
+    def test_bad_grammar_is_published(self, forget_handler, agent):
+        forget_handler._handle_forget("dance party")
+        assert USAGE in _forget_published_text(forget_handler)
+
+
+class TestChatScreenRoutingForget:
+    def test_forget_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command(
+            "/forget entry entry-lesson-forgotten", _FakeLog())
+        assert calls == [("/forget", "entry entry-lesson-forgotten")]
