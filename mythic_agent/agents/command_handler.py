@@ -379,6 +379,8 @@ class CommandHandler:
                 self._handle_approvalcards(args)
             elif cmd == "/fuzzypicker":
                 self._handle_fuzzypicker(args)
+            elif cmd == "/commandpalace":
+                self._handle_commandpalace(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -6935,6 +6937,103 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_commandpalace(self, args: str):
+        """M-176: /commandpalace - the slash-command palace.
+
+        ``/commandpalace`` shows the command palace held
+        this session - every shipped command and
+        every custom command under one browsing
+        grammar (the shipped example book -
+        eight entries at the M-175 slice boundary,
+        with its two browses and its one pinned
+        panel - when none is held yet);
+        ``/commandpalace entry <entry-id>``
+        shows one entry whole, its kind, source,
+        tags and detail as their own lines;
+        ``/commandpalace browse <browse-id>`` shows one
+        held browse record; ``/commandpalace find
+        <words>`` runs the grammar on the spot under
+        an ad-hoc browse and shows the derived panel;
+        ``/commandpalace kind <kind>`` shows the book's
+        entries of one kind; ``/commandpalace panel``
+        shows the panel derived from the whole book
+        under its default browse; ``/commandpalace
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: entries and
+        browses are held only when they are given
+        through the agent's register roads, stood on
+        the book on the browsing road, or held on the
+        book roads, and every entry held for the
+        session is journaled as a command_palace_entry
+        session event, every browse as a
+        command_palace_browse session event, every
+        derived panel as a command_palace_panel session
+        event and every derived verdict as a
+        command_palace_verdict session event. This
+        surface opens nothing the palace finds,
+        executes nothing, renders no live UI and banks
+        nothing - an entry held here is a listing, never
+        the act of opening the thing found, and a
+        browse commits no choice at all.
+        """
+        from ..core.command_palace import (
+            build_browse,
+            format_book,
+            format_entry,
+            format_panel,
+            format_browse,
+            format_verdict,
+            parse_command_palace_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_command_palace_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "entry":
+                text = format_entry(
+                    primary.get_palace_entry(target))
+            elif action == "browse":
+                text = format_browse(
+                    primary.get_palace_browse(target))
+            elif action == "visit":
+                browse = build_browse({
+                    "seq": 1, "text": target,
+                    "kind_filter": "all",
+                    "detail": "An on-the-spot browse from "
+                              "the /commandpalace surface.",
+                    "recorded_on": "2026-11-09",
+                    "actor": "the jarl",
+                    "source": "command palace",
+                    "origin_session": "session-m176"})
+                text = format_panel(
+                    primary.command_palace_book(), browse)
+            elif action == "kind":
+                text = format_book(
+                    primary.command_palace_book(), target)
+            elif action == "panel":
+                text = format_panel(primary.command_palace_book())
+            elif action == "verdict":
+                text = format_verdict(primary.command_palace_book())
+            else:
+                text = primary.command_palace_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
 
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.
