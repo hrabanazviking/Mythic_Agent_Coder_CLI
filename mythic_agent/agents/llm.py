@@ -34249,6 +34249,575 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    # -- M-177: prompt craft --
+
+    def _prompt_craft_registry(self):
+        """The held prompt-craft registry (M-177).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer items and view
+        records one by one, beside the session
+        command-palace registry (M-176) and never in
+        it: the book is one set of prompt craft to
+        look at. It is created on first use, so an
+        agent whose ``__init__`` never ran still holds
+        exactly one. The attribute is named
+        ``_prompt_craft_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_prompt_craft_store", None)
+        if registry is None:
+            from ..core.prompt_craft import PromptCraftRegistry
+            registry = PromptCraftRegistry()
+            self._prompt_craft_store = registry
+        return registry
+
+    def prompt_craft_book(self):
+        """The session's book of prompt craft, as data (M-177).
+
+        The held registry's book when the session
+        holds any item - the things the session can
+        actually be viewed for (items held one by one
+        stand under a session book composed here in
+        the agent layer, so a later whole book
+        recorded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book recorded whole through
+        :meth:`record_prompt_craft_book`, or the
+        shipped example book until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.prompt_craft import (
+            PromptCraftBook, load_prompt_craft)
+        registry = self._prompt_craft_registry()
+        if registry.list_items():
+            try:
+                book = registry.book()
+            except ValueError:
+                return PromptCraftBook(
+                    title="Prompt Craft",
+                    items=registry.list_items(),
+                    views=registry.list_views())
+            held = getattr(self, "_prompt_craft_held", None)
+            if held is not None and held.title == book.title \
+                    and held.item_ids() == book.item_ids() \
+                    and held.view_ids() == book.view_ids():
+                return held
+            return book
+        book = getattr(self, "_prompt_craft_held", None)
+        if book is None:
+            return load_prompt_craft()
+        return book
+
+    def _prompt_craft_default_view(self, book: Any):
+        """The view a book derives under by default (M-177).
+
+        The view its own stored panel stands under,
+        else its first held view, else None - a book
+        holding items but no view yet derives no
+        panel and no verdict, and says so plainly.
+        """
+        for panel in book.panels:
+            if panel.view_id is not None:
+                try:
+                    return book.view_for(panel.view_id)
+                except KeyError:
+                    continue
+        if book.views:
+            return book.views[0]
+        return None
+
+    def _prompt_craft_screen(self) -> str:
+        """The /promptcraft screen for the session's state (M-177)."""
+        from ..core import prompt_craft as craft_module
+        registry = self._prompt_craft_registry()
+        if not registry.list_items():
+            return craft_module.format_prompt_craft_screen()
+        book = self.prompt_craft_book()
+        if not book.views:
+            return craft_module.format_book(book)
+        return craft_module.format_prompt_craft_screen(book)
+
+    def prompt_craft_status(self) -> dict[str, Any]:
+        """The prompt-craft account, in plain data (M-177).
+
+        The items and view records held this session
+        as plain records, the held book's record
+        (none until an item stands held), the session
+        book's items and views as plain records (the
+        shipped example book - eight items at the
+        M-176 slice boundary, two of each kind across
+        two projects, with its two views and its one
+        pinned panel - until items are held), its
+        whole-book record, the panel derived from the
+        whole book under its default view and every
+        panel the book holds as plain records, the
+        verdict derived for the whole book, the last
+        item in plain words, the panel and the verdict
+        told in plain words, the one screen - rendered
+        from the held book, or from the shipped
+        example book when nothing is held yet - and
+        the plain explanation. A book holding items
+        but no view yet derives no panel and no
+        verdict. Reading registers and publishes
+        nothing, sends nothing and schedules nothing:
+        this layer holds prompt craft as data only,
+        and no item is typed, pasted or sent here.
+        The screen is where the craft is visible.
+        """
+        from ..core import prompt_craft as craft_module
+        registry = self._prompt_craft_registry()
+        held_items = registry.list_items()
+        held_views = registry.list_views()
+        book = self.prompt_craft_book()
+        default = self._prompt_craft_default_view(book)
+        latest = book.items[-1] if book.items else None
+        return {
+            "items": [
+                item.to_record() for item in held_items],
+            "views": [
+                item.to_record() for item in held_views],
+            "book": (book.to_record() if held_items else None),
+            "prompt_craft": {
+                "title": book.title,
+                "items": [
+                    item.to_record() for item in book.items],
+                "views": [
+                    item.to_record() for item in book.views],
+            },
+            "book_record": craft_module.book_record(book),
+            "panel": (craft_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (craft_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "plain_words": (
+                craft_module.plain_words(latest)
+                if latest is not None else ""),
+            "panel_plain_words": (
+                craft_module.panel_plain_words(book)
+                if default is not None else ""),
+            "verdict_plain_words": (
+                craft_module.verdict_plain_words(book)
+                if default is not None else ""),
+            "screen": self._prompt_craft_screen(),
+            "explanation": craft_module.PLAIN_EXPLANATION,
+        }
+
+    def get_craft_item(self, item_id: Any):
+        """The one craft item an id names (M-177).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). A held item answers
+        for its own book alone: an id the held book
+        holds no item for raises KeyError, with no
+        silent fall back to the example, exactly as
+        the pure layer answers. Reading registers and
+        publishes nothing.
+        """
+        registry = self._prompt_craft_registry()
+        if registry.list_items():
+            return registry.get_item(item_id)
+        return self.prompt_craft_book().item_for(item_id)
+
+    def get_craft_view(self, view_id: Any):
+        """The one view record an id names (M-177).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). Reading registers and
+        publishes nothing.
+        """
+        registry = self._prompt_craft_registry()
+        if registry.list_items():
+            return registry.get_view(view_id)
+        return self.prompt_craft_book().view_for(view_id)
+
+    def prompt_craft_with_kind(self, kind: Any):
+        """The session book's items of one kind (M-177)."""
+        from ..core.prompt_craft import (
+            items_with_kind as _with_kind)
+        return _with_kind(self.prompt_craft_book(), kind)
+
+    def prompt_craft_for_project(self, project: Any):
+        """The session book's items in one project (M-177)."""
+        from ..core.prompt_craft import (
+            items_for_project as _for_project)
+        return _for_project(self.prompt_craft_book(), project)
+
+    def prompt_craft_panel(self, view: Any = None):
+        """The panel derived for the whole book (M-177).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a
+        book holding no view at all refuses plainly
+        rather than inventing one.
+        """
+        from ..core.prompt_craft import derive_panel as _derive_panel
+        book = self.prompt_craft_book()
+        resolved = view if view is not None \
+            else self._prompt_craft_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive "
+                "a panel under")
+        return _derive_panel(book, resolved)
+
+    def prompt_craft_verdict(self, view: Any = None):
+        """The verdict derived for the whole book (M-177).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a
+        book holding no view at all refuses plainly
+        rather than inventing one.
+        """
+        from ..core.prompt_craft import (
+            derive_verdict as _derive_verdict)
+        book = self.prompt_craft_book()
+        resolved = view if view is not None \
+            else self._prompt_craft_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive "
+                "a verdict under")
+        return _derive_verdict(book, resolved)
+
+    def register_craft_item(
+            self, item: Any) -> dict[str, Any]:
+        """Hold one craft item for the session (M-177).
+
+        The item is held by the pure registry under
+        its item id - an item id already standing
+        here refuses, and a refusal holds nothing new
+        and publishes nothing. A held item is
+        published as its ``item_record`` session-news
+        record through the checkpoint road. Returns
+        the held item, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding an item types nothing
+        into a live box and sends nothing: the thing
+        stands on this layer's book, as data,
+        provenance whole, waiting to be looked at.
+        """
+        from ..core import prompt_craft as craft_module
+        registry = self._prompt_craft_registry()
+        held = registry.register_item(item)
+        item_news = craft_module.item_record(held)
+        self._publish_prompt_craft_record(item_news)
+        return {
+            "item": held.to_record(),
+            "record_news": item_news,
+            "screen": self._prompt_craft_screen(),
+            "explanation": craft_module.PLAIN_EXPLANATION,
+        }
+
+    def register_craft_view(
+            self, view: Any) -> dict[str, Any]:
+        """Hold one view record for the session (M-177).
+
+        The view is held by the pure registry under
+        its id, or under a fresh view-N id when it
+        names none - a view id or a sequence already
+        standing here refuses, and a refusal holds
+        nothing new and publishes nothing. A held view
+        is published as its ``view_record``
+        session-news record through the checkpoint
+        road. Returns the held view, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding a view only ever
+        looks: it edits no live box and sends nothing.
+        """
+        from ..core import prompt_craft as craft_module
+        registry = self._prompt_craft_registry()
+        held = registry.register_view(view)
+        view_news = craft_module.view_record(held)
+        self._publish_prompt_craft_record(view_news)
+        return {
+            "view": held.to_record(),
+            "record_news": view_news,
+            "screen": self._prompt_craft_screen(),
+            "explanation": craft_module.PLAIN_EXPLANATION,
+        }
+
+    def view_prompt_craft(
+            self, project_filter: Any, *,
+            detail: Any = None,
+            recorded_on: Any = "2026-11-09",
+            actor: Any = "the jarl",
+            source: Any = "prompt craft",
+            origin_session: Any = "session-m177",
+            view_id: Any = None) -> dict[str, Any]:
+        """Stand one view on the session's held book (M-177).
+
+        This slice's own viewing road: the view record
+        is composed by the pure layer at the next
+        sequence of the session's held book, judged
+        whole, and held by the pure registry. The view
+        is published as its ``view_record`` session
+        news, the panel derived from the whole book as
+        its ``panel_record`` session news, and the
+        verdict derived for the whole book as its
+        ``verdict_record`` session news. Returns the
+        held view, its project filter, its news
+        records, the screen rendered after it landed
+        and the plain explanation. HONEST BOUNDARY:
+        viewing edits no live input box and sends
+        nothing - the view moves this book alone, as
+        data, and dictation is M-180's road, not
+        built here.
+        """
+        from ..core import prompt_craft as craft_module
+        registry = self._prompt_craft_registry()
+        held_views = registry.list_views()
+        seq = (max(v.seq for v in held_views) + 1) \
+            if held_views else 1
+        fields: dict[str, Any] = {
+            "seq": seq, "project_filter": project_filter,
+            "detail": detail if detail is not None else (
+                f"View project {project_filter!r} in the "
+                "session's held book, composed on the "
+                "viewing road."),
+            "recorded_on": recorded_on,
+            "actor": actor, "source": source,
+            "origin_session": origin_session}
+        if view_id is not None:
+            fields["view_id"] = view_id
+        view = craft_module.build_view(fields)
+        held = registry.register_view(view)
+        view_news = craft_module.view_record(held)
+        self._publish_prompt_craft_record(view_news)
+        book = self.prompt_craft_book()
+        panel_news = craft_module.panel_record(
+            craft_module.derive_panel(book, held))
+        self._publish_prompt_craft_record(panel_news)
+        verdict_news = craft_module.verdict_record(
+            craft_module.derive_verdict(book, held))
+        self._publish_prompt_craft_record(verdict_news)
+        return {
+            "view": held.to_record(),
+            "project_filter": held.project_filter,
+            "record_news": view_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._prompt_craft_screen(),
+            "explanation": craft_module.PLAIN_EXPLANATION,
+        }
+
+    def register_prompt_craft_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole book of prompt craft (M-177).
+
+        Every item and view record of the book is
+        held by the pure registry, in held and
+        recorded order - the book is judged whole, and
+        against the held book, before anything is
+        held, so a refusal holds nothing new. The
+        first book held sets the registry's title, a
+        later book under a different title refuses, as
+        does a book naming a held item id, view id or
+        sequence. The book's panels are derivations,
+        not holdings, and are not held. Every item is
+        published as its ``item_record`` session news
+        and every view as its ``view_record`` session
+        news, in order. Returns the held book, its
+        items and views, their news records, the count
+        of items held, the screen, and the explanation.
+        Registering edits no live box and sends nothing.
+        """
+        from ..core import prompt_craft as craft_module
+        validated = craft_module.build_book(book)
+        registry = self._prompt_craft_registry()
+        registry.register_book(validated)
+        records = [
+            craft_module.item_record(item)
+            for item in validated.items]
+        records += [
+            craft_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_prompt_craft_record(news)
+        return {
+            "book": validated.to_record(),
+            "items": [
+                item.to_record() for item in validated.items],
+            "views": [
+                item.to_record() for item in validated.views],
+            "records_news": records,
+            "count": len(validated.items),
+            "screen": self._prompt_craft_screen(),
+            "explanation": craft_module.PLAIN_EXPLANATION,
+        }
+
+    def record_prompt_craft_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole book of prompt craft (M-177).
+
+        With no book named, the shipped example book
+        is recorded through the pure layer - eight
+        items at the M-176 slice boundary, with its
+        two views and its one pinned panel. A book
+        loaded from a file (the pure layer's
+        ``load_prompt_craft_file`` road) may be passed
+        instead. The book is judged whole before
+        anything is held. Every item and view is held
+        and published as its session news, in order,
+        and the panel derived under the book's default
+        view as its ``panel_record`` session news; the
+        book is remembered whole as the session's -
+        its held panel and all - and the same book
+        recorded twice refuses - fingerprinted on its
+        item ids, view ids and title. Returns the held
+        book, its items and views, their news records,
+        the panel news record, the count, the screen,
+        and the explanation. Recording edits no live
+        box and sends nothing.
+        """
+        from ..core import prompt_craft as craft_module
+        book = book if book is not None \
+            else craft_module.load_prompt_craft()
+        validated = craft_module.build_book(book)
+        fingerprint = (tuple(validated.item_ids()),
+                       tuple(validated.view_ids()),
+                       validated.title)
+        recorded = getattr(self, "_prompt_craft_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._prompt_craft_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this book of prompt craft is already "
+                "recorded for the session; a book is "
+                "recorded once")
+        registry = self._prompt_craft_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._prompt_craft_held = validated
+        records = [
+            craft_module.item_record(item)
+            for item in validated.items]
+        records += [
+            craft_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_prompt_craft_record(news)
+        panel_news = craft_module.panel_record(
+            craft_module.derive_panel(
+                validated,
+                self._prompt_craft_default_view(validated)),
+            validated)
+        self._publish_prompt_craft_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "items": [
+                item.to_record() for item in validated.items],
+            "views": [
+                item.to_record() for item in validated.views],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(validated.items),
+            "screen": craft_module.format_prompt_craft_screen(
+                validated),
+            "explanation": craft_module.PLAIN_EXPLANATION,
+        }
+
+    def report_prompt_craft(self) -> dict[str, Any]:
+        """Render the session prompt craft, as a report (M-177).
+
+        The book - the held registry's book when the
+        session holds any item, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - is rendered through the pure
+        formatters alone. Rendering registers and
+        publishes nothing and reads no file. Returns
+        the book, its items, views and panels as plain
+        records, the derived panel and verdict (none
+        while the book holds no view), the rendered
+        book, panel and verdict, the screen, and the
+        plain explanation.
+        """
+        from ..core import prompt_craft as craft_module
+        book = self.prompt_craft_book()
+        default = self._prompt_craft_default_view(book)
+        return {
+            "book": book.to_record(),
+            "items": [
+                item.to_record() for item in book.items],
+            "views": [
+                item.to_record() for item in book.views],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (craft_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "verdict": (craft_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "book_text": craft_module.format_book(book),
+            "panel_text": (craft_module.format_panel(book)
+                           if default is not None else ""),
+            "verdict_text": (craft_module.format_verdict(book)
+                             if default is not None else ""),
+            "screen": self._prompt_craft_screen(),
+            "explanation": craft_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_prompt_craft_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one prompt-craft record as session news (M-177).
+
+        The pure layer's ``item_record``, ``view_record``,
+        ``panel_record`` and ``verdict_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once per shape: an item under its own item id,
+        kind and line, a view under its own view id,
+        sequence and project filter, a panel under its
+        whole derived shape, and a verdict under its
+        word and tallies, so a panel or verdict grown
+        by a newly held item or view announces again
+        as the new figure it is. A foreign record type
+        is never published on this road.
+        """
+        if record.get("type") == "prompt_craft_item":
+            key = ("prompt_craft_item",
+                   record.get("item_id"),
+                   record.get("kind"),
+                   record.get("line"))
+        elif record.get("type") == "prompt_craft_view":
+            key = ("prompt_craft_view",
+                   record.get("view_id"),
+                   record.get("seq"),
+                   record.get("project_filter"))
+        elif record.get("type") == "prompt_craft_panel":
+            key = ("prompt_craft_panel", record.get("panel_id"),
+                   record.get("view_id"),
+                   tuple(row.get("item_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_shown"))
+        elif record.get("type") == "prompt_craft_verdict":
+            key = ("prompt_craft_verdict",
+                   record.get("verdict"),
+                   record.get("total_shown"),
+                   record.get("distinct_projects"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(self, "_prompt_craft_announced", None)
+        if announced is None:
+            announced = set()
+            self._prompt_craft_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""

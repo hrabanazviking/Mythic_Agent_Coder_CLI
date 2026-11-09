@@ -381,6 +381,8 @@ class CommandHandler:
                 self._handle_fuzzypicker(args)
             elif cmd == "/commandpalace":
                 self._handle_commandpalace(args)
+            elif cmd == "/promptcraft":
+                self._handle_promptcraft(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -7035,6 +7037,100 @@ class CommandHandler:
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
 
 
+    def _handle_promptcraft(self, args: str):
+        """M-177: /promptcraft - prompt craft.
+
+        ``/promptcraft`` shows the prompt craft held
+        this session - the input box's craft as data:
+        multi-line drafts, history per project, pasted
+        images and dropped files (the shipped example
+        book - eight items at the M-176 slice
+        boundary, with its two views and its one
+        pinned panel - when none is held yet);
+        ``/promptcraft item <item-id>`` shows one item
+        whole, its kind, project, words and provenance
+        as their own lines; ``/promptcraft view
+        <view-id>`` shows one held view record;
+        ``/promptcraft project <project>`` derives the
+        panel of an on-the-spot view over one project
+        and shows it; ``/promptcraft kind <kind>``
+        shows the book's items of one kind;
+        ``/promptcraft panel`` shows the panel derived
+        from the whole book under its default view;
+        ``/promptcraft verdict`` shows the verdict
+        derived for the whole book. Reading registers
+        and publishes nothing as session news: items
+        and views are held only when they are given
+        through the agent's register roads, stood on
+        the book on the viewing road, or held on the
+        book roads, and every item held for the
+        session is journaled as a prompt_craft_item
+        session event, every view as a prompt_craft_view
+        session event, every derived panel as a
+        prompt_craft_panel session event and every
+        derived verdict as a prompt_craft_verdict
+        session event. This surface edits no live
+        input box, pastes nothing, drops nothing,
+        dictates nothing (dictation is M-180's road),
+        opens no dropped file, renders no live UI and
+        banks nothing - an item held here is a
+        finding, never the act of typing, pasting or
+        sending the prompt found.
+        """
+        from ..core.prompt_craft import (
+            build_view,
+            format_book,
+            format_item,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_prompt_craft_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_prompt_craft_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "item":
+                text = format_item(
+                    primary.get_craft_item(target))
+            elif action == "view":
+                text = format_view(
+                    primary.get_craft_view(target))
+            elif action == "project":
+                view = build_view({
+                    "seq": 1, "project_filter": target,
+                    "detail": "An on-the-spot view from "
+                              "the /promptcraft surface.",
+                    "recorded_on": "2026-11-09",
+                    "actor": "the jarl",
+                    "source": "prompt craft",
+                    "origin_session": "session-m177"})
+                text = format_panel(
+                    primary.prompt_craft_book(), view)
+            elif action == "kind":
+                text = format_book(
+                    primary.prompt_craft_book(), target)
+            elif action == "panel":
+                text = format_panel(primary.prompt_craft_book())
+            elif action == "verdict":
+                text = format_verdict(primary.prompt_craft_book())
+            else:
+                text = primary.prompt_craft_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.
 
