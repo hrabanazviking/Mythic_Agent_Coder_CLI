@@ -25933,6 +25933,451 @@ class Agent:
             self._checkpoint(record)
 
 
+    def _context_recipes_registry(self):
+        """The held context-recipes registry (M-158).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer context recipes one by
+        one, beside the session forget-quarantine
+        registry (M-157) and never in it: the recipe
+        book is one book of named saved bundles. It is
+        created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_context_recipes_store``,
+        never the method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_context_recipes_store", None)
+        if registry is None:
+            from ..core.context_recipes import ContextRecipeRegistry
+            registry = ContextRecipeRegistry()
+            self._context_recipes_store = registry
+        return registry
+
+    def context_recipes_book(self):
+        """The session's context-recipe book, as data (M-158).
+
+        The held registry's book when the session holds
+        any recipe - the bundles the session has actually
+        saved (recipes held one by one, before any whole
+        book stands recorded, stand under a session
+        recipe book composed here in the agent layer, so
+        a later whole book recorded under its own title
+        is never refused by a shim title at the
+        registry) - otherwise the book recorded whole
+        through :meth:`record_context_recipe_book`, or
+        the shipped example recipe book until one is
+        recorded. Reading registers and publishes
+        nothing.
+        """
+        from ..core.context_recipes import (
+            ContextRecipeBook, load_context_recipes)
+        registry = self._context_recipes_registry()
+        if registry.list_recipes():
+            try:
+                book = registry.book()
+            except ValueError:
+                return ContextRecipeBook(
+                    title="Context recipes",
+                    recipes=registry.list_recipes())
+            held = getattr(self, "_context_recipes_held", None)
+            if held is not None and held.title == book.title \
+                    and held.recipe_ids() == book.recipe_ids():
+                return held
+            return book
+        book = getattr(self, "_context_recipes_held", None)
+        if book is None:
+            return load_context_recipes()
+        return book
+
+    def _context_recipes_screen(self) -> str:
+        """The /recipes screen for the session's state (M-158).
+
+        Rendered from the held book when one stands,
+        and from the shipped example book while nothing
+        is held.
+        """
+        from ..core import context_recipes as recipes_module
+        registry = self._context_recipes_registry()
+        if not registry.list_recipes():
+            return recipes_module.format_context_recipes_screen()
+        return recipes_module.format_context_recipes_screen(
+            self.context_recipes_book())
+
+    def context_recipes_status(self) -> dict[str, Any]:
+        """The context-recipes account, in plain data (M-158).
+
+        The recipes held this session as plain records,
+        the held book's record (none until a recipe
+        stands held), the session recipe book's pieces
+        as plain records (the shipped example book -
+        three recipes at the M-157 slice boundary, eight
+        pieces bundled - until recipes are held), its
+        whole-book record, the recipe panel derived from
+        the whole book and every panel the book holds as
+        plain records, the latest recipe in plain words
+        and the panel told in plain words, the one
+        screen - rendered from the held book, or from
+        the shipped example book when nothing is held
+        yet - and the plain explanation. Reading
+        registers and publishes nothing, calls no model
+        and assembles no live context: this layer holds
+        recipes as data only. There is no Part VIII board
+        yet; the screen is where the book is visible.
+        """
+        from ..core import context_recipes as recipes_module
+        registry = self._context_recipes_registry()
+        held_recipes = registry.list_recipes()
+        book = self.context_recipes_book()
+        latest = book.recipes[-1]
+        return {
+            "recipes": [item.to_record() for item in held_recipes],
+            "book": (book.to_record() if held_recipes else None),
+            "bundling": {
+                "title": book.title,
+                "recipes": [item.to_record() for item in book.recipes],
+            },
+            "book_record": recipes_module.book_record(book),
+            "panel": (recipes_module.derive_panel(book).to_record()
+                      if book.recipes else None),
+            "panels": [p.to_record() for p in book.panels],
+            "plain_words": recipes_module.plain_words(latest),
+            "panel_plain_words": (
+                recipes_module.panel_plain_words(book)
+                if book.recipes else ""),
+            "screen": self._context_recipes_screen(),
+            "explanation": recipes_module.PLAIN_EXPLANATION,
+        }
+
+    def get_context_recipe(self, recipe_id: Any):
+        """The one context recipe an id names (M-158).
+
+        The session's held registry answers when the
+        session holds any recipe; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). A held session answers
+        for its own book alone: an id the held book
+        holds no recipe for raises KeyError, with no
+        silent fall back to the example, exactly as the
+        pure layer answers. Reading registers and
+        publishes nothing.
+        """
+        registry = self._context_recipes_registry()
+        if registry.list_recipes():
+            return registry.get_recipe(recipe_id)
+        return self.context_recipes_book().recipe_for(recipe_id)
+
+    def context_recipes_panel(self):
+        """The recipe panel derived for the whole book (M-158).
+
+        The panel is derived at call time from the
+        session book whole - the held registry's book
+        when the session holds any recipe, otherwise the
+        shipped example book's (or the book recorded
+        whole for the session) - so its rows are the
+        recipes carried whole, in panel order, and its
+        totals are the recipes' own counts, read at
+        call time. Reading registers and publishes
+        nothing.
+        """
+        from ..core.context_recipes import (
+            derive_panel as _derive_panel)
+        return _derive_panel(self.context_recipes_book())
+
+    def summon_context_recipe(self, name: Any) -> dict[str, Any]:
+        """Summon one context recipe by name (M-158).
+
+        This slice's own road: the recipe the name names
+        in the session book - the held registry's book
+        when the session holds any recipe, otherwise the
+        shipped example book (or the book recorded whole
+        for the session) - is read whole and published
+        as its ``recipe_record`` session news through
+        the checkpoint road, so a summoning named into
+        the session is news. A name no recipe of the
+        book carries raises KeyError: a summoning that
+        names nothing held is refused, never guessed.
+        Returns the recipe, its news record, the summon
+        rendering, the screen, and the explanation.
+        Summoning calls no model and assembles no live
+        context: it names the bundle and its pieces,
+        whole, and the pieces stand in their own
+        holdings.
+        """
+        from ..core import context_recipes as recipes_module
+        registry = self._context_recipes_registry()
+        if registry.list_recipes():
+            recipe = registry.recipe_named(name)
+        else:
+            recipe = self.context_recipes_book().recipe_named(name)
+        recipe_news = recipes_module.recipe_record(recipe)
+        self._publish_context_recipe_record(recipe_news)
+        return {
+            "recipe": recipe.to_record(),
+            "recipe_news": recipe_news,
+            "summon_text": recipes_module.format_summon(recipe),
+            "screen": self._context_recipes_screen(),
+            "explanation": recipes_module.PLAIN_EXPLANATION,
+        }
+
+    def register_context_recipe(
+            self, recipe: Any) -> dict[str, Any]:
+        """Hold one context recipe for the session (M-158).
+
+        The recipe is held by the pure registry under
+        its id or the deterministic recipe-N id - a
+        recipe id already standing here refuses, as does
+        a name a held recipe already carries; a refusal
+        holds nothing new and publishes nothing. A held
+        recipe is published as its ``recipe_record``
+        session-news record through the checkpoint road,
+        so a bundle named into the session is news.
+        Returns the held recipe, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a recipe calls no model and
+        assembles no live context: the registry holds
+        the bundle as data, provenance whole.
+        """
+        from ..core import context_recipes as recipes_module
+        registry = self._context_recipes_registry()
+        held = registry.register_recipe(recipe)
+        recipe_news = recipes_module.recipe_record(held)
+        self._publish_context_recipe_record(recipe_news)
+        return {
+            "recipe": held.to_record(),
+            "recipe_news": recipe_news,
+            "screen": self._context_recipes_screen(),
+            "explanation": recipes_module.PLAIN_EXPLANATION,
+        }
+
+    def bundle_context_recipe_from_session_memory(
+            self, *, name: Any, purpose: Any, why: Any,
+            session_ref: Any, created_on: Any,
+            source: Any = "session memory") -> dict[str, Any]:
+        """Bundle this session's carried memory into a recipe (M-158).
+
+        This slice's own composing road: the session's
+        carried memory (the M-153 session-memory book)
+        is read onto recipe items BY IMPORT through the
+        pure layer's ``items_from_session_memory`` -
+        every carried note of the book, under one named
+        reason - and the items are held as one recipe
+        under the named frame (the bundle's name, its
+        purpose, the session it is saved in, the day and
+        where it was read from, all named by the caller).
+        Only ids cross the seam: no note's title or
+        detail stands in any item, record or headline
+        this road publishes. A name a held recipe
+        already carries refuses before anything new is
+        held. The recipe is published as its
+        ``recipe_record`` session news, and the recipe
+        panel derived from the whole held registry as
+        its ``panel_record`` session news. Returns the
+        held recipe, its news record, the panel news
+        record, the piece count, the screen, and the
+        explanation. Bundling calls no model, assembles
+        no live context and mutates no live memory - the
+        session's carried memory itself stands exactly
+        as it stood: this road names the bundle, and the
+        holdings keep the pieces.
+        """
+        from ..core import context_recipes as recipes_module
+        items = recipes_module.items_from_session_memory(
+            self.session_memory_book(), why=why)
+        if not items:
+            raise ValueError(
+                "the session's memory holds no carried "
+                "memory to bundle")
+        recipe = recipes_module.build_recipe({
+            "name": name, "purpose": purpose, "items": list(items),
+            "session_ref": session_ref, "created_on": created_on,
+            "source": source})
+        registry = self._context_recipes_registry()
+        held = registry.register_recipe(recipe)
+        recipe_news = recipes_module.recipe_record(held)
+        self._publish_context_recipe_record(recipe_news)
+        panel = recipes_module.derive_panel(registry)
+        panel_news = recipes_module.panel_record(panel)
+        self._publish_context_recipe_record(panel_news)
+        return {
+            "recipe": held.to_record(),
+            "recipe_news": recipe_news,
+            "panel_record": panel_news,
+            "count": len(items),
+            "screen": self._context_recipes_screen(),
+            "explanation": recipes_module.PLAIN_EXPLANATION,
+        }
+
+    def register_context_recipe_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole recipe book for the session (M-158).
+
+        Every recipe of the book is held by the pure
+        registry, in book order - the first book held
+        sets the registry's title, a later book under a
+        different title refuses, as does a book naming
+        a held recipe id or a held recipe name. The
+        book's panels are derivations, not holdings, and
+        are not held. Every recipe is published as its
+        ``recipe_record`` session news, in book order,
+        and the recipe panel derived from the whole book
+        as its ``panel_record`` session news. Returns the
+        held book, its recipes, their news records, the
+        panel news record, the count of recipes held,
+        the screen, and the explanation. Registering
+        calls no model and assembles no live context.
+        """
+        from ..core import context_recipes as recipes_module
+        validated = recipes_module.build_book(book)
+        registry = self._context_recipes_registry()
+        registry.register_book(validated)
+        recipes = [
+            recipes_module.recipe_record(recipe)
+            for recipe in validated.recipes]
+        for recipe_news in recipes:
+            self._publish_context_recipe_record(recipe_news)
+        panel_news = recipes_module.panel_record(
+            recipes_module.derive_panel(validated))
+        self._publish_context_recipe_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "recipes": [
+                item.to_record() for item in validated.recipes],
+            "recipes_news": recipes,
+            "panel_record": panel_news,
+            "count": len(recipes),
+            "screen": self._context_recipes_screen(),
+            "explanation": recipes_module.PLAIN_EXPLANATION,
+        }
+
+    def record_context_recipe_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole recipe book for the session (M-158).
+
+        With no book named, the shipped example recipe
+        book is recorded through the pure layer - three
+        recipes at the M-157 slice boundary, eight
+        pieces bundled, with its one pinned panel. A
+        book loaded from a file (the pure layer's
+        ``load_context_recipes_file`` road) may be
+        passed instead, so a real recipe book is
+        recorded as it stands. Every recipe is held and
+        published as its ``recipe_record`` session news,
+        in book order, and the recipe panel as its
+        ``panel_record`` session news; the book is
+        remembered whole as the session's - its held
+        panel and all - and the same book recorded twice
+        refuses - fingerprinted on its recipe ids and
+        title - a book is recorded once, never duplicated
+        into the session. Returns the held book, its
+        recipes, their news records, the panel news
+        record, the count, the screen, and the
+        explanation. Recording calls no model.
+        """
+        from ..core import context_recipes as recipes_module
+        book = book if book is not None \
+            else recipes_module.load_context_recipes()
+        validated = recipes_module.build_book(book)
+        fingerprint = (tuple(validated.recipe_ids()), validated.title)
+        recorded = getattr(self, "_context_recipes_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._context_recipes_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this recipe book is already recorded for "
+                "the session; a book is recorded once")
+        registry = self._context_recipes_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._context_recipes_held = validated
+        recipes = [
+            recipes_module.recipe_record(recipe)
+            for recipe in validated.recipes]
+        for recipe_news in recipes:
+            self._publish_context_recipe_record(recipe_news)
+        panel_news = recipes_module.panel_record(
+            recipes_module.derive_panel(validated))
+        self._publish_context_recipe_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "recipes": [
+                item.to_record() for item in validated.recipes],
+            "recipes_news": recipes,
+            "panel_record": panel_news,
+            "count": len(recipes),
+            "screen": recipes_module.format_context_recipes_screen(
+                validated),
+            "explanation": recipes_module.PLAIN_EXPLANATION,
+        }
+
+    def report_context_recipes(self) -> dict[str, Any]:
+        """Render the session recipe book, as a report (M-158).
+
+        The book - the held registry's book when the
+        session holds any recipe, otherwise the shipped
+        example book (or the book recorded whole for the
+        session) - is rendered through the pure
+        formatters alone: its recipes, its derived panel
+        and its one screen. Rendering registers and
+        publishes nothing, calls no model and assembles
+        no live context: the agent layer renders the
+        book as data. Returns the book, its recipes and
+        panels as plain records, the derived panel, the
+        rendered recipes and panel, the screen, and the
+        plain explanation.
+        """
+        from ..core import context_recipes as recipes_module
+        book = self.context_recipes_book()
+        return {
+            "book": book.to_record(),
+            "recipes": [item.to_record() for item in book.recipes],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (recipes_module.derive_panel(book).to_record()
+                      if book.recipes else None),
+            "recipes_text": recipes_module.format_recipes(book),
+            "panel_text": recipes_module.format_panel(book),
+            "screen": self._context_recipes_screen(),
+            "explanation": recipes_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_context_recipe_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one context-recipe record as session news (M-158).
+
+        The pure layer's ``recipe_record`` and
+        ``panel_record`` are journaled through the same
+        checkpoint road every sibling slice uses, when
+        a session is attached. Each record is announced
+        at most once per shape: a recipe under its own
+        recipe id and name, and a panel under its whole
+        derived shape (its rows and totals), so a panel
+        grown by a newly held recipe announces again as
+        the new figure it is. A foreign record type is
+        never published on this road.
+        """
+        if record.get("type") == "context_recipe":
+            key = ("context_recipe",
+                   record.get("recipe_id"),
+                   record.get("name"))
+        elif record.get("type") == "context_recipe_panel":
+            key = ("context_recipe_panel", record.get("panel_id"),
+                   tuple(row.get("recipe_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_items"))
+        else:
+            return
+        announced = getattr(self, "_context_recipes_announced", None)
+        if announced is None:
+            announced = set()
+            self._context_recipes_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
