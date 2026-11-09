@@ -671,3 +671,382 @@ def test_parse_multisession_args():
         parse_multisession_args("branch bad branch")
     with pytest.raises(ValueError):
         parse_multisession_args(42)
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-162 agent layer: the agent holds a
+# MultiSessionRegistry for the session (session state
+# only, no new setting), sessions are held by being
+# registered - published as their parallel_record
+# session news with the derived panel_record and
+# isolation_record, through the checkpoint road,
+# deduped per shape - the report road renders the
+# held book (or the shipped example when unheld)
+# through the pure formatters, a multi-session road
+# reads the session's session-memory book onto
+# parallel sessions and holds them (mutating no live
+# memory), and the /multisession surface rides both
+# roads on the pure parser + formatters. Status, get,
+# panel, isolation and report reads register and
+# publish nothing, answer from the held registry
+# first and from the shipped example only while
+# nothing is held - a held session never falls back
+# to the example. The panel and the verdict derive
+# at call time from the whole book, never held. This
+# layer spawns no live session, appends to no live
+# journal, calls no model and persists nothing
+# beyond the session journal news, and there is no
+# Part VIII board yet, so the screen is where the
+# book is visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _multi_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_multi_book(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data"
+           / "multi_session_projects.yaml").read_text(encoding="utf-8")
+    path = tmp_path / "multi_session_projects.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestMultiSessionAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.multi_session_projects_status()
+        assert status["sessions"] == []
+        assert status["book"] is None
+        assert status["parallel"]["title"] == EXAMPLE_TITLE
+        assert len(status["parallel"]["sessions"]) == 4
+        assert status["panel"]["total_sessions"] == 4
+        assert status["panel"]["total_journal_entries"] == 8
+        assert status["panels"][0]["panel_id"] == "panel-m161-boundary"
+        assert status["book_record"]["session_count"] == 4
+        assert status["isolation"]["verdict"] == "parallel-isolated"
+        assert status["isolation"]["distinct_journals"] == 4
+        assert status["isolation"]["distinct_branches"] == 4
+        assert "Multi-Session Per Project (M-162)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._multi_session_projects_registry()
+        assert agent._multi_session_projects_registry() is first
+        assert agent._multi_session_projects_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.multi_session_projects_status()
+        agent.get_parallel_session("multisession-graph")
+        agent.multi_session_projects_panel()
+        agent.multi_session_projects_isolation()
+        agent.report_multi_session_projects()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("multi_session_projects")] == []
+        agent.close()
+
+    def test_unheld_reads_raise(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_parallel_session("multisession-nope")
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_parallel_session(_session())
+        status = agent.multi_session_projects_status()
+        assert [item["session_id"] for item in status["sessions"]] == [
+            "multisession-test"]
+        assert status["book"]["title"] == "Multi-session per project"
+        assert status["panel"]["total_sessions"] == 1
+        assert status["isolation"]["verdict"] == "single-session"
+
+    def test_held_session_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_parallel_session(_session())
+        with pytest.raises(KeyError):
+            agent.get_parallel_session("multisession-graph")
+        session = agent.get_parallel_session("multisession-test")
+        assert session.title == "the test session, wiring the parser"
+        assert agent.multi_session_projects_book().title == (
+            "Multi-session per project")
+
+
+class TestMultiSessionAgentHolding:
+    def test_register_session_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_parallel_session(_session())
+        assert outcome["session"]["session_id"] == "multisession-test"
+        assert outcome["record_news"]["type"] == (
+            "multi_session_projects_session")
+        events = _multi_events(
+            store, session_id, "multi_session_projects_session")
+        assert len(events) == 1
+        assert events[0]["session_id"] == "multisession-test"
+        agent._publish_multi_session_record(outcome["record_news"])
+        assert len(_multi_events(
+            store, session_id, "multi_session_projects_session")) == 1
+        agent._publish_multi_session_record(
+            {"type": "mentions_mention", "mention_id": "mention-x"})
+        agent._publish_multi_session_record(
+            book_record(load_multi_session_projects()))
+        for kind in ("mentions_mention", "multi_session_projects_book"):
+            assert _multi_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_duplicate_session_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_parallel_session(_session())
+        with pytest.raises(ValueError):
+            agent.register_parallel_session(_session())
+        with pytest.raises(ValueError):
+            agent.register_parallel_session(_session(
+                session_id="multisession-copy", session_ref="session-copy",
+                journal_ref="journal-copy",
+                journal_entries=["entry-copy-1"]))
+        assert len(_multi_events(
+            store, session_id, "multi_session_projects_session")) == 1
+        agent.close()
+
+    def test_multi_session_from_session_memory_carries_refs_only(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        memory_book = agent.session_memory_book()
+        situations = list(memory_book.situations)
+        expected = len(situations)
+        outcome = agent.multi_session_from_session_memory(
+            project="mythic-agent-coder", recorded_by="Volmarr",
+            recorded_on="2026-11-08")
+        assert outcome["count"] == expected
+        assert outcome["total_journal_entries"] == expected
+        assert outcome["sessions"][0]["session_ref"] == (
+            situations[0].session_ref)
+        assert outcome["sessions"][0]["branch"] == (
+            f"work/{situations[0].session_ref}")
+        assert outcome["sessions"][0]["shared_reads"] == (
+            situations[0].total_memory)
+        events = _multi_events(
+            store, session_id, "multi_session_projects_session")
+        assert len(events) == expected
+        assert len(_multi_events(
+            store, session_id, "multi_session_projects_panel")) == 1
+        assert len(_multi_events(
+            store, session_id, "multi_session_projects_isolation")) == 1
+        blob = str(events) + str(outcome["sessions"])
+        for situation in situations:
+            assert situation.title not in blob
+            assert situation.workspace not in blob
+        assert agent.session_memory_book().situations == (
+            memory_book.situations)
+        assert agent.multi_session_projects_panel().total_sessions == (
+            expected)
+        with pytest.raises(ValueError):
+            agent.multi_session_from_session_memory(
+                project="mythic-agent-coder", recorded_by="Volmarr",
+                recorded_on="2026-11-08")
+        agent.close()
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent):
+        book = _book()
+        outcome = agent.register_multi_session_book(book)
+        assert outcome["count"] == 1
+        assert [item["type"] for item in outcome["records_news"]] == [
+            "multi_session_projects_session"]
+        assert agent.multi_session_projects_book().title == (
+            "A test multi-session book")
+
+    def test_register_book_twice_refuses(self, agent):
+        agent.register_multi_session_book(load_multi_session_projects())
+        with pytest.raises(ValueError):
+            agent.register_multi_session_book(load_multi_session_projects())
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_multi_session_book()
+        assert outcome["count"] == 4
+        assert outcome["book"]["title"] == EXAMPLE_TITLE
+        assert len(_multi_events(
+            store, session_id, "multi_session_projects_session")) == 4
+        assert len(_multi_events(
+            store, session_id, "multi_session_projects_panel")) == 1
+        assert agent.multi_session_projects_book().panels[0].panel_id == (
+            "panel-m161-boundary")
+        agent.close()
+
+    def test_record_same_book_twice_refuses(self, agent):
+        agent.record_multi_session_book()
+        with pytest.raises(ValueError):
+            agent.record_multi_session_book()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_multi_book(tmp_path)
+        book = load_multi_session_projects_file(path)
+        outcome = agent.record_multi_session_book(book)
+        assert outcome["count"] == 4
+        assert agent.get_parallel_session(
+            "multisession-graph").branch == "work/graph-retrieval-care"
+
+    def test_report_renders_the_example_when_unheld(self, agent):
+        report = agent.report_multi_session_projects()
+        assert report["book"]["session_count"] == 4
+        assert "multisession-main" in report["sessions_text"]
+        assert "Multi-session panel in Multi-session per project" in (
+            report["panel_text"])
+        assert "parallel-isolated" in report["verdict_text"]
+        assert "multisession-graph" in report["sessions_text"]
+
+    def test_report_renders_the_held_book_only(self, agent):
+        agent.register_parallel_session(_session())
+        report = agent.report_multi_session_projects()
+        assert report["book"]["title"] == "Multi-session per project"
+        assert "multisession-main" not in report["sessions_text"]
+        assert "multisession-test" in report["sessions_text"]
+        assert "single-session" in report["verdict_text"]
+
+    def test_report_registers_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.report_multi_session_projects()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("multi_session_projects")] == []
+        agent.close()
+
+    def test_no_live_session_journal_or_persist_road(
+            self, agent, tmp_path):
+        # This layer holds parallel sessions as data:
+        # it spawns no live session, appends to no live
+        # journal, calls no model and persists nothing -
+        # and there is no Part VIII board yet. Holding,
+        # recording or standing changes no workspace
+        # file and no built context.
+        assert not hasattr(agent, "apply_multi_session_projects")
+        assert not hasattr(agent, "run_multi_session_projects")
+        assert not hasattr(agent, "persist_multi_session_projects")
+        assert not hasattr(agent, "multi_session_projects_board")
+        (tmp_path / "alpha.py").write_text(
+            "def greet(name):\n    return name\n", encoding="utf-8")
+        before = {
+            p.name: p.read_bytes()
+            for p in tmp_path.glob("*.py")}
+        from mythic_agent.agents.context import ContextBuilder
+        builder = ContextBuilder(max_tokens=4000)
+        builder.add_system("You are the coder.")
+        builder.add_turn("user", "Build the slice.")
+        built_before = builder.build()
+        agent.register_parallel_session(_session())
+        agent.record_multi_session_book()
+        agent.multi_session_from_session_memory(
+            project="mythic-agent-coder", recorded_by="Volmarr",
+            recorded_on="2026-11-08")
+        assert builder.build() == built_before
+        assert {
+            p.name: p.read_bytes()
+            for p in tmp_path.glob("*.py")} == before
+
+
+class TestMultiSessionTerminalSurface:
+    def test_show_session_branch_panel_isolation(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/multisession")
+        assert "Multi-Session Per Project (M-162)" in text
+        _, _, text = _slash(
+            agent, "/multisession session multisession-graph")
+        assert "journal-graph" in text
+        _, _, text = _slash(agent, "/multisession branch main")
+        assert "multisession-main" in text
+        assert "multisession-graph" not in text
+        _, _, text = _slash(agent, "/multisession panel")
+        assert "Multi-session panel in Multi-session per project" in text
+        _, _, text = _slash(agent, "/multisession isolation")
+        assert "parallel-isolated" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/multisession [show|session <session-id>"
+                "|branch <branch>|panel|isolation]") in text
+        _, _, text = _slash(agent, "/multisession dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/multisession session multisession-nope")
+        assert "no parallel session in the book" in text
+
+
+@pytest.fixture()
+def multi_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _multi_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestMultiSessionCommand:
+    def test_show_is_default(self, multi_handler, agent):
+        multi_handler._handle_multisession("")
+        assert "Multi-Session Per Project (M-162)" in (
+            _multi_published_text(multi_handler))
+
+    def test_session_branch_panel_isolation(self, multi_handler, agent):
+        multi_handler._handle_multisession("session multisession-graph")
+        assert "journal-graph" in _multi_published_text(multi_handler)
+        multi_handler._handle_multisession("branch main")
+        assert "multisession-main" in _multi_published_text(multi_handler)
+        multi_handler._handle_multisession("panel")
+        assert "Multi-session panel in Multi-session per project" in (
+            _multi_published_text(multi_handler))
+        multi_handler._handle_multisession("isolation")
+        assert "parallel-isolated" in _multi_published_text(multi_handler)
+
+    def test_bad_grammar_is_published(self, multi_handler, agent):
+        multi_handler._handle_multisession("dance party")
+        assert USAGE in _multi_published_text(multi_handler)
+
+
+class TestChatScreenRoutingMultiSession:
+    def test_multisession_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command(
+            "/multisession session multisession-graph", _FakeLog())
+        assert calls == [("/multisession",
+                          "session multisession-graph")]

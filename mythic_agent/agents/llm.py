@@ -27709,6 +27709,437 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _multi_session_projects_registry(self):
+        """The held multi-session projects registry (M-162).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer parallel sessions one
+        by one, beside the session endurance registry
+        (M-161) and never in it: the multi-session book
+        is one book of sessions standing on one
+        project. It is created on first use, so an
+        agent whose ``__init__`` never ran still holds
+        exactly one. The attribute is named
+        ``_multi_session_projects_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_multi_session_projects_store", None)
+        if registry is None:
+            from ..core.multi_session_projects import MultiSessionRegistry
+            registry = MultiSessionRegistry()
+            self._multi_session_projects_store = registry
+        return registry
+
+    def multi_session_projects_book(self):
+        """The session's multi-session book, as data (M-162).
+
+        The held registry's book when the session holds
+        any parallel session - the sessions the session
+        has actually recorded (sessions held one by
+        one, before any whole book stands recorded,
+        stand under a session multi-session book
+        composed here in the agent layer, so a later
+        whole book recorded under its own title is
+        never refused by a shim title at the registry)
+        - otherwise the book recorded whole through
+        :meth:`record_multi_session_book`, or the
+        shipped example multi-session book until one
+        is recorded. Reading registers and publishes
+        nothing.
+        """
+        from ..core.multi_session_projects import (
+            MultiSessionBook, load_multi_session_projects)
+        registry = self._multi_session_projects_registry()
+        if registry.list_sessions():
+            try:
+                book = registry.book()
+            except ValueError:
+                return MultiSessionBook(
+                    title="Multi-session per project",
+                    sessions=registry.list_sessions())
+            held = getattr(self, "_multi_session_projects_held", None)
+            if held is not None and held.title == book.title \
+                    and held.session_ids() == book.session_ids():
+                return held
+            return book
+        book = getattr(self, "_multi_session_projects_held", None)
+        if book is None:
+            return load_multi_session_projects()
+        return book
+
+    def _multi_session_projects_screen(self) -> str:
+        """The /multisession screen for the session's state (M-162)."""
+        from ..core import multi_session_projects as multi_module
+        registry = self._multi_session_projects_registry()
+        if not registry.list_sessions():
+            return multi_module.format_multi_session_projects_screen()
+        return multi_module.format_multi_session_projects_screen(
+            self.multi_session_projects_book())
+
+    def multi_session_projects_status(self) -> dict[str, Any]:
+        """The multi-session account, in plain data (M-162).
+
+        The sessions held this session as plain
+        records, the held book's record (none until a
+        session stands held), the session multi-session
+        book's sessions as plain records (the shipped
+        example book - four sessions at the M-161 slice
+        boundary - until sessions are held), its
+        whole-book record, the multi-session panel
+        derived from the whole book and every panel the
+        book holds as plain records, the isolation
+        verdict derived for the whole book, the latest
+        session in plain words, the panel and the
+        verdict told in plain words, the one screen -
+        rendered from the held book, or from the
+        shipped example book when nothing is held yet -
+        and the plain explanation. Reading registers
+        and publishes nothing, spawns no live session
+        and appends to no live journal: this layer
+        holds parallel sessions as data only. There is
+        no Part VIII board yet; the screen is where the
+        book is visible.
+        """
+        from ..core import multi_session_projects as multi_module
+        registry = self._multi_session_projects_registry()
+        held_sessions = registry.list_sessions()
+        book = self.multi_session_projects_book()
+        latest = book.sessions[-1]
+        return {
+            "sessions": [item.to_record() for item in held_sessions],
+            "book": (book.to_record() if held_sessions else None),
+            "parallel": {
+                "title": book.title,
+                "sessions": [item.to_record() for item in book.sessions],
+            },
+            "book_record": multi_module.book_record(book),
+            "panel": (multi_module.derive_panel(book).to_record()
+                      if book.sessions else None),
+            "panels": [p.to_record() for p in book.panels],
+            "isolation": (
+                multi_module.derive_isolation(book).to_record()
+                if book.sessions else None),
+            "plain_words": multi_module.plain_words(latest),
+            "panel_plain_words": (
+                multi_module.panel_plain_words(book)
+                if book.sessions else ""),
+            "isolation_plain_words": (
+                multi_module.isolation_plain_words(book)
+                if book.sessions else ""),
+            "screen": self._multi_session_projects_screen(),
+            "explanation": multi_module.PLAIN_EXPLANATION,
+        }
+
+    def get_parallel_session(self, session_id: Any):
+        """The one parallel session an id names (M-162).
+
+        The session's held registry answers when the
+        session holds any session; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held session
+        answers for its own book alone: an id the held
+        book holds no session for raises KeyError, with
+        no silent fall back to the example, exactly as
+        the pure layer answers. Reading registers and
+        publishes nothing.
+        """
+        registry = self._multi_session_projects_registry()
+        if registry.list_sessions():
+            return registry.get_session(session_id)
+        return self.multi_session_projects_book().session_for(session_id)
+
+    def multi_session_projects_panel(self):
+        """The multi-session panel derived for the whole book (M-162)."""
+        from ..core.multi_session_projects import (
+            derive_panel as _derive_panel)
+        return _derive_panel(self.multi_session_projects_book())
+
+    def multi_session_projects_isolation(self):
+        """The isolation verdict derived for the whole book (M-162)."""
+        from ..core.multi_session_projects import (
+            derive_isolation as _derive_isolation)
+        return _derive_isolation(self.multi_session_projects_book())
+
+    def register_parallel_session(
+            self, session: Any) -> dict[str, Any]:
+        """Hold one parallel session for the session (M-162).
+
+        The session is held by the pure registry under
+        its id or the deterministic multisession-N id -
+        a session id already standing here refuses, as
+        does a session on a held branch, under a held
+        journal, or naming a held journal entry (no
+        crosstalk); a refusal holds nothing new and
+        publishes nothing. A held session is published
+        as its ``parallel_record`` session-news record
+        through the checkpoint road. Returns the held
+        session, its news record, the screen rendered
+        after it landed, and the plain explanation.
+        Holding a session spawns no live session: the
+        registry holds the session as data, provenance
+        whole.
+        """
+        from ..core import multi_session_projects as multi_module
+        registry = self._multi_session_projects_registry()
+        held = registry.register_session(session)
+        record_news = multi_module.parallel_record(held)
+        self._publish_multi_session_record(record_news)
+        return {
+            "session": held.to_record(),
+            "record_news": record_news,
+            "screen": self._multi_session_projects_screen(),
+            "explanation": multi_module.PLAIN_EXPLANATION,
+        }
+
+    def multi_session_from_session_memory(
+            self, *, project: Any, recorded_by: Any,
+            recorded_on: Any) -> dict[str, Any]:
+        """Stand this session's remembered sessions in parallel (M-162).
+
+        This slice's own composing road: the session's
+        session-memory book (M-153) is read onto
+        parallel sessions BY IMPORT through the pure
+        layer's ``parallel_sessions_from_session_memory``
+        - every situation of the book, standing on the
+        one named *project* (no project named refuses
+        the whole road before anything is held, because
+        parallel sessions stand on one project), each
+        on the branch, journal and opening entry named
+        deterministically from its session reference -
+        and each session is held and published as its
+        ``parallel_record`` session news, with the
+        multi-session panel derived from the whole held
+        registry as its ``panel_record`` session news
+        and the isolation verdict derived for the whole
+        held registry as its ``isolation_record``
+        session news. Only references and counts cross
+        the seam: no situation's title, workspace or
+        carried memory stands in any record or headline
+        this road publishes. Returns the held sessions,
+        their news records, the panel and verdict news
+        records, the count, the journal entries in all,
+        the screen, and the explanation. Standing runs
+        no live session and mutates no live memory -
+        the session's memory book itself stands exactly
+        as it stood.
+        """
+        from ..core import multi_session_projects as multi_module
+        memory_book = self.session_memory_book()
+        sessions = multi_module.parallel_sessions_from_session_memory(
+            memory_book, project=project, recorded_by=recorded_by,
+            recorded_on=recorded_on)
+        if not sessions:
+            raise ValueError(
+                "the session's memory book holds no situation "
+                "to stand in parallel")
+        registry = self._multi_session_projects_registry()
+        held_sessions = []
+        records_news = []
+        for session in sessions:
+            held = registry.register_session(session)
+            held_sessions.append(held)
+            record_news = multi_module.parallel_record(held)
+            records_news.append(record_news)
+            self._publish_multi_session_record(record_news)
+        panel_news = multi_module.panel_record(
+            multi_module.derive_panel(registry))
+        self._publish_multi_session_record(panel_news)
+        verdict_news = multi_module.isolation_record(
+            multi_module.derive_isolation(registry))
+        self._publish_multi_session_record(verdict_news)
+        return {
+            "sessions": [item.to_record() for item in held_sessions],
+            "records_news": records_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "count": len(held_sessions),
+            "total_journal_entries": sum(
+                item.journal_count for item in held_sessions),
+            "screen": self._multi_session_projects_screen(),
+            "explanation": multi_module.PLAIN_EXPLANATION,
+        }
+
+    def register_multi_session_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole multi-session book for the session (M-162).
+
+        Every session of the book is held by the pure
+        registry, in book order - the first book held
+        sets the registry's title, a later book under a
+        different title refuses, as does a book naming
+        a held session id, branch, journal or journal
+        entry. The book's panels are derivations, not
+        holdings, and are not held. Every session is
+        published as its ``parallel_record`` session
+        news, in book order, and the multi-session
+        panel derived from the whole book as its
+        ``panel_record`` session news. Returns the held
+        book, its sessions, their news records, the
+        panel news record, the count of sessions held,
+        the screen, and the explanation. Registering
+        spawns no live session and reads no file.
+        """
+        from ..core import multi_session_projects as multi_module
+        validated = multi_module.build_book(book)
+        registry = self._multi_session_projects_registry()
+        registry.register_book(validated)
+        records = [
+            multi_module.parallel_record(session)
+            for session in validated.sessions]
+        for record_news in records:
+            self._publish_multi_session_record(record_news)
+        panel_news = multi_module.panel_record(
+            multi_module.derive_panel(validated))
+        self._publish_multi_session_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "sessions": [
+                item.to_record() for item in validated.sessions],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": self._multi_session_projects_screen(),
+            "explanation": multi_module.PLAIN_EXPLANATION,
+        }
+
+    def record_multi_session_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole multi-session book for the session (M-162).
+
+        With no book named, the shipped example
+        multi-session book is recorded through the pure
+        layer - four sessions at the M-161 slice
+        boundary, with its one pinned panel. A book
+        loaded from a file (the pure layer's
+        ``load_multi_session_projects_file`` road) may
+        be passed instead. Every session is held and
+        published as its ``parallel_record`` session
+        news, in book order, and the multi-session
+        panel as its ``panel_record`` session news; the
+        book is remembered whole as the session's - its
+        held panel and all - and the same book recorded
+        twice refuses - fingerprinted on its session
+        ids and title. Returns the held book, its
+        sessions, their news records, the panel news
+        record, the count, the screen, and the
+        explanation. Recording spawns no live session.
+        """
+        from ..core import multi_session_projects as multi_module
+        book = book if book is not None \
+            else multi_module.load_multi_session_projects()
+        validated = multi_module.build_book(book)
+        fingerprint = (tuple(validated.session_ids()), validated.title)
+        recorded = getattr(self, "_multi_session_projects_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._multi_session_projects_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this multi-session book is already recorded "
+                "for the session; a book is recorded once")
+        registry = self._multi_session_projects_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._multi_session_projects_held = validated
+        records = [
+            multi_module.parallel_record(session)
+            for session in validated.sessions]
+        for record_news in records:
+            self._publish_multi_session_record(record_news)
+        panel_news = multi_module.panel_record(
+            multi_module.derive_panel(validated))
+        self._publish_multi_session_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "sessions": [
+                item.to_record() for item in validated.sessions],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": multi_module.format_multi_session_projects_screen(
+                validated),
+            "explanation": multi_module.PLAIN_EXPLANATION,
+        }
+
+    def report_multi_session_projects(self) -> dict[str, Any]:
+        """Render the session multi-session book, as a report (M-162).
+
+        The book - the held registry's book when the
+        session holds any session, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone. Rendering registers
+        and publishes nothing, spawns no live session
+        and reads no file. Returns the book, its
+        sessions and panels as plain records, the
+        derived panel and isolation verdict, the
+        rendered sessions, panel and verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import multi_session_projects as multi_module
+        book = self.multi_session_projects_book()
+        return {
+            "book": book.to_record(),
+            "sessions": [item.to_record() for item in book.sessions],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (multi_module.derive_panel(book).to_record()
+                      if book.sessions else None),
+            "isolation": (
+                multi_module.derive_isolation(book).to_record()
+                if book.sessions else None),
+            "sessions_text": multi_module.format_parallel_sessions(book),
+            "panel_text": multi_module.format_panel(book),
+            "verdict_text": multi_module.format_isolation(book),
+            "screen": self._multi_session_projects_screen(),
+            "explanation": multi_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_multi_session_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one multi-session record as session news (M-162).
+
+        The pure layer's ``parallel_record``,
+        ``panel_record`` and ``isolation_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most once
+        per shape: a session under its own session id,
+        branch and journal, a panel under its whole
+        derived shape, and a verdict under its word and
+        distinct counts, so a panel or verdict grown by
+        a newly held session announces again as the new
+        figure it is. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") == "multi_session_projects_session":
+            key = ("multi_session_projects_session",
+                   record.get("session_id"),
+                   record.get("branch"),
+                   record.get("journal_ref"))
+        elif record.get("type") == "multi_session_projects_panel":
+            key = ("multi_session_projects_panel", record.get("panel_id"),
+                   tuple(row.get("session_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_sessions"),
+                   record.get("total_journal_entries"))
+        elif record.get("type") == "multi_session_projects_isolation":
+            key = ("multi_session_projects_isolation",
+                   record.get("verdict"),
+                   record.get("distinct_journals"),
+                   record.get("distinct_branches"))
+        else:
+            return
+        announced = getattr(self, "_multi_session_projects_announced", None)
+        if announced is None:
+            announced = set()
+            self._multi_session_projects_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
