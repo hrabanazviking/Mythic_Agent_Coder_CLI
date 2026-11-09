@@ -1002,7 +1002,7 @@ slices:
   title: Token thrift
   summary: diff-first reading, map-first loading, and hash-anchored edits measured as a cost line in `mythic
     costs` — thrift is a reported virtue.
-  status: queued
+  status: done
 - id: M-161
   part: 7
   title: Long-session endurance

@@ -408,3 +408,12 @@ mythic_agent/core/pinning_protection.py:1159:row_for:method
 mythic_agent/core/pinning_protection.py:1392:pin_for_ref:method
 mythic_agent/core/pinning_protection.py:1682:pin_for_ref:method
 mythic_agent/core/pinning_protection.py:1694:latest_pin:method
+mythic_agent/agents/llm.py:26966:register_thrift_record:method
+mythic_agent/agents/llm.py:26997:thrift_from_session_context:method
+mythic_agent/agents/llm.py:27066:register_thrift_book:method
+mythic_agent/agents/llm.py:27109:record_thrift_book:method
+mythic_agent/agents/llm.py:27169:report_token_thrift:method
+mythic_agent/core/token_thrift.py:1266:row_for:method
+mythic_agent/core/token_thrift.py:1717:record_for_ref:method
+mythic_agent/core/token_thrift.py:2015:record_for_ref:method
+mythic_agent/core/token_thrift.py:2027:latest_record:method
