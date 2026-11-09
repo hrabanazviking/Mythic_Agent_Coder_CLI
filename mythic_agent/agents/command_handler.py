@@ -367,6 +367,8 @@ class CommandHandler:
                 self._handle_contradiction(args)
             elif cmd == "/private":
                 self._handle_private(args)
+            elif cmd == "/memorydoctor":
+                self._handle_memorydoctor(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -6405,6 +6407,100 @@ class CommandHandler:
                 text = format_verdict(primary.privacy_book())
             else:
                 text = primary.privacy_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_memorydoctor(self, args: str):
+        """M-168: /memorydoctor - memory doctor.
+
+        ``/memorydoctor`` shows the doctor book held
+        this session (the shipped example book -
+        five findings at the M-167 slice boundary,
+        four safely repairable and one store-wide
+        corruption referred to the user, with its
+        one pinned panel - when none is held yet);
+        ``/memorydoctor finding <finding-id>`` shows
+        one finding with its repair shown - the
+        check that raised it, what it saw, and the
+        one derived safe repair or the plain word
+        that it stands referred; ``/memorydoctor
+        check <check>`` shows the findings one check
+        raised; ``/memorydoctor store <store>``
+        shows the findings over memories living in
+        one store; ``/memorydoctor panel`` shows the
+        doctor panel derived from the whole book;
+        ``/memorydoctor verdict`` shows the doctor
+        verdict derived for the whole book;
+        ``/memorydoctor repairs`` shows the repairs
+        derived from the whole book - what the
+        doctor will repair on the held book beside
+        what it will not repair at all. Reading
+        registers and publishes nothing as session
+        news: findings are held only when they are
+        given through the agent's finding roads,
+        raised over the session's own held books on
+        the check-run road, or held on the book
+        roads, and every finding held for the
+        session is journaled as a
+        memory_doctor_finding session event, every
+        derived panel as a memory_doctor_panel
+        session event, every derived verdict as a
+        memory_doctor_verdict session event and
+        every applied repair as a
+        memory_doctor_repair session event. This
+        surface rewrites no live store and deletes
+        no memory, and there is no Part VIII board
+        yet, so the book is visible on this surface,
+        not on a board. The pre-existing ``/doctor``
+        surface is the shell-command fixer and keeps
+        its own grammar; the memory checks live
+        here, beside the other session memory books,
+        and on the ``mythic doctor`` CLI as the
+        ``memory`` health check over the shipped
+        store files.
+        """
+        from ..core.memory_doctor import (
+            format_finding,
+            format_findings,
+            format_panel,
+            format_repairs,
+            format_verdict,
+            parse_memory_doctor_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_memory_doctor_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "finding":
+                text = format_finding(
+                    primary.get_memory_finding(target))
+            elif action == "check":
+                text = format_findings(
+                    primary.memory_doctor_book(), check=target)
+            elif action == "store":
+                text = format_findings(
+                    primary.memory_doctor_book(), store=target)
+            elif action == "panel":
+                text = format_panel(primary.memory_doctor_book())
+            elif action == "verdict":
+                text = format_verdict(primary.memory_doctor_book())
+            elif action == "repairs":
+                text = format_repairs(primary.memory_doctor_book())
+            else:
+                text = primary.memory_doctor_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

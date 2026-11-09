@@ -30422,6 +30422,670 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _memory_doctor_registry(self):
+        """The held memory doctor registry (M-168).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer findings one by one,
+        beside the session privacy registry
+        (M-167) and never in it: the doctor book is
+        one book of findings standing over stored
+        memories. It is created on first use, so an
+        agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_memory_doctor_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_memory_doctor_store", None)
+        if registry is None:
+            from ..core.memory_doctor import DoctorRegistry
+            registry = DoctorRegistry()
+            self._memory_doctor_store = registry
+        return registry
+
+    def memory_doctor_book(self):
+        """The session's doctor book, as data (M-168).
+
+        The held registry's book when the session
+        holds any finding - the findings the
+        session has actually raised (findings held
+        one by one, before any whole book stands
+        recorded, stand under a session doctor book
+        composed here in the agent layer, so a later
+        whole book recorded under its own title is
+        never refused by a shim title at the
+        registry) - otherwise the book recorded
+        whole through
+        :meth:`record_memory_doctor_book`, or the
+        shipped example doctor book until one is
+        recorded. Reading registers and
+        publishes nothing.
+        """
+        from ..core.memory_doctor import (
+            DoctorBook, load_memory_doctor)
+        registry = self._memory_doctor_registry()
+        if registry.list_findings():
+            try:
+                book = registry.book()
+            except ValueError:
+                return DoctorBook(
+                    title="Memory Doctor",
+                    findings=registry.list_findings())
+            held = getattr(self, "_memory_doctor_held", None)
+            if held is not None and held.title == book.title \
+                    and held.finding_ids() == book.finding_ids():
+                return held
+            return book
+        book = getattr(self, "_memory_doctor_held", None)
+        if book is None:
+            return load_memory_doctor()
+        return book
+
+    def _memory_doctor_screen(self) -> str:
+        """The /memorydoctor screen for the session's state (M-168)."""
+        from ..core import memory_doctor as doctor_module
+        registry = self._memory_doctor_registry()
+        if not registry.list_findings():
+            return doctor_module.format_memory_doctor_screen()
+        return doctor_module.format_memory_doctor_screen(
+            self.memory_doctor_book())
+
+    def memory_doctor_status(self) -> dict[str, Any]:
+        """The doctor book account, in plain data (M-168).
+
+        The findings held this session as plain
+        records, the held book's record (none until
+        a finding stands held), the session doctor
+        book's findings as plain records (the
+        shipped example book - five findings at the
+        M-167 slice boundary, four safely repairable
+        and one store-wide corruption referred to
+        the user - until findings are held), its
+        whole-book record, the doctor panel derived
+        from the whole book and every panel the book
+        holds as plain records, the doctor verdict
+        derived for the whole book, the repairs
+        derived from the whole book and the repairs
+        applied to the held book, the latest finding
+        in plain words, the panel, the verdict and
+        the repairs told in plain words, the one
+        screen - rendered from the held book, or
+        from the shipped example book when nothing
+        is held yet - and the plain explanation.
+        Reading registers and publishes nothing,
+        sends nothing and schedules nothing: this
+        layer holds findings as data only. There is
+        no Part VIII board yet; the screen is where
+        the book is visible.
+        """
+        from ..core import memory_doctor as doctor_module
+        registry = self._memory_doctor_registry()
+        held_findings = registry.list_findings()
+        book = self.memory_doctor_book()
+        latest = book.findings[-1]
+        return {
+            "findings": [item.to_record() for item in held_findings],
+            "book": (book.to_record() if held_findings else None),
+            "doctor": {
+                "title": book.title,
+                "findings": [item.to_record() for item in book.findings],
+            },
+            "book_record": doctor_module.book_record(book),
+            "panel": (doctor_module.derive_panel(book).to_record()
+                      if book.findings else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (
+                doctor_module.derive_verdict(book).to_record()
+                if book.findings else None),
+            "repairs": [
+                r.to_record()
+                for r in doctor_module.derive_repairs(book)],
+            "applied": [
+                r.to_record() for r in registry.applied_repairs()],
+            "plain_words": doctor_module.plain_words(latest),
+            "panel_plain_words": (
+                doctor_module.panel_plain_words(book)
+                if book.findings else ""),
+            "verdict_plain_words": (
+                doctor_module.verdict_plain_words(book)
+                if book.findings else ""),
+            "repairs_plain_words": (
+                doctor_module.repairs_plain_words(book)
+                if book.findings else ""),
+            "screen": self._memory_doctor_screen(),
+            "explanation": doctor_module.PLAIN_EXPLANATION,
+        }
+
+    def get_memory_finding(self, finding_id: Any):
+        """The one finding an id names (M-168).
+
+        The session's held registry answers when the
+        session holds any finding; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held
+        finding answers for its own book alone: an
+        id the held book holds no finding for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._memory_doctor_registry()
+        if registry.list_findings():
+            return registry.get_finding(finding_id)
+        return self.memory_doctor_book().finding_for(finding_id)
+
+    def memory_finding_for(self, check: Any, memory_kind: Any,
+                           memory_ref: Any):
+        """The finding one check raised over one stored memory (M-168).
+
+        The session's held registry answers when the
+        session holds any finding; otherwise the
+        session book answers. A memory no finding
+        stands over raises KeyError. Reading
+        registers and publishes nothing.
+        """
+        registry = self._memory_doctor_registry()
+        if registry.list_findings():
+            return registry.finding_for_check(
+                check, memory_kind, memory_ref)
+        return self.memory_doctor_book().finding_for_check(
+            check, memory_kind, memory_ref)
+
+    def memory_doctor_panel(self):
+        """The doctor panel derived for the whole book (M-168)."""
+        from ..core.memory_doctor import derive_panel as _derive_panel
+        return _derive_panel(self.memory_doctor_book())
+
+    def memory_doctor_verdict(self):
+        """The doctor verdict derived for the whole book (M-168)."""
+        from ..core.memory_doctor import (
+            derive_verdict as _derive_verdict)
+        return _derive_verdict(self.memory_doctor_book())
+
+    def register_memory_finding(
+            self, finding: Any) -> dict[str, Any]:
+        """Hold one memory finding for the session (M-168).
+
+        The finding is held by the pure registry
+        under its id or the deterministic finding-N
+        id - a finding id already standing here
+        refuses, as does a finding by a check
+        already standing over the same memory here
+        (one finding per check per memory); a
+        refusal holds nothing new and publishes
+        nothing. A held finding is published as its
+        ``finding_record`` session-news record
+        through the checkpoint road. Returns the
+        held finding, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a finding changes no
+        shipped holding: the finding stands on this
+        layer's book, as data, provenance whole.
+        """
+        from ..core import memory_doctor as doctor_module
+        registry = self._memory_doctor_registry()
+        held = registry.register_finding(finding)
+        record_news = doctor_module.finding_record(held)
+        self._publish_memory_doctor_record(record_news)
+        return {
+            "finding": held.to_record(),
+            "record_news": record_news,
+            "screen": self._memory_doctor_screen(),
+            "explanation": doctor_module.PLAIN_EXPLANATION,
+        }
+
+    def check_memory_store_piece(
+            self, holding: Any, raw: Any, *, store: Any,
+            found_on: Any, recorded_by: Any,
+            origin_session: Any,
+            source: Any = "memory doctor",
+            title: Any = None, extent: Any = "contained",
+            finding_id: Any = None) -> dict[str, Any]:
+        """Run the corrupt-store check over one raw store piece (M-168).
+
+        This slice's own corrupt-store road: one raw
+        store piece - a mapping as a store file
+        carries it - is judged by the validator of
+        the holding it stands under through the pure
+        layer's ``finding_from_corrupt_piece`` road.
+        A piece its own layer accepts is no finding:
+        the road raises, plainly saying the piece
+        stands sound, and holds nothing. A refused
+        piece raises a corrupt-store finding - its
+        id alone crossing - and the raised finding
+        is held and published as its
+        ``finding_record`` session news, with the
+        doctor panel derived from the whole held
+        registry as its ``panel_record`` session
+        news and the doctor verdict derived for the
+        whole held registry as its ``verdict_record``
+        session news. The raw piece itself is never
+        held and never written anywhere. Returns
+        the held finding, its news record, the panel
+        and verdict news records, the screen, and
+        the explanation.
+        """
+        from ..core import memory_doctor as doctor_module
+        finding = doctor_module.finding_from_corrupt_piece(
+            holding, raw, store=store, found_on=found_on,
+            recorded_by=recorded_by, origin_session=origin_session,
+            source=source, title=title, extent=extent,
+            finding_id=finding_id)
+        registry = self._memory_doctor_registry()
+        held = registry.register_finding(finding)
+        record_news = doctor_module.finding_record(held)
+        self._publish_memory_doctor_record(record_news)
+        panel_news = doctor_module.panel_record(
+            doctor_module.derive_panel(registry))
+        self._publish_memory_doctor_record(panel_news)
+        verdict_news = doctor_module.verdict_record(
+            doctor_module.derive_verdict(registry))
+        self._publish_memory_doctor_record(verdict_news)
+        return {
+            "finding": held.to_record(),
+            "record_news": record_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._memory_doctor_screen(),
+            "explanation": doctor_module.PLAIN_EXPLANATION,
+        }
+
+    def run_memory_doctor(
+            self, *, found_on: Any, recorded_by: Any,
+            origin_session: Any,
+            source: Any = "memory doctor") -> dict[str, Any]:
+        """Run the memory checks over the session's own held books (M-168).
+
+        This slice's own check run: the session's
+        held memory books are read by import - the
+        project memory map (M-150), session memory
+        (M-153), cross-project memory (M-154), the
+        self-improving ledger (M-155), crew memory
+        (M-133), the subconscious v2 (M-165), the
+        contradiction watch (M-166) and private by
+        architecture (M-167) - and two of the
+        doctor's checks run over them whole. The
+        orphaned-vector check stands every vector
+        record the privacy book names against every
+        ref the held books carry: a vector naming a
+        memory no held book carries raises an
+        orphaned-vector finding. The map-drift check
+        stands every path-like ref the project
+        memory map names against the paths the
+        project root actually carries: a path no
+        longer present raises a map-drift finding.
+        (The corrupt-store check runs over raw store
+        pieces on its own road,
+        :meth:`check_memory_store_piece`, and over
+        the shipped store files on the ``mythic
+        doctor`` CLI check; held books stand
+        validated by construction, so this run
+        raises no corrupt-store finding.) A finding
+        already standing here - same check over the
+        same memory - is skipped, never duplicated.
+        Every newly raised finding is held and
+        published as its ``finding_record`` session
+        news, and the doctor panel and verdict
+        derived from the whole held registry are
+        published as their session news. Returns the
+        newly held findings, their news records, the
+        count, how many checks stood already found,
+        the panel and verdict news records, the
+        screen, and the explanation. Running the
+        checks changes no held book: the books stand
+        exactly as they stood, checked on this
+        layer's book only.
+        """
+        import os
+
+        from ..core import memory_doctor as doctor_module
+        known: set = set()
+        map_book = self.project_memory_map_book()
+        for entry in map_book.entries:
+            known.add(entry.entry_id)
+        for situation in self.session_memory_book().situations:
+            for note in situation.memory:
+                known.add(note.note_id)
+        for lesson in self.cross_project_book().lessons:
+            known.add(lesson.lesson_id)
+        for candidate in self.self_improving_book().candidates:
+            known.add(candidate.candidate_id)
+        for entry in self.crew_memory().entries():
+            known.add(entry.entry_id)
+        for memory in self.subconscious_book().memories:
+            known.add(memory.memory_id)
+        for watch in self.contradiction_book().watches:
+            known.add(watch.watch_id)
+        privacy_book = self.privacy_book()
+        for posting in privacy_book.postings:
+            if posting.memory_kind != "vector-record":
+                known.add(posting.memory_ref)
+        present: set = set()
+        root = str(self.project_root)
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [
+                name for name in dirnames
+                if name not in (".git", "__pycache__")]
+            for name in dirnames + filenames:
+                present.add(os.path.relpath(
+                    os.path.join(dirpath, name), root).replace(os.sep, "/"))
+        registry = self._memory_doctor_registry()
+        standing = {
+            (item.check, item.memory_kind, item.memory_ref)
+            for item in registry.list_findings()}
+        raised = []
+        skipped = 0
+        candidates = []
+        for posting in privacy_book.postings:
+            if posting.memory_kind != "vector-record":
+                continue
+            try:
+                candidates.append(
+                    doctor_module.finding_from_orphaned_vector(
+                        posting, known, store=posting.home,
+                        found_on=found_on, recorded_by=recorded_by,
+                        origin_session=origin_session, source=source))
+            except ValueError:
+                continue
+        for entry in map_book.entries:
+            ref = entry.ref or ""
+            last = ref.rstrip("/").split("/")[-1]
+            if "/" not in ref and "." not in last:
+                continue
+            try:
+                candidates.append(
+                    doctor_module.finding_from_drifted_map_entry(
+                        entry, {item.rstrip("/") for item in present},
+                        store="workspace", found_on=found_on,
+                        recorded_by=recorded_by,
+                        origin_session=origin_session, source=source))
+            except ValueError:
+                continue
+        records = []
+        for finding in candidates:
+            key = (finding.check, finding.memory_kind,
+                   finding.memory_ref)
+            if key in standing:
+                skipped += 1
+                continue
+            held = registry.register_finding(finding)
+            standing.add(key)
+            raised.append(held)
+            record_news = doctor_module.finding_record(held)
+            self._publish_memory_doctor_record(record_news)
+            records.append(record_news)
+        panel_news = None
+        verdict_news = None
+        if registry.list_findings():
+            panel_news = doctor_module.panel_record(
+                doctor_module.derive_panel(registry))
+            self._publish_memory_doctor_record(panel_news)
+            verdict_news = doctor_module.verdict_record(
+                doctor_module.derive_verdict(registry))
+            self._publish_memory_doctor_record(verdict_news)
+        return {
+            "findings": [item.to_record() for item in raised],
+            "records_news": records,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "count": len(raised),
+            "skipped": skipped,
+            "screen": self._memory_doctor_screen(),
+            "explanation": doctor_module.PLAIN_EXPLANATION,
+        }
+
+    def apply_memory_repairs(self) -> dict[str, Any]:
+        """Apply the held book's derived safe repairs (M-168).
+
+        Only the repairs the held findings derive
+        are applied, and only the repair-ready ones:
+        each is applied to the held book in the
+        registry - the finding stands marked
+        repaired there, as its ``repair_record``
+        session news - and a repair applied once is
+        never applied twice. What this road will
+        not repair stands named plainly in the
+        return: every referred finding of the held
+        book, with the line that says the doctor
+        will not repair store-wide trouble and that
+        it is the user's call. Applying a repair
+        rewrites no live store, deletes no memory
+        and writes nothing to disk: the live stores
+        are the shipped layers' own roads, not this
+        slice's. Returns the repairs newly applied,
+        their news records, the count, the referred
+        repairs it did not apply with their plain
+        refusal lines, the screen, and the
+        explanation.
+        """
+        from ..core import memory_doctor as doctor_module
+        registry = self._memory_doctor_registry()
+        applied = registry.apply_repairs()
+        records = []
+        for repair in applied:
+            record_news = doctor_module.repair_record(repair)
+            self._publish_memory_doctor_record(record_news)
+            records.append(record_news)
+        refused = []
+        if registry.list_findings():
+            for repair in doctor_module.derive_repairs(registry):
+                if repair.disposition == "referred":
+                    refused.append({
+                        "repair": repair.to_record(),
+                        "line": doctor_module.repair_line(
+                            registry.get_finding(repair.finding_id)),
+                    })
+        return {
+            "applied": [item.to_record() for item in applied],
+            "records_news": records,
+            "count": len(applied),
+            "will_not_repair": refused,
+            "screen": self._memory_doctor_screen(),
+            "explanation": doctor_module.PLAIN_EXPLANATION,
+        }
+
+    def register_memory_doctor_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole doctor book for the session (M-168).
+
+        Every finding of the book is held by the
+        pure registry, in book order - the book is
+        judged whole, and against the held book,
+        before any finding is held, so a refusal
+        holds nothing new. The first book held sets
+        the registry's title, a later book under a
+        different title refuses, as does a book
+        naming a held finding id or a held check
+        over a held memory. The book's panels are
+        derivations, not holdings, and are not held.
+        Every finding is published as its
+        ``finding_record`` session news, in book
+        order, and the doctor panel derived from
+        the whole book as its ``panel_record``
+        session news. Returns the held book, its
+        findings, their news records, the panel news
+        record, the count of findings held, the
+        screen, and the explanation. Registering
+        reads no file and changes no shipped
+        holding.
+        """
+        from ..core import memory_doctor as doctor_module
+        validated = doctor_module.build_book(book)
+        registry = self._memory_doctor_registry()
+        registry.register_book(validated)
+        records = [
+            doctor_module.finding_record(finding)
+            for finding in validated.findings]
+        for record_news in records:
+            self._publish_memory_doctor_record(record_news)
+        panel_news = doctor_module.panel_record(
+            doctor_module.derive_panel(validated))
+        self._publish_memory_doctor_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "findings": [
+                item.to_record() for item in validated.findings],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": self._memory_doctor_screen(),
+            "explanation": doctor_module.PLAIN_EXPLANATION,
+        }
+
+    def record_memory_doctor_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole doctor book for the session (M-168).
+
+        With no book named, the shipped example
+        doctor book is recorded through the pure
+        layer - five findings at the M-167 slice
+        boundary, with its one pinned panel. A book
+        loaded from a file (the pure layer's
+        ``load_memory_doctor_file`` road) may be
+        passed instead. The book is judged whole
+        before anything is held. Every finding is
+        held and published as its ``finding_record``
+        session news, in book order, and the doctor
+        panel as its ``panel_record`` session news;
+        the book is remembered whole as the
+        session's - its held panel and all - and the
+        same book recorded twice refuses -
+        fingerprinted on its finding ids and title.
+        Returns the held book, its findings, their
+        news records, the panel news record, the
+        count, the screen, and the explanation.
+        Recording changes no shipped holding.
+        """
+        from ..core import memory_doctor as doctor_module
+        book = book if book is not None \
+            else doctor_module.load_memory_doctor()
+        validated = doctor_module.build_book(book)
+        fingerprint = (tuple(validated.finding_ids()), validated.title)
+        recorded = getattr(self, "_memory_doctor_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._memory_doctor_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this doctor book is already recorded "
+                "for the session; a book is recorded once")
+        registry = self._memory_doctor_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._memory_doctor_held = validated
+        records = [
+            doctor_module.finding_record(finding)
+            for finding in validated.findings]
+        for record_news in records:
+            self._publish_memory_doctor_record(record_news)
+        panel_news = doctor_module.panel_record(
+            doctor_module.derive_panel(validated))
+        self._publish_memory_doctor_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "findings": [
+                item.to_record() for item in validated.findings],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": doctor_module.format_memory_doctor_screen(validated),
+            "explanation": doctor_module.PLAIN_EXPLANATION,
+        }
+
+    def report_memory_doctor(self) -> dict[str, Any]:
+        """Render the session doctor book, as a report (M-168).
+
+        The book - the held registry's book when the
+        session holds any finding, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone. Rendering
+        registers and publishes nothing and reads no
+        file. Returns the book, its findings and
+        panels as plain records, the derived panel
+        and doctor verdict, the derived repairs, the
+        rendered findings, panel, verdict and
+        repairs, the screen, and the plain
+        explanation.
+        """
+        from ..core import memory_doctor as doctor_module
+        book = self.memory_doctor_book()
+        return {
+            "book": book.to_record(),
+            "findings": [item.to_record() for item in book.findings],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (doctor_module.derive_panel(book).to_record()
+                      if book.findings else None),
+            "verdict": (
+                doctor_module.derive_verdict(book).to_record()
+                if book.findings else None),
+            "repairs": [
+                r.to_record()
+                for r in doctor_module.derive_repairs(book)],
+            "findings_text": doctor_module.format_findings(book),
+            "panel_text": doctor_module.format_panel(book),
+            "verdict_text": doctor_module.format_verdict(book),
+            "repairs_text": doctor_module.format_repairs(book),
+            "screen": self._memory_doctor_screen(),
+            "explanation": doctor_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_memory_doctor_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one memory doctor record as session news (M-168).
+
+        The pure layer's ``finding_record``,
+        ``panel_record``, ``verdict_record`` and
+        ``repair_record`` are journaled through the
+        same checkpoint road every sibling slice
+        uses, when a session is attached. Each
+        record is announced at most once per shape:
+        a finding under its own finding id, check
+        and found day, a panel under its whole
+        derived shape, a verdict under its word and
+        tallies, and a repair under its own repair
+        id and action, so a panel or verdict grown
+        by a newly held finding announces again as
+        the new figure it is. A foreign record type
+        is never published on this road.
+        """
+        if record.get("type") == "memory_doctor_finding":
+            key = ("memory_doctor_finding",
+                   record.get("finding_id"),
+                   record.get("check"),
+                   record.get("memory_kind"),
+                   record.get("memory_ref"),
+                   record.get("found_on"))
+        elif record.get("type") == "memory_doctor_panel":
+            key = ("memory_doctor_panel", record.get("panel_id"),
+                   record.get("as_of"),
+                   tuple(row.get("finding_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_findings"))
+        elif record.get("type") == "memory_doctor_verdict":
+            key = ("memory_doctor_verdict",
+                   record.get("verdict"),
+                   record.get("total_findings"),
+                   record.get("distinct_memories"),
+                   record.get("latest_on"))
+        elif record.get("type") == "memory_doctor_repair":
+            key = ("memory_doctor_repair",
+                   record.get("repair_id"),
+                   record.get("finding_id"),
+                   record.get("action"))
+        else:
+            return
+        announced = getattr(self, "_memory_doctor_announced", None)
+        if announced is None:
+            announced = set()
+            self._memory_doctor_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
