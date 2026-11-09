@@ -1076,7 +1076,7 @@ slices:
   title: The Slice Board
   summary: plans and roadmaps as a visible board (queued / building / verifying / banked) — the Mythic
     way of working *seen*; the human can re-order, pause, or strike a slice by hand.
-  status: queued
+  status: done
 - id: M-174
   part: 8
   title: Approval cards perfected
