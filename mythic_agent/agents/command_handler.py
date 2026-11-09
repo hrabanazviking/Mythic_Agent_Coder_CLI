@@ -373,6 +373,8 @@ class CommandHandler:
                 self._handle_coldstart(args)
             elif cmd == "/workview":
                 self._handle_workview(args)
+            elif cmd == "/sliceboard":
+                self._handle_sliceboard(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -6673,6 +6675,85 @@ class CommandHandler:
                 text = format_verdict(primary.work_view_book())
             else:
                 text = primary.work_view_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_sliceboard(self, args: str):
+        """M-173: /sliceboard - the slice board.
+
+        ``/sliceboard`` shows the slice board held
+        this session as a visible board (the shipped
+        example board - seven cards at the M-172
+        slice boundary, two banked, M-173 building
+        by hand, M-176 re-ordered up, M-175 paused
+        and M-177 struck, with its one pinned panel -
+        when none is held yet); ``/sliceboard card
+        <slice-id>`` shows one effective card;
+        ``/sliceboard column <column>`` shows one
+        column's cards; ``/sliceboard action
+        <action-id>`` shows one held hand action;
+        ``/sliceboard panel`` shows the board panel
+        derived from the whole board - the board at
+        a glance; ``/sliceboard verdict`` shows the
+        board verdict derived for the whole board.
+        Reading registers and publishes nothing as
+        session news: cards and actions are held
+        only when they are given through the agent's
+        register roads, stood on the board on the
+        hand-action road, or held on the board
+        roads, and every card held for the session
+        is journaled as a slice_board_card session
+        event, every hand action as a
+        slice_board_action session event, every
+        derived panel as a slice_board_panel session
+        event and every derived verdict as a
+        slice_board_verdict session event. This
+        surface runs no build and banks nothing, and
+        a hand action on it moves the held board
+        alone - the shipped roadmap data is not
+        rewritten here.
+        """
+        from ..core.slice_board import (
+            format_action,
+            format_board,
+            format_card,
+            format_panel,
+            format_verdict,
+            parse_slice_board_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_slice_board_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "card":
+                text = format_card(
+                    primary.get_slice_board_card(target))
+            elif action == "column":
+                text = format_board(
+                    primary.slice_board_board(), column=target)
+            elif action == "action":
+                text = format_action(
+                    primary.get_slice_board_action(target))
+            elif action == "panel":
+                text = format_panel(primary.slice_board_board())
+            elif action == "verdict":
+                text = format_verdict(primary.slice_board_board())
+            else:
+                text = primary.slice_board_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

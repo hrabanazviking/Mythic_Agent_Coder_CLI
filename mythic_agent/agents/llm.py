@@ -32050,6 +32050,539 @@ class Agent:
         announced.add(key)
         if self._session_store and self.session_id:
             self._checkpoint(record)
+    def _slice_board_registry(self):
+        """The held slice-board registry (M-173).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer cards and hand
+        actions one by one, beside the session
+        work-view registry (M-172) and never in it:
+        the board is one plan of slices. It is
+        created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly
+        one. The attribute is named
+        ``_slice_board_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_slice_board_store", None)
+        if registry is None:
+            from ..core.slice_board import SliceBoardRegistry
+            registry = SliceBoardRegistry()
+            self._slice_board_store = registry
+        return registry
+
+    def slice_board_board(self):
+        """The session's slice board, as data (M-173).
+
+        The held registry's board when the session
+        holds any card - the plan the session has
+        actually raised (cards held one by one stand
+        under a session board composed here in the
+        agent layer, so a later whole board recorded
+        under its own title is never refused by a
+        shim title at the registry) - otherwise the
+        board recorded whole through
+        :meth:`record_slice_board_board`, or the
+        shipped example slice board until one is
+        recorded. Reading registers and publishes
+        nothing.
+        """
+        from ..core.slice_board import SliceBoard, load_slice_board
+        registry = self._slice_board_registry()
+        if registry.list_cards():
+            try:
+                board = registry.board()
+            except ValueError:
+                return SliceBoard(
+                    title="Slice Board",
+                    cards=registry.list_cards(),
+                    actions=registry.list_actions())
+            held = getattr(self, "_slice_board_held", None)
+            if held is not None and held.title == board.title \
+                    and held.slice_ids() == board.slice_ids() \
+                    and held.action_ids() == board.action_ids():
+                return held
+            return board
+        board = getattr(self, "_slice_board_held", None)
+        if board is None:
+            return load_slice_board()
+        return board
+
+    def _slice_board_screen(self) -> str:
+        """The /sliceboard screen for the session's state (M-173)."""
+        from ..core import slice_board as board_module
+        registry = self._slice_board_registry()
+        if not registry.list_cards():
+            return board_module.format_slice_board_screen()
+        return board_module.format_slice_board_screen(
+            self.slice_board_board())
+
+    def slice_board_status(self) -> dict[str, Any]:
+        """The slice-board account, in plain data (M-173).
+
+        The cards and hand actions held this session
+        as plain records, the held board's record
+        (none until a card stands held), the session
+        board's cards and actions as plain records
+        (the shipped example board - seven cards at
+        the M-172 slice boundary, two banked, M-173
+        building by hand, M-175 paused and M-177
+        struck, with its one pinned panel - until
+        cards are held), its whole-board record, the
+        panel derived from the whole board and every
+        panel the board holds as plain records, the
+        verdict derived for the whole board, the
+        last effective card in plain words, the
+        panel and the verdict told in plain words,
+        the one screen - rendered from the held
+        board, or from the shipped example board
+        when nothing is held yet - and the plain
+        explanation. Reading registers and publishes
+        nothing, sends nothing and schedules
+        nothing: this layer holds plans as data
+        only, and no build is run or banked here.
+        The screen is where the board is visible.
+        """
+        from ..core import slice_board as board_module
+        registry = self._slice_board_registry()
+        held_cards = registry.list_cards()
+        held_actions = registry.list_actions()
+        board = self.slice_board_board()
+        effective = board.effective_cards()
+        latest = effective[-1] if effective else None
+        return {
+            "cards": [item.to_record() for item in held_cards],
+            "actions": [item.to_record() for item in held_actions],
+            "board": (board.to_record() if held_cards else None),
+            "slice_board": {
+                "title": board.title,
+                "cards": [item.to_record() for item in board.cards],
+                "actions": [
+                    item.to_record() for item in board.actions],
+            },
+            "board_record": board_module.board_record(board),
+            "panel": (board_module.derive_panel(board).to_record()
+                      if board.cards else None),
+            "panels": [p.to_record() for p in board.panels],
+            "verdict": (
+                board_module.derive_verdict(board).to_record()
+                if board.cards else None),
+            "plain_words": (
+                board_module.plain_words(latest)
+                if latest is not None else ""),
+            "panel_plain_words": (
+                board_module.panel_plain_words(board)
+                if board.cards else ""),
+            "verdict_plain_words": (
+                board_module.verdict_plain_words(board)
+                if board.cards else ""),
+            "screen": self._slice_board_screen(),
+            "explanation": board_module.PLAIN_EXPLANATION,
+        }
+
+    def get_slice_board_card(self, slice_id: Any):
+        """The one effective card a slice id names (M-173).
+
+        The session's held registry answers when the
+        session holds any card; otherwise the
+        shipped example board answers (or the board
+        recorded whole for the session). A held card
+        answers for its own board alone: an id the
+        held board holds no card for raises KeyError,
+        with no silent fall back to the example,
+        exactly as the pure layer answers. Reading
+        registers and publishes nothing.
+        """
+        registry = self._slice_board_registry()
+        if registry.list_cards():
+            return registry.get_card(slice_id)
+        return self.slice_board_board().effective_card(slice_id)
+
+    def get_slice_board_base_card(self, slice_id: Any):
+        """The one held (base) card a slice id names (M-173).
+
+        The card as it was recorded, before any held
+        hand action stands on it. Reading registers
+        and publishes nothing.
+        """
+        registry = self._slice_board_registry()
+        if registry.list_cards():
+            return registry.get_base_card(slice_id)
+        return self.slice_board_board().card_for(slice_id)
+
+    def get_slice_board_action(self, action_id: Any):
+        """The one hand action an id names (M-173).
+
+        The session's held registry answers when the
+        session holds any card; otherwise the shipped
+        example board answers (or the board recorded
+        whole for the session). Reading registers
+        and publishes nothing.
+        """
+        registry = self._slice_board_registry()
+        if registry.list_cards():
+            return registry.get_action(action_id)
+        return self.slice_board_board().action_for(action_id)
+
+    def slice_board_cards_in_column(self, column: Any):
+        """The session board's effective cards of one column (M-173)."""
+        from ..core.slice_board import cards_in_column as _in_column
+        return _in_column(self.slice_board_board(), column)
+
+    def slice_board_panel(self):
+        """The board panel derived for the whole board (M-173)."""
+        from ..core.slice_board import derive_panel as _derive_panel
+        return _derive_panel(self.slice_board_board())
+
+    def slice_board_verdict(self):
+        """The board verdict derived for the whole board (M-173)."""
+        from ..core.slice_board import derive_verdict as _derive_verdict
+        return _derive_verdict(self.slice_board_board())
+
+    def register_slice_board_card(
+            self, card: Any) -> dict[str, Any]:
+        """Hold one board card for the session (M-173).
+
+        The card is held by the pure registry under
+        its slice id and place - a slice id or a
+        position already standing here refuses, and
+        a refusal holds nothing new and publishes
+        nothing. A held card is published as its
+        ``card_record`` session-news record through
+        the checkpoint road. Returns the held card,
+        its news record, the screen rendered after
+        it landed, and the plain explanation. Holding
+        a card changes no shipped holding and runs
+        no build: the slice stands on this layer's
+        board, as data, provenance whole.
+        """
+        from ..core import slice_board as board_module
+        registry = self._slice_board_registry()
+        held = registry.register_card(card)
+        card_news = board_module.card_record(held)
+        self._publish_slice_board_record(card_news)
+        return {
+            "card": held.to_record(),
+            "record_news": card_news,
+            "screen": self._slice_board_screen(),
+            "explanation": board_module.PLAIN_EXPLANATION,
+        }
+
+    def register_slice_board_action(
+            self, action: Any) -> dict[str, Any]:
+        """Hold one hand action for the session (M-173).
+
+        The action is held by the pure registry under
+        its id or the deterministic act-N id - an
+        action id or a sequence already standing
+        here refuses, as does an act that stands
+        illegally on the board it lands on, and a
+        refusal holds nothing new and publishes
+        nothing. A held action is published as its
+        ``action_record`` session-news record through
+        the checkpoint road. Returns the held action,
+        its news record, the screen rendered after it
+        landed, and the plain explanation. Holding an
+        action moves this board alone: it rewrites
+        no shipped roadmap data, banks nothing and
+        deletes nothing.
+        """
+        from ..core import slice_board as board_module
+        registry = self._slice_board_registry()
+        held = registry.register_action(action)
+        action_news = board_module.action_record(held)
+        self._publish_slice_board_record(action_news)
+        return {
+            "action": held.to_record(),
+            "record_news": action_news,
+            "screen": self._slice_board_screen(),
+            "explanation": board_module.PLAIN_EXPLANATION,
+        }
+
+    def apply_slice_board_action(
+            self, kind: Any = None, *,
+            slice_id: Any, detail: Any,
+            target_position: Any = None,
+            target_column: Any = None,
+            recorded_on: Any = "2026-11-09",
+            actor: Any = "the jarl",
+            source: Any = "slice board",
+            origin_session: Any = "session-m173",
+            action_id: Any = None) -> dict[str, Any]:
+        """Stand one hand action on the held board (M-173).
+
+        This slice's own hand road: the action is
+        composed by the pure layer at the next
+        sequence of the session's held board - a
+        re-order naming its target place, a pause or
+        a strike naming neither target - judged whole
+        against the effective board it lands on, and
+        held by the pure registry; an illegal act
+        (advancing a paused slice, pausing a banked
+        one, re-ordering a struck one) refuses and
+        holds nothing new. The action is published as
+        its ``action_record`` session news, the panel
+        derived from the whole board as its
+        ``panel_record`` session news, and the verdict
+        derived for the whole board as its
+        ``verdict_record`` session news. Returns the
+        held action, its kind, its news records, the
+        screen rendered after it landed and the plain
+        explanation. HONEST BOUNDARY: standing an
+        action runs no build and banks nothing - the
+        act moves this board alone, as data.
+        """
+        from ..core import slice_board as board_module
+        registry = self._slice_board_registry()
+        held_actions = registry.list_actions()
+        seq = (max(a.seq for a in held_actions) + 1) \
+            if held_actions else 1
+        fields: dict[str, Any] = {
+            "seq": seq, "kind": kind, "slice_id": slice_id,
+            "detail": detail, "recorded_on": recorded_on,
+            "actor": actor, "source": source,
+            "origin_session": origin_session}
+        if action_id is not None:
+            fields["action_id"] = action_id
+        if target_position is not None:
+            fields["target_position"] = target_position
+        if target_column is not None:
+            fields["target_column"] = target_column
+        action = board_module.build_action(fields)
+        held = registry.register_action(action)
+        action_news = board_module.action_record(held)
+        self._publish_slice_board_record(action_news)
+        board = self.slice_board_board()
+        panel_news = board_module.panel_record(
+            board_module.derive_panel(board))
+        self._publish_slice_board_record(panel_news)
+        verdict_news = board_module.verdict_record(
+            board_module.derive_verdict(board))
+        self._publish_slice_board_record(verdict_news)
+        return {
+            "action": held.to_record(),
+            "kind": held.kind,
+            "record_news": action_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._slice_board_screen(),
+            "explanation": board_module.PLAIN_EXPLANATION,
+        }
+
+    def register_slice_board_board(
+            self, board: Any) -> dict[str, Any]:
+        """Register a whole slice board for the session (M-173).
+
+        Every card and hand action of the board is
+        held by the pure registry, in board and
+        recorded order - the board is judged whole,
+        and against the held board, before anything
+        is held, so a refusal holds nothing new. The
+        first board held sets the registry's title,
+        a later board under a different title
+        refuses, as does a board naming a held slice
+        id, position, action id or sequence. The
+        board's panels are derivations, not holdings,
+        and are not held. Every card is published as
+        its ``card_record`` session news and every
+        action as its ``action_record`` session news,
+        in order, and the panel derived from the
+        whole board as its ``panel_record`` session
+        news. Returns the held board, its cards and
+        actions, their news records, the panel news
+        record, the count of cards held, the screen,
+        and the explanation. Registering runs no
+        build and banks nothing.
+        """
+        from ..core import slice_board as board_module
+        validated = board_module.build_board(board)
+        registry = self._slice_board_registry()
+        registry.register_board(validated)
+        records = [
+            board_module.card_record(card)
+            for card in validated.cards]
+        records += [
+            board_module.action_record(action)
+            for action in validated.actions]
+        for news in records:
+            self._publish_slice_board_record(news)
+        panel_news = board_module.panel_record(
+            board_module.derive_panel(validated))
+        self._publish_slice_board_record(panel_news)
+        return {
+            "board": validated.to_record(),
+            "cards": [
+                item.to_record() for item in validated.cards],
+            "actions": [
+                item.to_record() for item in validated.actions],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(validated.cards),
+            "screen": self._slice_board_screen(),
+            "explanation": board_module.PLAIN_EXPLANATION,
+        }
+
+    def record_slice_board_board(
+            self, board: Any = None) -> dict[str, Any]:
+        """Record a whole slice board for the session (M-173).
+
+        With no board named, the shipped example
+        slice board is recorded through the pure
+        layer - seven cards at the M-172 slice
+        boundary, with its one pinned panel. A board
+        loaded from a file (the pure layer's
+        ``load_slice_board_file`` road) may be passed
+        instead. The board is judged whole before
+        anything is held. Every card and action is
+        held and published as its session news, in
+        order, and the panel as its ``panel_record``
+        session news; the board is remembered whole
+        as the session's - its held panel and all -
+        and the same board recorded twice refuses -
+        fingerprinted on its slice ids, action ids
+        and title. Returns the held board, its cards
+        and actions, their news records, the panel
+        news record, the count, the screen, and the
+        explanation. Recording runs no build and
+        banks nothing.
+        """
+        from ..core import slice_board as board_module
+        board = board if board is not None \
+            else board_module.load_slice_board()
+        validated = board_module.build_board(board)
+        fingerprint = (tuple(validated.slice_ids()),
+                       tuple(validated.action_ids()),
+                       validated.title)
+        recorded = getattr(self, "_slice_board_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._slice_board_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this slice board is already recorded "
+                "for the session; a board is recorded once")
+        registry = self._slice_board_registry()
+        registry.register_board(validated)
+        recorded.add(fingerprint)
+        self._slice_board_held = validated
+        records = [
+            board_module.card_record(card)
+            for card in validated.cards]
+        records += [
+            board_module.action_record(action)
+            for action in validated.actions]
+        for news in records:
+            self._publish_slice_board_record(news)
+        panel_news = board_module.panel_record(
+            board_module.derive_panel(validated))
+        self._publish_slice_board_record(panel_news)
+        return {
+            "board": validated.to_record(),
+            "cards": [
+                item.to_record() for item in validated.cards],
+            "actions": [
+                item.to_record() for item in validated.actions],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(validated.cards),
+            "screen": board_module.format_slice_board_screen(
+                validated),
+            "explanation": board_module.PLAIN_EXPLANATION,
+        }
+
+    def report_slice_board(self) -> dict[str, Any]:
+        """Render the session slice board, as a report (M-173).
+
+        The board - the held registry's board when
+        the session holds any card, otherwise the
+        shipped example board (or the board recorded
+        whole for the session) - is rendered through
+        the pure formatters alone. Rendering registers
+        and publishes nothing and reads no file.
+        Returns the board, its cards, actions and
+        panels as plain records, the derived panel
+        and verdict, the rendered board, panel and
+        verdict, the screen, and the plain
+        explanation.
+        """
+        from ..core import slice_board as board_module
+        board = self.slice_board_board()
+        return {
+            "board": board.to_record(),
+            "cards": [item.to_record() for item in board.cards],
+            "actions": [
+                item.to_record() for item in board.actions],
+            "panels": [p.to_record() for p in board.panels],
+            "panel": (board_module.derive_panel(board).to_record()
+                      if board.cards else None),
+            "verdict": (
+                board_module.derive_verdict(board).to_record()
+                if board.cards else None),
+            "board_text": board_module.format_board(board),
+            "panel_text": board_module.format_panel(board),
+            "verdict_text": board_module.format_verdict(board),
+            "screen": self._slice_board_screen(),
+            "explanation": board_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_slice_board_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one slice-board record as session news (M-173).
+
+        The pure layer's ``card_record``,
+        ``action_record``, ``panel_record`` and
+        ``verdict_record`` are journaled through the
+        same checkpoint road every sibling slice
+        uses, when a session is attached. Each record
+        is announced at most once per shape: a card
+        under its own slice id, place, column and
+        hand flags, an action under its own action
+        id, sequence, kind and slice, a panel under
+        its whole derived shape, and a verdict under
+        its word and tallies, so a panel or verdict
+        grown by a newly held card or action announces
+        again as the new figure it is. A foreign
+        record type is never published on this road.
+        """
+        if record.get("type") == "slice_board_card":
+            key = ("slice_board_card",
+                   record.get("slice_id"),
+                   record.get("position"),
+                   record.get("column"),
+                   record.get("paused"),
+                   record.get("struck"))
+        elif record.get("type") == "slice_board_action":
+            key = ("slice_board_action",
+                   record.get("action_id"),
+                   record.get("seq"),
+                   record.get("kind"),
+                   record.get("slice_id"))
+        elif record.get("type") == "slice_board_panel":
+            key = ("slice_board_panel", record.get("panel_id"),
+                   record.get("as_of"),
+                   tuple(row.get("slice_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_cards"))
+        elif record.get("type") == "slice_board_verdict":
+            key = ("slice_board_verdict",
+                   record.get("verdict"),
+                   record.get("total_cards"),
+                   record.get("distinct_parts"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(self, "_slice_board_announced", None)
+        if announced is None:
+            announced = set()
+            self._slice_board_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
