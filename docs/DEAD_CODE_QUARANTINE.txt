@@ -579,3 +579,13 @@ mythic_agent/agents/llm.py:35239:record_status_line_book:method
 mythic_agent/agents/llm.py:35311:report_status_line:method
 mythic_agent/core/status_line.py:1205:row_for:method
 mythic_agent/core/status_line.py:1899:latest_view:method
+mythic_agent/agents/llm.py:35596:themes_grown_up_with_mode:method
+mythic_agent/agents/llm.py:35602:themes_grown_up_passing:method
+mythic_agent/agents/llm.py:35645:register_theme_profile:method
+mythic_agent/agents/llm.py:35675:register_theme_view:method
+mythic_agent/agents/llm.py:35704:view_themes_grown_up:method
+mythic_agent/agents/llm.py:35767:register_themes_grown_up_book:method
+mythic_agent/agents/llm.py:35813:record_themes_grown_up_book:method
+mythic_agent/agents/llm.py:35886:report_themes_grown_up:method
+mythic_agent/core/themes_grown_up.py:1563:row_for:method
+mythic_agent/core/themes_grown_up.py:2248:latest_view:method
