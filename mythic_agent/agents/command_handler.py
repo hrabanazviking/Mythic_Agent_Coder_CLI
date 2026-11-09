@@ -359,6 +359,8 @@ class CommandHandler:
                 self._handle_multisession(args)
             elif cmd == "/handoffsummary":
                 self._handle_handoffsummary(args)
+            elif cmd == "/memoryxport":
+                self._handle_memoryxport(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -6099,6 +6101,75 @@ class CommandHandler:
                 text = format_verdict(primary.handoff_summaries_book())
             else:
                 text = primary.handoff_summaries_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_memoryxport(self, args: str):
+        """M-164: /memoryxport - memory import/export.
+
+        ``/memoryxport`` shows the memory export book
+        held this session (the shipped example book -
+        two packages at the M-163 slice boundary, one
+        packed whole and one map-only, with its one
+        pinned panel - when none is held yet);
+        ``/memoryxport package <package-id>`` shows one
+        package with its provenance whole;
+        ``/memoryxport project <project>`` shows the
+        packages packing one project;
+        ``/memoryxport panel`` shows the memory panel
+        derived from the whole book;
+        ``/memoryxport verdict`` shows the portability
+        verdict derived for the whole book - a partial
+        packing named plainly. Reading registers and
+        publishes nothing as session news: packages are
+        held only when they are given through the agent's
+        package roads, exported from the session's map +
+        ledger, or held on the import road, and every
+        package held for the session is journaled as a
+        memory_import_export_package session event, every
+        derived panel as a memory_import_export_panel
+        session event and every derived verdict as a
+        memory_import_export_verdict session event. This
+        surface writes no live memory, and there is no
+        Part VIII board yet, so the book is visible on
+        this surface, not on a board.
+        """
+        from ..core.memory_import_export import (
+            format_package,
+            format_packages,
+            format_panel,
+            format_verdict,
+            parse_memoryxport_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_memoryxport_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "package":
+                text = format_package(
+                    primary.get_memory_package(target))
+            elif action == "project":
+                text = format_packages(
+                    primary.memory_import_export_book(), target)
+            elif action == "panel":
+                text = format_panel(primary.memory_import_export_book())
+            elif action == "verdict":
+                text = format_verdict(primary.memory_import_export_book())
+            else:
+                text = primary.memory_import_export_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

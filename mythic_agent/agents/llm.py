@@ -28556,6 +28556,470 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _memory_import_export_registry(self):
+        """The held memory import/export registry (M-164).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer packages one by one,
+        beside the session handoff registry (M-163)
+        and never in it: the export book is one book of
+        projects packed portable. It is created on
+        first use, so an agent whose ``__init__`` never
+        ran still holds exactly one. The attribute is
+        named ``_memory_import_export_store``, never
+        the method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_memory_import_export_store", None)
+        if registry is None:
+            from ..core.memory_import_export import (
+                MemoryPackageRegistry)
+            registry = MemoryPackageRegistry()
+            self._memory_import_export_store = registry
+        return registry
+
+    def memory_import_export_book(self):
+        """The session's memory export book, as data (M-164).
+
+        The held registry's book when the session
+        holds any package - the packages the session
+        has actually recorded (packages held one by
+        one, before any whole book stands recorded,
+        stand under a session memory export book
+        composed here in the agent layer, so a later
+        whole book recorded under its own title is
+        never refused by a shim title at the registry)
+        - otherwise the book recorded whole through
+        :meth:`record_memory_package_book`, or the
+        shipped example memory export book until one
+        is recorded. Reading registers and publishes
+        nothing.
+        """
+        from ..core.memory_import_export import (
+            MemoryExportBook, load_memory_import_export)
+        registry = self._memory_import_export_registry()
+        if registry.list_packages():
+            try:
+                book = registry.book()
+            except ValueError:
+                return MemoryExportBook(
+                    title="Memory import/export",
+                    packages=registry.list_packages())
+            held = getattr(self, "_memory_import_export_held", None)
+            if held is not None and held.title == book.title \
+                    and held.package_ids() == book.package_ids():
+                return held
+            return book
+        book = getattr(self, "_memory_import_export_held", None)
+        if book is None:
+            return load_memory_import_export()
+        return book
+
+    def _memory_import_export_screen(self) -> str:
+        """The /memoryxport screen for the session's state (M-164)."""
+        from ..core import memory_import_export as port_module
+        registry = self._memory_import_export_registry()
+        if not registry.list_packages():
+            return port_module.format_memory_import_export_screen()
+        return port_module.format_memory_import_export_screen(
+            self.memory_import_export_book())
+
+    def memory_import_export_status(self) -> dict[str, Any]:
+        """The memory import/export account, in plain data (M-164).
+
+        The packages held this session as plain
+        records, the held book's record (none until a
+        package stands held), the session memory
+        export book's packages as plain records (the
+        shipped example book - two packages at the
+        M-163 slice boundary, one packed whole and
+        one map-only - until packages are held), its
+        whole-book record, the memory panel derived
+        from the whole book and every panel the book
+        holds as plain records, the portability
+        verdict derived for the whole book, the latest
+        package in plain words, the panel and the
+        verdict told in plain words, the one screen -
+        rendered from the held book, or from the
+        shipped example book when nothing is held yet
+        - and the plain explanation. Reading registers
+        and publishes nothing, sends nothing and
+        schedules nothing: this layer holds packages
+        as data only. There is no Part VIII board yet;
+        the screen is where the book is visible.
+        """
+        from ..core import memory_import_export as port_module
+        registry = self._memory_import_export_registry()
+        held_packages = registry.list_packages()
+        book = self.memory_import_export_book()
+        latest = book.packages[-1]
+        return {
+            "packages": [item.to_record() for item in held_packages],
+            "book": (book.to_record() if held_packages else None),
+            "package": {
+                "title": book.title,
+                "packages": [item.to_record() for item in book.packages],
+            },
+            "book_record": port_module.book_record(book),
+            "panel": (port_module.derive_panel(book).to_record()
+                      if book.packages else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (
+                port_module.derive_verdict(book).to_record()
+                if book.packages else None),
+            "plain_words": port_module.plain_words(latest),
+            "panel_plain_words": (
+                port_module.panel_plain_words(book)
+                if book.packages else ""),
+            "verdict_plain_words": (
+                port_module.verdict_plain_words(book)
+                if book.packages else ""),
+            "screen": self._memory_import_export_screen(),
+            "explanation": port_module.PLAIN_EXPLANATION,
+        }
+
+    def get_memory_package(self, package_id: Any):
+        """The one package an id names (M-164).
+
+        The session's held registry answers when the
+        session holds any package; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held
+        package answers for its own book alone: an id
+        the held book holds no package for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._memory_import_export_registry()
+        if registry.list_packages():
+            return registry.get_package(package_id)
+        return self.memory_import_export_book().package_for(package_id)
+
+    def memory_import_export_panel(self):
+        """The memory panel derived for the whole book (M-164)."""
+        from ..core.memory_import_export import (
+            derive_panel as _derive_panel)
+        return _derive_panel(self.memory_import_export_book())
+
+    def memory_import_export_verdict(self):
+        """The portability verdict derived for the whole book (M-164)."""
+        from ..core.memory_import_export import (
+            derive_verdict as _derive_verdict)
+        return _derive_verdict(self.memory_import_export_book())
+
+    def register_memory_package(
+            self, package: Any) -> dict[str, Any]:
+        """Hold one memory package for the session (M-164).
+
+        The package is held by the pure registry under
+        its id or the deterministic package-N id - a
+        package id already standing here refuses, as
+        does a package packing a held project from a
+        held session or naming a held piece (a piece
+        is packed once); a refusal holds nothing new
+        and publishes nothing. A held package is
+        published as its ``package_record`` session-news
+        record through the checkpoint road. Returns the
+        held package, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a package writes no live
+        memory: the registry holds the package as data,
+        provenance whole.
+        """
+        from ..core import memory_import_export as port_module
+        registry = self._memory_import_export_registry()
+        held = registry.register_package(package)
+        record_news = port_module.package_record(held)
+        self._publish_memory_package_record(record_news)
+        return {
+            "package": held.to_record(),
+            "record_news": record_news,
+            "screen": self._memory_import_export_screen(),
+            "explanation": port_module.PLAIN_EXPLANATION,
+        }
+
+    def export_memory_package(
+            self, *, project: Any, source_session: Any,
+            exported_by: Any, exported_on: Any) -> dict[str, Any]:
+        """Export this session's map + ledger onto a package (M-164).
+
+        This slice's own composing road: the session's
+        project memory map book (M-150) and
+        self-improving ledger book (M-155) are read onto
+        a package BY IMPORT through the pure layer's
+        ``package_from_memory_books`` - the map's entry
+        ids and sections and the ledger's candidate ids
+        and standings stand as the package's contents,
+        ids and counts alone - and the package is held
+        and published as its ``package_record`` session
+        news, with the memory panel derived from the
+        whole held registry as its ``panel_record``
+        session news and the portability verdict derived
+        for the whole held registry as its
+        ``verdict_record`` session news. Only ids,
+        sections, states and counts cross the seam: no
+        entry's or candidate's words stand in any record
+        or headline this road publishes. Returns the
+        held package, its news record, the panel and
+        verdict news records, the count, the pieces in
+        all, the screen, and the explanation. Exporting
+        mutates no live holding - the session's map and
+        ledger stand exactly as they stood.
+        """
+        from ..core import memory_import_export as port_module
+        map_book = self.project_memory_map_book()
+        ledger_book = self.self_improving_book()
+        package = port_module.package_from_memory_books(
+            map_book, ledger_book, project=project,
+            source_session=source_session,
+            exported_by=exported_by, exported_on=exported_on)
+        registry = self._memory_import_export_registry()
+        held = registry.register_package(package)
+        record_news = port_module.package_record(held)
+        self._publish_memory_package_record(record_news)
+        panel_news = port_module.panel_record(
+            port_module.derive_panel(registry))
+        self._publish_memory_package_record(panel_news)
+        verdict_news = port_module.verdict_record(
+            port_module.derive_verdict(registry))
+        self._publish_memory_package_record(verdict_news)
+        return {
+            "package": held.to_record(),
+            "record_news": record_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "count": 1,
+            "total_pieces": held.piece_count,
+            "screen": self._memory_import_export_screen(),
+            "explanation": port_module.PLAIN_EXPLANATION,
+        }
+
+    def import_memory_package(
+            self, package: Any) -> dict[str, Any]:
+        """Hold one judged memory package for the session (M-164).
+
+        The import road: the package - a package record
+        or a mapping in the package's shape - is judged
+        WHOLE by the pure layer's ``validate_package``
+        before anything is held: provenance, contents
+        and counts together, unknown keys refusing by
+        name, so a malformed or foreign package refuses
+        and nothing is held, and nothing is published.
+        A judged package is held by the pure registry
+        and published as its ``package_record`` session
+        news, with the memory panel derived from the
+        whole held registry as its ``panel_record``
+        session news. Returns the held package, its news
+        record, the panel news record, the count, the
+        screen, and the explanation. HONEST BOUNDARY:
+        holding an imported package writes no live
+        memory - the session's own memory map and
+        ledger stand exactly as they stood; the package
+        is held as data, for reading and reporting.
+        """
+        from ..core import memory_import_export as port_module
+        judged = port_module.validate_package(package)
+        registry = self._memory_import_export_registry()
+        held = registry.register_package(judged)
+        record_news = port_module.package_record(held)
+        self._publish_memory_package_record(record_news)
+        panel_news = port_module.panel_record(
+            port_module.derive_panel(registry))
+        self._publish_memory_package_record(panel_news)
+        return {
+            "package": held.to_record(),
+            "record_news": record_news,
+            "panel_record": panel_news,
+            "count": 1,
+            "screen": self._memory_import_export_screen(),
+            "explanation": port_module.PLAIN_EXPLANATION,
+        }
+
+    def register_memory_package_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole memory export book for the session (M-164).
+
+        Every package of the book is held by the pure
+        registry, in book order - the book is judged
+        whole, and against the held book, before any
+        package is held, so a refusal holds nothing
+        new. The first book held sets the registry's
+        title, a later book under a different title
+        refuses, as does a book naming a held package
+        id, a held project-and-session export or a held
+        piece. The book's panels are derivations, not
+        holdings, and are not held. Every package is
+        published as its ``package_record`` session
+        news, in book order, and the memory panel
+        derived from the whole book as its
+        ``panel_record`` session news. Returns the held
+        book, its packages, their news records, the
+        panel news record, the count of packages held,
+        the screen, and the explanation. Registering
+        writes no live memory and reads no file.
+        """
+        from ..core import memory_import_export as port_module
+        validated = port_module.build_book(book)
+        registry = self._memory_import_export_registry()
+        registry.register_book(validated)
+        records = [
+            port_module.package_record(package)
+            for package in validated.packages]
+        for record_news in records:
+            self._publish_memory_package_record(record_news)
+        panel_news = port_module.panel_record(
+            port_module.derive_panel(validated))
+        self._publish_memory_package_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "packages": [
+                item.to_record() for item in validated.packages],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": self._memory_import_export_screen(),
+            "explanation": port_module.PLAIN_EXPLANATION,
+        }
+
+    def record_memory_package_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole memory export book for the session (M-164).
+
+        With no book named, the shipped example memory
+        export book is recorded through the pure layer -
+        two packages at the M-163 slice boundary, with
+        its one pinned panel. A book loaded from a file
+        (the pure layer's ``load_memory_import_export_file``
+        road) may be passed instead. The book is judged
+        whole before anything is held. Every package is
+        held and published as its ``package_record``
+        session news, in book order, and the memory panel
+        as its ``panel_record`` session news; the book is
+        remembered whole as the session's - its held
+        panel and all - and the same book recorded twice
+        refuses - fingerprinted on its package ids and
+        title. Returns the held book, its packages, their
+        news records, the panel news record, the count,
+        the screen, and the explanation. Recording writes
+        no live memory.
+        """
+        from ..core import memory_import_export as port_module
+        book = book if book is not None \
+            else port_module.load_memory_import_export()
+        validated = port_module.build_book(book)
+        fingerprint = (tuple(validated.package_ids()), validated.title)
+        recorded = getattr(self, "_memory_import_export_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._memory_import_export_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this memory export book is already recorded "
+                "for the session; a book is recorded once")
+        registry = self._memory_import_export_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._memory_import_export_held = validated
+        records = [
+            port_module.package_record(package)
+            for package in validated.packages]
+        for record_news in records:
+            self._publish_memory_package_record(record_news)
+        panel_news = port_module.panel_record(
+            port_module.derive_panel(validated))
+        self._publish_memory_package_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "packages": [
+                item.to_record() for item in validated.packages],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": port_module.format_memory_import_export_screen(
+                validated),
+            "explanation": port_module.PLAIN_EXPLANATION,
+        }
+
+    def report_memory_import_export(self) -> dict[str, Any]:
+        """Render the session memory export book, as a report (M-164).
+
+        The book - the held registry's book when the
+        session holds any package, otherwise the shipped
+        example book (or the book recorded whole for the
+        session) - is rendered through the pure
+        formatters alone. Rendering registers and
+        publishes nothing, writes no live memory and
+        reads no file. Returns the book, its packages
+        and panels as plain records, the derived panel
+        and portability verdict, the rendered packages,
+        panel and verdict, the screen, and the plain
+        explanation.
+        """
+        from ..core import memory_import_export as port_module
+        book = self.memory_import_export_book()
+        return {
+            "book": book.to_record(),
+            "packages": [item.to_record() for item in book.packages],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (port_module.derive_panel(book).to_record()
+                      if book.packages else None),
+            "verdict": (
+                port_module.derive_verdict(book).to_record()
+                if book.packages else None),
+            "packages_text": port_module.format_packages(book),
+            "panel_text": port_module.format_panel(book),
+            "verdict_text": port_module.format_verdict(book),
+            "screen": self._memory_import_export_screen(),
+            "explanation": port_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_memory_package_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one memory package record as session news (M-164).
+
+        The pure layer's ``package_record``,
+        ``panel_record`` and ``verdict_record`` are
+        journaled through the same checkpoint road every
+        sibling slice uses, when a session is attached.
+        Each record is announced at most once per shape:
+        a package under its own package id, project and
+        source session, a panel under its whole derived
+        shape, and a verdict under its word and tallies,
+        so a panel or verdict grown by a newly held
+        package announces again as the new figure it is.
+        A foreign record type is never published on this
+        road.
+        """
+        if record.get("type") == "memory_import_export_package":
+            key = ("memory_import_export_package",
+                   record.get("package_id"),
+                   record.get("project"),
+                   record.get("source_session"))
+        elif record.get("type") == "memory_import_export_panel":
+            key = ("memory_import_export_panel", record.get("panel_id"),
+                   tuple(row.get("package_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_packages"),
+                   record.get("total_pieces"))
+        elif record.get("type") == "memory_import_export_verdict":
+            key = ("memory_import_export_verdict",
+                   record.get("verdict"),
+                   record.get("total_complete"),
+                   record.get("total_map_only"),
+                   record.get("total_ledger_only"))
+        else:
+            return
+        announced = getattr(self, "_memory_import_export_announced", None)
+        if announced is None:
+            announced = set()
+            self._memory_import_export_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
