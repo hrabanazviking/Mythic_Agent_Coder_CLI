@@ -1047,7 +1047,7 @@ slices:
   title: Memory Doctor
   summary: '`mythic doctor` gains memory checks (corrupt stores, orphaned vectors, map drift) with safe
     repairs.'
-  status: queued
+  status: done
 - id: M-169
   part: 7
   title: Cold-start kindness
