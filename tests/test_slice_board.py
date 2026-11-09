@@ -681,3 +681,923 @@ def test_pure_layer_imports_no_agent_or_ui():
     assert "mythic_agent.agents" not in text
     assert "import textual" not in text
     assert "from ..agents" not in text
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-173 agent layer: the agent holds a
+# SliceBoardRegistry for the session (session
+# state only, no new setting), cards and hand
+# actions are held by being registered - each
+# judged whole, and each action judged against
+# the board it lands on, before it is held -
+# published as their card_record / action_record
+# session news through the checkpoint road,
+# deduped per shape - a card composed from the
+# shipped roadmap by import takes its column
+# from the slice's own ledger status, the
+# hand-action road composes one action at the
+# held board's next sequence and publishes the
+# derived panel and verdict news with it,
+# whole-board register and record roads hold a
+# board judged whole first, the report road
+# renders the held board (or the shipped example
+# when unheld) through the pure formatters, and
+# the /sliceboard surface rides both roads on
+# the pure parser + formatters. Status, get,
+# base-get, column, panel, verdict and report
+# reads register and publish nothing, answer
+# from the held registry first and from the
+# shipped example only while nothing is held -
+# a held card never falls back to the example.
+# The panel and the verdict derive at call time
+# from the whole board, never held. This layer
+# sends nothing, posts nothing, schedules
+# nothing, calls no model, persists nothing
+# beyond the session journal news, runs no build
+# and banks nothing - a card held here is a
+# record of a plan, never the work itself, and
+# a hand action moves the held board alone,
+# never the shipped roadmap.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _board_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_board_file(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data"
+           / "slice_board.yaml").read_text(encoding="utf-8")
+    path = tmp_path / "slice_board.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestSliceBoardAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.slice_board_status()
+        assert status["cards"] == []
+        assert status["actions"] == []
+        assert status["board"] is None
+        assert status["slice_board"]["title"] == EXAMPLE_TITLE
+        assert len(status["slice_board"]["cards"]) == 7
+        assert len(status["slice_board"]["actions"]) == 4
+        assert status["panel"]["total_cards"] == 7
+        assert status["panel"]["total_building"] == 1
+        assert status["panel"]["next_slice_id"] == "M-176"
+        assert status["panels"][0]["panel_id"] == "panel-m172-boundary"
+        assert status["board_record"]["card_count"] == 7
+        assert status["board_record"]["action_count"] == 4
+        assert status["verdict"]["verdict"] == "flowing"
+        assert "M-177 Prompt craft - queued, struck" in (
+            status["plain_words"])
+        assert "struck by hand" in status["plain_words"]
+        assert "The Slice Board (M-173)" in status["screen"]
+        assert "next stands M-176" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._slice_board_registry()
+        assert agent._slice_board_registry() is first
+        assert agent._slice_board_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.slice_board_status()
+        assert agent.get_slice_board_card("M-173").column == "building"
+        assert agent.get_slice_board_base_card(
+            "M-173").column == "queued"
+        assert agent.get_slice_board_action(
+            "act-open-m173").kind == "advance"
+        assert [c.slice_id for c in agent.slice_board_cards_in_column(
+            "queued")] == ["M-176", "M-174", "M-175", "M-177"]
+        agent.slice_board_panel()
+        agent.slice_board_verdict()
+        agent.report_slice_board()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("slice_board")] == []
+        with pytest.raises(KeyError):
+            agent.get_slice_board_card("M-999")
+        with pytest.raises(KeyError):
+            agent.get_slice_board_action("act-nope")
+        agent.close()
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_slice_board_card(_card())
+        status = agent.slice_board_status()
+        assert [item["slice_id"] for item in status["cards"]] == [
+            "M-190"]
+        assert status["board"]["title"] == "Slice Board"
+        assert status["panel"]["total_cards"] == 1
+        assert status["panel"]["next_slice_id"] == "M-190"
+        assert status["verdict"]["verdict"] == "waiting"
+
+    def test_held_card_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_slice_board_card(_card())
+        with pytest.raises(KeyError):
+            agent.get_slice_board_card("M-171")
+        with pytest.raises(KeyError):
+            agent.get_slice_board_action("act-open-m173")
+        card = agent.get_slice_board_card("M-190")
+        assert card.title == "A test slice"
+        assert agent.slice_board_board().title == "Slice Board"
+
+
+class TestSliceBoardAgentHolding:
+    def test_register_card_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_slice_board_card(_card())
+        assert outcome["card"]["slice_id"] == "M-190"
+        assert outcome["record_news"]["news"] is True
+        assert outcome["record_news"]["type"] == "slice_board_card"
+        assert "M-190" in outcome["screen"]
+        agent.register_slice_board_card(_card(
+            slice_id="M-191", position=2,
+            title="A second test slice"))
+        events = _board_events(store, session_id, "slice_board_card")
+        assert len(events) == 2
+        agent._publish_slice_board_record(card_record(_card()))
+        agent._publish_slice_board_record(
+            {"type": "work_view_event", "news": True})
+        events = _board_events(store, session_id, "slice_board_card")
+        assert len(events) == 2
+        agent.close()
+
+    def test_duplicate_card_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_slice_board_card(_card())
+        with pytest.raises(ValueError):
+            agent.register_slice_board_card(_card())
+        with pytest.raises(ValueError):
+            agent.register_slice_board_card(_card(position=2))
+        with pytest.raises(ValueError):
+            agent.register_slice_board_card(
+                _card(slice_id="M-191"))
+        events = _board_events(store, session_id, "slice_board_card")
+        assert len(events) == 1
+        agent.close()
+
+    def test_roadmap_card_composes_by_import_and_holds(
+            self, agent):
+        roadmap = load_roadmap()
+        by_id = {item.id: item for item in roadmap.slices}
+        card = card_from_roadmap_slice(by_id["M-173"], position=1)
+        assert card.column == "queued"
+        assert card.title == "The Slice Board"
+        with pytest.raises(ValueError):
+            card_from_roadmap_slice(
+                by_id["M-173"], position=1, column="banked")
+        outcome = agent.register_slice_board_card(card)
+        assert outcome["card"]["column"] == "queued"
+        banked = card_from_roadmap_slice(by_id["M-171"], position=2)
+        assert banked.column == "banked"
+        agent.register_slice_board_card(banked)
+        assert [c.slice_id for c in agent.slice_board_cards_in_column(
+            "banked")] == ["M-171"]
+
+    def test_register_action_is_judged_against_its_board(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_slice_board_card(_card())
+        agent.register_slice_board_card(_card(
+            slice_id="M-192", position=2,
+            title="A banked test slice", column="banked"))
+        outcome = agent.register_slice_board_action(_action())
+        assert outcome["action"]["action_id"] == "act-test"
+        assert outcome["record_news"]["type"] == "slice_board_action"
+        assert agent.get_slice_board_card("M-190").paused is True
+        assert agent.get_slice_board_base_card(
+            "M-190").paused is False
+        with pytest.raises(ValueError):
+            agent.register_slice_board_action(_action(
+                action_id="act-bad", seq=2, slice_id="M-192"))
+        assert [a.action_id for a in
+                agent._slice_board_registry().list_actions()] == [
+                    "act-test"]
+        events = _board_events(store, session_id, "slice_board_action")
+        assert len(events) == 1
+        agent.close()
+
+    def test_hand_action_road_derives_sequence_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_slice_board_card(_card())
+        agent.register_slice_board_card(_card(
+            slice_id="M-191", position=2,
+            title="A second test slice"))
+        outcome = agent.apply_slice_board_action(
+            "advance", slice_id="M-190",
+            detail="the first slice opens by hand.",
+            target_column="building")
+        assert outcome["kind"] == "advance"
+        assert outcome["action"]["seq"] == 1
+        assert outcome["action"]["action_id"] == "act-1"
+        assert outcome["record_news"]["type"] == "slice_board_action"
+        assert outcome["panel_record"]["type"] == "slice_board_panel"
+        assert outcome["verdict_record"]["type"] == (
+            "slice_board_verdict")
+        assert agent.get_slice_board_card("M-190").column == "building"
+        assert agent.get_slice_board_base_card(
+            "M-190").column == "queued"
+        second = agent.apply_slice_board_action(
+            "pause", slice_id="M-191",
+            detail="the second slice waits by hand.")
+        assert second["action"]["seq"] == 2
+        assert agent.get_slice_board_card("M-191").paused is True
+        assert len(_board_events(
+            store, session_id, "slice_board_action")) == 2
+        assert len(_board_events(
+            store, session_id, "slice_board_panel")) == 1
+        assert len(_board_events(
+            store, session_id, "slice_board_verdict")) == 1
+        agent.close()
+
+    def test_hand_action_road_refuses_an_illegal_act(self, agent):
+        agent.register_slice_board_card(_card())
+        agent.apply_slice_board_action(
+            "pause", slice_id="M-190",
+            detail="the slice waits by hand.")
+        with pytest.raises(ValueError):
+            agent.apply_slice_board_action(
+                "advance", slice_id="M-190",
+                detail="a paused slice cannot move.",
+                target_column="building")
+        with pytest.raises(ValueError):
+            agent.apply_slice_board_action(
+                "advance", slice_id="M-190",
+                detail="banking is never a hand act.",
+                target_column="banked")
+        assert [a.kind for a in
+                agent._slice_board_registry().list_actions()] == [
+                    "pause"]
+        assert agent.get_slice_board_card("M-190").column == "queued"
+
+    def test_register_board_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_slice_board_board(_mixed_board())
+        assert outcome["count"] == 3
+        assert [c["slice_id"] for c in outcome["cards"]] == [
+            "M-190", "M-191", "M-192"]
+        assert [r["type"] for r in outcome["records_news"]] == [
+            "slice_board_card", "slice_board_card",
+            "slice_board_card", "slice_board_action",
+            "slice_board_action"]
+        events = _board_events(store, session_id, "slice_board_card")
+        assert [e["slice_id"] for e in events] == [
+            "M-190", "M-191", "M-192"]
+        assert len(_board_events(
+            store, session_id, "slice_board_panel")) == 1
+        assert agent.slice_board_board().title == "A test slice board"
+        with pytest.raises(ValueError):
+            agent.register_slice_board_board(_mixed_board())
+        agent.close()
+
+    def test_record_board_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_slice_board_board()
+        assert outcome["count"] == 7
+        assert outcome["board"]["title"] == EXAMPLE_TITLE
+        assert len(_board_events(
+            store, session_id, "slice_board_card")) == 7
+        assert len(_board_events(
+            store, session_id, "slice_board_action")) == 4
+        status = agent.slice_board_status()
+        assert status["panels"][0]["panel_id"] == "panel-m172-boundary"
+        with pytest.raises(ValueError):
+            agent.record_slice_board_board()
+        agent.close()
+
+    def test_board_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_board_file(tmp_path)
+        board = load_slice_board_file(path)
+        outcome = agent.record_slice_board_board(board)
+        assert outcome["count"] == 7
+        assert agent.slice_board_board().title == EXAMPLE_TITLE
+
+    def test_report_renders_example_then_held_board_only(self, agent):
+        report = agent.report_slice_board()
+        assert report["board"]["title"] == EXAMPLE_TITLE
+        assert len(report["cards"]) == 7
+        assert report["verdict"]["verdict"] == "flowing"
+        assert "M-173 The Slice Board - building" in (
+            report["board_text"])
+        agent.register_slice_board_card(_card())
+        report = agent.report_slice_board()
+        assert [c["slice_id"] for c in report["cards"]] == ["M-190"]
+        assert "M-190 A test slice - queued" in report["board_text"]
+        assert report["verdict"]["verdict"] == "waiting"
+
+    def test_holding_and_hand_actions_run_no_build(self, agent):
+        for name in (
+                "run_slice_board_build", "execute_slice_board",
+                "bank_slice_board", "build_slice_board_slice",
+                "persist_slice_board", "send_slice_board",
+                "schedule_slice_board", "sync_slice_board",
+                "delete_slice_board_card", "rewrite_roadmap"):
+            assert not hasattr(agent, name), name
+        before = {item.id: item.status
+                  for item in load_roadmap().slices}
+        agent.register_slice_board_card(_card(
+            slice_id="M-177", title="Prompt craft"))
+        agent.apply_slice_board_action(
+            "strike", slice_id="M-177",
+            detail="struck by hand for the tests.")
+        assert agent.get_slice_board_card("M-177").struck is True
+        after = {item.id: item.status
+                 for item in load_roadmap().slices}
+        assert after == before
+        assert after["M-177"] == "queued"
+
+
+class TestSliceBoardTerminalSurface:
+    def test_show_card_column_action_panel_verdict(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/sliceboard")
+        assert "The Slice Board (M-173)" in text
+        _, _, text = _slash(agent, "/sliceboard card M-173")
+        assert "M-173 The Slice Board - building" in text
+        _, _, text = _slash(agent, "/sliceboard column queued")
+        assert "M-176" in text
+        assert "M-173" not in text
+        _, _, text = _slash(agent, "/sliceboard column done")
+        assert "M-171" in text
+        assert "M-176" not in text
+        _, _, text = _slash(
+            agent, "/sliceboard action act-reorder-m176")
+        assert "reorder M-176" in text
+        assert "Target place: 4" in text
+        _, _, text = _slash(agent, "/sliceboard panel")
+        assert "Panel in Slice Board at the M-172 slice boundary" in (
+            text)
+        _, _, text = _slash(agent, "/sliceboard verdict")
+        assert "flowing" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/sliceboard [show|card <slice-id>"
+                "|column <column>|action <action-id>"
+                "|panel|verdict]") in text
+        _, _, text = _slash(agent, "/sliceboard dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/sliceboard card M-999")
+        assert "no card named" in text
+
+
+@pytest.fixture()
+def board_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _board_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestSliceBoardCommand:
+    def test_show_is_default(self, board_handler, agent):
+        board_handler._handle_sliceboard("")
+        assert "The Slice Board (M-173)" in (
+            _board_published_text(board_handler))
+
+    def test_card_column_action_panel_verdict(
+            self, board_handler, agent):
+        board_handler._handle_sliceboard("card M-173")
+        assert "M-173 The Slice Board - building" in (
+            _board_published_text(board_handler))
+        board_handler._handle_sliceboard("column queued")
+        assert "M-176" in _board_published_text(board_handler)
+        board_handler._handle_sliceboard("action act-open-m173")
+        assert "advance M-173" in _board_published_text(board_handler)
+        board_handler._handle_sliceboard("panel")
+        assert "Panel in Slice Board" in (
+            _board_published_text(board_handler))
+        board_handler._handle_sliceboard("verdict")
+        assert "flowing" in _board_published_text(board_handler)
+
+    def test_bad_grammar_is_published(
+            self, board_handler, agent):
+        board_handler._handle_sliceboard("dance party")
+        assert USAGE in _board_published_text(board_handler)
+        board_handler._handle_sliceboard("card M-999")
+        assert "no card named" in _board_published_text(
+            board_handler)
+
+
+class TestChatScreenRoutingSliceBoard:
+    def test_sliceboard_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/sliceboard panel", _FakeLog())
+        assert calls == [("/sliceboard", "panel")]
+
+    def test_chat_screen_help_and_usage_name_the_board(self):
+        text = (ROOT / "mythic_agent" / "ui" / "screens"
+                / "chat_screen.py").read_text(encoding="utf-8")
+        assert "/sliceboard[/green] - show the slice board (M-173)" in (
+            text)
+        assert ('"/sliceboard": "Usage: /sliceboard | '
+                '/sliceboard card <slice-id>') in text
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-173 agent layer: the agent holds a
+# SliceBoardRegistry for the session (session
+# state only, no new setting), cards and hand
+# actions are held by being registered - each
+# judged whole, and each action judged against
+# the board it lands on, before it is held -
+# published as their card_record / action_record
+# session news through the checkpoint road,
+# deduped per shape - a card composed from the
+# shipped roadmap by import takes its column
+# from the slice's own ledger status, the
+# hand-action road composes one action at the
+# held board's next sequence and publishes the
+# derived panel and verdict news with it,
+# whole-board register and record roads hold a
+# board judged whole first, the report road
+# renders the held board (or the shipped example
+# when unheld) through the pure formatters, and
+# the /sliceboard surface rides both roads on
+# the pure parser + formatters. Status, get,
+# base-get, column, panel, verdict and report
+# reads register and publish nothing, answer
+# from the held registry first and from the
+# shipped example only while nothing is held -
+# a held card never falls back to the example.
+# The panel and the verdict derive at call time
+# from the whole board, never held. This layer
+# sends nothing, posts nothing, schedules
+# nothing, calls no model, persists nothing
+# beyond the session journal news, runs no build
+# and banks nothing - a card held here is a
+# record of a plan, never the work itself, and
+# a hand action moves the held board alone,
+# never the shipped roadmap.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _board_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_board_file(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data"
+           / "slice_board.yaml").read_text(encoding="utf-8")
+    path = tmp_path / "slice_board.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestSliceBoardAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.slice_board_status()
+        assert status["cards"] == []
+        assert status["actions"] == []
+        assert status["board"] is None
+        assert status["slice_board"]["title"] == EXAMPLE_TITLE
+        assert len(status["slice_board"]["cards"]) == 7
+        assert len(status["slice_board"]["actions"]) == 4
+        assert status["panel"]["total_cards"] == 7
+        assert status["panel"]["total_building"] == 1
+        assert status["panel"]["next_slice_id"] == "M-176"
+        assert status["panels"][0]["panel_id"] == "panel-m172-boundary"
+        assert status["board_record"]["card_count"] == 7
+        assert status["board_record"]["action_count"] == 4
+        assert status["verdict"]["verdict"] == "flowing"
+        assert "M-177 Prompt craft - queued, struck" in (
+            status["plain_words"])
+        assert "struck by hand" in status["plain_words"]
+        assert "The Slice Board (M-173)" in status["screen"]
+        assert "next stands M-176" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._slice_board_registry()
+        assert agent._slice_board_registry() is first
+        assert agent._slice_board_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.slice_board_status()
+        assert agent.get_slice_board_card("M-173").column == "building"
+        assert agent.get_slice_board_base_card(
+            "M-173").column == "queued"
+        assert agent.get_slice_board_action(
+            "act-open-m173").kind == "advance"
+        assert [c.slice_id for c in agent.slice_board_cards_in_column(
+            "queued")] == ["M-176", "M-174", "M-175", "M-177"]
+        agent.slice_board_panel()
+        agent.slice_board_verdict()
+        agent.report_slice_board()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("slice_board")] == []
+        with pytest.raises(KeyError):
+            agent.get_slice_board_card("M-999")
+        with pytest.raises(KeyError):
+            agent.get_slice_board_action("act-nope")
+        agent.close()
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_slice_board_card(_card())
+        status = agent.slice_board_status()
+        assert [item["slice_id"] for item in status["cards"]] == [
+            "M-190"]
+        assert status["board"]["title"] == "Slice Board"
+        assert status["panel"]["total_cards"] == 1
+        assert status["panel"]["next_slice_id"] == "M-190"
+        assert status["verdict"]["verdict"] == "waiting"
+
+    def test_held_card_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_slice_board_card(_card())
+        with pytest.raises(KeyError):
+            agent.get_slice_board_card("M-171")
+        with pytest.raises(KeyError):
+            agent.get_slice_board_action("act-open-m173")
+        card = agent.get_slice_board_card("M-190")
+        assert card.title == "A test slice"
+        assert agent.slice_board_board().title == "Slice Board"
+
+
+class TestSliceBoardAgentHolding:
+    def test_register_card_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_slice_board_card(_card())
+        assert outcome["card"]["slice_id"] == "M-190"
+        assert outcome["record_news"]["news"] is True
+        assert outcome["record_news"]["type"] == "slice_board_card"
+        assert "M-190" in outcome["screen"]
+        agent.register_slice_board_card(_card(
+            slice_id="M-191", position=2,
+            title="A second test slice"))
+        events = _board_events(store, session_id, "slice_board_card")
+        assert len(events) == 2
+        agent._publish_slice_board_record(card_record(_card()))
+        agent._publish_slice_board_record(
+            {"type": "work_view_event", "news": True})
+        events = _board_events(store, session_id, "slice_board_card")
+        assert len(events) == 2
+        agent.close()
+
+    def test_duplicate_card_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_slice_board_card(_card())
+        with pytest.raises(ValueError):
+            agent.register_slice_board_card(_card())
+        with pytest.raises(ValueError):
+            agent.register_slice_board_card(_card(position=2))
+        with pytest.raises(ValueError):
+            agent.register_slice_board_card(
+                _card(slice_id="M-191"))
+        events = _board_events(store, session_id, "slice_board_card")
+        assert len(events) == 1
+        agent.close()
+
+    def test_roadmap_card_composes_by_import_and_holds(
+            self, agent):
+        roadmap = load_roadmap()
+        by_id = {item.id: item for item in roadmap.slices}
+        card = card_from_roadmap_slice(by_id["M-173"], position=1)
+        assert card.column == "queued"
+        assert card.title == "The Slice Board"
+        with pytest.raises(ValueError):
+            card_from_roadmap_slice(
+                by_id["M-173"], position=1, column="banked")
+        outcome = agent.register_slice_board_card(card)
+        assert outcome["card"]["column"] == "queued"
+        banked = card_from_roadmap_slice(by_id["M-171"], position=2)
+        assert banked.column == "banked"
+        agent.register_slice_board_card(banked)
+        assert [c.slice_id for c in agent.slice_board_cards_in_column(
+            "banked")] == ["M-171"]
+
+    def test_register_action_is_judged_against_its_board(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_slice_board_card(_card())
+        agent.register_slice_board_card(_card(
+            slice_id="M-192", position=2,
+            title="A banked test slice", column="banked"))
+        outcome = agent.register_slice_board_action(_action())
+        assert outcome["action"]["action_id"] == "act-test"
+        assert outcome["record_news"]["type"] == "slice_board_action"
+        assert agent.get_slice_board_card("M-190").paused is True
+        assert agent.get_slice_board_base_card(
+            "M-190").paused is False
+        with pytest.raises(ValueError):
+            agent.register_slice_board_action(_action(
+                action_id="act-bad", seq=2, slice_id="M-192"))
+        assert [a.action_id for a in
+                agent._slice_board_registry().list_actions()] == [
+                    "act-test"]
+        events = _board_events(store, session_id, "slice_board_action")
+        assert len(events) == 1
+        agent.close()
+
+    def test_hand_action_road_derives_sequence_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_slice_board_card(_card())
+        agent.register_slice_board_card(_card(
+            slice_id="M-191", position=2,
+            title="A second test slice"))
+        outcome = agent.apply_slice_board_action(
+            "advance", slice_id="M-190",
+            detail="the first slice opens by hand.",
+            target_column="building")
+        assert outcome["kind"] == "advance"
+        assert outcome["action"]["seq"] == 1
+        assert outcome["action"]["action_id"] == "act-1"
+        assert outcome["record_news"]["type"] == "slice_board_action"
+        assert outcome["panel_record"]["type"] == "slice_board_panel"
+        assert outcome["verdict_record"]["type"] == (
+            "slice_board_verdict")
+        assert agent.get_slice_board_card("M-190").column == "building"
+        assert agent.get_slice_board_base_card(
+            "M-190").column == "queued"
+        second = agent.apply_slice_board_action(
+            "pause", slice_id="M-191",
+            detail="the second slice waits by hand.")
+        assert second["action"]["seq"] == 2
+        assert agent.get_slice_board_card("M-191").paused is True
+        assert len(_board_events(
+            store, session_id, "slice_board_action")) == 2
+        assert len(_board_events(
+            store, session_id, "slice_board_panel")) == 1
+        assert len(_board_events(
+            store, session_id, "slice_board_verdict")) == 1
+        agent.close()
+
+    def test_hand_action_road_refuses_an_illegal_act(self, agent):
+        agent.register_slice_board_card(_card())
+        agent.apply_slice_board_action(
+            "pause", slice_id="M-190",
+            detail="the slice waits by hand.")
+        with pytest.raises(ValueError):
+            agent.apply_slice_board_action(
+                "advance", slice_id="M-190",
+                detail="a paused slice cannot move.",
+                target_column="building")
+        with pytest.raises(ValueError):
+            agent.apply_slice_board_action(
+                "advance", slice_id="M-190",
+                detail="banking is never a hand act.",
+                target_column="banked")
+        assert [a.kind for a in
+                agent._slice_board_registry().list_actions()] == [
+                    "pause"]
+        assert agent.get_slice_board_card("M-190").column == "queued"
+
+    def test_register_board_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_slice_board_board(_mixed_board())
+        assert outcome["count"] == 3
+        assert [c["slice_id"] for c in outcome["cards"]] == [
+            "M-190", "M-191", "M-192"]
+        assert [r["type"] for r in outcome["records_news"]] == [
+            "slice_board_card", "slice_board_card",
+            "slice_board_card", "slice_board_action",
+            "slice_board_action"]
+        events = _board_events(store, session_id, "slice_board_card")
+        assert [e["slice_id"] for e in events] == [
+            "M-190", "M-191", "M-192"]
+        assert len(_board_events(
+            store, session_id, "slice_board_panel")) == 1
+        assert agent.slice_board_board().title == "A test slice board"
+        with pytest.raises(ValueError):
+            agent.register_slice_board_board(_mixed_board())
+        agent.close()
+
+    def test_record_board_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_slice_board_board()
+        assert outcome["count"] == 7
+        assert outcome["board"]["title"] == EXAMPLE_TITLE
+        assert len(_board_events(
+            store, session_id, "slice_board_card")) == 7
+        assert len(_board_events(
+            store, session_id, "slice_board_action")) == 4
+        status = agent.slice_board_status()
+        assert status["panels"][0]["panel_id"] == "panel-m172-boundary"
+        with pytest.raises(ValueError):
+            agent.record_slice_board_board()
+        agent.close()
+
+    def test_board_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_board_file(tmp_path)
+        board = load_slice_board_file(path)
+        outcome = agent.record_slice_board_board(board)
+        assert outcome["count"] == 7
+        assert agent.slice_board_board().title == EXAMPLE_TITLE
+
+    def test_report_renders_example_then_held_board_only(self, agent):
+        report = agent.report_slice_board()
+        assert report["board"]["title"] == EXAMPLE_TITLE
+        assert len(report["cards"]) == 7
+        assert report["verdict"]["verdict"] == "flowing"
+        assert "M-173 The Slice Board - building" in (
+            report["board_text"])
+        agent.register_slice_board_card(_card())
+        report = agent.report_slice_board()
+        assert [c["slice_id"] for c in report["cards"]] == ["M-190"]
+        assert "M-190 A test slice - queued" in report["board_text"]
+        assert report["verdict"]["verdict"] == "waiting"
+
+    def test_holding_and_hand_actions_run_no_build(self, agent):
+        for name in (
+                "run_slice_board_build", "execute_slice_board",
+                "bank_slice_board", "build_slice_board_slice",
+                "persist_slice_board", "send_slice_board",
+                "schedule_slice_board", "sync_slice_board",
+                "delete_slice_board_card", "rewrite_roadmap"):
+            assert not hasattr(agent, name), name
+        before = {item.id: item.status
+                  for item in load_roadmap().slices}
+        agent.register_slice_board_card(_card(
+            slice_id="M-177", title="Prompt craft"))
+        agent.apply_slice_board_action(
+            "strike", slice_id="M-177",
+            detail="struck by hand for the tests.")
+        assert agent.get_slice_board_card("M-177").struck is True
+        after = {item.id: item.status
+                 for item in load_roadmap().slices}
+        assert after == before
+        assert after["M-177"] == "queued"
+
+
+class TestSliceBoardTerminalSurface:
+    def test_show_card_column_action_panel_verdict(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/sliceboard")
+        assert "The Slice Board (M-173)" in text
+        _, _, text = _slash(agent, "/sliceboard card M-173")
+        assert "M-173 The Slice Board - building" in text
+        _, _, text = _slash(agent, "/sliceboard column queued")
+        assert "M-176" in text
+        assert "M-173" not in text
+        _, _, text = _slash(agent, "/sliceboard column done")
+        assert "M-171" in text
+        assert "M-176" not in text
+        _, _, text = _slash(
+            agent, "/sliceboard action act-reorder-m176")
+        assert "reorder M-176" in text
+        assert "Target place: 4" in text
+        _, _, text = _slash(agent, "/sliceboard panel")
+        assert "Panel in Slice Board at the M-172 slice boundary" in (
+            text)
+        _, _, text = _slash(agent, "/sliceboard verdict")
+        assert "flowing" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/sliceboard [show|card <slice-id>"
+                "|column <column>|action <action-id>"
+                "|panel|verdict]") in text
+        _, _, text = _slash(agent, "/sliceboard dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/sliceboard card M-999")
+        assert "no card named" in text
+
+
+@pytest.fixture()
+def board_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _board_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestSliceBoardCommand:
+    def test_show_is_default(self, board_handler, agent):
+        board_handler._handle_sliceboard("")
+        assert "The Slice Board (M-173)" in (
+            _board_published_text(board_handler))
+
+    def test_card_column_action_panel_verdict(
+            self, board_handler, agent):
+        board_handler._handle_sliceboard("card M-173")
+        assert "M-173 The Slice Board - building" in (
+            _board_published_text(board_handler))
+        board_handler._handle_sliceboard("column queued")
+        assert "M-176" in _board_published_text(board_handler)
+        board_handler._handle_sliceboard("action act-open-m173")
+        assert "advance M-173" in _board_published_text(board_handler)
+        board_handler._handle_sliceboard("panel")
+        assert "Panel in Slice Board" in (
+            _board_published_text(board_handler))
+        board_handler._handle_sliceboard("verdict")
+        assert "flowing" in _board_published_text(board_handler)
+
+    def test_bad_grammar_is_published(
+            self, board_handler, agent):
+        board_handler._handle_sliceboard("dance party")
+        assert USAGE in _board_published_text(board_handler)
+        board_handler._handle_sliceboard("card M-999")
+        assert "no card named" in _board_published_text(
+            board_handler)
+
+
+class TestChatScreenRoutingSliceBoard:
+    def test_sliceboard_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/sliceboard panel", _FakeLog())
+        assert calls == [("/sliceboard", "panel")]
+
+    def test_chat_screen_help_and_usage_name_the_board(self):
+        text = (ROOT / "mythic_agent" / "ui" / "screens"
+                / "chat_screen.py").read_text(encoding="utf-8")
+        assert "/sliceboard[/green] - show the slice board (M-173)" in (
+            text)
+        assert ('"/sliceboard": "Usage: /sliceboard | '
+                '/sliceboard card <slice-id>') in text
