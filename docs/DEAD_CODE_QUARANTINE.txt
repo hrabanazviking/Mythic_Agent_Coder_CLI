@@ -504,3 +504,5 @@ mythic_agent/core/cold_start.py:666:area_for:method
 mythic_agent/core/cold_start.py:1334:row_for:method
 mythic_agent/core/cold_start.py:2129:latest_record:method
 mythic_agent/core/cold_start.py:2159:completed_stages:method
+mythic_agent/core/part7_gate.py:317:piece_ids:method
+mythic_agent/core/part7_gate.py:390:handoff_claim_ids:method

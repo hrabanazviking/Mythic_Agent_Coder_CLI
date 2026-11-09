@@ -1058,7 +1058,7 @@ slices:
   title: Part VII gate
   summary: a week-old benchmark session resumed — the coder states the situation correctly from memory
     alone, then finishes the task; compaction glass-box verified mid-run.
-  status: queued
+  status: done
 - id: M-171
   part: 8
   title: The TUI redesign charter
