@@ -1023,7 +1023,7 @@ slices:
   part: 7
   title: Memory import/export
   summary: a project's memory map + ledger as portable files (they ride with the repo if the user wishes).
-  status: queued
+  status: done
 - id: M-165
   part: 7
   title: The subconscious v2
