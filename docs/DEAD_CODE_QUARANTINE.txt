@@ -540,3 +540,12 @@ mythic_agent/core/approval_cards.py:1373:row_for:method
 mythic_agent/core/approval_cards.py:1774:answer_for:method
 mythic_agent/core/approval_cards.py:2081:answer_for:method
 mythic_agent/core/approval_cards.py:2090:latest_decision:method
+mythic_agent/agents/llm.py:33296:fuzzy_picker_with_kind:method
+mythic_agent/agents/llm.py:33339:register_fuzzy_candidate:method
+mythic_agent/agents/llm.py:33369:register_fuzzy_search:method
+mythic_agent/agents/llm.py:33398:find_fuzzy_search:method
+mythic_agent/agents/llm.py:33464:register_fuzzy_picker_book:method
+mythic_agent/agents/llm.py:33511:record_fuzzy_picker_book:method
+mythic_agent/agents/llm.py:33584:report_fuzzy_picker:method
+mythic_agent/core/fuzzy_picker.py:1396:row_for:method
+mythic_agent/core/fuzzy_picker.py:2060:latest_search:method
