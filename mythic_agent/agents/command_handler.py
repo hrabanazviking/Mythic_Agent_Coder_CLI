@@ -375,6 +375,8 @@ class CommandHandler:
                 self._handle_workview(args)
             elif cmd == "/sliceboard":
                 self._handle_sliceboard(args)
+            elif cmd == "/approvalcards":
+                self._handle_approvalcards(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -6754,6 +6756,80 @@ class CommandHandler:
                 text = format_verdict(primary.slice_board_board())
             else:
                 text = primary.slice_board_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_approvalcards(self, args: str):
+        """M-174: /approvalcards - approval cards perfected.
+
+        ``/approvalcards`` shows the approval cards
+        held this session as perfected cards (the
+        shipped example book - four cards at the
+        M-173 slice boundary, the test run remembered
+        at its exact scope, the M-174 commit allowed,
+        the costly push calm and awaiting, and the
+        one destructive card alarmed and unanswered,
+        with its one pinned panel - when none is held
+        yet); ``/approvalcards card <card-id>`` shows
+        one card whole, its target and consequence as
+        their own lines; ``/approvalcards decision
+        <decision-id>`` shows one held decision
+        record; ``/approvalcards panel`` shows the
+        panel derived from the whole book - the cards
+        at a glance; ``/approvalcards verdict`` shows
+        the verdict derived for the whole book.
+        Reading registers and publishes nothing as
+        session news: cards and decisions are held
+        only when they are given through the agent's
+        register roads, stood on a card on the
+        deciding road, or held on the book roads, and
+        every card held for the session is journaled
+        as an approval_card session event, every
+        decision as an approval_card_decision session
+        event, every derived panel as an
+        approval_cards_panel session event and every
+        derived verdict as an approval_cards_verdict
+        session event. This surface executes no
+        approval and saves no remembered approval,
+        and renders no live UI - a card held here is
+        a question, never the act it asks about.
+        """
+        from ..core.approval_cards import (
+            format_card,
+            format_decision,
+            format_panel,
+            format_verdict,
+            parse_approval_cards_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_approval_cards_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "card":
+                text = format_card(
+                    primary.get_approval_card(target))
+            elif action == "decision":
+                text = format_decision(
+                    primary.get_approval_decision(target))
+            elif action == "panel":
+                text = format_panel(primary.approval_cards_book())
+            elif action == "verdict":
+                text = format_verdict(primary.approval_cards_book())
+            else:
+                text = primary.approval_cards_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
