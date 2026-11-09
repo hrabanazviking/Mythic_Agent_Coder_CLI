@@ -1012,7 +1012,7 @@ slices:
   part: 7
   title: Multi-session per project
   summary: parallel sessions on one repo (different branches) with shared memory map and no journal crosstalk.
-  status: queued
+  status: done
 - id: M-163
   part: 7
   title: Handoff summaries
