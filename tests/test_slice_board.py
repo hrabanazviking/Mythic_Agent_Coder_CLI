@@ -355,10 +355,10 @@ def test_card_from_roadmap_slice_derives_its_column():
     assert banked.column == "banked"
     assert banked.title == "The TUI redesign charter"
     queued = card_from_roadmap_slice(
-        by_id["M-176"], position=3, column="queued")
+        by_id["M-177"], position=3, column="queued")
     assert queued.column == "queued"
     with pytest.raises(ValueError):
-        card_from_roadmap_slice(by_id["M-176"], position=3,
+        card_from_roadmap_slice(by_id["M-177"], position=3,
                                 column="banked")
     ghost = SimpleNamespace(
         id="M-190", part=8, title="A ghost slice",
@@ -852,12 +852,12 @@ class TestSliceBoardAgentHolding:
             self, agent):
         roadmap = load_roadmap()
         by_id = {item.id: item for item in roadmap.slices}
-        card = card_from_roadmap_slice(by_id["M-176"], position=1)
+        card = card_from_roadmap_slice(by_id["M-177"], position=1)
         assert card.column == "queued"
-        assert card.title == "Slash-command palace"
+        assert card.title == "Prompt craft"
         with pytest.raises(ValueError):
             card_from_roadmap_slice(
-                by_id["M-176"], position=1, column="banked")
+                by_id["M-177"], position=1, column="banked")
         outcome = agent.register_slice_board_card(card)
         assert outcome["card"]["column"] == "queued"
         banked = card_from_roadmap_slice(by_id["M-171"], position=2)
@@ -1312,12 +1312,12 @@ class TestSliceBoardAgentHolding:
             self, agent):
         roadmap = load_roadmap()
         by_id = {item.id: item for item in roadmap.slices}
-        card = card_from_roadmap_slice(by_id["M-176"], position=1)
+        card = card_from_roadmap_slice(by_id["M-177"], position=1)
         assert card.column == "queued"
-        assert card.title == "Slash-command palace"
+        assert card.title == "Prompt craft"
         with pytest.raises(ValueError):
             card_from_roadmap_slice(
-                by_id["M-176"], position=1, column="banked")
+                by_id["M-177"], position=1, column="banked")
         outcome = agent.register_slice_board_card(card)
         assert outcome["card"]["column"] == "queued"
         banked = card_from_roadmap_slice(by_id["M-171"], position=2)
