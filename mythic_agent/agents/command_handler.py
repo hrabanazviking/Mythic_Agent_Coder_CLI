@@ -365,6 +365,8 @@ class CommandHandler:
                 self._handle_subconscious(args)
             elif cmd == "/contradiction":
                 self._handle_contradiction(args)
+            elif cmd == "/private":
+                self._handle_private(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -6323,6 +6325,86 @@ class CommandHandler:
                 text = format_verdict(primary.contradiction_book())
             else:
                 text = primary.contradiction_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_private(self, args: str):
+        """M-167: /private - private by architecture.
+
+        ``/private`` shows the privacy book held
+        this session (the shipped example book -
+        five postings at the M-166 slice boundary,
+        four sealed in their stores and one carried
+        out through the export bridge the user
+        explicitly opened, with its one pinned panel
+        - when none is held yet); ``/private posting
+        <posting-id>`` shows one posting with its
+        boundary shown - the store the memory lives
+        in and the one bridge the user opened over
+        it, if any; ``/private kind <memory-kind>``
+        shows the postings standing over one
+        holding; ``/private home <home>`` shows the
+        postings living in one store; ``/private
+        panel`` shows the privacy panel derived from
+        the whole book; ``/private verdict`` shows
+        the privacy verdict derived for the whole
+        book - a book standing open at the user's own
+        hand named plainly. Reading registers and
+        publishes nothing as session news: postings
+        are held only when they are given through
+        the agent's posting roads, raised over a
+        contradiction watch on the composing road,
+        or held on the book roads, and every posting
+        held for the session is journaled as a
+        private_by_architecture_posting session
+        event, every derived panel as a
+        private_by_architecture_panel session event
+        and every derived verdict as a
+        private_by_architecture_verdict session
+        event. This surface moves no memory and
+        opens no bridge, and there is no Part VIII
+        board yet, so the book is visible on this
+        surface, not on a board.
+        """
+        from ..core.private_by_architecture import (
+            format_panel,
+            format_posting,
+            format_postings,
+            format_verdict,
+            parse_privacy_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_privacy_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "posting":
+                text = format_posting(
+                    primary.get_privacy_posting(target))
+            elif action == "kind":
+                text = format_postings(
+                    primary.privacy_book(), kind=target)
+            elif action == "home":
+                text = format_postings(
+                    primary.privacy_book(), home=target)
+            elif action == "panel":
+                text = format_panel(primary.privacy_book())
+            elif action == "verdict":
+                text = format_verdict(primary.privacy_book())
+            else:
+                text = primary.privacy_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
