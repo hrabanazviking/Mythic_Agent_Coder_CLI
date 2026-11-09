@@ -385,6 +385,8 @@ class CommandHandler:
                 self._handle_promptcraft(args)
             elif cmd == "/statusline":
                 self._handle_statusline(args)
+            elif cmd == "/themesgrownup":
+                self._handle_themesgrownup(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -7214,6 +7216,88 @@ class CommandHandler:
                 text = format_verdict(primary.status_line_book())
             else:
                 text = primary.status_line_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_themesgrownup(self, args: str):
+        """M-179: /themesgrownup - themes grown up.
+
+        ``/themesgrownup`` shows the themes grown up
+        held this session - the theme system judged
+        under the Design Lawbook discipline as data
+        (the shipped example book - five themes at
+        the M-178 slice boundary, the three shipped
+        themes judged as data beside the
+        high-contrast and no-colour themes this
+        slice authors, with its two views and its
+        one pinned panel - when none is held yet);
+        ``/themesgrownup theme <theme-id>`` shows one
+        theme whole, its mode, colours, cues, shares
+        and provenance as their own lines;
+        ``/themesgrownup view <view-id>`` shows one
+        held view record; ``/themesgrownup mode
+        <mode>`` shows the book's themes of one mode;
+        ``/themesgrownup panel`` shows the panel
+        derived from the whole book under its
+        default view; ``/themesgrownup verdict``
+        shows the verdict derived for the whole
+        book. Reading registers and publishes nothing
+        as session news: themes and views are held
+        only when they are given through the agent's
+        register roads, stood on the book on the
+        viewing road, or held on the book roads, and
+        every theme held for the session is journaled
+        as a themes_grown_up_theme session event,
+        every view as a themes_grown_up_view session
+        event, every derived panel as a
+        themes_grown_up_panel session event and every
+        derived verdict as a themes_grown_up_verdict
+        session event. This surface repaints no live
+        UI, applies no theme live, renders no live
+        UI, measures no running screen and banks
+        nothing - a theme held here is a finding,
+        never the live face of the app it describes.
+        """
+        from ..core.themes_grown_up import (
+            format_book,
+            format_panel,
+            format_theme,
+            format_verdict,
+            format_view,
+            parse_themes_grown_up_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_themes_grown_up_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "theme":
+                text = format_theme(
+                    primary.get_theme_profile(target))
+            elif action == "view":
+                text = format_view(
+                    primary.get_theme_view(target))
+            elif action == "mode":
+                text = format_book(
+                    primary.themes_grown_up_book(), target)
+            elif action == "panel":
+                text = format_panel(primary.themes_grown_up_book())
+            elif action == "verdict":
+                text = format_verdict(primary.themes_grown_up_book())
+            else:
+                text = primary.themes_grown_up_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

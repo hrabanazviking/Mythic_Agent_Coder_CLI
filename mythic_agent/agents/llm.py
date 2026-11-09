@@ -35402,6 +35402,579 @@ class Agent:
             self._checkpoint(record)
 
 
+    def _themes_grown_up_registry(self):
+        """The held themes-grown-up registry (M-179).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer themes and view
+        records one by one, beside the session
+        status-line registry (M-178) and never in
+        it: the book is one theme book to look at.
+        It is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly
+        one. The attribute is named
+        ``_themes_grown_up_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_themes_grown_up_store", None)
+        if registry is None:
+            from ..core.themes_grown_up import ThemeRegistry
+            registry = ThemeRegistry()
+            self._themes_grown_up_store = registry
+        return registry
+
+    def themes_grown_up_book(self):
+        """The session's book of themes grown up, as data (M-179).
+
+        The held registry's book when the session
+        holds any theme - the things the session can
+        actually be viewed for (themes held one by
+        one stand under a session book composed here
+        in the agent layer, so a later whole book
+        recorded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book recorded whole through
+        :meth:`record_themes_grown_up_book`, or the
+        shipped example book until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.themes_grown_up import (
+            ThemeBook, load_themes_grown_up)
+        registry = self._themes_grown_up_registry()
+        if registry.list_themes():
+            try:
+                book = registry.book()
+            except ValueError:
+                return ThemeBook(
+                    title="Themes Grown Up",
+                    themes=registry.list_themes(),
+                    views=registry.list_views())
+            held = getattr(self, "_themes_grown_up_held", None)
+            if held is not None and held.title == book.title \
+                    and held.theme_ids() == book.theme_ids() \
+                    and held.view_ids() == book.view_ids():
+                return held
+            return book
+        book = getattr(self, "_themes_grown_up_held", None)
+        if book is None:
+            return load_themes_grown_up()
+        return book
+
+    def _themes_grown_up_default_view(self, book: Any):
+        """The view a book derives under by default (M-179).
+
+        The view its own stored panel stands under,
+        else its first held view, else None - a book
+        holding themes but no view yet derives no
+        panel and no verdict, and says so plainly.
+        """
+        for panel in book.panels:
+            if panel.view_id is not None:
+                try:
+                    return book.view_for(panel.view_id)
+                except KeyError:
+                    continue
+        if book.views:
+            return book.views[0]
+        return None
+
+    def _themes_grown_up_screen(self) -> str:
+        """The /themesgrownup screen for the session's state (M-179)."""
+        from ..core import themes_grown_up as themes_module
+        registry = self._themes_grown_up_registry()
+        if not registry.list_themes():
+            return themes_module.format_themes_grown_up_screen()
+        book = self.themes_grown_up_book()
+        if not book.views:
+            return themes_module.format_book(book)
+        return themes_module.format_themes_grown_up_screen(book)
+
+    def themes_grown_up_status(self) -> dict[str, Any]:
+        """The themes-grown-up account, in plain data (M-179).
+
+        The themes and view records held this
+        session as plain records, the held book's
+        record (none until a theme stands held), the
+        session book's themes and views as plain
+        records (the shipped example book - five
+        themes at the M-178 slice boundary, the
+        three shipped themes judged as data beside
+        the high-contrast and no-colour themes this
+        slice authors, with its two views and its
+        one pinned panel - until themes are held),
+        its whole-book record, the panel derived
+        from the whole book under its default view
+        and every panel the book holds as plain
+        records, the verdict derived for the whole
+        book, the last theme in plain words, the
+        panel and the verdict told in plain words,
+        the one screen - rendered from the held
+        book, or from the shipped example book when
+        nothing is held yet - and the plain
+        explanation. A book holding themes but no
+        view yet derives no panel and no verdict.
+        Reading registers and publishes nothing,
+        sends nothing and schedules nothing: this
+        layer holds themes as data only, and no
+        theme is applied live here. The screen is
+        where the book is visible.
+        """
+        from ..core import themes_grown_up as themes_module
+        registry = self._themes_grown_up_registry()
+        held_themes = registry.list_themes()
+        held_views = registry.list_views()
+        book = self.themes_grown_up_book()
+        default = self._themes_grown_up_default_view(book)
+        latest = book.themes[-1] if book.themes else None
+        return {
+            "themes": [
+                theme.to_record() for theme in held_themes],
+            "views": [
+                item.to_record() for item in held_views],
+            "book": (book.to_record() if held_themes else None),
+            "themes_grown_up": {
+                "title": book.title,
+                "themes": [
+                    theme.to_record() for theme in book.themes],
+                "views": [
+                    item.to_record() for item in book.views],
+            },
+            "book_record": themes_module.book_record(book),
+            "panel": (themes_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (themes_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "plain_words": (
+                themes_module.plain_words(latest)
+                if latest is not None else ""),
+            "panel_plain_words": (
+                themes_module.panel_plain_words(book)
+                if default is not None else ""),
+            "verdict_plain_words": (
+                themes_module.verdict_plain_words(book)
+                if default is not None else ""),
+            "screen": self._themes_grown_up_screen(),
+            "explanation": themes_module.PLAIN_EXPLANATION,
+        }
+
+    def get_theme_profile(self, theme_id: Any):
+        """The one theme an id names (M-179).
+
+        The session's held registry answers when the
+        session holds any theme; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held
+        theme answers for its own book alone: an id
+        the held book holds no theme for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._themes_grown_up_registry()
+        if registry.list_themes():
+            return registry.get_theme(theme_id)
+        return self.themes_grown_up_book().theme_for(theme_id)
+
+    def get_theme_view(self, view_id: Any):
+        """The one view record an id names (M-179).
+
+        The session's held registry answers when the
+        session holds any theme; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). Reading
+        registers and publishes nothing.
+        """
+        registry = self._themes_grown_up_registry()
+        if registry.list_themes():
+            return registry.get_view(view_id)
+        return self.themes_grown_up_book().view_for(view_id)
+
+    def themes_grown_up_with_mode(self, mode: Any):
+        """The session book's themes of one mode (M-179)."""
+        from ..core.themes_grown_up import (
+            themes_for_mode as _for_mode)
+        return _for_mode(self.themes_grown_up_book(), mode)
+
+    def themes_grown_up_passing(self):
+        """The session book's disciplined themes (M-179)."""
+        from ..core.themes_grown_up import (
+            passing_themes as _passing)
+        return _passing(self.themes_grown_up_book())
+
+    def themes_grown_up_panel(self, view: Any = None):
+        """The panel derived for the whole book (M-179).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a
+        book holding no view at all refuses plainly
+        rather than inventing one.
+        """
+        from ..core.themes_grown_up import derive_panel as _derive_panel
+        book = self.themes_grown_up_book()
+        resolved = view if view is not None \
+            else self._themes_grown_up_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive "
+                "a panel under")
+        return _derive_panel(book, resolved)
+
+    def themes_grown_up_verdict(self, view: Any = None):
+        """The verdict derived for the whole book (M-179).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a
+        book holding no view at all refuses plainly
+        rather than inventing one.
+        """
+        from ..core.themes_grown_up import (
+            derive_verdict as _derive_verdict)
+        book = self.themes_grown_up_book()
+        resolved = view if view is not None \
+            else self._themes_grown_up_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive "
+                "a verdict under")
+        return _derive_verdict(book, resolved)
+
+    def register_theme_profile(
+            self, theme: Any) -> dict[str, Any]:
+        """Hold one theme for the session (M-179).
+
+        The theme is held by the pure registry under
+        its theme id - a theme id or a theme name
+        already standing here refuses, and a refusal
+        holds nothing new and publishes nothing. A
+        held theme is published as its
+        ``theme_record`` session-news record through
+        the checkpoint road. Returns the held theme,
+        its news record, the screen rendered after
+        it landed, and the plain explanation. Holding
+        a theme applies nothing live and repaints
+        nothing: the thing stands on this layer's
+        book, as data, provenance whole, waiting to
+        be looked at.
+        """
+        from ..core import themes_grown_up as themes_module
+        registry = self._themes_grown_up_registry()
+        held = registry.register_theme(theme)
+        theme_news = themes_module.theme_record(held)
+        self._publish_themes_grown_up_record(theme_news)
+        return {
+            "theme": held.to_record(),
+            "record_news": theme_news,
+            "screen": self._themes_grown_up_screen(),
+            "explanation": themes_module.PLAIN_EXPLANATION,
+        }
+
+    def register_theme_view(
+            self, view: Any) -> dict[str, Any]:
+        """Hold one view record for the session (M-179).
+
+        The view is held by the pure registry under
+        its id, or under a fresh view-N id when it
+        names none - a view id or a sequence already
+        standing here refuses, and a refusal holds
+        nothing new and publishes nothing. A held
+        view is published as its ``view_record``
+        session-news record through the checkpoint
+        road. Returns the held view, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding a view only ever
+        looks: it applies nothing and repaints
+        nothing.
+        """
+        from ..core import themes_grown_up as themes_module
+        registry = self._themes_grown_up_registry()
+        held = registry.register_view(view)
+        view_news = themes_module.view_record(held)
+        self._publish_themes_grown_up_record(view_news)
+        return {
+            "view": held.to_record(),
+            "record_news": view_news,
+            "screen": self._themes_grown_up_screen(),
+            "explanation": themes_module.PLAIN_EXPLANATION,
+        }
+
+    def view_themes_grown_up(
+            self, mode_filter: Any, *,
+            detail: Any = None,
+            recorded_on: Any = "2026-11-09",
+            actor: Any = "the jarl",
+            source: Any = "themes grown up",
+            origin_session: Any = "session-m179",
+            view_id: Any = None) -> dict[str, Any]:
+        """Stand one view on the session's held book (M-179).
+
+        This slice's own viewing road: the view
+        record is composed by the pure layer at the
+        next sequence of the session's held book,
+        judged whole, and held by the pure registry.
+        The view is published as its ``view_record``
+        session news, the panel derived from the
+        whole book as its ``panel_record`` session
+        news, and the verdict derived for the whole
+        book as its ``verdict_record`` session news.
+        Returns the held view, its mode filter, its
+        news records, the screen rendered after it
+        landed and the plain explanation. HONEST
+        BOUNDARY: viewing applies no theme live and
+        repaints no screen - the view moves this
+        book alone, as data.
+        """
+        from ..core import themes_grown_up as themes_module
+        registry = self._themes_grown_up_registry()
+        held_views = registry.list_views()
+        seq = (max(v.seq for v in held_views) + 1) \
+            if held_views else 1
+        fields: dict[str, Any] = {
+            "seq": seq, "mode_filter": mode_filter,
+            "detail": detail if detail is not None else (
+                f"View mode {mode_filter!r} in the "
+                "session's held book, composed on the "
+                "viewing road."),
+            "recorded_on": recorded_on,
+            "actor": actor, "source": source,
+            "origin_session": origin_session}
+        if view_id is not None:
+            fields["view_id"] = view_id
+        view = themes_module.build_view(fields)
+        held = registry.register_view(view)
+        view_news = themes_module.view_record(held)
+        self._publish_themes_grown_up_record(view_news)
+        book = self.themes_grown_up_book()
+        panel_news = themes_module.panel_record(
+            themes_module.derive_panel(book, held))
+        self._publish_themes_grown_up_record(panel_news)
+        verdict_news = themes_module.verdict_record(
+            themes_module.derive_verdict(book, held))
+        self._publish_themes_grown_up_record(verdict_news)
+        return {
+            "view": held.to_record(),
+            "mode_filter": held.mode_filter,
+            "record_news": view_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._themes_grown_up_screen(),
+            "explanation": themes_module.PLAIN_EXPLANATION,
+        }
+
+    def register_themes_grown_up_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole book of themes grown up (M-179).
+
+        Every theme and view record of the book is
+        held by the pure registry, in held and
+        recorded order - the book is judged whole,
+        and against the held book, before anything
+        is held, so a refusal holds nothing new. The
+        first book held sets the registry's title, a
+        later book under a different title refuses,
+        as does a book naming a held theme id, theme
+        name, view id or sequence. The book's panels
+        are derivations, not holdings, and are not
+        held. Every theme is published as its
+        ``theme_record`` session news and every view
+        as its ``view_record`` session news, in
+        order. Returns the held book, its themes and
+        views, their news records, the count of
+        themes held, the screen, and the explanation.
+        Registering applies nothing live.
+        """
+        from ..core import themes_grown_up as themes_module
+        validated = themes_module.build_book(book)
+        registry = self._themes_grown_up_registry()
+        registry.register_book(validated)
+        records = [
+            themes_module.theme_record(theme)
+            for theme in validated.themes]
+        records += [
+            themes_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_themes_grown_up_record(news)
+        return {
+            "book": validated.to_record(),
+            "themes": [
+                theme.to_record() for theme in validated.themes],
+            "views": [
+                item.to_record() for item in validated.views],
+            "records_news": records,
+            "count": len(validated.themes),
+            "screen": self._themes_grown_up_screen(),
+            "explanation": themes_module.PLAIN_EXPLANATION,
+        }
+
+    def record_themes_grown_up_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole book of themes grown up (M-179).
+
+        With no book named, the shipped example book
+        is recorded through the pure layer - five
+        themes at the M-178 slice boundary, with its
+        two views and its one pinned panel. A book
+        loaded from a file (the pure layer's
+        ``load_themes_grown_up_file`` road) may be
+        passed instead. The book is judged whole
+        before anything is held. Every theme and
+        view is held and published as its session
+        news, in order, and the panel derived under
+        the book's default view as its
+        ``panel_record`` session news; the book is
+        remembered whole as the session's - its held
+        panel and all - and the same book recorded
+        twice refuses - fingerprinted on its theme
+        ids, view ids and title. Returns the held
+        book, its themes and views, their news
+        records, the panel news record, the count,
+        the screen, and the explanation. Recording
+        applies nothing live and repaints nothing.
+        """
+        from ..core import themes_grown_up as themes_module
+        book = book if book is not None \
+            else themes_module.load_themes_grown_up()
+        validated = themes_module.build_book(book)
+        fingerprint = (tuple(validated.theme_ids()),
+                       tuple(validated.view_ids()),
+                       validated.title)
+        recorded = getattr(self, "_themes_grown_up_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._themes_grown_up_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this book of themes grown up is already "
+                "recorded for the session; a book is "
+                "recorded once")
+        registry = self._themes_grown_up_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._themes_grown_up_held = validated
+        records = [
+            themes_module.theme_record(theme)
+            for theme in validated.themes]
+        records += [
+            themes_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_themes_grown_up_record(news)
+        panel_news = themes_module.panel_record(
+            themes_module.derive_panel(
+                validated,
+                self._themes_grown_up_default_view(validated)),
+            validated)
+        self._publish_themes_grown_up_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "themes": [
+                theme.to_record() for theme in validated.themes],
+            "views": [
+                item.to_record() for item in validated.views],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(validated.themes),
+            "screen": themes_module.format_themes_grown_up_screen(
+                validated),
+            "explanation": themes_module.PLAIN_EXPLANATION,
+        }
+
+    def report_themes_grown_up(self) -> dict[str, Any]:
+        """Render the session theme book, as a report (M-179).
+
+        The book - the held registry's book when the
+        session holds any theme, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone. Rendering registers
+        and publishes nothing and reads no file.
+        Returns the book, its themes, views and
+        panels as plain records, the derived panel
+        and verdict (none while the book holds no
+        view), the rendered book, panel and verdict,
+        the screen, and the plain explanation.
+        """
+        from ..core import themes_grown_up as themes_module
+        book = self.themes_grown_up_book()
+        default = self._themes_grown_up_default_view(book)
+        return {
+            "book": book.to_record(),
+            "themes": [
+                theme.to_record() for theme in book.themes],
+            "views": [
+                item.to_record() for item in book.views],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (themes_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "verdict": (themes_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "book_text": themes_module.format_book(book),
+            "panel_text": (themes_module.format_panel(book)
+                           if default is not None else ""),
+            "verdict_text": (themes_module.format_verdict(book)
+                             if default is not None else ""),
+            "screen": self._themes_grown_up_screen(),
+            "explanation": themes_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_themes_grown_up_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one themes-grown-up record as session news (M-179).
+
+        The pure layer's ``theme_record``, ``view_record``,
+        ``panel_record`` and ``verdict_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once per shape: a theme under its own theme
+        id, name and segment, a view under its own
+        view id, sequence and mode filter, a panel
+        under its whole derived shape, and a verdict
+        under its word and tallies, so a panel or
+        verdict grown by a newly held theme or view
+        announces again as the new figure it is. A
+        foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "themes_grown_up_theme":
+            key = ("themes_grown_up_theme",
+                   record.get("theme_id"),
+                   record.get("name"),
+                   record.get("segment"))
+        elif record.get("type") == "themes_grown_up_view":
+            key = ("themes_grown_up_view",
+                   record.get("view_id"),
+                   record.get("seq"),
+                   record.get("mode_filter"))
+        elif record.get("type") == "themes_grown_up_panel":
+            key = ("themes_grown_up_panel", record.get("panel_id"),
+                   record.get("view_id"),
+                   tuple(row.get("theme_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_shown"))
+        elif record.get("type") == "themes_grown_up_verdict":
+            key = ("themes_grown_up_verdict",
+                   record.get("verdict"),
+                   record.get("total_shown"),
+                   record.get("passing_shown"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(self, "_themes_grown_up_announced", None)
+        if announced is None:
+            announced = set()
+            self._themes_grown_up_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
