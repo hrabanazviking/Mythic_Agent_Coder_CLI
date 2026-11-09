@@ -1,0 +1,340 @@
+schema: mythic.tui_redesign_charter/1
+slice: M-171
+title: Mythic Agent Coder - The TUI Redesign Charter (every screen re-judged, verdicts before code)
+chartered: '2026-11-09'
+source_note: >
+  Part VIII opens by re-judging every screen that ships against the
+  kindness rules of M-004 (the principles that charter binds on Part
+  VIII: K-01 to K-07 and K-09) and the Visual Design Lawbook, before
+  any screen code moves. The eight surfaces below are the tree's own:
+  three Textual screens, three modal screens, the subagent editor
+  panel inside setup, and the terminal chat loop. Every judgement was
+  read off the shipped code; where the M-016 accessibility baseline
+  already measured a thing, the note says so and leans on it. A
+  screen's verdict is derived from its judgements, never chosen, and
+  every verdict names the Part VIII slices that own its
+  follow-through.
+binding_on: Part VIII (M-172 to M-200) - no slice in the part moves a judged screen except under its verdict and direction here.
+order: No Part VIII screen code moves before its verdict here is read; a rebuild screen is rebuilt before features are added to it, a repair screen is repaired in the owning slice named here, and a keep screen is changed only in ways its judgements allow.
+evidence_kind: code-inspected
+overall_verdict: rebuild-where-named
+lawbook:
+- id: L-01
+  name: Every themed element has a measurable job
+  rule: >
+    A themed treatment must help the user recognise where they are,
+    what is active, what can be acted on, or what changed. Ornament
+    that does none of these is costume, not design.
+  check: Does every themed element on this screen do a measurable job for the user?
+- id: L-02
+  name: Task before theme
+  rule: >
+    When the themed treatment competes with the actual task, ornament,
+    glow, texture, motion and symbolic density are cut before the
+    information architecture is touched.
+  check: Where theme and task compete on this screen, is the theme what gives way?
+- id: L-03
+  name: Colour is never the only signal
+  rule: >
+    Status is never carried by colour or shade alone; the screen stays
+    coherent in grayscale, and every state a colour names is also
+    named in text or shape.
+  check: Would this screen still say everything it says with colour removed?
+- id: L-04
+  name: The primary task is obvious at a glance
+  rule: >
+    What the screen is for, and the one action that matters most on
+    it, are plain within about three seconds of looking at it.
+  check: Can a new user name this screen's primary task and its main action in about three seconds?
+- id: L-05
+  name: Ornament and accent stay inside budget
+  rule: >
+    Ambient ornament stays a whisper of the surface and accents a
+    small share of the whole; a screen that is mostly decoration has
+    spent the user's attention on itself.
+  check: Is decoration on this screen a small share of it, with accents rarer still?
+- id: L-06
+  name: Depth and legibility
+  rule: >
+    Surfaces carry enough distinct values to separate background,
+    panel and foreground, body text stays legible at working sizes
+    and at enlarged text, and controls stay full-size targets.
+  check: Do this screen's surfaces separate cleanly, with legible text and full-size controls?
+screens:
+- id: S-01
+  key: splash
+  title: The splash screen
+  kind: screen
+  surface: mythic_agent/ui/screens/splash_screen.py
+  symbol: SplashScreen
+  evidence: >
+    One Static of block-character logo art and longship art over a
+    LoadingIndicator; on_mount sets a 2.0 second timer that routes to
+    the main chat when a key and model stand configured, else to the
+    setup wizard. The M-016 baseline measured the art has no text
+    alternative (its finding F-05).
+  kindness:
+  - {ref: K-01, standing: strains, note: 'The first thing met is block glyphs, not plain words; the one plain line, THE VIKING AI, names the project but not what is happening or what happens next.'}
+  - {ref: K-02, standing: not-engaged, note: 'No approval is asked or given on this screen; the rule is never triggered here.'}
+  - {ref: K-03, standing: not-engaged, note: 'Nothing destructive can be started from this screen; the rule is never triggered here.'}
+  - {ref: K-04, standing: strains, note: 'When no key or model stands, the screen silently routes into setup; nothing says why setup has appeared or what is missing.'}
+  - {ref: K-05, standing: holds, note: 'The wait is two seconds and a LoadingIndicator shows it; a job this short owes no slice view.'}
+  - {ref: K-06, standing: strains, note: 'The screen shows a wait honestly, but its art is presented with no text alternative (M-016 finding F-05), so part of what it displays is not honestly available to every user.'}
+  - {ref: K-07, standing: not-engaged, note: 'No error is shown or handled on this screen; failures surface later, in setup or chat.'}
+  - {ref: K-09, standing: strains, note: 'The splash always shows, even when everything stands configured and the user came to work; an unskippable ceremony on every start spends attention it has not earned.'}
+  lawbook:
+  - {ref: L-01, standing: fails, note: 'The block wordmark and longship do no measurable job: they locate nothing, activate nothing and report no state; they announce the theme only.'}
+  - {ref: L-02, standing: strains, note: 'The art fills the screen for its full two seconds while the actual task (starting work) waits; theme is served first, task second.'}
+  - {ref: L-03, standing: holds, note: 'Identity is carried by the text caption as well as the coloured art, so removing colour loses decoration, not information.'}
+  - {ref: L-04, standing: strains, note: 'There is no action to find and nothing says what the screen is doing; a new user cannot tell whether the app is loading, waiting or stuck.'}
+  - {ref: L-05, standing: fails, note: 'Ornament is effectively the whole screen - far beyond any ambient or accent budget the Lawbook allows.'}
+  - {ref: L-06, standing: strains, note: 'One flat surface value under the art; the text is large and legible, but there is no depth structure to read.'}
+  verdict: rebuild
+  direction: >
+    Rebuild as a brief wordmark in plain text with a one-line status of
+    what is loading, the art retired or demoted under the ceremony
+    budget, and a text alternative for anything pictorial that stays.
+  owning_slices: [M-193, M-184]
+- id: S-02
+  key: setup_wizard
+  title: The setup wizard
+  kind: screen
+  surface: mythic_agent/ui/screens/setup_screen.py
+  symbol: SetupScreen
+  evidence: >
+    A single scrolling wizard of nine-plus numbered sections (provider,
+    API key, fetch models, model choice, prompts, global rules, user
+    data, sub-agents) composing only Textual widgets; Save starts
+    disabled until a model is fetched, per the M-016 baseline's
+    keyboard pass. Labels are heavily themed throughout.
+  kindness:
+  - {ref: K-01, standing: fails, note: 'The first words are themed, not plain: Offer your Tribute (API Key), Consult the Runes (Fetch Models), To Valhalla! (Save). A non-programmer cannot say back what is being asked from this screen alone.'}
+  - {ref: K-02, standing: not-engaged, note: 'No tool approval is asked here; saving settings is the user''s own act, not a consent card.'}
+  - {ref: K-03, standing: strains, note: 'The embedded editor''s Delete Warrior button destroys an agent definition in one click from this wizard (judged on its own row, S-07); the wizard itself names no target before that act.'}
+  - {ref: K-04, standing: strains, note: 'Save stands disabled until a model is fetched, but nothing on the screen says that, or why, or what would enable it - a refusal-shaped state that does not explain itself.'}
+  - {ref: K-05, standing: strains, note: 'The work is long and sliced into numbered steps, which helps, but there is no count of where the user stands (step 3 of 9) and no view of what remains.'}
+  - {ref: K-06, standing: holds, note: 'What the screen displays is real: real providers, the user''s own key field, fetched models; nothing is invented or dressed up as measured when it is not.'}
+  - {ref: K-07, standing: strains, note: 'The composed screen carries no error area of its own: a failed fetch has no home on it where what happened, what it means and the likely fix could stand together.'}
+  - {ref: K-09, standing: strains, note: 'Nine sections compete on one scroll before the user has done any work; the screen asks for everything at once instead of staying quiet until each thing is needed.'}
+  lawbook:
+  - {ref: L-01, standing: strains, note: 'The themed labels do mark the steps, so they half-work as signposts, but their job is done worse than plain words would do it (see K-01).'}
+  - {ref: L-02, standing: fails, note: 'Theme wins over task throughout: tribute, runes and Valhalla wording bends the information architecture (what an API key is, what fetching does) around the costume.'}
+  - {ref: L-03, standing: holds, note: 'Every field carries a visible text label beside it, so the screen reads in grayscale; state is not carried by colour alone.'}
+  - {ref: L-04, standing: fails, note: 'The primary task - get one working model and start - is buried under nine sections including sub-agent summoning; nothing on the screen says success comes before configuration.'}
+  - {ref: L-05, standing: strains, note: 'Heavy warning borders and accent styling frame the whole wizard; decoration is a large share of what is seen.'}
+  - {ref: L-06, standing: strains, note: 'Fields are legible and full-size, but one long undifferentiated scroll gives the sections little surface separation.'}
+  verdict: rebuild
+  direction: >
+    Rebuild as onboarding that reaches one real success before
+    configuration, in plain words first with themed names kept as
+    subtitles, the sub-agent editor moved out of the first-run road,
+    and every disabled or failed state explaining itself in place.
+  owning_slices: [M-184, M-182, M-196]
+- id: S-03
+  key: main_chat
+  title: The main chat screen
+  kind: screen
+  surface: mythic_agent/ui/screens/chat_screen.py
+  symbol: MainChatScreen
+  evidence: >
+    The working screen: a RichLog chat log in a bordered container,
+    an auto-focused input, a right sidebar holding the agent portrait
+    and status buttons, a token count in dim text, and F-key bindings
+    (F2 setup, F3 select agent, F4 voice, F5 mute, Escape leaves a
+    ghost session). The M-016 baseline measured its shortcut and
+    status-text state.
+  kindness:
+  - {ref: K-01, standing: strains, note: 'Chat itself is plain, but the furniture is not: Tokens Used is jargon as a headline number, and the F-key acts (setup, agent, voice, mute) are nowhere named in plain words on the screen.'}
+  - {ref: K-02, standing: strains, note: 'Tool work streams into the log as tool detail, so what the coder is doing arrives as machinery first and narrative second; the approval itself is judged on its own row (S-04).'}
+  - {ref: K-03, standing: not-engaged, note: 'No destructive act starts from this screen directly; destruction is gated by the approval modal (S-04), which names it there.'}
+  - {ref: K-04, standing: strains, note: 'Refusals do arrive as text (Tools denied, per M-016), but terse: what was refused is named, why and what would change the answer are not.'}
+  - {ref: K-05, standing: fails, note: 'A long job shows a loading indicator and a token count, nothing more: no queued, building, verifying or banked slices are visible at any moment, so the user cannot see which slice is running or which are done.'}
+  - {ref: K-06, standing: holds, note: 'The counts shown are the measured ones (tokens, interactions) and key statuses are carried as text, per the M-016 baseline; nothing displayed is invented.'}
+  - {ref: K-07, standing: strains, note: 'Errors land prefixed (Error (agent):) with the raw matter after them; what it means in plain words and the most likely fix do not travel with it.'}
+  - {ref: K-09, standing: strains, note: 'The sidebar portrait, status buttons and toast notifications all compete with the work; the screen is not silent by default while a job runs.'}
+  lawbook:
+  - {ref: L-01, standing: strains, note: 'The agent portrait does no measurable job on this screen and carries no alternative text (M-016 finding F-05); the rest of the furniture mostly earns its place.'}
+  - {ref: L-02, standing: strains, note: 'A heavy warning-coloured border frames the chat itself, so the theme''s frame is louder than the work inside it.'}
+  - {ref: L-03, standing: strains, note: 'Key statuses are text, but the footer agent status leans on yellow and the token count on dim shade; colour and shade still carry meaning the text does not repeat (M-016, partial).'}
+  - {ref: L-04, standing: holds, note: 'The primary task is unmistakable: the input stands focused on mount and the log fills the centre; a new user knows where to speak within seconds.'}
+  - {ref: L-05, standing: strains, note: 'Border framing, sidebar imagery and accent buttons together take a noticeable share of the screen beyond the Lawbook''s accent budget.'}
+  - {ref: L-06, standing: strains, note: 'Background, surface and boost give some depth, but the muted role fails the AA contrast bar in every shipped theme (M-016 contrast audit), so legibility is not yet held.'}
+  verdict: repair
+  direction: >
+    Repair in place: stream the work as a calm narrative with tool
+    detail one keystroke away, show long jobs as a visible slice
+    board, and gather model, context, cost and crew state into one
+    status line of truth - no structural rebuild of the screen.
+  owning_slices: [M-172, M-173, M-178]
+- id: S-04
+  key: command_approval
+  title: The command approval modal
+  kind: modal
+  surface: mythic_agent/ui/components/modals.py
+  symbol: CommandApproval
+  evidence: >
+    A centred dialog headed Security Approval Required, showing the
+    requested operation verbatim, with Allow and Reject buttons;
+    Escape rejects, and rejection or cancellation never grants
+    permission. The M-016 baseline measured it fully
+    keyboard-completable (Allow focused on open, Tab cycles, Enter
+    approves).
+  kindness:
+  - {ref: K-01, standing: holds, note: 'The heading and the Requested operation label are plain words, and the thing judged is shown as itself, not summarised into jargon.'}
+  - {ref: K-02, standing: strains, note: 'One decision on one card, answerable in one action - that half holds. But no remembered scope is offered or named on the card, so consent cannot be given precisely (once, for this project, for this command) from here.'}
+  - {ref: K-03, standing: fails, note: 'The exact target is not named as a target: it stands only inside the raw command text, which the user must parse to find what will be touched. The charter''s review question asks for the target named before it runs, and a string to parse is not a naming.'}
+  - {ref: K-04, standing: holds, note: 'The safe road is built in and visible: Reject is a full button, Escape rejects, and cancelling can never grant permission, so a refusal here needs no apology and grants nothing by accident.'}
+  - {ref: K-05, standing: not-engaged, note: 'The decision itself is instant; no long job runs on this card.'}
+  - {ref: K-06, standing: holds, note: 'The operation is shown verbatim, exactly what will run; nothing is paraphrased, rounded or dressed up.'}
+  - {ref: K-07, standing: not-engaged, note: 'This card is a question, not an error; failures of the operation surface in chat and are judged there (S-03).'}
+  - {ref: K-09, standing: holds, note: 'The card appears only when a decision is genuinely needed and leaves the moment it is answered; it never nags or repeats.'}
+  lawbook:
+  - {ref: L-01, standing: holds, note: 'Every element on the card serves the one decision; there is no decoration to justify.'}
+  - {ref: L-02, standing: holds, note: 'Task is the whole screen; theme is absent rather than competing.'}
+  - {ref: L-03, standing: holds, note: 'The decision is carried by heading and button texts (Allow, Reject), not by the red and green alone, per the M-016 baseline.'}
+  - {ref: L-04, standing: holds, note: 'The one action that matters is obvious instantly: allow this, or reject it.'}
+  - {ref: L-05, standing: strains, note: 'A thick red border and an 80 percent dimmed backdrop spend alarm styling on every approval, routine ones included; alarm should be priced for the dangerous few.'}
+  - {ref: L-06, standing: holds, note: 'The dialog stands on a surface clearly separated from the dimmed work behind it, with legible full-size buttons.'}
+  verdict: repair
+  direction: >
+    Perfect the card: name the target and the consequence as their
+    own lines, offer a precisely-scoped remembered approval on the
+    card, keep keyboard and mouse exactly equal, and reserve alarm
+    styling for destructive operations.
+  owning_slices: [M-174]
+- id: S-05
+  key: github_config
+  title: The GitHub config modal
+  kind: modal
+  surface: mythic_agent/ui/components/modals.py
+  symbol: GithubConfigModal
+  evidence: >
+    A centred dialog with a labelled repository input and a
+    password-masked token input, Cancel and Save Config buttons, its
+    fields pre-filled from the stored config on mount; a failed save
+    raises a notification and keeps the dialog open.
+  kindness:
+  - {ref: K-01, standing: holds, note: 'The labels are plain and exemplified: GitHub Repository (e.g., owner/repo) and GitHub Personal Access Token (PAT) say exactly what is being asked.'}
+  - {ref: K-02, standing: not-engaged, note: 'Saving one''s own settings is not a tool approval; no consent scope stands to be remembered here.'}
+  - {ref: K-03, standing: strains, note: 'Saving overwrites the stored repository and token wholesale; the card does not name that the old values are the target being replaced before it happens.'}
+  - {ref: K-04, standing: strains, note: 'A failed save does speak - a notification says the settings could not be saved - but not why, nor what would change the answer.'}
+  - {ref: K-05, standing: not-engaged, note: 'The save is a single short act; no long job runs from this card.'}
+  - {ref: K-06, standing: holds, note: 'The fields show the stored values as they stand, the token masked as a secret should be; nothing is invented.'}
+  - {ref: K-07, standing: strains, note: 'The one error this card meets (the failed save) names what happened but not what it means or the most likely fix, and it arrives as a passing toast rather than standing with the form.'}
+  - {ref: K-09, standing: holds, note: 'The card opens only when summoned, speaks only on failure, and closes on either answer.'}
+  lawbook:
+  - {ref: L-01, standing: holds, note: 'No themed element stands on this card at all; its one heading is functional.'}
+  - {ref: L-02, standing: holds, note: 'Nothing competes with the two-field task.'}
+  - {ref: L-03, standing: holds, note: 'Labels and button texts carry everything; button variants are garnish, not signal.'}
+  - {ref: L-04, standing: holds, note: 'Two fields and one save: the primary task and action are obvious at a glance.'}
+  - {ref: L-05, standing: holds, note: 'A single border frames the dialog and nothing else decorates it.'}
+  - {ref: L-06, standing: holds, note: 'The dialog surface separates cleanly from the work behind it and its controls are full-size.'}
+  verdict: keep
+  direction: >
+    Keep. When settings gather into one room, this card folds into
+    that room unchanged in shape; its two strains (unnamed overwrite,
+    unexplained save failure) are repaired there, not by rebuilding
+    the card.
+  owning_slices: [M-196]
+- id: S-06
+  key: subagent_picker
+  title: The subagent picker modal
+  kind: modal
+  surface: mythic_agent/ui/components/subagent_modal.py
+  symbol: SubagentSelectionModal
+  evidence: >
+    A centred dialog with one Select of the primary agent and the
+    configured sub-agents, Select and Cancel buttons; changing the
+    dropdown dismisses the dialog at once with the chosen agent.
+  kindness:
+  - {ref: K-01, standing: strains, note: 'The heading speaks in costume (Select Target Warrior (Agent)) where plain words - Choose who to talk to - would land first try; the agent names themselves are the user''s own.'}
+  - {ref: K-02, standing: not-engaged, note: 'Choosing a conversation partner is not an approval of tool work; no scope stands to be remembered.'}
+  - {ref: K-03, standing: not-engaged, note: 'Nothing destructive is offered on this card.'}
+  - {ref: K-04, standing: not-engaged, note: 'The card refuses nothing; cancelling simply returns no choice, which its Cancel button already says.'}
+  - {ref: K-05, standing: not-engaged, note: 'The choice is instant; no long job runs from this card.'}
+  - {ref: K-06, standing: holds, note: 'The list is the configured agents as they stand, primary first; nothing is padded or hidden.'}
+  - {ref: K-07, standing: not-engaged, note: 'No error state exists on this card; an empty choice dismisses quietly by design.'}
+  - {ref: K-09, standing: strains, note: 'The dropdown dismisses the dialog the moment a value changes, so a browsing keystroke can commit a choice the user was only looking at - the card does not wait to be answered.'}
+  lawbook:
+  - {ref: L-01, standing: strains, note: 'The warrior framing on the heading does no locating or state job; the list itself does all the work.'}
+  - {ref: L-02, standing: holds, note: 'One themed heading does not bend the card''s simple architecture.'}
+  - {ref: L-03, standing: holds, note: 'Choices are names in text; colour carries nothing here.'}
+  - {ref: L-04, standing: holds, note: 'One list, one choice: the task is obvious at a glance.'}
+  - {ref: L-05, standing: holds, note: 'One border, no ornament beyond the heading''s words.'}
+  - {ref: L-06, standing: holds, note: 'The dialog separates cleanly from the chat behind it, with legible text and full-size controls.'}
+  verdict: keep
+  direction: >
+    Keep the card. When the fuzzy picker gives every choice one
+    grammar, this list joins it; the auto-dismiss on change is
+    re-judged there, and the heading takes plain words first.
+  owning_slices: [M-175, M-176]
+- id: S-07
+  key: subagent_editor
+  title: The subagent editor panel
+  kind: panel
+  surface: mythic_agent/ui/components/subagent_editor.py
+  symbol: SubagentEditorWidget
+  evidence: >
+    A widget embedded in the setup wizard: a dropdown of sub-agents,
+    a Create button, a name input, Save, Reset to Default and Delete
+    buttons, and the agent''s prompt as a text area; edits apply to
+    the in-memory list the wizard saves.
+  kindness:
+  - {ref: K-01, standing: strains, note: 'The panel speaks in costume first (Summon Shield-Maidens and Warriors, Warrior Name) where plain words - Agents, Name - would be understood at once.'}
+  - {ref: K-02, standing: not-engaged, note: 'Editing one''s own agent definitions is not a tool approval; no consent scope arises.'}
+  - {ref: K-03, standing: fails, note: 'Delete Warrior destroys the selected agent definition in one click: no confirmation, and the target is named only as whatever the dropdown happens to hold - a destructive act against an unnamed-at-the-moment target.'}
+  - {ref: K-04, standing: not-engaged, note: 'The panel refuses nothing; its acts either apply or are judged under K-03.'}
+  - {ref: K-05, standing: not-engaged, note: 'Its acts are instant edits; no long job runs from this panel.'}
+  - {ref: K-06, standing: strains, note: 'Reset to Default never says which default, or whose; what the button will restore is not stated anywhere on the panel.'}
+  - {ref: K-07, standing: not-engaged, note: 'No error is composed on this panel; failures ride the wizard''s roads and are judged there (S-02).'}
+  - {ref: K-09, standing: holds, note: 'The panel sits quiet inside setup until the user works in it; it announces nothing.'}
+  lawbook:
+  - {ref: L-01, standing: strains, note: 'The summoning language frames the panel without helping the user find, edit or judge an agent.'}
+  - {ref: L-02, standing: holds, note: 'Costumed words aside, the layout is the task itself: list, name, prompt, actions.'}
+  - {ref: L-03, standing: strains, note: 'Labels carry the acts in text, but the panel leans on button variants (warning to save, error to delete) as a second, colour-only warning channel.'}
+  - {ref: L-04, standing: strains, note: 'Three actions of equal weight compete (save, reset, delete) with no primary named; which one matters most depends on a state the panel does not state.'}
+  - {ref: L-05, standing: holds, note: 'The panel itself is undecorated; its cost is words, not ornament.'}
+  - {ref: L-06, standing: holds, note: 'The prompt area is a full-size editor and the controls are full-size buttons.'}
+  verdict: repair
+  direction: >
+    Repair: deletion takes the approval card''s road - the target
+    named, the act confirmed, nothing destroyed in one unguarded
+    click - and the panel''s words go plain first, with what Reset
+    restores stated on the panel.
+  owning_slices: [M-174, M-182]
+- id: S-08
+  key: terminal_loop
+  title: The terminal chat loop
+  kind: terminal
+  surface: mythic_agent/terminal.py
+  symbol: chat_loop
+  evidence: >
+    The non-Textual face: a prompt_toolkit session on a TTY (history,
+    Enter to send, Ctrl-C interrupts a turn with the words Turn
+    cancelled, Ctrl-D leaves) and plain stdin lines when piped;
+    approvals print Approve, the tool name and its JSON arguments to
+    stderr with a y/N prompt; remembered approvals (M-096) answer
+    before the prompt is reached.
+  kindness:
+  - {ref: K-01, standing: strains, note: 'The loop''s own words are plain, but its approval asks in JSON: the first thing a user must judge is a raw argument dump, technical detail as the headline.'}
+  - {ref: K-02, standing: strains, note: 'The prompt is one keystroke, which holds in shape, and remembered approvals do answer ahead of it (M-096) - but the prompt itself offers no scope and names none; consent here is all-or-nothing per call.'}
+  - {ref: K-03, standing: strains, note: 'The target stands inside the JSON arguments - keyed and findable, better than a raw command string, but still not named as a target in its own words before the act.'}
+  - {ref: K-04, standing: holds, note: 'A refusal is the safe default and it is real: no TTY, EOF or timeout all answer no, and a denied tool reports back as a permission-denied event rather than vanishing.'}
+  - {ref: K-05, standing: strains, note: 'Work streams as chunks and tool-progress events, so something is always visible, but no slice view exists here either: a long job is a flow, never a board.'}
+  - {ref: K-06, standing: holds, note: 'What streams is measured event data, passed through the secret redactor before it is printed; unknown stays unknown because nothing is summarised into invention.'}
+  - {ref: K-07, standing: strains, note: 'The interrupt explains itself (Turn cancelled), but other failures arrive as they were raised; what an error means and its likely fix do not travel with it here either.'}
+  - {ref: K-09, standing: holds, note: 'Silence is this face''s nature: nothing announces, repeats or decorates; output is the work and the answers to it.'}
+  lawbook:
+  - {ref: L-01, standing: holds, note: 'There is no themed element on this face to justify; every line is task or answer.'}
+  - {ref: L-02, standing: holds, note: 'With no theme present, nothing competes with the task.'}
+  - {ref: L-03, standing: holds, note: 'Colour carries nothing in the loop; every state is a word.'}
+  - {ref: L-04, standing: holds, note: 'The prompt is the task, and it is the whole screen; nothing needs finding.'}
+  - {ref: L-05, standing: holds, note: 'Ornament is zero, inside any budget by construction.'}
+  - {ref: L-06, standing: strains, note: 'One flat stream gives no hierarchy at all: narrative, tool detail, errors and answers arrive at one level, so depth must come from words this face does not yet supply.'}
+  verdict: repair
+  direction: >
+    Repair the words, not the road: approvals ask in plain language
+    with the target named before the JSON, work streams as narrative
+    with detail behind it, and errors carry their meaning and likely
+    fix - the keyboard-only construction stays exactly as it is.
+  owning_slices: [M-172, M-183, M-187]
