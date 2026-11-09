@@ -32582,6 +32582,525 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _approval_cards_registry(self):
+        """The held approval-cards registry (M-174).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer cards and decision
+        records one by one, beside the session
+        slice-board registry (M-173) and never in it:
+        the book is one set of questions. It is
+        created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly
+        one. The attribute is named
+        ``_approval_cards_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_approval_cards_store", None)
+        if registry is None:
+            from ..core.approval_cards import ApprovalCardRegistry
+            registry = ApprovalCardRegistry()
+            self._approval_cards_store = registry
+        return registry
+
+    def approval_cards_book(self):
+        """The session's book of approval cards, as data (M-174).
+
+        The held registry's book when the session
+        holds any card - the questions the session
+        has actually raised (cards held one by one
+        stand under a session book composed here in
+        the agent layer, so a later whole book
+        recorded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book recorded whole through
+        :meth:`record_approval_cards_book`, or the
+        shipped example book until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.approval_cards import (
+            ApprovalCardsBook, load_approval_cards)
+        registry = self._approval_cards_registry()
+        if registry.list_cards():
+            try:
+                book = registry.book()
+            except ValueError:
+                return ApprovalCardsBook(
+                    title="Approval Cards",
+                    cards=registry.list_cards(),
+                    decisions=registry.list_decisions())
+            held = getattr(self, "_approval_cards_held", None)
+            if held is not None and held.title == book.title \
+                    and held.card_ids() == book.card_ids() \
+                    and held.decision_ids() == book.decision_ids():
+                return held
+            return book
+        book = getattr(self, "_approval_cards_held", None)
+        if book is None:
+            return load_approval_cards()
+        return book
+
+    def _approval_cards_screen(self) -> str:
+        """The /approvalcards screen for the session's state (M-174)."""
+        from ..core import approval_cards as cards_module
+        registry = self._approval_cards_registry()
+        if not registry.list_cards():
+            return cards_module.format_approval_cards_screen()
+        return cards_module.format_approval_cards_screen(
+            self.approval_cards_book())
+
+    def approval_cards_status(self) -> dict[str, Any]:
+        """The approval-cards account, in plain data (M-174).
+
+        The cards and decision records held this
+        session as plain records, the held book's
+        record (none until a card stands held), the
+        session book's cards and decisions as plain
+        records (the shipped example book - four
+        cards at the M-173 slice boundary, the test
+        run remembered at its exact scope, the M-174
+        commit allowed, the costly push calm and
+        awaiting, and the one destructive card
+        alarmed and unanswered, with its one pinned
+        panel - until cards are held), its whole-book
+        record, the panel derived from the whole
+        book and every panel the book holds as plain
+        records, the verdict derived for the whole
+        book, the last card in plain words, the panel
+        and the verdict told in plain words, the one
+        screen - rendered from the held book, or from
+        the shipped example book when nothing is held
+        yet - and the plain explanation. Reading
+        registers and publishes nothing, sends
+        nothing and schedules nothing: this layer
+        holds questions as data only, and no approval
+        is executed or remembered here. The screen is
+        where the cards are visible.
+        """
+        from ..core import approval_cards as cards_module
+        registry = self._approval_cards_registry()
+        held_cards = registry.list_cards()
+        held_decisions = registry.list_decisions()
+        book = self.approval_cards_book()
+        latest = book.cards[-1] if book.cards else None
+        return {
+            "cards": [item.to_record() for item in held_cards],
+            "decisions": [item.to_record() for item in held_decisions],
+            "book": (book.to_record() if held_cards else None),
+            "approval_cards": {
+                "title": book.title,
+                "cards": [item.to_record() for item in book.cards],
+                "decisions": [
+                    item.to_record() for item in book.decisions],
+            },
+            "book_record": cards_module.book_record(book),
+            "panel": (cards_module.derive_panel(book).to_record()
+                      if book.cards else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (
+                cards_module.derive_verdict(book).to_record()
+                if book.cards else None),
+            "plain_words": (
+                cards_module.plain_words(latest)
+                if latest is not None else ""),
+            "panel_plain_words": (
+                cards_module.panel_plain_words(book)
+                if book.cards else ""),
+            "verdict_plain_words": (
+                cards_module.verdict_plain_words(book)
+                if book.cards else ""),
+            "screen": self._approval_cards_screen(),
+            "explanation": cards_module.PLAIN_EXPLANATION,
+        }
+
+    def get_approval_card(self, card_id: Any):
+        """The one approval card an id names (M-174).
+
+        The session's held registry answers when the
+        session holds any card; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). A held card answers
+        for its own book alone: an id the held book
+        holds no card for raises KeyError, with no
+        silent fall back to the example, exactly as
+        the pure layer answers. Reading registers
+        and publishes nothing.
+        """
+        registry = self._approval_cards_registry()
+        if registry.list_cards():
+            return registry.get_card(card_id)
+        return self.approval_cards_book().card_for(card_id)
+
+    def get_approval_decision(self, decision_id: Any):
+        """The one decision record an id names (M-174).
+
+        The session's held registry answers when the
+        session holds any card; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). Reading registers
+        and publishes nothing.
+        """
+        registry = self._approval_cards_registry()
+        if registry.list_cards():
+            return registry.get_decision(decision_id)
+        return self.approval_cards_book().decision_for(decision_id)
+
+    def approval_cards_with_alarm(self, alarm: Any):
+        """The session book's cards of one alarm level (M-174)."""
+        from ..core.approval_cards import cards_with_alarm as _with_alarm
+        return _with_alarm(self.approval_cards_book(), alarm)
+
+    def approval_cards_panel(self):
+        """The panel derived for the whole book (M-174)."""
+        from ..core.approval_cards import derive_panel as _derive_panel
+        return _derive_panel(self.approval_cards_book())
+
+    def approval_cards_verdict(self):
+        """The verdict derived for the whole book (M-174)."""
+        from ..core.approval_cards import derive_verdict as _derive_verdict
+        return _derive_verdict(self.approval_cards_book())
+
+    def register_approval_card(
+            self, card: Any) -> dict[str, Any]:
+        """Hold one approval card for the session (M-174).
+
+        The card is held by the pure registry under
+        its card id - a card id already standing here
+        refuses, and a refusal holds nothing new and
+        publishes nothing. A held card is published
+        as its ``card_record`` session-news record
+        through the checkpoint road. Returns the held
+        card, its news record, the screen rendered
+        after it landed, and the plain explanation.
+        Holding a card executes no approval and saves
+        no remembered approval: the question stands
+        on this layer's book, as data, provenance
+        whole.
+        """
+        from ..core import approval_cards as cards_module
+        registry = self._approval_cards_registry()
+        held = registry.register_card(card)
+        card_news = cards_module.card_record(held)
+        self._publish_approval_card_record(card_news)
+        return {
+            "card": held.to_record(),
+            "record_news": card_news,
+            "screen": self._approval_cards_screen(),
+            "explanation": cards_module.PLAIN_EXPLANATION,
+        }
+
+    def register_approval_decision(
+            self, decision: Any) -> dict[str, Any]:
+        """Hold one decision record for the session (M-174).
+
+        The decision is held by the pure registry
+        under its id or the deterministic dec-N id -
+        a decision id or a sequence already standing
+        here refuses, as does an answer standing on
+        no held card or on a card that already
+        stands answered, and a refusal holds nothing
+        new and publishes nothing. A held decision is
+        published as its ``decision_record``
+        session-news record through the checkpoint
+        road. Returns the held decision, its news
+        record, the screen rendered after it landed,
+        and the plain explanation. Holding a decision
+        executes nothing: the answer stands on this
+        layer's book alone, as data, and a remember
+        answer saves no remembered approval here -
+        it names the card's own derived scope, which
+        the shipped M-096 road alone may hold.
+        """
+        from ..core import approval_cards as cards_module
+        registry = self._approval_cards_registry()
+        held = registry.register_decision(decision)
+        decision_news = cards_module.decision_record(held)
+        self._publish_approval_card_record(decision_news)
+        return {
+            "decision": held.to_record(),
+            "record_news": decision_news,
+            "screen": self._approval_cards_screen(),
+            "explanation": cards_module.PLAIN_EXPLANATION,
+        }
+
+    def decide_approval_card(
+            self, answer: Any = None, *,
+            card_id: Any, detail: Any,
+            recorded_on: Any = "2026-11-09",
+            actor: Any = "the jarl",
+            source: Any = "approval cards",
+            origin_session: Any = "session-m174",
+            decision_id: Any = None) -> dict[str, Any]:
+        """Stand one answer on a held approval card (M-174).
+
+        This slice's own deciding road: the decision
+        record is composed by the pure layer at the
+        next sequence of the session's held book,
+        judged whole against the held cards, and held
+        by the pure registry; an answer standing on
+        no held card, or on a card that already
+        stands answered, refuses and holds nothing
+        new. The decision is published as its
+        ``decision_record`` session news, the panel
+        derived from the whole book as its
+        ``panel_record`` session news, and the verdict
+        derived for the whole book as its
+        ``verdict_record`` session news. Returns the
+        held decision, its answer, its news records,
+        the screen rendered after it landed and the
+        plain explanation. HONEST BOUNDARY: deciding
+        a card executes no approval and saves no
+        remembered approval - the answer moves this
+        book alone, as data, and a remember answer
+        names only the card's own derived scope.
+        """
+        from ..core import approval_cards as cards_module
+        registry = self._approval_cards_registry()
+        held_decisions = registry.list_decisions()
+        seq = (max(d.seq for d in held_decisions) + 1) \
+            if held_decisions else 1
+        fields: dict[str, Any] = {
+            "seq": seq, "card_id": card_id, "answer": answer,
+            "detail": detail, "recorded_on": recorded_on,
+            "actor": actor, "source": source,
+            "origin_session": origin_session}
+        if decision_id is not None:
+            fields["decision_id"] = decision_id
+        decision = cards_module.build_decision(fields)
+        held = registry.register_decision(decision)
+        decision_news = cards_module.decision_record(held)
+        self._publish_approval_card_record(decision_news)
+        book = self.approval_cards_book()
+        panel_news = cards_module.panel_record(
+            cards_module.derive_panel(book))
+        self._publish_approval_card_record(panel_news)
+        verdict_news = cards_module.verdict_record(
+            cards_module.derive_verdict(book))
+        self._publish_approval_card_record(verdict_news)
+        return {
+            "decision": held.to_record(),
+            "answer": held.answer,
+            "record_news": decision_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._approval_cards_screen(),
+            "explanation": cards_module.PLAIN_EXPLANATION,
+        }
+
+    def register_approval_cards_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole book of approval cards (M-174).
+
+        Every card and decision record of the book is
+        held by the pure registry, in held and
+        recorded order - the book is judged whole,
+        and against the held book, before anything
+        is held, so a refusal holds nothing new. The
+        first book held sets the registry's title, a
+        later book under a different title refuses,
+        as does a book naming a held card id,
+        decision id or sequence. The book's panels
+        are derivations, not holdings, and are not
+        held. Every card is published as its
+        ``card_record`` session news and every
+        decision as its ``decision_record`` session
+        news, in order, and the panel derived from
+        the whole book as its ``panel_record``
+        session news. Returns the held book, its
+        cards and decisions, their news records, the
+        panel news record, the count of cards held,
+        the screen, and the explanation. Registering
+        executes no approval and saves no remembered
+        approval.
+        """
+        from ..core import approval_cards as cards_module
+        validated = cards_module.build_book(book)
+        registry = self._approval_cards_registry()
+        registry.register_book(validated)
+        records = [
+            cards_module.card_record(card)
+            for card in validated.cards]
+        records += [
+            cards_module.decision_record(decision)
+            for decision in validated.decisions]
+        for news in records:
+            self._publish_approval_card_record(news)
+        panel_news = cards_module.panel_record(
+            cards_module.derive_panel(validated))
+        self._publish_approval_card_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "cards": [
+                item.to_record() for item in validated.cards],
+            "decisions": [
+                item.to_record() for item in validated.decisions],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(validated.cards),
+            "screen": self._approval_cards_screen(),
+            "explanation": cards_module.PLAIN_EXPLANATION,
+        }
+
+    def record_approval_cards_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole book of approval cards (M-174).
+
+        With no book named, the shipped example book
+        is recorded through the pure layer - four
+        cards at the M-173 slice boundary, with its
+        one pinned panel. A book loaded from a file
+        (the pure layer's ``load_approval_cards_file``
+        road) may be passed instead. The book is
+        judged whole before anything is held. Every
+        card and decision is held and published as
+        its session news, in order, and the panel as
+        its ``panel_record`` session news; the book
+        is remembered whole as the session's - its
+        held panel and all - and the same book
+        recorded twice refuses - fingerprinted on
+        its card ids, decision ids and title.
+        Returns the held book, its cards and
+        decisions, their news records, the panel news
+        record, the count, the screen, and the
+        explanation. Recording executes no approval
+        and saves no remembered approval.
+        """
+        from ..core import approval_cards as cards_module
+        book = book if book is not None \
+            else cards_module.load_approval_cards()
+        validated = cards_module.build_book(book)
+        fingerprint = (tuple(validated.card_ids()),
+                       tuple(validated.decision_ids()),
+                       validated.title)
+        recorded = getattr(self, "_approval_cards_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._approval_cards_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this book of approval cards is already "
+                "recorded for the session; a book is "
+                "recorded once")
+        registry = self._approval_cards_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._approval_cards_held = validated
+        records = [
+            cards_module.card_record(card)
+            for card in validated.cards]
+        records += [
+            cards_module.decision_record(decision)
+            for decision in validated.decisions]
+        for news in records:
+            self._publish_approval_card_record(news)
+        panel_news = cards_module.panel_record(
+            cards_module.derive_panel(validated))
+        self._publish_approval_card_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "cards": [
+                item.to_record() for item in validated.cards],
+            "decisions": [
+                item.to_record() for item in validated.decisions],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(validated.cards),
+            "screen": cards_module.format_approval_cards_screen(
+                validated),
+            "explanation": cards_module.PLAIN_EXPLANATION,
+        }
+
+    def report_approval_cards(self) -> dict[str, Any]:
+        """Render the session approval cards, as a report (M-174).
+
+        The book - the held registry's book when the
+        session holds any card, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - is rendered through the pure
+        formatters alone. Rendering registers and
+        publishes nothing and reads no file. Returns
+        the book, its cards, decisions and panels as
+        plain records, the derived panel and verdict,
+        the rendered book, panel and verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import approval_cards as cards_module
+        book = self.approval_cards_book()
+        return {
+            "book": book.to_record(),
+            "cards": [item.to_record() for item in book.cards],
+            "decisions": [
+                item.to_record() for item in book.decisions],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (cards_module.derive_panel(book).to_record()
+                      if book.cards else None),
+            "verdict": (
+                cards_module.derive_verdict(book).to_record()
+                if book.cards else None),
+            "book_text": cards_module.format_book(book),
+            "panel_text": cards_module.format_panel(book),
+            "verdict_text": cards_module.format_verdict(book),
+            "screen": self._approval_cards_screen(),
+            "explanation": cards_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_approval_card_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one approval-card record as session news (M-174).
+
+        The pure layer's ``card_record``,
+        ``decision_record``, ``panel_record`` and
+        ``verdict_record`` are journaled through the
+        same checkpoint road every sibling slice
+        uses, when a session is attached. Each record
+        is announced at most once per shape: a card
+        under its own card id, decision, alarm level
+        and destructive flag, a decision under its
+        own decision id, sequence, answer and card,
+        a panel under its whole derived shape, and a
+        verdict under its word and tallies, so a
+        panel or verdict grown by a newly held card
+        or decision announces again as the new figure
+        it is. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") == "approval_card":
+            key = ("approval_card",
+                   record.get("card_id"),
+                   record.get("decision"),
+                   record.get("alarm"),
+                   record.get("destructive"))
+        elif record.get("type") == "approval_card_decision":
+            key = ("approval_card_decision",
+                   record.get("decision_id"),
+                   record.get("seq"),
+                   record.get("answer"),
+                   record.get("card_id"))
+        elif record.get("type") == "approval_cards_panel":
+            key = ("approval_cards_panel", record.get("panel_id"),
+                   record.get("as_of"),
+                   tuple(row.get("card_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_cards"))
+        elif record.get("type") == "approval_cards_verdict":
+            key = ("approval_cards_verdict",
+                   record.get("verdict"),
+                   record.get("total_cards"),
+                   record.get("total_alarmed"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(self, "_approval_cards_announced", None)
+        if announced is None:
+            announced = set()
+            self._approval_cards_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
