@@ -1,0 +1,197 @@
+schema: mythic.prompt_craft/1
+slice: M-177
+part: 8
+part_title: The Beautiful Face
+canon_note: >-
+  Prompt Craft: the input box is a small editor, not a slot - multi-line
+  editing, history per project, image paste and file drop, each held as
+  data. An item is one piece of that craft held as data - its kind (draft,
+  history, image or file), the one project it stands in, its title and its
+  words, each held with its provenance whole. A view is the one project a
+  panel looks at, or every project at once, and an item's line and line
+  count under a view are derived from the item's own title, kind, project
+  and words - never stored, never counted by hand. A pasted image is first
+  held as its own record, judged whole - its name, its format and the plain
+  words that describe it, the image itself never held - and joins the book
+  as an item of the image kind; a dropped file is first held as its own
+  record, judged whole - its path named, never opened, never read - and
+  joins as an item of the file kind. Dictation stands in the roadmap words
+  with its own slice named beside it (M-180) and is NOT built here: there
+  is no dictation kind, record or road in this book. The M-171 charter
+  names no screen row for this slice - the input lives on the main chat
+  screen (its S-03 row), whose owning slices are M-172, M-173 and M-178 -
+  so this book is built to the roadmap words alone, plain words first.
+  This file is ONE EXAMPLE BOOK, in the shape a real prompt-craft file
+  takes: the M-176 slice boundary - eight items, two drafts, two history
+  entries, two pasted images and two dropped files standing across two
+  projects, two views, and the one pinned panel of the every-project view,
+  whose shown items span both projects, so the book's verdict under it
+  stands shared; under the mythic-coder view the verdict stands held. A
+  real book is a new file in this same shape - it is never this file edited
+  in place. This layer holds items and views as data only - it edits no
+  live input box, pastes nothing, drops nothing, dictates nothing, opens
+  no dropped file, sends nothing, calls no model and persists nothing: an
+  item held here is a finding, never the act of typing, pasting or sending
+  the prompt found.
+guide:
+  title: Prompt Craft at the M-176 slice boundary
+items:
+- item_id: item-opening-draft
+  kind: draft
+  project: mythic-coder
+  title: Opening draft
+  body: "Build the prompt craft slice.\nThe input box is a small editor,\nnot a slot."
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: prompt craft
+  origin_session: session-m177
+- item_id: item-palace-note
+  kind: draft
+  project: mythic-coder
+  title: Palace note
+  body: "The palace holds every command.\nBrowsing commits nothing."
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: prompt craft
+  origin_session: session-m177
+- item_id: item-first-prompt
+  kind: history
+  project: mythic-coder
+  title: First prompt
+  body: Show me the roadmap, plainly.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: prompt craft
+  origin_session: session-m177
+- item_id: item-standup-prompt
+  kind: history
+  project: samtal
+  title: Stand-up prompt
+  body: "Draft the morning stand-up\nfrom the session journal."
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: prompt craft
+  origin_session: session-m177
+- item_id: item-longship-sketch
+  kind: image
+  project: mythic-coder
+  title: Longship sketch
+  body: A pasted image held as words - a longship sketch, black ink on pale wood, held as data and never pasted here.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: prompt craft
+  origin_session: session-m177
+- item_id: item-harbour-photo
+  kind: image
+  project: samtal
+  title: Harbour photo
+  body: A pasted image held as words - the harbour at dawn, held as data and never pasted here.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: prompt craft
+  origin_session: session-m177
+- item_id: item-roadmap-drop
+  kind: file
+  project: mythic-coder
+  title: Roadmap notes
+  body: A dropped file held as words - roadmap notes named, never opened and never read here.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: prompt craft
+  origin_session: session-m177
+- item_id: item-verses-drop
+  kind: file
+  project: samtal
+  title: Verses file
+  body: A dropped file held as words - verses named, never opened and never read here.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: prompt craft
+  origin_session: session-m177
+views:
+- view_id: view-all
+  seq: 1
+  project_filter: all
+  detail: See everything the input box holds, in every project.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: prompt craft
+  origin_session: session-m177
+- view_id: view-mythic-coder
+  seq: 2
+  project_filter: mythic-coder
+  detail: See only the mythic-coder project's craft.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: prompt craft
+  origin_session: session-m177
+panels:
+- panel_id: panel-m176-boundary
+  view_id: view-all
+  project_filter: all
+  rows:
+  - item_id: item-opening-draft
+    kind: draft
+    project: mythic-coder
+    line: Opening draft - draft in mythic-coder
+    line_count: 3
+    recorded_on: '2026-11-09'
+  - item_id: item-palace-note
+    kind: draft
+    project: mythic-coder
+    line: Palace note - draft in mythic-coder
+    line_count: 2
+    recorded_on: '2026-11-09'
+  - item_id: item-first-prompt
+    kind: history
+    project: mythic-coder
+    line: First prompt - history in mythic-coder
+    line_count: 1
+    recorded_on: '2026-11-09'
+  - item_id: item-standup-prompt
+    kind: history
+    project: samtal
+    line: Stand-up prompt - history in samtal
+    line_count: 2
+    recorded_on: '2026-11-09'
+  - item_id: item-longship-sketch
+    kind: image
+    project: mythic-coder
+    line: Longship sketch - image in mythic-coder
+    line_count: 1
+    recorded_on: '2026-11-09'
+  - item_id: item-harbour-photo
+    kind: image
+    project: samtal
+    line: Harbour photo - image in samtal
+    line_count: 1
+    recorded_on: '2026-11-09'
+  - item_id: item-roadmap-drop
+    kind: file
+    project: mythic-coder
+    line: Roadmap notes - file in mythic-coder
+    line_count: 1
+    recorded_on: '2026-11-09'
+  - item_id: item-verses-drop
+    kind: file
+    project: samtal
+    line: Verses file - file in samtal
+    line_count: 1
+    recorded_on: '2026-11-09'
+  total_items: 8
+  total_shown: 8
+  kind_counts:
+  - kind: draft
+    items: 2
+  - kind: history
+    items: 2
+  - kind: image
+    items: 2
+  - kind: file
+    items: 2
+  as_of: '2026-11-09'
+  account:
+  - 'The prompt craft holds 8 items as of 2026-11-09: the view ''all'' shows 8 of them: draft 2, history 2, image 2, file 2.'
+  - Rows stand in held order, the order the items were held in, so two panels of one view diff cleanly, line by line.
+  - Every line and line count is derived from the item's own title, kind, project and words - no line is stored on any item, and no order is chosen by hand.
+  - 'The input box is a small editor, not a slot, and this layer holds its craft as data only: it edits no live input box, pastes nothing, drops nothing, dictates nothing (dictation is M-180''s road, not built here) and sends nothing.'
