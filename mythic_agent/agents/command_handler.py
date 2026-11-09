@@ -347,6 +347,8 @@ class CommandHandler:
                 self._handle_decisions(args)
             elif cmd == "/forget":
                 self._handle_forget(args)
+            elif cmd == "/recipes":
+                self._handle_recipes(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -5699,6 +5701,63 @@ class CommandHandler:
                 text = format_panel(primary.forget_quarantine_book())
             else:
                 text = primary.forget_quarantine_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_recipes(self, args: str):
+        """M-158: /recipes - context recipes.
+
+        ``/recipes`` shows the recipe book held this
+        session (the shipped example book - three recipes
+        at the M-157 slice boundary, eight pieces bundled,
+        with its one pinned panel - when none is held
+        yet); ``/recipes recipe <recipe-id>`` shows one
+        context recipe with its provenance whole;
+        ``/recipes summon <recipe name>`` summons the
+        recipe the name names, whole; ``/recipes panel``
+        shows the recipe panel derived from the whole
+        book, its rows in panel order. Reading registers
+        and publishes nothing as session news: recipes are
+        held only when they are given through the agent's
+        recipe roads or bundled from the session's carried
+        memory, and every recipe held or summoned for the
+        session is journaled as a context_recipe session
+        event and every derived panel as a
+        context_recipe_panel session event. This surface
+        calls no model and assembles no live context, and
+        there is no Part VIII board yet, so the book is
+        visible on this surface, not on a board.
+        """
+        from ..core.context_recipes import (
+            format_panel,
+            format_recipe,
+            parse_recipe_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_recipe_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "recipe":
+                text = format_recipe(primary.get_context_recipe(target))
+            elif action == "summon":
+                text = primary.summon_context_recipe(target)["summon_text"]
+            elif action == "panel":
+                text = format_panel(primary.context_recipes_book())
+            else:
+                text = primary.context_recipes_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

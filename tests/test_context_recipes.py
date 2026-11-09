@@ -541,3 +541,369 @@ def test_summon_by_name_from_the_book():
         book.recipe_named("the missing bundle")
     with pytest.raises(KeyError):
         book.recipe_for("recipe-nope")
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-158 agent layer: the agent holds a
+# ContextRecipeRegistry for the session (session state
+# only, no new setting), recipes are held by being
+# registered - published as their recipe_record session
+# news with the derived panel_record, through the
+# checkpoint road, deduped per shape - the report road
+# renders the held book (or the shipped example when
+# unheld) through the pure formatters, a bundle road
+# reads the session's carried memory onto items and
+# holds them as one recipe (mutating no live memory),
+# a summon road reads one recipe by name and publishes
+# its news, and the /recipes surface rides both roads
+# on the pure parser + formatters. Status, get, panel
+# and report reads register and publish nothing, answer
+# from the held registry first and from the shipped
+# example only while nothing is held - a held session
+# never falls back to the example. The panel derives at
+# call time from the whole book, never held. This layer
+# calls no model, assembles no live context and
+# persists nothing beyond the session journal news, and
+# there is no Part VIII board yet, so the screen is
+# where the book is visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _recipe_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_recipe_book(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data"
+           / "context_recipes.yaml").read_text(encoding="utf-8")
+    path = tmp_path / "context_recipes.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestContextRecipesAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.context_recipes_status()
+        assert status["recipes"] == []
+        assert status["book"] is None
+        assert status["bundling"]["title"] == EXAMPLE_TITLE
+        assert len(status["bundling"]["recipes"]) == 3
+        assert status["panel"]["total_items"] == 3
+        assert status["panel"]["total_pieces"] == 8
+        assert status["panels"][0]["panel_id"] == "panel-m157-boundary"
+        assert status["book_record"]["recipe_count"] == 3
+        assert "Context Recipes (M-158)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._context_recipes_registry()
+        assert agent._context_recipes_registry() is first
+        assert agent._context_recipes_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.context_recipes_status()
+        agent.get_context_recipe("recipe-auth-stack")
+        agent.context_recipes_panel()
+        agent.report_context_recipes()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("context_recipe")] == []
+        agent.close()
+
+    def test_unheld_reads_raise(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_context_recipe("recipe-nope")
+        with pytest.raises(KeyError):
+            agent.summon_context_recipe("the missing bundle")
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_context_recipe(_recipe())
+        status = agent.context_recipes_status()
+        assert [item["recipe_id"] for item in status["recipes"]] == [
+            "recipe-test"]
+        assert status["book"]["title"] == "Context recipes"
+
+    def test_held_session_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_context_recipe(_recipe())
+        with pytest.raises(KeyError):
+            agent.get_context_recipe("recipe-auth-stack")
+        recipe = agent.get_context_recipe("recipe-test")
+        assert recipe.name == "the test bundle"
+        assert agent.context_recipes_book().title == (
+            "Context recipes")
+
+
+class TestContextRecipesAgentHolding:
+    def test_register_recipe_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_context_recipe(_recipe())
+        assert outcome["recipe"]["recipe_id"] == "recipe-test"
+        assert outcome["recipe_news"]["type"] == "context_recipe"
+        events = _recipe_events(store, session_id, "context_recipe")
+        assert len(events) == 1
+        assert events[0]["recipe_id"] == "recipe-test"
+        agent._publish_context_recipe_record(outcome["recipe_news"])
+        assert len(_recipe_events(
+            store, session_id, "context_recipe")) == 1
+        agent._publish_context_recipe_record(
+            {"type": "mentions_mention", "mention_id": "mention-x"})
+        agent._publish_context_recipe_record(
+            book_record(load_context_recipes()))
+        for kind in ("mentions_mention", "context_recipe_book"):
+            assert _recipe_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_duplicate_recipe_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_context_recipe(_recipe())
+        with pytest.raises(ValueError):
+            agent.register_context_recipe(_recipe())
+        with pytest.raises(ValueError):
+            agent.register_context_recipe(
+                _recipe(recipe_id="recipe-copy"))
+        assert len(_recipe_events(
+            store, session_id, "context_recipe")) == 1
+        agent.close()
+
+    def test_bundle_from_session_memory_carries_ids_only(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        memory_book = load_session_memory()
+        notes = [n for s in memory_book.situations for n in s.memory
+                 if n.note_id]
+        expected = len(notes)
+        outcome = agent.bundle_context_recipe_from_session_memory(
+            name="the carried bundle", purpose="A test bundle.",
+            why="It was carried in the session.",
+            session_ref="session-test", created_on="2026-11-08")
+        assert outcome["count"] == expected
+        events = _recipe_events(store, session_id, "context_recipe")
+        assert len(events) == 1
+        blob = str(events) + str(outcome["recipe"])
+        for note in notes:
+            assert note.title not in blob
+            assert note.detail not in blob
+        # Bundling mutated no live memory: the session's
+        # carried memory stands whole.
+        assert agent.session_memory_book().situations == (
+            memory_book.situations)
+        assert agent.context_recipes_panel().total_items == 1
+        assert agent.context_recipes_panel().total_pieces == expected
+        with pytest.raises(ValueError):
+            agent.bundle_context_recipe_from_session_memory(
+                name="the carried bundle", purpose="Again.",
+                why="Again.", session_ref="session-test",
+                created_on="2026-11-08")
+        agent.close()
+
+    def test_summon_by_name_publishes_the_recipe_news(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.summon_context_recipe("the Mojo build")
+        assert outcome["recipe"]["recipe_id"] == "recipe-mojo-build"
+        assert "map-tests" in outcome["summon_text"]
+        events = _recipe_events(store, session_id, "context_recipe")
+        assert len(events) == 1
+        assert events[0]["name"] == "the Mojo build"
+        agent.summon_context_recipe("THE MOJO BUILD")
+        assert len(_recipe_events(
+            store, session_id, "context_recipe")) == 1
+        agent.close()
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent):
+        book = _book()
+        outcome = agent.register_context_recipe_book(book)
+        assert outcome["count"] == 1
+        assert [item["type"] for item in outcome["recipes_news"]] == [
+            "context_recipe"]
+        assert agent.context_recipes_book().title == (
+            "A test recipe book")
+
+    def test_register_book_twice_refuses(self, agent):
+        agent.register_context_recipe_book(load_context_recipes())
+        with pytest.raises(ValueError):
+            agent.register_context_recipe_book(load_context_recipes())
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_context_recipe_book()
+        assert outcome["count"] == 3
+        assert outcome["book"]["title"] == EXAMPLE_TITLE
+        assert len(_recipe_events(
+            store, session_id, "context_recipe")) == 3
+        assert agent.context_recipes_book().panels[0].panel_id == (
+            "panel-m157-boundary")
+        agent.close()
+
+    def test_record_same_book_twice_refuses(self, agent):
+        agent.record_context_recipe_book()
+        with pytest.raises(ValueError):
+            agent.record_context_recipe_book()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_recipe_book(tmp_path)
+        book = load_context_recipes_file(path)
+        outcome = agent.record_context_recipe_book(book)
+        assert outcome["count"] == 3
+        assert agent.get_context_recipe(
+            "recipe-auth-stack").name == "the auth stack"
+
+    def test_report_renders_the_example_when_unheld(self, agent):
+        report = agent.report_context_recipes()
+        assert report["book"]["recipe_count"] == 3
+        assert "recipe-auth-stack" in report["recipes_text"]
+        assert "Recipe panel in Context recipes" in (
+            report["panel_text"])
+
+    def test_report_renders_the_held_book_only(self, agent):
+        agent.register_context_recipe(_recipe())
+        report = agent.report_context_recipes()
+        assert report["book"]["title"] == "Context recipes"
+        assert "recipe-auth-stack" not in report["recipes_text"]
+        assert "recipe-test" in report["recipes_text"]
+
+    def test_report_registers_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.report_context_recipes()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("context_recipe")] == []
+        agent.close()
+
+    def test_no_live_assemble_or_persist_road(
+            self, agent, tmp_path):
+        # This layer holds recipes as data: it calls no
+        # model, assembles no live context, edits no
+        # code, writes no project files and persists
+        # nothing - and there is no Part VIII board yet.
+        # Holding, recording, bundling or summoning
+        # changes no workspace file and no live context.
+        assert not hasattr(agent, "apply_context_recipes")
+        assert not hasattr(agent, "assemble_context_recipes")
+        assert not hasattr(agent, "persist_context_recipes")
+        assert not hasattr(agent, "context_recipes_board")
+        (tmp_path / "alpha.py").write_text(
+            "def greet(name):\n    return name\n", encoding="utf-8")
+        before = {
+            p.name: p.read_bytes()
+            for p in tmp_path.glob("*.py")}
+        from mythic_agent.agents.context import ContextBuilder
+        builder = ContextBuilder(max_tokens=4000)
+        builder.add_system("You are the coder.")
+        builder.add_turn("user", "Build the slice.")
+        built_before = builder.build()
+        agent.register_context_recipe(_recipe())
+        agent.record_context_recipe_book()
+        agent.summon_context_recipe("the auth stack")
+        assert builder.build() == built_before
+        assert {
+            p.name: p.read_bytes()
+            for p in tmp_path.glob("*.py")} == before
+
+
+class TestContextRecipesTerminalSurface:
+    def test_show_recipe_summon_panel(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/recipes")
+        assert "Context Recipes (M-158)" in text
+        _, _, text = _slash(agent, "/recipes recipe recipe-auth-stack")
+        assert "record-httpx-client" in text
+        _, _, text = _slash(agent, "/recipes summon the Mojo build")
+        assert "Summoned" in text
+        assert "map-tests" in text
+        _, _, text = _slash(agent, "/recipes panel")
+        assert "Recipe panel in Context recipes" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/recipes [show|recipe <recipe-id>"
+                "|summon <recipe name>|panel]") in text
+        _, _, text = _slash(agent, "/recipes dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/recipes recipe recipe-nope")
+        assert "no recipe in the book" in text
+
+
+@pytest.fixture()
+def recipes_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _recipes_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestContextRecipesCommand:
+    def test_show_is_default(self, recipes_handler, agent):
+        recipes_handler._handle_recipes("")
+        assert "Context Recipes (M-158)" in (
+            _recipes_published_text(recipes_handler))
+
+    def test_recipe_summon_panel(self, recipes_handler, agent):
+        recipes_handler._handle_recipes("recipe recipe-auth-stack")
+        assert "record-httpx-client" in (
+            _recipes_published_text(recipes_handler))
+        recipes_handler._handle_recipes("summon the Mojo build")
+        assert "map-tests" in (
+            _recipes_published_text(recipes_handler))
+        recipes_handler._handle_recipes("panel")
+        assert "Recipe panel in Context recipes" in (
+            _recipes_published_text(recipes_handler))
+
+    def test_bad_grammar_is_published(self, recipes_handler, agent):
+        recipes_handler._handle_recipes("dance party")
+        assert USAGE in _recipes_published_text(recipes_handler)
+
+
+class TestChatScreenRoutingRecipes:
+    def test_recipes_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command(
+            "/recipes recipe recipe-auth-stack", _FakeLog())
+        assert calls == [("/recipes", "recipe recipe-auth-stack")]
