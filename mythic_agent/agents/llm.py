@@ -34818,6 +34818,590 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _status_line_registry(self):
+        """The held status-line registry (M-178).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer facts and view
+        records one by one, beside the session
+        prompt-craft registry (M-177) and never in
+        it: the book is one status line to look at.
+        It is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly
+        one. The attribute is named
+        ``_status_line_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_status_line_store", None)
+        if registry is None:
+            from ..core.status_line import StatusLineRegistry
+            registry = StatusLineRegistry()
+            self._status_line_store = registry
+        return registry
+
+    def status_line_book(self):
+        """The session's book of status line, as data (M-178).
+
+        The held registry's book when the session
+        holds any fact - the things the session can
+        actually be viewed for (facts held one by one
+        stand under a session book composed here in
+        the agent layer, so a later whole book
+        recorded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book recorded whole through
+        :meth:`record_status_line_book`, or the
+        shipped example book until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.status_line import (
+            StatusLineBook, load_status_line)
+        registry = self._status_line_registry()
+        if registry.list_facts():
+            try:
+                book = registry.book()
+            except ValueError:
+                return StatusLineBook(
+                    title="Status Line",
+                    facts=registry.list_facts(),
+                    views=registry.list_views())
+            held = getattr(self, "_status_line_held", None)
+            if held is not None and held.title == book.title \
+                    and held.fact_ids() == book.fact_ids() \
+                    and held.view_ids() == book.view_ids():
+                return held
+            return book
+        book = getattr(self, "_status_line_held", None)
+        if book is None:
+            return load_status_line()
+        return book
+
+    def _status_line_default_view(self, book: Any):
+        """The view a book derives under by default (M-178).
+
+        The view its own stored panel stands under,
+        else its first held view, else None - a book
+        holding facts but no view yet derives no
+        panel and no verdict, and says so plainly.
+        """
+        for panel in book.panels:
+            if panel.view_id is not None:
+                try:
+                    return book.view_for(panel.view_id)
+                except KeyError:
+                    continue
+        if book.views:
+            return book.views[0]
+        return None
+
+    def _status_line_screen(self) -> str:
+        """The /statusline screen for the session's state (M-178)."""
+        from ..core import status_line as line_module
+        registry = self._status_line_registry()
+        if not registry.list_facts():
+            return line_module.format_status_line_screen()
+        book = self.status_line_book()
+        if not book.views:
+            return line_module.format_book(book)
+        return line_module.format_status_line_screen(book)
+
+    def status_line_status(self) -> dict[str, Any]:
+        """The status-line account, in plain data (M-178).
+
+        The facts and view records held this session
+        as plain records, the held book's record
+        (none until a fact stands held), the session
+        book's facts and views as plain records (the
+        shipped example book - six facts at the
+        M-177 slice boundary, five standing measured
+        and the cost fact standing honestly unknown,
+        with its two views and its one pinned panel -
+        until facts are held), its whole-book record,
+        the panel derived from the whole book under
+        its default view and every panel the book
+        holds as plain records, the verdict derived
+        for the whole book, the status line derived
+        from the whole book, the last fact in plain
+        words, the panel and the verdict told in
+        plain words, the one screen - rendered from
+        the held book, or from the shipped example
+        book when nothing is held yet - and the plain
+        explanation. A book holding facts but no view
+        yet derives no panel and no verdict. Reading
+        registers and publishes nothing, sends
+        nothing and schedules nothing: this layer
+        holds the status line as data only, and no
+        fact is measured live here. The screen is
+        where the line is visible.
+        """
+        from ..core import status_line as line_module
+        registry = self._status_line_registry()
+        held_facts = registry.list_facts()
+        held_views = registry.list_views()
+        book = self.status_line_book()
+        default = self._status_line_default_view(book)
+        latest = book.facts[-1] if book.facts else None
+        return {
+            "facts": [
+                fact.to_record() for fact in held_facts],
+            "views": [
+                item.to_record() for item in held_views],
+            "book": (book.to_record() if held_facts else None),
+            "status_line": {
+                "title": book.title,
+                "facts": [
+                    fact.to_record() for fact in book.facts],
+                "views": [
+                    item.to_record() for item in book.views],
+            },
+            "book_record": line_module.book_record(book),
+            "panel": (line_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (line_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "line": line_module.line_of(book),
+            "plain_words": (
+                line_module.plain_words(latest)
+                if latest is not None else ""),
+            "panel_plain_words": (
+                line_module.panel_plain_words(book)
+                if default is not None else ""),
+            "verdict_plain_words": (
+                line_module.verdict_plain_words(book)
+                if default is not None else ""),
+            "screen": self._status_line_screen(),
+            "explanation": line_module.PLAIN_EXPLANATION,
+        }
+
+    def get_status_fact(self, fact_id: Any):
+        """The one status fact an id names (M-178).
+
+        The session's held registry answers when the
+        session holds any fact; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). A held fact answers
+        for its own book alone: an id the held book
+        holds no fact for raises KeyError, with no
+        silent fall back to the example, exactly as
+        the pure layer answers. Reading registers and
+        publishes nothing.
+        """
+        registry = self._status_line_registry()
+        if registry.list_facts():
+            return registry.get_fact(fact_id)
+        return self.status_line_book().fact_for(fact_id)
+
+    def get_status_view(self, view_id: Any):
+        """The one view record an id names (M-178).
+
+        The session's held registry answers when the
+        session holds any fact; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). Reading registers and
+        publishes nothing.
+        """
+        registry = self._status_line_registry()
+        if registry.list_facts():
+            return registry.get_view(view_id)
+        return self.status_line_book().view_for(view_id)
+
+    def status_line_with_kind(self, kind: Any):
+        """The session book's facts of one kind (M-178)."""
+        from ..core.status_line import (
+            facts_for_kind as _for_kind)
+        return _for_kind(self.status_line_book(), kind)
+
+    def status_line_measured(self):
+        """The session book's measured facts (M-178)."""
+        from ..core.status_line import (
+            measured_facts as _measured)
+        return _measured(self.status_line_book())
+
+    def status_line_panel(self, view: Any = None):
+        """The panel derived for the whole book (M-178).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a
+        book holding no view at all refuses plainly
+        rather than inventing one.
+        """
+        from ..core.status_line import derive_panel as _derive_panel
+        book = self.status_line_book()
+        resolved = view if view is not None \
+            else self._status_line_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive "
+                "a panel under")
+        return _derive_panel(book, resolved)
+
+    def status_line_verdict(self, view: Any = None):
+        """The verdict derived for the whole book (M-178).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a
+        book holding no view at all refuses plainly
+        rather than inventing one.
+        """
+        from ..core.status_line import (
+            derive_verdict as _derive_verdict)
+        book = self.status_line_book()
+        resolved = view if view is not None \
+            else self._status_line_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive "
+                "a verdict under")
+        return _derive_verdict(book, resolved)
+
+    def status_line_line(self) -> str:
+        """The status line derived for the whole book (M-178).
+
+        Derived at call time from the book's facts,
+        one segment per kind in the roadmap's order;
+        a kind holding no fact stands honestly
+        unknown in the line. Reading registers and
+        publishes nothing.
+        """
+        from ..core.status_line import line_of as _line_of
+        return _line_of(self.status_line_book())
+
+    def register_status_fact(
+            self, fact: Any) -> dict[str, Any]:
+        """Hold one status fact for the session (M-178).
+
+        The fact is held by the pure registry under
+        its fact id - a fact id or a kind already
+        standing here refuses, and a refusal holds
+        nothing new and publishes nothing. A held
+        fact is published as its ``fact_record``
+        session-news record through the checkpoint
+        road. Returns the held fact, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding a fact measures
+        nothing live and binds no key: the thing
+        stands on this layer's book, as data,
+        provenance whole, waiting to be looked at.
+        """
+        from ..core import status_line as line_module
+        registry = self._status_line_registry()
+        held = registry.register_fact(fact)
+        fact_news = line_module.fact_record(held)
+        self._publish_status_line_record(fact_news)
+        return {
+            "fact": held.to_record(),
+            "record_news": fact_news,
+            "screen": self._status_line_screen(),
+            "explanation": line_module.PLAIN_EXPLANATION,
+        }
+
+    def register_status_view(
+            self, view: Any) -> dict[str, Any]:
+        """Hold one view record for the session (M-178).
+
+        The view is held by the pure registry under
+        its id, or under a fresh view-N id when it
+        names none - a view id or a sequence already
+        standing here refuses, and a refusal holds
+        nothing new and publishes nothing. A held view
+        is published as its ``view_record``
+        session-news record through the checkpoint
+        road. Returns the held view, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding a view only ever
+        looks: it measures nothing and opens nothing.
+        """
+        from ..core import status_line as line_module
+        registry = self._status_line_registry()
+        held = registry.register_view(view)
+        view_news = line_module.view_record(held)
+        self._publish_status_line_record(view_news)
+        return {
+            "view": held.to_record(),
+            "record_news": view_news,
+            "screen": self._status_line_screen(),
+            "explanation": line_module.PLAIN_EXPLANATION,
+        }
+
+    def view_status_line(
+            self, kind_filter: Any, *,
+            detail: Any = None,
+            recorded_on: Any = "2026-11-09",
+            actor: Any = "the jarl",
+            source: Any = "status line",
+            origin_session: Any = "session-m178",
+            view_id: Any = None) -> dict[str, Any]:
+        """Stand one view on the session's held book (M-178).
+
+        This slice's own viewing road: the view record
+        is composed by the pure layer at the next
+        sequence of the session's held book, judged
+        whole, and held by the pure registry. The view
+        is published as its ``view_record`` session
+        news, the panel derived from the whole book as
+        its ``panel_record`` session news, and the
+        verdict derived for the whole book as its
+        ``verdict_record`` session news. Returns the
+        held view, its kind filter, its news records,
+        the screen rendered after it landed and the
+        plain explanation. HONEST BOUNDARY: viewing
+        measures nothing live and opens no panel -
+        the view moves this book alone, as data, and
+        the live chat screen is not rebuilt here.
+        """
+        from ..core import status_line as line_module
+        registry = self._status_line_registry()
+        held_views = registry.list_views()
+        seq = (max(v.seq for v in held_views) + 1) \
+            if held_views else 1
+        fields: dict[str, Any] = {
+            "seq": seq, "kind_filter": kind_filter,
+            "detail": detail if detail is not None else (
+                f"View kind {kind_filter!r} in the "
+                "session's held book, composed on the "
+                "viewing road."),
+            "recorded_on": recorded_on,
+            "actor": actor, "source": source,
+            "origin_session": origin_session}
+        if view_id is not None:
+            fields["view_id"] = view_id
+        view = line_module.build_view(fields)
+        held = registry.register_view(view)
+        view_news = line_module.view_record(held)
+        self._publish_status_line_record(view_news)
+        book = self.status_line_book()
+        panel_news = line_module.panel_record(
+            line_module.derive_panel(book, held))
+        self._publish_status_line_record(panel_news)
+        verdict_news = line_module.verdict_record(
+            line_module.derive_verdict(book, held))
+        self._publish_status_line_record(verdict_news)
+        return {
+            "view": held.to_record(),
+            "kind_filter": held.kind_filter,
+            "record_news": view_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._status_line_screen(),
+            "explanation": line_module.PLAIN_EXPLANATION,
+        }
+
+    def register_status_line_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole book of status line (M-178).
+
+        Every fact and view record of the book is
+        held by the pure registry, in held and
+        recorded order - the book is judged whole, and
+        against the held book, before anything is
+        held, so a refusal holds nothing new. The
+        first book held sets the registry's title, a
+        later book under a different title refuses, as
+        does a book naming a held fact id, fact kind,
+        view id or sequence. The book's panels are
+        derivations, not holdings, and are not held.
+        Every fact is published as its ``fact_record``
+        session news and every view as its
+        ``view_record`` session news, in order.
+        Returns the held book, its facts and views,
+        their news records, the count of facts held,
+        the screen, and the explanation. Registering
+        measures nothing live and opens nothing.
+        """
+        from ..core import status_line as line_module
+        validated = line_module.build_book(book)
+        registry = self._status_line_registry()
+        registry.register_book(validated)
+        records = [
+            line_module.fact_record(fact)
+            for fact in validated.facts]
+        records += [
+            line_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_status_line_record(news)
+        return {
+            "book": validated.to_record(),
+            "facts": [
+                fact.to_record() for fact in validated.facts],
+            "views": [
+                item.to_record() for item in validated.views],
+            "records_news": records,
+            "count": len(validated.facts),
+            "screen": self._status_line_screen(),
+            "explanation": line_module.PLAIN_EXPLANATION,
+        }
+
+    def record_status_line_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole book of status line (M-178).
+
+        With no book named, the shipped example book
+        is recorded through the pure layer - six facts
+        at the M-177 slice boundary, with its two
+        views and its one pinned panel. A book loaded
+        from a file (the pure layer's
+        ``load_status_line_file`` road) may be passed
+        instead. The book is judged whole before
+        anything is held. Every fact and view is held
+        and published as its session news, in order,
+        and the panel derived under the book's default
+        view as its ``panel_record`` session news; the
+        book is remembered whole as the session's -
+        its held panel and all - and the same book
+        recorded twice refuses - fingerprinted on its
+        fact ids, view ids and title. Returns the held
+        book, its facts and views, their news records,
+        the panel news record, the count, the screen,
+        and the explanation. Recording measures
+        nothing live and opens nothing.
+        """
+        from ..core import status_line as line_module
+        book = book if book is not None \
+            else line_module.load_status_line()
+        validated = line_module.build_book(book)
+        fingerprint = (tuple(validated.fact_ids()),
+                       tuple(validated.view_ids()),
+                       validated.title)
+        recorded = getattr(self, "_status_line_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._status_line_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this book of status line is already "
+                "recorded for the session; a book is "
+                "recorded once")
+        registry = self._status_line_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._status_line_held = validated
+        records = [
+            line_module.fact_record(fact)
+            for fact in validated.facts]
+        records += [
+            line_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_status_line_record(news)
+        panel_news = line_module.panel_record(
+            line_module.derive_panel(
+                validated,
+                self._status_line_default_view(validated)),
+            validated)
+        self._publish_status_line_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "facts": [
+                fact.to_record() for fact in validated.facts],
+            "views": [
+                item.to_record() for item in validated.views],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(validated.facts),
+            "screen": line_module.format_status_line_screen(
+                validated),
+            "explanation": line_module.PLAIN_EXPLANATION,
+        }
+
+    def report_status_line(self) -> dict[str, Any]:
+        """Render the session status line, as a report (M-178).
+
+        The book - the held registry's book when the
+        session holds any fact, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - is rendered through the pure
+        formatters alone. Rendering registers and
+        publishes nothing and reads no file. Returns
+        the book, its facts, views and panels as plain
+        records, the derived panel and verdict (none
+        while the book holds no view), the derived
+        line, the rendered book, panel and verdict,
+        the screen, and the plain explanation.
+        """
+        from ..core import status_line as line_module
+        book = self.status_line_book()
+        default = self._status_line_default_view(book)
+        return {
+            "book": book.to_record(),
+            "facts": [
+                fact.to_record() for fact in book.facts],
+            "views": [
+                item.to_record() for item in book.views],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (line_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "verdict": (line_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "line": line_module.line_of(book),
+            "book_text": line_module.format_book(book),
+            "panel_text": (line_module.format_panel(book)
+                           if default is not None else ""),
+            "verdict_text": (line_module.format_verdict(book)
+                             if default is not None else ""),
+            "screen": self._status_line_screen(),
+            "explanation": line_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_status_line_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one status-line record as session news (M-178).
+
+        The pure layer's ``fact_record``, ``view_record``,
+        ``panel_record`` and ``verdict_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once per shape: a fact under its own fact id,
+        kind and segment, a view under its own view id,
+        sequence and kind filter, a panel under its
+        whole derived shape, and a verdict under its
+        word and tallies, so a panel or verdict grown
+        by a newly held fact or view announces again
+        as the new figure it is. A foreign record type
+        is never published on this road.
+        """
+        if record.get("type") == "status_line_fact":
+            key = ("status_line_fact",
+                   record.get("fact_id"),
+                   record.get("kind"),
+                   record.get("segment"))
+        elif record.get("type") == "status_line_view":
+            key = ("status_line_view",
+                   record.get("view_id"),
+                   record.get("seq"),
+                   record.get("kind_filter"))
+        elif record.get("type") == "status_line_panel":
+            key = ("status_line_panel", record.get("panel_id"),
+                   record.get("view_id"),
+                   tuple(row.get("fact_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_shown"))
+        elif record.get("type") == "status_line_verdict":
+            key = ("status_line_verdict",
+                   record.get("verdict"),
+                   record.get("total_shown"),
+                   record.get("measured_shown"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(self, "_status_line_announced", None)
+        if announced is None:
+            announced = set()
+            self._status_line_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
