@@ -473,3 +473,12 @@ mythic_agent/agents/llm.py:29830:record_contradiction_book:method
 mythic_agent/agents/llm.py:29891:report_contradiction:method
 mythic_agent/core/contradiction_watch.py:1265:row_for:method
 mythic_agent/core/contradiction_watch.py:2011:latest_watch:method
+mythic_agent/agents/llm.py:30128:privacy_panel:method
+mythic_agent/agents/llm.py:30133:privacy_verdict:method
+mythic_agent/agents/llm.py:30139:register_privacy_posting:method
+mythic_agent/agents/llm.py:30171:post_over_contradiction_watch:method
+mythic_agent/agents/llm.py:30236:register_privacy_book:method
+mythic_agent/agents/llm.py:30283:record_privacy_book:method
+mythic_agent/agents/llm.py:30344:report_privacy:method
+mythic_agent/core/private_by_architecture.py:1447:row_for:method
+mythic_agent/core/private_by_architecture.py:2211:latest_posting:method

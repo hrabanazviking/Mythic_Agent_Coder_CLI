@@ -1041,7 +1041,7 @@ slices:
   title: Private by architecture
   summary: memories live in the workspace/ user stores; nothing syncs anywhere unless Part X's bridges
     are explicitly opened by the user.
-  status: queued
+  status: done
 - id: M-168
   part: 7
   title: Memory Doctor
