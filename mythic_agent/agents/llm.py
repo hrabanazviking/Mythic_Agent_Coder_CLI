@@ -27245,6 +27245,470 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _long_session_endurance_registry(self):
+        """The held long-session endurance registry (M-161).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer endurance records one
+        by one, beside the session token-thrift
+        registry (M-160) and never in it: the endurance
+        book is one book of measurements taken against
+        budgets set first. It is created on first use,
+        so an agent whose ``__init__`` never ran still
+        holds exactly one. The attribute is named
+        ``_long_session_endurance_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_long_session_endurance_store", None)
+        if registry is None:
+            from ..core.long_session_endurance import EnduranceRegistry
+            registry = EnduranceRegistry()
+            self._long_session_endurance_store = registry
+        return registry
+
+    def long_session_endurance_book(self):
+        """The session's long-session endurance book, as data (M-161).
+
+        The held registry's book when the session holds
+        any endurance record - the measurements the
+        session has actually recorded (records held one
+        by one, before any whole book stands recorded,
+        stand under a session endurance book composed
+        here in the agent layer, so a later whole book
+        recorded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book recorded whole through
+        :meth:`record_endurance_book`, or the shipped
+        example endurance book until one is recorded.
+        Reading registers and publishes nothing.
+        """
+        from ..core.long_session_endurance import (
+            EnduranceBook, load_long_session_endurance)
+        registry = self._long_session_endurance_registry()
+        if registry.list_records():
+            try:
+                book = registry.book()
+            except ValueError:
+                return EnduranceBook(
+                    title="Long-session endurance",
+                    records=registry.list_records())
+            held = getattr(self, "_long_session_endurance_held", None)
+            if held is not None and held.title == book.title \
+                    and held.record_ids() == book.record_ids():
+                return held
+            return book
+        book = getattr(self, "_long_session_endurance_held", None)
+        if book is None:
+            return load_long_session_endurance()
+        return book
+
+    def _long_session_endurance_screen(self) -> str:
+        """The /endurance screen for the session's state (M-161).
+
+        Rendered from the held book when one stands,
+        and from the shipped example book while nothing
+        is held.
+        """
+        from ..core import long_session_endurance as endurance_module
+        registry = self._long_session_endurance_registry()
+        if not registry.list_records():
+            return endurance_module.format_long_session_endurance_screen()
+        return endurance_module.format_long_session_endurance_screen(
+            self.long_session_endurance_book())
+
+    def long_session_endurance_status(self) -> dict[str, Any]:
+        """The long-session endurance account, in plain data (M-161).
+
+        The records held this session as plain records,
+        the held book's record (none until a record
+        stands held), the session endurance book's
+        records as plain records (the shipped example
+        book - five measurements at the M-160 slice
+        boundary - until records are held), its
+        whole-book record, the endurance panel derived
+        from the whole book and every panel the book
+        holds as plain records, the endurance verdict
+        derived for the whole book, the latest record
+        in plain words, the panel and the verdict told
+        in plain words, the one screen - rendered from
+        the held book, or from the shipped example book
+        when nothing is held yet - and the plain
+        explanation. Reading registers and publishes
+        nothing, runs no live session and times
+        nothing: this layer holds endurance as data
+        only. There is no Part VIII board yet; the
+        screen is where the book is visible.
+        """
+        from ..core import long_session_endurance as endurance_module
+        registry = self._long_session_endurance_registry()
+        held_records = registry.list_records()
+        book = self.long_session_endurance_book()
+        latest = book.records[-1]
+        return {
+            "records": [item.to_record() for item in held_records],
+            "book": (book.to_record() if held_records else None),
+            "enduring": {
+                "title": book.title,
+                "records": [item.to_record() for item in book.records],
+            },
+            "book_record": endurance_module.book_record(book),
+            "panel": (endurance_module.derive_panel(book).to_record()
+                      if book.records else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (
+                endurance_module.derive_verdict(book).to_record()
+                if book.records else None),
+            "plain_words": endurance_module.plain_words(latest),
+            "panel_plain_words": (
+                endurance_module.panel_plain_words(book)
+                if book.records else ""),
+            "verdict_plain_words": (
+                endurance_module.verdict_plain_words(book)
+                if book.records else ""),
+            "screen": self._long_session_endurance_screen(),
+            "explanation": endurance_module.PLAIN_EXPLANATION,
+        }
+
+    def get_endurance_record(self, record_id: Any):
+        """The one endurance record an id names (M-161).
+
+        The session's held registry answers when the
+        session holds any record; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). A held session answers
+        for its own book alone: an id the held book
+        holds no record for raises KeyError, with no
+        silent fall back to the example, exactly as the
+        pure layer answers. Reading registers and
+        publishes nothing.
+        """
+        registry = self._long_session_endurance_registry()
+        if registry.list_records():
+            return registry.get_record(record_id)
+        return self.long_session_endurance_book().record_for(record_id)
+
+    def long_session_endurance_panel(self):
+        """The endurance panel derived for the whole book (M-161).
+
+        The panel is derived at call time from the
+        session book whole - the held registry's book
+        when the session holds any record, otherwise
+        the shipped example book's (or the book
+        recorded whole for the session) - so its rows
+        are the records carried whole, in panel order,
+        and its tallies are the records' own verdict
+        counts, read at call time. Reading registers
+        and publishes nothing.
+        """
+        from ..core.long_session_endurance import (
+            derive_panel as _derive_panel)
+        return _derive_panel(self.long_session_endurance_book())
+
+    def long_session_endurance_verdict(self):
+        """The endurance verdict derived for the whole book (M-161).
+
+        The verdict is derived at call time from the
+        session book whole, its tallies the derived
+        panel's own and its worst record the panel row
+        furthest over its budget - over budget is
+        reported, never passed. Reading registers and
+        publishes nothing, runs no live session and
+        times nothing.
+        """
+        from ..core.long_session_endurance import (
+            derive_verdict as _derive_verdict)
+        return _derive_verdict(self.long_session_endurance_book())
+
+    def register_endurance_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one endurance record for the session (M-161).
+
+        The record is held by the pure registry under
+        its id or the deterministic endurance-N id - a
+        record id already standing here refuses, as
+        does a record measuring a thing a held record
+        already measures under the same kind; a refusal
+        holds nothing new and publishes nothing. A held
+        record is published as its ``endurance_record``
+        session-news record through the checkpoint
+        road, so a measurement declared into the
+        session is news. Returns the held record, its
+        news record, the screen rendered after it
+        landed, and the plain explanation. Holding a
+        record runs no live session and times nothing:
+        the registry holds the record as data,
+        provenance whole.
+        """
+        from ..core import long_session_endurance as endurance_module
+        registry = self._long_session_endurance_registry()
+        held = registry.register_record(record)
+        record_news = endurance_module.endurance_record(held)
+        self._publish_endurance_record(record_news)
+        return {
+            "record": held.to_record(),
+            "record_news": record_news,
+            "screen": self._long_session_endurance_screen(),
+            "explanation": endurance_module.PLAIN_EXPLANATION,
+        }
+
+    def endurance_from_session_memory(
+            self, *, budget: Any, recorded_by: Any,
+            recorded_on: Any) -> dict[str, Any]:
+        """Measure this session's remembered length as endurance (M-161).
+
+        This slice's own composing road: the session's
+        session-memory book (M-153) is read onto
+        endurance records BY IMPORT through the pure
+        layer's ``endurance_records_from_session_memory``
+        - every situation of the book, under the
+        session-length kind and one named recorder,
+        each situation's transcript count the measured
+        value against the one named *budget* (no
+        budget named refuses the whole road before
+        anything is held, because a budget is set
+        before it is measured) - and each record is
+        held and published as its ``endurance_record``
+        session news, with the endurance panel derived
+        from the whole held registry as its
+        ``panel_record`` session news and the verdict
+        derived for the whole held registry as its
+        ``verdict_record`` session news. Only
+        references and counts cross the seam: no
+        situation's title, workspace or carried memory
+        stands in any record or headline this road
+        publishes. Returns the held records, their
+        news records, the panel and verdict news
+        records, the count, the number over budget,
+        the screen, and the explanation. Measuring
+        runs no live session, reads no transcript and
+        mutates no live memory - the session's memory
+        book itself stands exactly as it stood: this
+        road records endurance, and the holdings keep
+        the measures.
+        """
+        from ..core import long_session_endurance as endurance_module
+        memory_book = self.session_memory_book()
+        records = endurance_module.endurance_records_from_session_memory(
+            memory_book, budget=budget, recorded_by=recorded_by,
+            recorded_on=recorded_on)
+        if not records:
+            raise ValueError(
+                "the session's memory book holds no situation "
+                "to measure as endurance")
+        registry = self._long_session_endurance_registry()
+        held_records = []
+        records_news = []
+        for record in records:
+            held = registry.register_record(record)
+            held_records.append(held)
+            record_news = endurance_module.endurance_record(held)
+            records_news.append(record_news)
+            self._publish_endurance_record(record_news)
+        panel_news = endurance_module.panel_record(
+            endurance_module.derive_panel(registry))
+        self._publish_endurance_record(panel_news)
+        verdict_news = endurance_module.verdict_record(
+            endurance_module.derive_verdict(registry))
+        self._publish_endurance_record(verdict_news)
+        return {
+            "records": [item.to_record() for item in held_records],
+            "records_news": records_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "count": len(held_records),
+            "total_over": sum(
+                1 for item in held_records
+                if item.verdict == "over-budget"),
+            "screen": self._long_session_endurance_screen(),
+            "explanation": endurance_module.PLAIN_EXPLANATION,
+        }
+
+    def register_endurance_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole endurance book for the session (M-161).
+
+        Every record of the book is held by the pure
+        registry, in book order - the first book held
+        sets the registry's title, a later book under a
+        different title refuses, as does a book naming
+        a held record id or a held measured thing. The
+        book's panels are derivations, not holdings,
+        and are not held. Every record is published as
+        its ``endurance_record`` session news, in book
+        order, and the endurance panel derived from the
+        whole book as its ``panel_record`` session
+        news. Returns the held book, its records, their
+        news records, the panel news record, the count
+        of records held, the screen, and the
+        explanation. Registering runs no live session
+        and reads no file.
+        """
+        from ..core import long_session_endurance as endurance_module
+        validated = endurance_module.build_book(book)
+        registry = self._long_session_endurance_registry()
+        registry.register_book(validated)
+        records = [
+            endurance_module.endurance_record(record)
+            for record in validated.records]
+        for record_news in records:
+            self._publish_endurance_record(record_news)
+        panel_news = endurance_module.panel_record(
+            endurance_module.derive_panel(validated))
+        self._publish_endurance_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "records": [
+                item.to_record() for item in validated.records],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": self._long_session_endurance_screen(),
+            "explanation": endurance_module.PLAIN_EXPLANATION,
+        }
+
+    def record_endurance_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole endurance book for the session (M-161).
+
+        With no book named, the shipped example
+        endurance book is recorded through the pure
+        layer - five measurements at the M-160 slice
+        boundary, with its one pinned panel. A book
+        loaded from a file (the pure layer's
+        ``load_long_session_endurance_file`` road) may
+        be passed instead, so a real endurance book is
+        recorded as it stands. Every record is held
+        and published as its ``endurance_record``
+        session news, in book order, and the endurance
+        panel as its ``panel_record`` session news; the
+        book is remembered whole as the session's - its
+        held panel and all - and the same book recorded
+        twice refuses - fingerprinted on its record ids
+        and title - a book is recorded once, never
+        duplicated into the session. Returns the held
+        book, its records, their news records, the
+        panel news record, the count, the screen, and
+        the explanation. Recording runs no live session.
+        """
+        from ..core import long_session_endurance as endurance_module
+        book = book if book is not None \
+            else endurance_module.load_long_session_endurance()
+        validated = endurance_module.build_book(book)
+        fingerprint = (tuple(validated.record_ids()), validated.title)
+        recorded = getattr(self, "_long_session_endurance_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._long_session_endurance_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this endurance book is already recorded for "
+                "the session; a book is recorded once")
+        registry = self._long_session_endurance_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._long_session_endurance_held = validated
+        records = [
+            endurance_module.endurance_record(record)
+            for record in validated.records]
+        for record_news in records:
+            self._publish_endurance_record(record_news)
+        panel_news = endurance_module.panel_record(
+            endurance_module.derive_panel(validated))
+        self._publish_endurance_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "records": [
+                item.to_record() for item in validated.records],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": endurance_module.format_long_session_endurance_screen(
+                validated),
+            "explanation": endurance_module.PLAIN_EXPLANATION,
+        }
+
+    def report_long_session_endurance(self) -> dict[str, Any]:
+        """Render the session endurance book, as a report (M-161).
+
+        The book - the held registry's book when the
+        session holds any record, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - is rendered through the pure
+        formatters alone: its records, its derived
+        panel, its derived verdict and its one screen.
+        Rendering registers and publishes nothing, runs
+        no live session and reads no file: the agent
+        layer renders the book as data. Returns the
+        book, its records and panels as plain records,
+        the derived panel and verdict, the rendered
+        records, panel and verdict, the screen, and
+        the plain explanation.
+        """
+        from ..core import long_session_endurance as endurance_module
+        book = self.long_session_endurance_book()
+        return {
+            "book": book.to_record(),
+            "records": [item.to_record() for item in book.records],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (endurance_module.derive_panel(book).to_record()
+                      if book.records else None),
+            "verdict": (
+                endurance_module.derive_verdict(book).to_record()
+                if book.records else None),
+            "records_text": endurance_module.format_endurance_records(book),
+            "panel_text": endurance_module.format_panel(book),
+            "verdict_text": endurance_module.format_verdict(book),
+            "screen": self._long_session_endurance_screen(),
+            "explanation": endurance_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_endurance_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one long-session endurance record as session news (M-161).
+
+        The pure layer's ``endurance_record``,
+        ``panel_record`` and ``verdict_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most once
+        per shape: a record under its own record id,
+        kind and reference, a panel under its whole
+        derived shape (its rows and tallies), and a
+        verdict under its word and worst record, so a
+        panel or verdict grown by a newly held record
+        announces again as the new figure it is. A
+        foreign record type is never published on this
+        road.
+        """
+        if record.get("type") == "long_session_endurance_record":
+            key = ("long_session_endurance_record",
+                   record.get("record_id"),
+                   record.get("kind"),
+                   record.get("ref"))
+        elif record.get("type") == "long_session_endurance_panel":
+            key = ("long_session_endurance_panel", record.get("panel_id"),
+                   tuple(row.get("record_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_records"),
+                   record.get("total_over"))
+        elif record.get("type") == "long_session_endurance_verdict":
+            key = ("long_session_endurance_verdict",
+                   record.get("verdict"),
+                   record.get("worst_record_id"),
+                   record.get("worst_over_by"))
+        else:
+            return
+        announced = getattr(self, "_long_session_endurance_announced", None)
+        if announced is None:
+            announced = set()
+            self._long_session_endurance_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""

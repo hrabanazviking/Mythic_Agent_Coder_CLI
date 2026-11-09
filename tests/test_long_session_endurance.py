@@ -638,3 +638,388 @@ def test_parse_endurance_args():
         parse_endurance_args("kind disk-io")
     with pytest.raises(ValueError):
         parse_endurance_args(42)
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-161 agent layer: the agent holds an
+# EnduranceRegistry for the session (session state
+# only, no new setting), records are held by being
+# registered - published as their endurance_record
+# session news with the derived panel_record and
+# verdict_record, through the checkpoint road, deduped
+# per shape - the report road renders the held book
+# (or the shipped example when unheld) through the
+# pure formatters, an endurance road reads the
+# session's session-memory book onto endurance
+# records and holds them (mutating no live memory),
+# and the /endurance surface rides both roads on the
+# pure parser + formatters. Status, get, panel,
+# verdict and report reads register and publish
+# nothing, answer from the held registry first and
+# from the shipped example only while nothing is
+# held - a held session never falls back to the
+# example. The panel and the verdict derive at call
+# time from the whole book, never held. This layer
+# runs no live session, appends to no live journal,
+# times no live retrieval, calls no model and
+# persists nothing beyond the session journal news,
+# and there is no Part VIII board yet, so the screen
+# is where the book is visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _endurance_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_endurance_book(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data"
+           / "long_session_endurance.yaml").read_text(encoding="utf-8")
+    path = tmp_path / "long_session_endurance.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestEnduranceAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.long_session_endurance_status()
+        assert status["records"] == []
+        assert status["book"] is None
+        assert status["enduring"]["title"] == EXAMPLE_TITLE
+        assert len(status["enduring"]["records"]) == 5
+        assert status["panel"]["total_records"] == 5
+        assert status["panel"]["total_over"] == 1
+        assert status["panels"][0]["panel_id"] == "panel-m160-boundary"
+        assert status["book_record"]["record_count"] == 5
+        assert status["verdict"]["verdict"] == "strained"
+        assert status["verdict"]["worst_record_id"] == (
+            "endurance-response-m160")
+        assert status["verdict"]["worst_over_by"] == 140
+        assert "Long-Session Endurance (M-161)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._long_session_endurance_registry()
+        assert agent._long_session_endurance_registry() is first
+        assert agent._long_session_endurance_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.long_session_endurance_status()
+        agent.get_endurance_record("endurance-response-m160")
+        agent.long_session_endurance_panel()
+        agent.long_session_endurance_verdict()
+        agent.report_long_session_endurance()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("long_session_endurance")] == []
+        agent.close()
+
+    def test_unheld_reads_raise(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_endurance_record("endurance-nope")
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_endurance_record(_record())
+        status = agent.long_session_endurance_status()
+        assert [item["record_id"] for item in status["records"]] == [
+            "endurance-test"]
+        assert status["book"]["title"] == "Long-session endurance"
+        assert status["panel"]["total_records"] == 1
+        assert status["verdict"]["verdict"] == "enduring"
+
+    def test_held_session_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_endurance_record(_record())
+        with pytest.raises(KeyError):
+            agent.get_endurance_record("endurance-response-m160")
+        record = agent.get_endurance_record("endurance-test")
+        assert record.subject == "the test session, at 120 turns"
+        assert agent.long_session_endurance_book().title == (
+            "Long-session endurance")
+
+
+class TestEnduranceAgentHolding:
+    def test_register_record_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_endurance_record(_record())
+        assert outcome["record"]["record_id"] == "endurance-test"
+        assert outcome["record_news"]["type"] == (
+            "long_session_endurance_record")
+        events = _endurance_events(
+            store, session_id, "long_session_endurance_record")
+        assert len(events) == 1
+        assert events[0]["record_id"] == "endurance-test"
+        agent._publish_endurance_record(outcome["record_news"])
+        assert len(_endurance_events(
+            store, session_id, "long_session_endurance_record")) == 1
+        agent._publish_endurance_record(
+            {"type": "mentions_mention", "mention_id": "mention-x"})
+        agent._publish_endurance_record(
+            book_record(load_long_session_endurance()))
+        for kind in ("mentions_mention", "long_session_endurance_book"):
+            assert _endurance_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_duplicate_record_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_endurance_record(_record())
+        with pytest.raises(ValueError):
+            agent.register_endurance_record(_record())
+        with pytest.raises(ValueError):
+            agent.register_endurance_record(
+                _record(record_id="endurance-copy"))
+        assert len(_endurance_events(
+            store, session_id, "long_session_endurance_record")) == 1
+        agent.close()
+
+    def test_endurance_from_session_memory_carries_refs_only(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        memory_book = agent.session_memory_book()
+        situations = list(memory_book.situations)
+        expected = len(situations)
+        outcome = agent.endurance_from_session_memory(
+            budget=500, recorded_by="Volmarr",
+            recorded_on="2026-11-08")
+        assert outcome["count"] == expected
+        assert outcome["total_over"] == 0
+        assert outcome["records"][0]["ref"] == (
+            situations[0].session_ref)
+        assert outcome["records"][0]["measured"] == (
+            situations[0].transcript_messages)
+        assert outcome["records"][0]["kind"] == "session-length"
+        events = _endurance_events(
+            store, session_id, "long_session_endurance_record")
+        assert len(events) == expected
+        assert len(_endurance_events(
+            store, session_id, "long_session_endurance_panel")) == 1
+        assert len(_endurance_events(
+            store, session_id, "long_session_endurance_verdict")) == 1
+        blob = str(events) + str(outcome["records"])
+        for situation in situations:
+            assert situation.title not in blob
+            assert situation.workspace not in blob
+        # Measuring mutated no live memory: the
+        # session's memory book stands whole.
+        assert agent.session_memory_book().situations == (
+            memory_book.situations)
+        assert agent.long_session_endurance_panel().total_records == (
+            expected)
+        with pytest.raises(ValueError):
+            agent.endurance_from_session_memory(
+                budget=500, recorded_by="Volmarr",
+                recorded_on="2026-11-08")
+        agent.close()
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent):
+        book = _book()
+        outcome = agent.register_endurance_book(book)
+        assert outcome["count"] == 1
+        assert [item["type"] for item in outcome["records_news"]] == [
+            "long_session_endurance_record"]
+        assert agent.long_session_endurance_book().title == (
+            "A test endurance book")
+
+    def test_register_book_twice_refuses(self, agent):
+        agent.register_endurance_book(load_long_session_endurance())
+        with pytest.raises(ValueError):
+            agent.register_endurance_book(load_long_session_endurance())
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_endurance_book()
+        assert outcome["count"] == 5
+        assert outcome["book"]["title"] == EXAMPLE_TITLE
+        assert len(_endurance_events(
+            store, session_id, "long_session_endurance_record")) == 5
+        assert len(_endurance_events(
+            store, session_id, "long_session_endurance_panel")) == 1
+        assert agent.long_session_endurance_book().panels[0].panel_id == (
+            "panel-m160-boundary")
+        agent.close()
+
+    def test_record_same_book_twice_refuses(self, agent):
+        agent.record_endurance_book()
+        with pytest.raises(ValueError):
+            agent.record_endurance_book()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_endurance_book(tmp_path)
+        book = load_long_session_endurance_file(path)
+        outcome = agent.record_endurance_book(book)
+        assert outcome["count"] == 5
+        assert agent.get_endurance_record(
+            "endurance-retrieval-m160").kind == "retrieval"
+
+    def test_report_renders_the_example_when_unheld(self, agent):
+        report = agent.report_long_session_endurance()
+        assert report["book"]["record_count"] == 5
+        assert "endurance-session-m160" in report["records_text"]
+        assert "Endurance panel in Long-session endurance" in (
+            report["panel_text"])
+        assert "strained" in report["verdict_text"]
+        assert "endurance-response-m160" in report["verdict_text"]
+
+    def test_report_renders_the_held_book_only(self, agent):
+        agent.register_endurance_record(_record())
+        report = agent.report_long_session_endurance()
+        assert report["book"]["title"] == "Long-session endurance"
+        assert "endurance-session-m160" not in report["records_text"]
+        assert "endurance-test" in report["records_text"]
+        assert "enduring" in report["verdict_text"]
+
+    def test_report_registers_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.report_long_session_endurance()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("long_session_endurance")] == []
+        agent.close()
+
+    def test_no_live_session_journal_or_persist_road(
+            self, agent, tmp_path):
+        # This layer holds endurance as data: it runs
+        # no live session, appends to no live journal,
+        # times no live retrieval, calls no model and
+        # persists nothing - and there is no Part VIII
+        # board yet. Holding, recording or measuring
+        # changes no workspace file and no built
+        # context.
+        assert not hasattr(agent, "apply_long_session_endurance")
+        assert not hasattr(agent, "run_long_session_endurance")
+        assert not hasattr(agent, "persist_long_session_endurance")
+        assert not hasattr(agent, "long_session_endurance_board")
+        (tmp_path / "alpha.py").write_text(
+            "def greet(name):\n    return name\n", encoding="utf-8")
+        before = {
+            p.name: p.read_bytes()
+            for p in tmp_path.glob("*.py")}
+        from mythic_agent.agents.context import ContextBuilder
+        builder = ContextBuilder(max_tokens=4000)
+        builder.add_system("You are the coder.")
+        builder.add_turn("user", "Build the slice.")
+        built_before = builder.build()
+        agent.register_endurance_record(_record())
+        agent.record_endurance_book()
+        agent.endurance_from_session_memory(
+            budget=500, recorded_by="Volmarr",
+            recorded_on="2026-11-08")
+        assert builder.build() == built_before
+        assert {
+            p.name: p.read_bytes()
+            for p in tmp_path.glob("*.py")} == before
+
+
+class TestEnduranceTerminalSurface:
+    def test_show_record_kind_panel_verdict(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/endurance")
+        assert "Long-Session Endurance (M-161)" in text
+        _, _, text = _slash(
+            agent, "/endurance record endurance-journal-m160")
+        assert "journal-session-store" in text
+        _, _, text = _slash(agent, "/endurance kind retrieval")
+        assert "endurance-retrieval-m160" in text
+        assert "endurance-session-m160" not in text
+        _, _, text = _slash(agent, "/endurance panel")
+        assert "Endurance panel in Long-session endurance" in text
+        _, _, text = _slash(agent, "/endurance verdict")
+        assert "strained" in text
+        assert "endurance-response-m160" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/endurance [show|record <record-id>"
+                "|kind <kind>|panel|verdict]") in text
+        _, _, text = _slash(agent, "/endurance dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/endurance record endurance-nope")
+        assert "no endurance record in the book" in text
+
+
+@pytest.fixture()
+def endurance_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _endurance_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestEnduranceCommand:
+    def test_show_is_default(self, endurance_handler, agent):
+        endurance_handler._handle_endurance("")
+        assert "Long-Session Endurance (M-161)" in (
+            _endurance_published_text(endurance_handler))
+
+    def test_record_kind_panel_verdict(self, endurance_handler, agent):
+        endurance_handler._handle_endurance(
+            "record endurance-journal-m160")
+        assert "journal-session-store" in (
+            _endurance_published_text(endurance_handler))
+        endurance_handler._handle_endurance("kind retrieval")
+        assert "endurance-retrieval-m160" in (
+            _endurance_published_text(endurance_handler))
+        endurance_handler._handle_endurance("panel")
+        assert "Endurance panel in Long-session endurance" in (
+            _endurance_published_text(endurance_handler))
+        endurance_handler._handle_endurance("verdict")
+        assert "strained" in (
+            _endurance_published_text(endurance_handler))
+
+    def test_bad_grammar_is_published(self, endurance_handler, agent):
+        endurance_handler._handle_endurance("dance party")
+        assert USAGE in _endurance_published_text(endurance_handler)
+
+
+class TestChatScreenRoutingEndurance:
+    def test_endurance_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command(
+            "/endurance record endurance-journal-m160", _FakeLog())
+        assert calls == [("/endurance",
+                          "record endurance-journal-m160")]
