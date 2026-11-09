@@ -29020,6 +29020,502 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _subconscious_registry(self):
+        """The held subconscious v2 registry (M-165).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer memories one by one,
+        beside the session memory import/export
+        registry (M-164) and never in it: the
+        subconscious book is one book of memories
+        earned with their provenance whole. It is
+        created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly
+        one. The attribute is named
+        ``_subconscious_store``, never the method's
+        own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_subconscious_store", None)
+        if registry is None:
+            from ..core.subconscious_v2 import SubconsciousRegistry
+            registry = SubconsciousRegistry()
+            self._subconscious_store = registry
+        return registry
+
+    def subconscious_book(self):
+        """The session's subconscious book, as data (M-165).
+
+        The held registry's book when the session
+        holds any memory - the memories the session
+        has actually earned (memories held one by
+        one, before any whole book stands recorded,
+        stand under a session subconscious book
+        composed here in the agent layer, so a later
+        whole book recorded under its own title is
+        never refused by a shim title at the registry)
+        - otherwise the book recorded whole through
+        :meth:`record_subconscious_book`, or the
+        shipped example subconscious book until one
+        is recorded. Reading registers and publishes
+        nothing.
+        """
+        from ..core.subconscious_v2 import (
+            SubconsciousBook, load_subconscious_v2)
+        registry = self._subconscious_registry()
+        if registry.list_memories():
+            try:
+                book = registry.book()
+            except ValueError:
+                return SubconsciousBook(
+                    title="The subconscious v2",
+                    memories=registry.list_memories())
+            held = getattr(self, "_subconscious_held", None)
+            if held is not None and held.title == book.title \
+                    and held.memory_ids() == book.memory_ids():
+                return held
+            return book
+        book = getattr(self, "_subconscious_held", None)
+        if book is None:
+            return load_subconscious_v2()
+        return book
+
+    def _subconscious_screen(self) -> str:
+        """The /subconscious screen for the session's state (M-165)."""
+        from ..core import subconscious_v2 as sub_module
+        registry = self._subconscious_registry()
+        if not registry.list_memories():
+            return sub_module.format_subconscious_screen()
+        return sub_module.format_subconscious_screen(
+            self.subconscious_book())
+
+    def subconscious_status(self) -> dict[str, Any]:
+        """The subconscious v2 account, in plain data (M-165).
+
+        The memories held this session as plain
+        records, the held book's record (none until a
+        memory stands held), the session subconscious
+        book's memories as plain records (the shipped
+        example book - six memories at the M-164
+        slice boundary, three fresh in the core layer
+        and one fading, one stale and one faded in
+        the subconscious - until memories are held),
+        its whole-book record, the subconscious panel
+        derived from the whole book and every panel
+        the book holds as plain records, the freshness
+        verdict derived for the whole book, the latest
+        memory in plain words, the panel and the
+        verdict told in plain words, the one screen -
+        rendered from the held book, or from the
+        shipped example book when nothing is held yet
+        - and the plain explanation. Reading registers
+        and publishes nothing, sends nothing and
+        schedules nothing: this layer holds memories
+        as data only. There is no Part VIII board yet;
+        the screen is where the book is visible.
+        """
+        from ..core import subconscious_v2 as sub_module
+        registry = self._subconscious_registry()
+        held_memories = registry.list_memories()
+        book = self.subconscious_book()
+        latest = book.memories[-1]
+        return {
+            "memories": [item.to_record() for item in held_memories],
+            "book": (book.to_record() if held_memories else None),
+            "memory": {
+                "title": book.title,
+                "memories": [item.to_record() for item in book.memories],
+            },
+            "book_record": sub_module.book_record(book),
+            "panel": (sub_module.derive_panel(book).to_record()
+                      if book.memories else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (
+                sub_module.derive_verdict(book).to_record()
+                if book.memories else None),
+            "plain_words": sub_module.plain_words(latest),
+            "panel_plain_words": (
+                sub_module.panel_plain_words(book)
+                if book.memories else ""),
+            "verdict_plain_words": (
+                sub_module.verdict_plain_words(book)
+                if book.memories else ""),
+            "screen": self._subconscious_screen(),
+            "explanation": sub_module.PLAIN_EXPLANATION,
+        }
+
+    def get_subconscious_memory(self, memory_id: Any):
+        """The one memory an id names (M-165).
+
+        The session's held registry answers when the
+        session holds any memory; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held
+        memory answers for its own book alone: an id
+        the held book holds no memory for raises
+        KeyError, with no silent fall back to the
+        example, exactly as the pure layer answers.
+        Reading registers and publishes nothing.
+        """
+        registry = self._subconscious_registry()
+        if registry.list_memories():
+            return registry.get_memory(memory_id)
+        return self.subconscious_book().memory_for(memory_id)
+
+    def subconscious_panel(self, as_of: Any = None):
+        """The subconscious panel derived for the whole book (M-165)."""
+        from ..core.subconscious_v2 import derive_panel as _derive_panel
+        return _derive_panel(self.subconscious_book(), as_of)
+
+    def subconscious_verdict(self, as_of: Any = None):
+        """The freshness verdict derived for the whole book (M-165)."""
+        from ..core.subconscious_v2 import (
+            derive_verdict as _derive_verdict)
+        return _derive_verdict(self.subconscious_book(), as_of)
+
+    def register_subconscious_memory(
+            self, memory: Any) -> dict[str, Any]:
+        """Hold one subconscious memory for the session (M-165).
+
+        The memory is held by the pure registry under
+        its id or the deterministic memory-N id - a
+        memory id already standing here refuses, as
+        does a memory earned from a held piece (one
+        earning per piece); a refusal holds nothing
+        new and publishes nothing. A held memory is
+        published as its ``memory_record`` session-news
+        record through the checkpoint road. Returns
+        the held memory, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a memory writes no live
+        memory: the registry holds the memory as data,
+        provenance whole.
+        """
+        from ..core import subconscious_v2 as sub_module
+        registry = self._subconscious_registry()
+        held = registry.register_memory(memory)
+        record_news = sub_module.memory_record(held)
+        self._publish_subconscious_record(record_news)
+        return {
+            "memory": held.to_record(),
+            "record_news": record_news,
+            "screen": self._subconscious_screen(),
+            "explanation": sub_module.PLAIN_EXPLANATION,
+        }
+
+    def harvest_subconscious_memories(
+            self, *, origin_session: Any, earned_on: Any,
+            recorded_by: Any) -> dict[str, Any]:
+        """Earn this session's holdings into v2 memories (M-165).
+
+        This slice's own composing road: the session's
+        project memory map book (M-150), session-memory
+        book (M-153), self-improving ledger book
+        (M-155), cross-project book (M-154) and crew
+        memory (M-133) are read onto v2 memories BY
+        IMPORT through the pure layer's bulk roads -
+        each piece judged by its own layer's
+        validation, its id alone standing as the
+        memory's provenance ref - and every newly
+        earned memory is held and published as its
+        ``memory_record`` session news, with the
+        subconscious panel derived from the whole
+        held registry as its ``panel_record`` session
+        news and the freshness verdict derived for
+        the whole held registry as its
+        ``verdict_record`` session news. A piece
+        already earned here is skipped, never earned
+        twice, so a second harvest earns only what is
+        new. Returns the newly held memories, their
+        news records, the panel and verdict news
+        records, the counts earned and skipped, the
+        screen, and the explanation. Harvesting
+        mutates no live holding - every shipped book
+        stands exactly as it stood.
+        """
+        from ..core import subconscious_v2 as sub_module
+        earned = dict(origin_session=origin_session,
+                      earned_on=earned_on, recorded_by=recorded_by)
+        candidates = []
+        candidates.extend(sub_module.memories_from_memory_map(
+            self.project_memory_map_book(), **earned))
+        candidates.extend(sub_module.memories_from_session_memory(
+            self.session_memory_book(), **earned))
+        candidates.extend(sub_module.memories_from_ledger(
+            self.self_improving_book(), **earned))
+        candidates.extend(sub_module.memories_from_cross_project(
+            self.cross_project_book(), **earned))
+        candidates.extend(sub_module.memories_from_crew_memory(
+            self.crew_memory(), **earned))
+        registry = self._subconscious_registry()
+        held_refs = {
+            (m.source_kind, m.source_ref) for m in registry.list_memories()}
+        held_ids = {m.memory_id for m in registry.list_memories()}
+        fresh = []
+        skipped = 0
+        for candidate in candidates:
+            key = (candidate.source_kind, candidate.source_ref)
+            if key in held_refs or candidate.memory_id in held_ids:
+                skipped += 1
+                continue
+            held_refs.add(key)
+            held_ids.add(candidate.memory_id)
+            fresh.append(candidate)
+        records = []
+        held_fresh = []
+        for candidate in fresh:
+            held = registry.register_memory(candidate)
+            held_fresh.append(held)
+            record_news = sub_module.memory_record(held)
+            records.append(record_news)
+            self._publish_subconscious_record(record_news)
+        panel_news = None
+        verdict_news = None
+        if registry.list_memories():
+            panel_news = sub_module.panel_record(
+                sub_module.derive_panel(registry))
+            self._publish_subconscious_record(panel_news)
+            verdict_news = sub_module.verdict_record(
+                sub_module.derive_verdict(registry))
+            self._publish_subconscious_record(verdict_news)
+        return {
+            "memories": [m.to_record() for m in held_fresh],
+            "records_news": records,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "count": len(records),
+            "skipped": skipped,
+            "screen": self._subconscious_screen(),
+            "explanation": sub_module.PLAIN_EXPLANATION,
+        }
+
+    def reearn_subconscious_memory(
+            self, memory_id: Any, *, on: Any) -> dict[str, Any]:
+        """Re-earn one held subconscious memory (M-165).
+
+        The re-earning road: the held memory is
+        re-earned through the pure registry - same
+        provenance, same confidence it was earned
+        with, its decay clock reset to *on* and its
+        re-earn count grown - and published as its
+        ``memory_record`` session news, with the
+        subconscious panel derived from the whole
+        held registry as its ``panel_record`` session
+        news. An id no held memory carries raises
+        KeyError, and a day before the memory's last
+        earning refuses, exactly as the pure layer
+        answers. Returns the re-earned memory, its
+        news record, the panel news record, the
+        screen, and the explanation.
+        """
+        from ..core import subconscious_v2 as sub_module
+        registry = self._subconscious_registry()
+        renewed = registry.reearn_memory(memory_id, on=on)
+        record_news = sub_module.memory_record(renewed)
+        self._publish_subconscious_record(record_news)
+        panel_news = sub_module.panel_record(
+            sub_module.derive_panel(registry))
+        self._publish_subconscious_record(panel_news)
+        return {
+            "memory": renewed.to_record(),
+            "record_news": record_news,
+            "panel_record": panel_news,
+            "screen": self._subconscious_screen(),
+            "explanation": sub_module.PLAIN_EXPLANATION,
+        }
+
+    def register_subconscious_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole subconscious book for the session (M-165).
+
+        Every memory of the book is held by the pure
+        registry, in book order - the book is judged
+        whole, and against the held book, before any
+        memory is held, so a refusal holds nothing
+        new. The first book held sets the registry's
+        title, a later book under a different title
+        refuses, as does a book naming a held memory
+        id or a held piece. The book's panels are
+        derivations, not holdings, and are not held.
+        Every memory is published as its
+        ``memory_record`` session news, in book order,
+        and the subconscious panel derived from the
+        whole book as its ``panel_record`` session
+        news. Returns the held book, its memories,
+        their news records, the panel news record,
+        the count of memories held, the screen, and
+        the explanation. Registering reads no file
+        and writes no live memory.
+        """
+        from ..core import subconscious_v2 as sub_module
+        validated = sub_module.build_book(book)
+        registry = self._subconscious_registry()
+        registry.register_book(validated)
+        records = [
+            sub_module.memory_record(memory)
+            for memory in validated.memories]
+        for record_news in records:
+            self._publish_subconscious_record(record_news)
+        panel_news = sub_module.panel_record(
+            sub_module.derive_panel(validated))
+        self._publish_subconscious_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "memories": [
+                item.to_record() for item in validated.memories],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": self._subconscious_screen(),
+            "explanation": sub_module.PLAIN_EXPLANATION,
+        }
+
+    def record_subconscious_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole subconscious book for the session (M-165).
+
+        With no book named, the shipped example
+        subconscious book is recorded through the
+        pure layer - six memories at the M-164 slice
+        boundary, with its one pinned panel. A book
+        loaded from a file (the pure layer's
+        ``load_subconscious_v2_file`` road) may be
+        passed instead. The book is judged whole
+        before anything is held. Every memory is
+        held and published as its ``memory_record``
+        session news, in book order, and the
+        subconscious panel as its ``panel_record``
+        session news; the book is remembered whole as
+        the session's - its held panel and all - and
+        the same book recorded twice refuses -
+        fingerprinted on its memory ids and title.
+        Returns the held book, its memories, their
+        news records, the panel news record, the
+        count, the screen, and the explanation.
+        Recording writes no live memory.
+        """
+        from ..core import subconscious_v2 as sub_module
+        book = book if book is not None \
+            else sub_module.load_subconscious_v2()
+        validated = sub_module.build_book(book)
+        fingerprint = (tuple(validated.memory_ids()), validated.title)
+        recorded = getattr(self, "_subconscious_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._subconscious_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this subconscious book is already recorded "
+                "for the session; a book is recorded once")
+        registry = self._subconscious_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._subconscious_held = validated
+        records = [
+            sub_module.memory_record(memory)
+            for memory in validated.memories]
+        for record_news in records:
+            self._publish_subconscious_record(record_news)
+        panel_news = sub_module.panel_record(
+            sub_module.derive_panel(validated))
+        self._publish_subconscious_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "memories": [
+                item.to_record() for item in validated.memories],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(records),
+            "screen": sub_module.format_subconscious_screen(validated),
+            "explanation": sub_module.PLAIN_EXPLANATION,
+        }
+
+    def report_subconscious(self, as_of: Any = None) -> dict[str, Any]:
+        """Render the session subconscious book, as a report (M-165).
+
+        The book - the held registry's book when the
+        session holds any memory, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone, as of *as_of* (the
+        book's own latest day when none is named).
+        Rendering registers and publishes nothing and
+        reads no file. Returns the book, its memories
+        and panels as plain records, the derived panel
+        and freshness verdict, the rendered memories,
+        panel and verdict, the screen, and the plain
+        explanation.
+        """
+        from ..core import subconscious_v2 as sub_module
+        book = self.subconscious_book()
+        return {
+            "book": book.to_record(),
+            "memories": [item.to_record() for item in book.memories],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (sub_module.derive_panel(book, as_of).to_record()
+                      if book.memories else None),
+            "verdict": (
+                sub_module.derive_verdict(book, as_of).to_record()
+                if book.memories else None),
+            "memories_text": sub_module.format_memories(book),
+            "panel_text": sub_module.format_panel(book, as_of),
+            "verdict_text": sub_module.format_verdict(book, as_of),
+            "screen": self._subconscious_screen(),
+            "explanation": sub_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_subconscious_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one subconscious record as session news (M-165).
+
+        The pure layer's ``memory_record``,
+        ``panel_record`` and ``verdict_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once per shape: a memory under its own memory
+        id, source and last-earned day (so a re-earned
+        memory announces again as the renewed memory
+        it is), a panel under its whole derived shape,
+        and a verdict under its word and tallies, so a
+        panel or verdict grown by a newly held memory
+        announces again as the new figure it is. A
+        foreign record type is never published on this
+        road.
+        """
+        if record.get("type") == "subconscious_v2_memory":
+            key = ("subconscious_v2_memory",
+                   record.get("memory_id"),
+                   record.get("source_kind"),
+                   record.get("source_ref"),
+                   record.get("last_earned_on"),
+                   record.get("reearn_count"))
+        elif record.get("type") == "subconscious_v2_panel":
+            key = ("subconscious_v2_panel", record.get("panel_id"),
+                   record.get("as_of"),
+                   tuple(row.get("memory_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_memories"))
+        elif record.get("type") == "subconscious_v2_verdict":
+            key = ("subconscious_v2_verdict",
+                   record.get("verdict"),
+                   record.get("as_of"),
+                   record.get("total_fresh"),
+                   record.get("total_fading"),
+                   record.get("total_stale"),
+                   record.get("total_faded"))
+        else:
+            return
+        announced = getattr(self, "_subconscious_announced", None)
+        if announced is None:
+            announced = set()
+            self._subconscious_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):

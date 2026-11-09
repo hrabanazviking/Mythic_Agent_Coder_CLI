@@ -585,3 +585,456 @@ def test_parse_subconscious_args_grammar():
                 "panel now", "dream", None.__class__ and 42):
         with pytest.raises(ValueError):
             parse_subconscious_args(bad)
+
+
+# -- agent layer -----------------------------------------------------------
+#
+# M-165 agent layer: the agent holds a
+# SubconsciousRegistry for the session (session
+# state only, no new setting), memories are held by
+# being registered - published as their memory_record
+# session news through the checkpoint road, deduped
+# per shape - the report road renders the held book
+# (or the shipped example when unheld) through the
+# pure formatters, a harvest road earns the session's
+# map + session + ledger + cross-project + crew
+# holdings onto v2 memories by import (ids only
+# across the seams, mutating no live holding), a
+# re-earn road resets one held memory's decay clock
+# at the same trust, and the /subconscious surface
+# rides both roads on the pure parser + formatters.
+# Status, get, panel, verdict and report reads
+# register and publish nothing, answer from the held
+# registry first and from the shipped example only
+# while nothing is held - a held memory never falls
+# back to the example. The panel and the verdict
+# derive at call time from the whole book, never
+# held. This layer sends nothing, posts nothing,
+# schedules nothing, calls no model, persists
+# nothing beyond the session journal news and writes
+# no live memory, and there is no Part VIII board
+# yet, so the screen is where the book is visible.
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _subconscious_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _book(memories=None, **overrides):
+    fields = {
+        "title": "A test subconscious book",
+        "memories": [_stored_memory(item) for item in (
+            memories if memories is not None else [_memory()])],
+    }
+    fields.update(overrides)
+    return build_book(fields)
+
+
+def _write_subconscious_book(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data"
+           / "subconscious_v2.yaml").read_text(encoding="utf-8")
+    path = tmp_path / "subconscious_v2.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestSubconsciousAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.subconscious_status()
+        assert status["memories"] == []
+        assert status["book"] is None
+        assert status["memory"]["title"] == EXAMPLE_TITLE
+        assert len(status["memory"]["memories"]) == 6
+        assert status["panel"]["total_memories"] == 6
+        assert status["panel"]["total_core"] == 3
+        assert status["panel"]["total_subconscious"] == 3
+        assert status["panels"][0]["panel_id"] == "panel-m164-boundary"
+        assert status["book_record"]["memory_count"] == 6
+        assert status["verdict"]["verdict"] == "neglected"
+        assert status["verdict"]["total_fresh"] == 3
+        assert status["verdict"]["total_faded"] == 1
+        assert status["verdict"]["distinct_sources"] == 6
+        assert "the two roads" in status["plain_words"]
+        assert "neglected" in status["verdict_plain_words"]
+        assert "The Subconscious v2 (M-165)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._subconscious_registry()
+        assert agent._subconscious_registry() is first
+        assert agent._subconscious_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.subconscious_status()
+        agent.get_subconscious_memory("memory-two-roads")
+        agent.subconscious_panel()
+        agent.subconscious_verdict()
+        agent.report_subconscious()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("subconscious_v2")] == []
+        with pytest.raises(KeyError):
+            agent.get_subconscious_memory("memory-nope")
+        agent.close()
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_subconscious_memory(_memory())
+        status = agent.subconscious_status()
+        assert [item["memory_id"] for item in status["memories"]] == [
+            "memory-test"]
+        assert status["book"]["title"] == "The subconscious v2"
+        assert status["panel"]["total_memories"] == 1
+        assert status["verdict"]["verdict"] == "well-kept"
+
+    def test_held_memory_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_subconscious_memory(_memory())
+        with pytest.raises(KeyError):
+            agent.get_subconscious_memory("memory-two-roads")
+        memory = agent.get_subconscious_memory("memory-test")
+        assert memory.title == "the test memory, earned by hand"
+        assert agent.subconscious_book().title == (
+            "The subconscious v2")
+
+
+class TestSubconsciousAgentHolding:
+    def test_register_memory_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.register_subconscious_memory(_memory())
+        assert outcome["memory"]["memory_id"] == "memory-test"
+        assert outcome["record_news"]["type"] == (
+            "subconscious_v2_memory")
+        events = _subconscious_events(
+            store, session_id, "subconscious_v2_memory")
+        assert len(events) == 1
+        assert events[0]["memory_id"] == "memory-test"
+        agent._publish_subconscious_record(outcome["record_news"])
+        assert len(_subconscious_events(
+            store, session_id, "subconscious_v2_memory")) == 1
+        agent._publish_subconscious_record(
+            {"type": "mentions_mention", "mention_id": "mention-x"})
+        agent._publish_subconscious_record(
+            book_record(load_subconscious_v2()))
+        for kind in ("mentions_mention", "subconscious_v2_book"):
+            assert _subconscious_events(store, session_id, kind) == []
+        agent.close()
+
+    def test_duplicate_memory_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_subconscious_memory(_memory())
+        with pytest.raises(ValueError):
+            agent.register_subconscious_memory(_memory())
+        with pytest.raises(ValueError, match="earned twice"):
+            agent.register_subconscious_memory(_memory(
+                memory_id="memory-copy"))
+        assert len(_subconscious_events(
+            store, session_id, "subconscious_v2_memory")) == 1
+        agent.close()
+
+    def test_harvest_earns_the_session_holdings_by_id_only(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        map_before = agent.project_memory_map_book()
+        ledger_before = agent.self_improving_book()
+        outcome = agent.harvest_subconscious_memories(
+            origin_session="session-harvest",
+            earned_on="2026-11-09", recorded_by="Volmarr")
+        assert outcome["count"] == 21
+        assert outcome["skipped"] == 0
+        assert [item["type"] for item in outcome["records_news"]] == [
+            "subconscious_v2_memory"] * 21
+        assert outcome["panel_record"]["type"] == (
+            "subconscious_v2_panel")
+        assert outcome["verdict_record"]["type"] == (
+            "subconscious_v2_verdict")
+        assert {item["source_kind"] for item in outcome["memories"]} == {
+            "memory-map", "session-note", "ledger-candidate",
+            "cross-project-lesson", "crew-fact"}
+        assert len(_subconscious_events(
+            store, session_id, "subconscious_v2_memory")) == 21
+        assert len(_subconscious_events(
+            store, session_id, "subconscious_v2_panel")) == 1
+        assert len(_subconscious_events(
+            store, session_id, "subconscious_v2_verdict")) == 1
+        blob = str(outcome["records_news"]) + str(outcome["memories"])
+        for entry in map_before.entries:
+            assert entry.title not in blob
+            assert entry.detail not in blob
+        for candidate in ledger_before.candidates:
+            assert candidate.title not in blob
+            assert candidate.detail not in blob
+        # Harvesting mutates no live holding.
+        assert agent.project_memory_map_book().entry_ids() == (
+            map_before.entry_ids())
+        assert agent.self_improving_book().candidate_ids() == (
+            ledger_before.candidate_ids())
+        assert agent.subconscious_panel().total_memories == 21
+        # A second harvest earns only what is new: nothing.
+        second = agent.harvest_subconscious_memories(
+            origin_session="session-harvest",
+            earned_on="2026-11-09", recorded_by="Volmarr")
+        assert second["count"] == 0
+        assert second["skipped"] == 21
+        agent.close()
+
+    def test_reearn_resets_the_clock_at_the_same_trust(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_subconscious_memory(_memory())
+        outcome = agent.reearn_subconscious_memory(
+            "memory-test", on="2026-11-09")
+        assert outcome["memory"]["reearn_count"] == 1
+        assert outcome["memory"]["last_earned_on"] == "2026-11-09"
+        assert outcome["memory"]["confidence"] == 0.8
+        assert outcome["record_news"]["type"] == (
+            "subconscious_v2_memory")
+        assert outcome["panel_record"]["type"] == (
+            "subconscious_v2_panel")
+        assert len(_subconscious_events(
+            store, session_id, "subconscious_v2_memory")) == 2
+        assert len(_subconscious_events(
+            store, session_id, "subconscious_v2_panel")) == 1
+        with pytest.raises(KeyError):
+            agent.reearn_subconscious_memory(
+                "memory-nope", on="2026-11-09")
+        with pytest.raises(ValueError, match="cannot be re-earned"):
+            agent.reearn_subconscious_memory(
+                "memory-test", on="2026-11-01")
+        agent.close()
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent):
+        book = _book()
+        outcome = agent.register_subconscious_book(book)
+        assert outcome["count"] == 1
+        assert [item["type"] for item in outcome["records_news"]] == [
+            "subconscious_v2_memory"]
+        assert outcome["panel_record"]["type"] == (
+            "subconscious_v2_panel")
+        assert agent.subconscious_book().title == (
+            "A test subconscious book")
+        with pytest.raises(ValueError):
+            agent.register_subconscious_book(book)
+        with pytest.raises(ValueError, match="different title"):
+            agent.register_subconscious_book(_book(
+                title="Another title",
+                memories=[_memory(
+                    memory_id="memory-other",
+                    source_ref="ref-other")]))
+        broken = {"title": "A broken book",
+                  "memories": [{"memory_id": "memory-x"}]}
+        with pytest.raises(ValueError, match="missing its"):
+            agent.register_subconscious_book(broken)
+        assert [item["memory_id"] for item in
+                agent.subconscious_status()["memories"]] == [
+            "memory-test"]
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        outcome = agent.record_subconscious_book()
+        assert outcome["count"] == 6
+        assert outcome["book"]["title"] == EXAMPLE_TITLE
+        assert len(_subconscious_events(
+            store, session_id, "subconscious_v2_memory")) == 6
+        assert len(_subconscious_events(
+            store, session_id, "subconscious_v2_panel")) == 1
+        assert agent.subconscious_book().panels[0].panel_id == (
+            "panel-m164-boundary")
+        with pytest.raises(ValueError, match="already recorded"):
+            agent.record_subconscious_book()
+        agent.close()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_subconscious_book(tmp_path)
+        book = load_subconscious_v2_file(path)
+        outcome = agent.record_subconscious_book(book)
+        assert outcome["count"] == 6
+        assert agent.get_subconscious_memory(
+            "memory-samtal-wal").layer == "subconscious"
+
+    def test_report_renders_the_example_when_unheld(self, agent):
+        report = agent.report_subconscious()
+        assert report["book"]["memory_count"] == 6
+        assert "memory-two-roads" in report["memories_text"]
+        assert "Panel in The subconscious v2" in (
+            report["panel_text"])
+        assert "neglected" in report["verdict_text"]
+        assert "memory-no-docker-law" in report["memories_text"]
+
+    def test_report_renders_the_held_book_only(self, agent):
+        agent.register_subconscious_memory(_memory())
+        report = agent.report_subconscious()
+        assert report["book"]["title"] == "The subconscious v2"
+        assert "memory-two-roads" not in report["memories_text"]
+        assert "memory-test" in report["memories_text"]
+        assert "well-kept" in report["verdict_text"]
+
+    def test_holding_writes_no_live_memory(
+            self, agent, tmp_path):
+        # HONEST BOUNDARY: holding a v2 memory writes
+        # no live memory - the session's own map,
+        # session, ledger, cross-project and crew
+        # holdings stand exactly as they stood, and
+        # there is no road here that applies a memory
+        # into them.
+        assert not hasattr(agent, "apply_subconscious_memory")
+        assert not hasattr(agent, "apply_subconscious")
+        assert not hasattr(agent, "run_subconscious")
+        assert not hasattr(agent, "persist_subconscious")
+        assert not hasattr(agent, "subconscious_board")
+        assert not hasattr(agent, "send_subconscious_memory")
+        assert not hasattr(agent, "post_subconscious_memory")
+        assert not hasattr(agent, "schedule_subconscious_memory")
+        map_before = agent.project_memory_map_book()
+        ledger_before = agent.self_improving_book()
+        (tmp_path / "alpha.py").write_text(
+            "def greet(name):\n    return name\n", encoding="utf-8")
+        before = {
+            p.name: p.read_bytes()
+            for p in tmp_path.glob("*.py")}
+        from mythic_agent.agents.context import ContextBuilder
+        builder = ContextBuilder(max_tokens=4000)
+        builder.add_system("You are the coder.")
+        builder.add_turn("user", "Build the slice.")
+        built_before = builder.build()
+        agent.register_subconscious_memory(_memory())
+        agent.harvest_subconscious_memories(
+            origin_session="session-harvest",
+            earned_on="2026-11-09", recorded_by="Volmarr")
+        assert agent.project_memory_map_book().entry_ids() == (
+            map_before.entry_ids())
+        assert agent.self_improving_book().candidate_ids() == (
+            ledger_before.candidate_ids())
+        assert agent.self_improving_book().decision_ids() == (
+            ledger_before.decision_ids())
+        assert builder.build() == built_before
+        assert {
+            p.name: p.read_bytes()
+            for p in tmp_path.glob("*.py")} == before
+
+
+class TestSubconsciousTerminalSurface:
+    def test_show_memory_layer_source_panel_verdict(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/subconscious")
+        assert "The Subconscious v2 (M-165)" in text
+        _, _, text = _slash(
+            agent, "/subconscious memory memory-no-docker-law")
+        assert "no Docker ever" in text
+        _, _, text = _slash(agent, "/subconscious layer core")
+        assert "memory-no-docker-law" in text
+        assert "memory-samtal-wal" not in text
+        _, _, text = _slash(
+            agent, "/subconscious source ledger-candidate")
+        assert "memory-commit-before-answer" in text
+        assert "memory-no-docker-law" not in text
+        _, _, text = _slash(agent, "/subconscious panel")
+        assert "Panel in The subconscious v2" in text
+        _, _, text = _slash(agent, "/subconscious verdict")
+        assert "neglected" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/subconscious [show|memory <memory-id>"
+                "|layer <core|subconscious>"
+                "|source <source-kind>|panel|verdict]") in text
+        _, _, text = _slash(agent, "/subconscious dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/subconscious memory memory-nope")
+        assert "no memory in the book" in text
+
+
+@pytest.fixture()
+def subconscious_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _subconscious_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestSubconsciousCommand:
+    def test_show_is_default(self, subconscious_handler, agent):
+        subconscious_handler._handle_subconscious("")
+        assert "The Subconscious v2 (M-165)" in (
+            _subconscious_published_text(subconscious_handler))
+
+    def test_memory_layer_source_panel_verdict(
+            self, subconscious_handler, agent):
+        subconscious_handler._handle_subconscious(
+            "memory memory-no-docker-law")
+        assert "memory-no-docker-law" in _subconscious_published_text(
+            subconscious_handler)
+        subconscious_handler._handle_subconscious("layer subconscious")
+        assert "memory-samtal-wal" in _subconscious_published_text(
+            subconscious_handler)
+        subconscious_handler._handle_subconscious(
+            "source ledger-candidate")
+        assert "memory-commit-before-answer" in (
+            _subconscious_published_text(subconscious_handler))
+        subconscious_handler._handle_subconscious("panel")
+        assert "Panel in The subconscious v2" in (
+            _subconscious_published_text(subconscious_handler))
+        subconscious_handler._handle_subconscious("verdict")
+        assert "neglected" in _subconscious_published_text(
+            subconscious_handler)
+
+    def test_bad_grammar_is_published(
+            self, subconscious_handler, agent):
+        subconscious_handler._handle_subconscious("dance party")
+        assert USAGE in _subconscious_published_text(
+            subconscious_handler)
+        subconscious_handler._handle_subconscious("memory memory-nope")
+        assert "no memory in the book" in _subconscious_published_text(
+            subconscious_handler)
+
+
+class TestChatScreenRoutingSubconscious:
+    def test_subconscious_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command(
+            "/subconscious layer core", _FakeLog())
+        assert calls == [("/subconscious", "layer core")]
