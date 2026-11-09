@@ -361,6 +361,8 @@ class CommandHandler:
                 self._handle_handoffsummary(args)
             elif cmd == "/memoryxport":
                 self._handle_memoryxport(args)
+            elif cmd == "/subconscious":
+                self._handle_subconscious(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -6170,6 +6172,81 @@ class CommandHandler:
                 text = format_verdict(primary.memory_import_export_book())
             else:
                 text = primary.memory_import_export_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_subconscious(self, args: str):
+        """M-165: /subconscious - the subconscious v2.
+
+        ``/subconscious`` shows the subconscious book
+        held this session (the shipped example book -
+        six memories at the M-164 slice boundary, three
+        fresh in the core layer and one fading, one
+        stale and one faded in the subconscious, with
+        its one pinned panel - when none is held yet);
+        ``/subconscious memory <memory-id>`` shows one
+        memory with its provenance whole;
+        ``/subconscious layer <core|subconscious>``
+        shows one layer's memories;
+        ``/subconscious source <source-kind>`` shows
+        the memories earned from one kind;
+        ``/subconscious panel`` shows the subconscious
+        panel derived from the whole book;
+        ``/subconscious verdict`` shows the freshness
+        verdict derived for the whole book - a faded
+        book named neglected plainly. Reading registers
+        and publishes nothing as session news: memories
+        are held only when they are given through the
+        agent's memory roads, earned on the harvest
+        road, or held on the book roads, and every
+        memory held for the session is journaled as a
+        subconscious_v2_memory session event, every
+        derived panel as a subconscious_v2_panel
+        session event and every derived verdict as a
+        subconscious_v2_verdict session event. This
+        surface writes no live memory, and there is no
+        Part VIII board yet, so the book is visible on
+        this surface, not on a board.
+        """
+        from ..core.subconscious_v2 import (
+            format_memories,
+            format_memory,
+            format_panel,
+            format_verdict,
+            parse_subconscious_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_subconscious_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "memory":
+                text = format_memory(
+                    primary.get_subconscious_memory(target))
+            elif action == "layer":
+                text = format_memories(
+                    primary.subconscious_book(), layer=target)
+            elif action == "source":
+                text = format_memories(
+                    primary.subconscious_book(), source_kind=target)
+            elif action == "panel":
+                text = format_panel(primary.subconscious_book())
+            elif action == "verdict":
+                text = format_verdict(primary.subconscious_book())
+            else:
+                text = primary.subconscious_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
