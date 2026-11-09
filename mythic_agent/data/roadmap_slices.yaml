@@ -1099,7 +1099,7 @@ slices:
   title: Prompt craft
   summary: multi-line editing, history per project, image paste, file drop, dictation (M-180) — the input
     box is a small editor, not a slot.
-  status: queued
+  status: done
 - id: M-178
   part: 8
   title: Status line of truth
