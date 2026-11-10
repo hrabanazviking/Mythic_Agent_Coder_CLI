@@ -738,3 +738,412 @@ def test_parse_args_inspect_and_loader_targets():
         source="test source", origin_session="pane-test")
     assert built.pane_id == "pane-kw"
     assert pane_passes(built) is True
+
+
+# ---------------------------------------------------------------------
+# M-192 agent layer: the agent holds a pane book
+# for the session, panes and layouts are published
+# as session news through the checkpoint target
+# (journal first, deduped per shape), the panel
+# and verdict are derived at call time from the
+# whole book under a layout, never held, the index
+# is derived from the book's held panes, and the
+# stance targets are held as data beside them -
+# holding one resumes no session. This layer
+# resumes nothing, renders no live UI, exports
+# nothing and persists nothing beyond the
+# session journal news.
+# ---------------------------------------------------------------------
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _pane_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_pane_book_file(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data" / MULTI_PANE_RESOURCE
+           ).read_text(encoding="utf-8")
+    path = tmp_path / "multi_pane.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestPaneAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.multi_pane_status()
+        assert status["panes"] == []
+        assert status["layouts"] == []
+        assert status["book"] is None
+        assert status["multi_pane"]["title"] == EXAMPLE_TITLE
+        assert len(status["multi_pane"]["panes"]) == 6
+        assert len(status["multi_pane"]["layouts"]) == 2
+        assert len(status["multi_pane"]["notes"]) == 2
+        assert status["panel"]["total_items"] == 6
+        assert status["panel"]["total_shown"] == 6
+        assert status["panels"][0]["panel_id"] == "panel-m191-boundary"
+        assert status["verdict"]["verdict"] == "strained"
+        assert status["verdict"]["passing_shown"] == 5
+        assert [e["target"] for e in status["index"]["entries"]] == [
+            "mythic_agent/core/session.py:128", "mythic_agent/core/costs_face.py:12", "tests/test_part7_gate.py:41",
+            "docs/gallery_guide.md:1", "mythic_agent/data/roadmap_slices.yaml:1186"]
+        assert status["index"]["gaps"] == ["pane-terminal-sweep"]
+        assert status["first_note"]["note_id"] == "note-note-work"
+        assert "held as data alone" in status["rule"]
+        assert "mythic_agent/data/roadmap_slices.yaml" in status["plain_words"]
+        assert "Multi-Pane Working (M-192)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._multi_pane_registry()
+        assert agent._multi_pane_registry() is first
+        assert agent._multi_pane_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.multi_pane_status()
+        assert agent.get_pane_pane(
+            "pane-work-session").title == "Work"
+        assert agent.get_pane_layout("layout-field").layout_filter == "all"
+        assert agent.get_pane_note(
+            "note-note-work").note_id == "note-note-work"
+        assert [a.pane_id for a in agent.pane_panes_for_kind(
+            "work")] == ["pane-work-session"]
+        assert [a.pane_id for a in agent.pane_panes_for_kind(
+            "board")] == ["pane-board-gate"]
+        assert [a.pane_id for a in agent.pane_panes_passing()] == [
+            "pane-work-session", "pane-files-costs",
+            "pane-board-gate", "pane-chat-guide",
+            "pane-crew-roadmap"]
+        agent.multi_pane_panel()
+        agent.multi_pane_verdict()
+        agent.pane_index()
+        agent.report_multi_pane()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("pane")
+                or e["type"] == "diff_pane"] == []
+        with pytest.raises(KeyError):
+            agent.get_pane_pane("pane-nope")
+        with pytest.raises(KeyError):
+            agent.get_pane_layout("layout-nope")
+        with pytest.raises(KeyError):
+            agent.get_pane_note("note-nope")
+        with pytest.raises(ValueError):
+            agent.pane_panes_for_kind("the void")
+        agent.close()
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_pane_pane(_pane())
+        status = agent.multi_pane_status()
+        assert [a["pane_id"] for a in status["panes"]] == ["pane-test"]
+        assert status["book"]["title"] == "An unheld pane book"
+        assert status["panel"] is None
+        assert status["verdict"] is None
+        assert [e["target"] for e in status["index"]["entries"]] == [
+            "mythic_agent/core/session.py:128"]
+        assert status["first_note"] is None
+        assert "pane-test" in status["screen"]
+
+    def test_held_pane_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_pane_pane(_pane())
+        with pytest.raises(KeyError):
+            agent.get_pane_pane("pane-work-session")
+        with pytest.raises(KeyError):
+            agent.get_pane_layout("layout-field")
+        with pytest.raises(KeyError):
+            agent.get_pane_note("modal")
+        pane = agent.get_pane_pane("pane-test")
+        assert pane.title == "A test pane"
+        assert agent.multi_pane_book().title == (
+            "An unheld pane book")
+
+    def test_notes_and_index_stand_in_the_example(self, agent):
+        first = agent.get_pane_note("note-note-work")
+        assert first.note_id == "note-note-work"
+        assert first.pane_id == "pane-work-session"
+        status = agent.multi_pane_status()
+        assert status["index"]["gaps"] == ["pane-terminal-sweep"]
+        assert status["first_note"]["pane_id"] == (
+            "pane-work-session")
+        assert status["first_note"]["stance"] == "note"
+
+
+class TestPaneAgentHolding:
+    def test_register_pane_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_pane_pane(_pane())
+        assert result["pane"]["pane_id"] == "pane-test"
+        assert result["record_news"]["type"] == "diff_pane"
+        assert "pane-test" in result["screen"]
+        events = _pane_events(store, session_id, "diff_pane")
+        assert len(events) == 1
+        agent.close()
+
+    def test_duplicate_pane_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_pane_pane(_pane())
+        with pytest.raises(ValueError):
+            agent.register_pane_pane(_pane(seq=9))
+        with pytest.raises(ValueError):
+            agent.register_pane_pane(_pane(pane_id="pane-two"))
+        events = _pane_events(store, session_id, "diff_pane")
+        assert len(events) == 1
+        agent.close()
+
+    def test_register_layout_holds_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_pane_layout(_layout())
+        assert result["layout"]["layout_id"] == "layout-test"
+        assert len(_pane_events(
+            store, session_id, "pane_layout")) == 1
+        agent.close()
+
+    def test_layout_target_derives_sequence_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_pane_pane(_pane())
+        result = agent.layout_pane("anchored")
+        assert result["layout"]["layout_filter"] == "anchored"
+        assert result["layout"]["seq"] == 1
+        assert result["panel_record"]["type"] == "pane_panel"
+        assert result["panel_record"]["total_shown"] == 1
+        assert result["verdict_record"]["verdict"] == "open"
+        assert len(_pane_events(
+            store, session_id, "pane_layout")) == 1
+        assert len(_pane_events(
+            store, session_id, "pane_panel")) == 1
+        assert len(_pane_events(
+            store, session_id, "pane_verdict")) == 1
+        agent.close()
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_pane_book(_book(layouts=[_layout()]))
+        assert result["count"] == 1
+        assert [r["type"] for r in result["records_news"]] == [
+            "diff_pane", "pane_layout"]
+        assert len(_pane_events(
+            store, session_id, "diff_pane")) == 1
+        agent.close()
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.record_pane_book()
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+        assert result["panel_record"]["type"] == "pane_panel"
+        assert result["index_record"]["gaps"] == [
+            "pane-terminal-sweep"]
+        with pytest.raises(ValueError):
+            agent.record_pane_book()
+        assert len(_pane_events(
+            store, session_id, "diff_pane")) == 6
+        assert len(_pane_events(
+            store, session_id, "pane_layout")) == 2
+        agent.close()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_pane_book_file(tmp_path)
+        book = load_multi_pane_file(path)
+        result = agent.record_pane_book(book)
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+
+    def test_report_renders_example_then_held_book_only(self, agent):
+        report = agent.report_multi_pane()
+        assert report["book"]["title"] == EXAMPLE_TITLE
+        assert report["verdict"]["verdict"] == "strained"
+        assert report["index"]["gaps"] == ["pane-terminal-sweep"]
+        assert "pane-work-session" in report["book_text"]
+        assert "mythic_agent/core/session.py:128 - Work" in report["index_text"]
+        agent.register_pane_pane(_pane())
+        report = agent.report_multi_pane()
+        assert report["book"]["title"] == "An unheld pane book"
+        assert report["panel"] is None
+        assert report["verdict"] is None
+
+
+class TestPaneTerminalSurface:
+    def test_show_pane_target_kind_layout_note_index_panel_verdict(
+            self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/panes")
+        assert "Multi-Pane Working (M-192)" in text
+        _, _, text = _slash(agent, "/panes pane pane-work-session")
+        assert "Pane: Work" in text
+        _, _, text = _slash(agent, "/panes target mythic_agent/core/session.py:128")
+        assert "mythic_agent/core/session.py" in text
+        _, _, text = _slash(agent, "/panes target triple resume")
+        assert "reaches nothing in this book" in text
+        _, _, text = _slash(agent, "/panes kind work")
+        assert "pane-work-session" in text
+        assert "pane-terminal-sweep" not in text
+        _, _, text = _slash(agent, "/panes layout layout-field")
+        assert "filter all" in text
+        _, _, text = _slash(agent, "/panes note note-note-work")
+        assert "Pane note note pane-work-session" in text
+        _, _, text = _slash(agent, "/panes index")
+        assert "Pane index" in text
+        assert "pane-chat-guide" in text
+        _, _, text = _slash(agent, "/panes panel")
+        assert "Pane panel under layout layout-field" in text
+        _, _, text = _slash(agent, "/panes verdict")
+        assert "strained" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/panes [show|pane <pane-id>"
+                "|target <target>|kind <kind>|layout <layout-id>"
+                "|note <note-id>|index|panel|verdict]") in text
+        _, _, text = _slash(agent, "/panes dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/panes pane pane-nope")
+        assert "no pane named" in text
+
+
+@pytest.fixture()
+def pane_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _pane_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestPaneCommand:
+    def test_show_is_default(self, pane_handler, agent):
+        pane_handler._handle_pane("")
+        assert "Multi-Pane Working (M-192)" in (
+            _pane_published_text(pane_handler))
+
+    def test_pane_target_kind_layout_note_index_panel_verdict(
+            self, pane_handler, agent):
+        pane_handler._handle_pane("pane pane-work-session")
+        assert "Pane: Work" in _pane_published_text(
+            pane_handler)
+        pane_handler._handle_pane("target mythic_agent/core/session.py:128")
+        assert "mythic_agent/core/session.py" in _pane_published_text(
+            pane_handler)
+        pane_handler._handle_pane("kind work")
+        assert "pane-work-session" in _pane_published_text(pane_handler)
+        pane_handler._handle_pane("layout layout-field")
+        assert "filter all" in _pane_published_text(pane_handler)
+        pane_handler._handle_pane("note note-note-work")
+        assert "Pane note note pane-work-session" in _pane_published_text(pane_handler)
+        pane_handler._handle_pane("index")
+        assert "Pane index" in _pane_published_text(pane_handler)
+        pane_handler._handle_pane("panel")
+        assert "Pane panel under layout" in _pane_published_text(
+            pane_handler)
+        pane_handler._handle_pane("verdict")
+        assert "strained" in _pane_published_text(pane_handler)
+
+    def test_bad_grammar_is_published(
+            self, pane_handler, agent):
+        pane_handler._handle_pane("dance party")
+        assert USAGE in _pane_published_text(pane_handler)
+        pane_handler._handle_pane("pane pane-nope")
+        assert "no pane named" in _pane_published_text(pane_handler)
+
+
+class TestChatScreenRoutingPane:
+    def test_onboard_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/panes panel", _FakeLog())
+        assert calls == [("/panes", "panel")]
+
+    def test_chat_screen_help_and_usage_name_the_book(self):
+        text = (ROOT / "mythic_agent" / "ui" / "screens"
+                / "chat_screen.py").read_text(encoding="utf-8")
+        assert "/panes[/green] - show multi-pane working (M-192)" in (
+            text)
+        assert ('"/panes": "Usage: /panes | '
+                '/panes pane <pane-id>') in text
+
+
+class TestPaneDerivedTargets:
+    def test_panel_and_verdict_are_derived_at_call_time(self, agent):
+        panel = agent.multi_pane_panel()
+        assert panel.total_shown == 6
+        assert panel.panel_id == "panel-layout-field"
+        verdict = agent.multi_pane_verdict()
+        assert verdict.verdict == "strained"
+        found = agent.multi_pane_verdict("layout-anchored")
+        assert found.verdict == "open"
+        assert found.passing_shown == 5
+        agent.register_pane_pane(_pane())
+        with pytest.raises(ValueError):
+            agent.multi_pane_panel()
+        with pytest.raises(ValueError):
+            agent.multi_pane_verdict()
+
+    def test_layout_target_over_an_unshown_filter_is_shut(self, agent):
+        agent.register_pane_pane(_pane(target=""))
+        result = agent.layout_pane("anchored")
+        assert result["verdict_record"]["verdict"] == "shut"
+        assert result["verdict_record"]["total_shown"] == 0
+
+    def test_index_target_derives_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.pane_index()
+        assert [e["target"] for e in result["index"]["entries"]] == [
+            "mythic_agent/core/session.py:128", "mythic_agent/core/costs_face.py:12", "tests/test_part7_gate.py:41",
+            "docs/gallery_guide.md:1", "mythic_agent/data/roadmap_slices.yaml:1186"]
+        assert result["index"]["gaps"] == ["pane-terminal-sweep"]
+        assert "mythic_agent/core/session.py:128 - Work (pane-work-session)" in (
+            result["index_text"])
+        pane = agent.get_pane_pane("pane-terminal-sweep")
+        assert pane_gaps(pane) == ("no pane target",)
+        assert pane_passes(pane) is False
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("pane")
+                or e["type"] == "diff_pane"] == []
+        agent.close()

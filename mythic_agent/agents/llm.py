@@ -43911,6 +43911,621 @@ class Agent:
             self._checkpoint(record)
 
 
+    def _multi_pane_registry(self):
+        """The held pane registry (M-192).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer pane and layout records
+        one by one, beside the session keyboard registry
+        (M-187) and never in it: the book is one
+        index book to look at. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named
+        ``_multi_pane_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_multi_pane_store", None)
+        if registry is None:
+            from ..core.multi_pane import MultiPaneRegistry
+            registry = MultiPaneRegistry()
+            self._multi_pane_store = registry
+        return registry
+
+    def multi_pane_book(self):
+        """The session's index book, as data (M-192).
+
+        The held registry's book when the session
+        holds any item - the things the session can
+        actually be layouted for (items held one by one
+        stand under a session book composed here in
+        the agent layer, so a later whole book
+        recorded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book recorded whole through
+        :meth:`record_pane_book`, or the shipped
+        example book until one is recorded. Reading
+        registers and publishes nothing.
+        """
+        from ..core.multi_pane import (
+            PaneBook, load_multi_pane)
+        registry = self._multi_pane_registry()
+        if registry.list_items():
+            try:
+                book = registry.book()
+            except ValueError:
+                return PaneBook(
+                    title="Multi-Pane Working",
+                    panes=registry.list_panes(),
+                    layouts=registry.list_layouts(), notes=(), panels=())
+            held = getattr(self, "_multi_pane_held", None)
+            if held is not None and held.title == book.title \
+                    and held.pane_ids() == book.pane_ids() \
+                    and [v.layout_id for v in held.layouts] == [
+                        v.layout_id for v in book.layouts]:
+                return held
+            return book
+        book = getattr(self, "_multi_pane_held", None)
+        if book is None:
+            return load_multi_pane()
+        return book
+
+    def _multi_pane_default_layout(self, book: Any):
+        """The layout a book derives under by default (M-192).
+
+        The layout its own stored panel stands under,
+        else its first held layout, else None - a book
+        holding panes but no layout yet derives no panel
+        and no verdict, and says so plainly.
+        """
+        for panel in book.panels:
+            if panel.layout_id is not None:
+                try:
+                    return book.layout_for(panel.layout_id)
+                except KeyError:
+                    continue
+        if book.layouts:
+            return book.layouts[0]
+        return None
+
+    def _multi_pane_screen(self) -> str:
+        """The /panes screen for the session's state (M-192)."""
+        from ..core import multi_pane as pane_module
+        registry = self._multi_pane_registry()
+        if not registry.list_items():
+            return pane_module.format_pane_screen()
+        book = self.multi_pane_book()
+        if not book.layouts:
+            return pane_module.format_book(book)
+        return pane_module.format_pane_screen(book)
+
+    def multi_pane_status(self) -> dict[str, Any]:
+        """The pane account, in plain data (M-192).
+
+        The pane and layout records held this session as
+        plain records, the held book's record (none
+        until an item stands held), the session book's
+        panes, layouts and notes as plain records (the
+        shipped example book - six panes at the M-187
+        slice boundary, with its two layouts, its two
+        stance records and its one pinned panel - until
+        items are held), its whole-book record, the
+        panel derived from the whole book under its
+        default layout and every panel the book holds
+        as plain records, the verdict derived for
+        the whole book, the index derived from the
+        book's held panes, the editor stance record the
+        book holds, the pane rule as data, the
+        last pane told in plain words, the panel and
+        the verdict told in plain words, the one
+        screen - rendered from the held book, or from
+        the shipped example book when nothing is held
+        yet - and the plain explanation. A book
+        holding panes but no layout yet derives no panel
+        and no verdict. Reading registers and
+        publishes nothing, moves no pointer, renders
+        no live UI and opens no file: this
+        layer tells only.
+        """
+        from ..core import multi_pane as pane_module
+        registry = self._multi_pane_registry()
+        held_acts = registry.list_panes()
+        held_layouts = registry.list_layouts()
+        held_items = registry.list_items()
+        book = self.multi_pane_book()
+        default = self._multi_pane_default_layout(book)
+        latest = book.panes[-1] if book.panes else None
+        latest_words = (pane_module.plain_words(latest)
+                        if latest is not None else "")
+        modal = pane_module.first_note(book)
+        return {
+            "panes": [item.to_record() for item in held_acts],
+            "layouts": [item.to_record() for item in held_layouts],
+            "book": (book.to_record() if held_items else None),
+            "multi_pane": {
+                "title": book.title,
+                "panes": [item.to_record() for item in book.panes],
+                "layouts": [item.to_record() for item in book.layouts],
+                "notes": [item.to_record() for item in book.notes],
+            },
+            "book_record": pane_module.book_record(book),
+            "panel": (pane_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (pane_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "index": pane_module.index_record(book),
+            "first_note": (pane_module.note_record(modal)
+                         if modal is not None else None),
+            "rule": pane_module.PANE_RULE,
+            "plain_words": latest_words,
+            "panel_plain_words": (
+                pane_module.panel_plain_words(book, default)
+                if default is not None else ""),
+            "verdict_plain_words": (
+                pane_module.verdict_plain_words(book, default)
+                if default is not None else ""),
+            "screen": self._multi_pane_screen(),
+            "explanation": pane_module.PLAIN_EXPLANATION,
+        }
+
+    def get_pane_pane(self, pane_id: Any):
+        """The one pane an id names (M-192).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). A held item answers
+        for its own book alone: an id the held book
+        holds no pane for raises KeyError, with no
+        silent fall back to the example, exactly as
+        the pure layer answers. Reading registers
+        and publishes nothing.
+        """
+        registry = self._multi_pane_registry()
+        if registry.list_items():
+            return registry.get_pane(pane_id)
+        return self.multi_pane_book().pane_for(pane_id)
+
+    def get_pane_layout(self, layout_id: Any):
+        """The one layout record an id names (M-192).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). Reading registers
+        and publishes nothing.
+        """
+        registry = self._multi_pane_registry()
+        if registry.list_items():
+            return registry.get_layout(layout_id)
+        return self.multi_pane_book().layout_for(layout_id)
+
+    def get_pane_note(self, note_id: Any):
+        """The one stance record an id names (M-192).
+
+        The session book answers - the shipped example
+        book until a book is recorded whole for the
+        session. Notes travel with whole books: a
+        session holding panes one by one holds no
+        notes, and an id it holds no record for
+        raises KeyError - the stance stands unheld,
+        honestly. Reading registers and publishes
+        nothing, and opens no file: the record is
+        data alone.
+        """
+        return self.multi_pane_book().note_for(note_id)
+
+    def pane_panes_for_kind(self, area: Any):
+        """The session book's panes of one area (M-192)."""
+        from ..core.multi_pane import (
+            panes_for_kind as _for_area)
+        return _for_area(self.multi_pane_book(), area)
+
+    def pane_panes_passing(self):
+        """The session book's panes standing reachable (M-192)."""
+        from ..core.multi_pane import (
+            passing_panes as _passing)
+        return _passing(self.multi_pane_book())
+
+    def multi_pane_panel(self, layout: Any = None):
+        """The panel derived for the whole book (M-192).
+
+        Derived under the named layout, or under the
+        book's default layout when none is named; a book
+        holding no layout at all refuses plainly rather
+        than inventing one.
+        """
+        from ..core.multi_pane import (
+            derive_panel as _derive_panel)
+        book = self.multi_pane_book()
+        resolved = layout if layout is not None \
+            else self._multi_pane_default_layout(book)
+        if resolved is None:
+            raise ValueError(
+                "no layout stands in the book to derive a panel under")
+        return _derive_panel(book, resolved)
+
+    def multi_pane_verdict(self, layout: Any = None):
+        """The verdict derived for the whole book (M-192).
+
+        Derived under the named layout, or under the
+        book's default layout when none is named; a book
+        holding no layout at all refuses plainly rather
+        than inventing one.
+        """
+        from ..core.multi_pane import (
+            derive_verdict as _derive_verdict)
+        book = self.multi_pane_book()
+        resolved = layout if layout is not None \
+            else self._multi_pane_default_layout(book)
+        if resolved is None:
+            raise ValueError(
+                "no layout stands in the book to derive a verdict under")
+        return _derive_verdict(book, resolved)
+
+    def pane_index(self) -> dict[str, Any]:
+        """Print the index derived from the held panes (M-192).
+
+        The printable index target: the index is
+        derived at call time from the session book's
+        held panes alone - one entry per reachable
+        pane under its own target, and the unreachable
+        panes named in its gaps. Printing registers
+        and publishes nothing, moves no pointer,
+        renders no live UI and opens no file. Returns the derived index record, the
+        rendered index, the screen and the plain
+        explanation.
+        """
+        from ..core import multi_pane as pane_module
+        book = self.multi_pane_book()
+        index = pane_module.derive_index(book)
+        return {
+            "index": index.to_record(),
+            "index_record": pane_module.index_record(index),
+            "index_text": pane_module.format_index(book),
+            "screen": self._multi_pane_screen(),
+            "explanation": pane_module.PLAIN_EXPLANATION,
+        }
+
+    def register_pane_pane(self, pane: Any) -> dict[str, Any]:
+        """Hold one pane for the session (M-192).
+
+        The pane is held by the pure registry under
+        its pane id - a pane id or a sequence
+        already standing here refuses, and a refusal
+        holds nothing new and publishes nothing. The
+        pane is judged whole by the pure layer before
+        it is held: a pane naming no held area, or
+        claiming a live pane target, refuses by
+        name on this target too. A held pane is
+        published as its ``pane_record`` session-news
+        record through the checkpoint target. Returns
+        the held pane, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a pane moves no pointer:
+        the thing stands on this layer's book, as
+        data, provenance whole.
+        """
+        from ..core import multi_pane as pane_module
+        registry = self._multi_pane_registry()
+        held = registry.register_pane(pane)
+        news = pane_module.pane_record(held)
+        self._publish_pane_record(news)
+        return {
+            "pane": held.to_record(),
+            "record_news": news,
+            "screen": self._multi_pane_screen(),
+            "explanation": pane_module.PLAIN_EXPLANATION,
+        }
+
+    def register_pane_layout(self, layout: Any) -> dict[str, Any]:
+        """Hold one layout record for the session (M-192).
+
+        The layout is held by the pure registry under
+        its id - a layout id or a sequence already
+        standing here refuses, and a refusal holds
+        nothing new and publishes nothing. A held
+        layout is published as its ``layout_record``
+        session-news record through the checkpoint
+        target. Returns the held layout, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding a layout only ever
+        looks: it clicks nothing and sends nothing.
+        """
+        from ..core import multi_pane as pane_module
+        registry = self._multi_pane_registry()
+        held = registry.register_layout(layout)
+        news = pane_module.layout_record(held)
+        self._publish_pane_record(news)
+        return {
+            "layout": held.to_record(),
+            "record_news": news,
+            "screen": self._multi_pane_screen(),
+            "explanation": pane_module.PLAIN_EXPLANATION,
+        }
+
+    def layout_pane(
+            self, layout_filter: Any, *,
+            detail: Any = None,
+            recorded_on: Any = "2026-11-10",
+            actor: Any = "the jarl",
+            source: Any = "multi-pane working",
+            origin_session: Any = "session-m192",
+            layout_id: Any = None) -> dict[str, Any]:
+        """Stand one layout on the session's held book (M-192).
+
+        This slice's own layouting target: the layout record
+        is composed by the pure layer at the next
+        sequence of the session's held book, judged
+        whole, and held by the pure registry. The layout
+        is published as its ``layout_record`` session
+        news, the panel derived from the whole book as
+        its ``panel_record`` session news, and the
+        verdict derived for the whole book as its
+        ``verdict_record`` session news. Returns the
+        held layout, its layout filter, its news records,
+        the screen rendered after it landed and the
+        plain explanation. HONEST BOUNDARY: layouting
+        tells the book alone, as data - it moves no pointer and renders no live UI.
+        """
+        from ..core import multi_pane as pane_module
+        registry = self._multi_pane_registry()
+        held_layouts = registry.list_layouts()
+        seq = (max(v.seq for v in held_layouts) + 1) \
+            if held_layouts else 1
+        fields: dict[str, Any] = {
+            "seq": seq, "layout_filter": layout_filter,
+            "detail": detail if detail is not None else (
+                f"Layout filter {layout_filter!r} in the "
+                "session's held book, composed on the "
+                "layouting target."),
+            "recorded_on": recorded_on,
+            "actor": actor, "source": source,
+            "origin_session": origin_session}
+        if layout_id is not None:
+            fields["layout_id"] = layout_id
+        else:
+            held_ids = {v.layout_id for v in held_layouts}
+            fresh = 1
+            while f"layout-{fresh}" in held_ids:
+                fresh += 1
+            fields["layout_id"] = f"layout-{fresh}"
+        layout = pane_module.build_layout(fields)
+        held = registry.register_layout(layout)
+        layout_news = pane_module.layout_record(held)
+        self._publish_pane_record(layout_news)
+        book = self.multi_pane_book()
+        panel_news = pane_module.panel_record(
+            pane_module.derive_panel(book, held))
+        self._publish_pane_record(panel_news)
+        verdict_news = pane_module.verdict_record(
+            pane_module.derive_verdict(book, held))
+        self._publish_pane_record(verdict_news)
+        return {
+            "layout": held.to_record(),
+            "layout_filter": held.layout_filter,
+            "record_news": layout_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._multi_pane_screen(),
+            "explanation": pane_module.PLAIN_EXPLANATION,
+        }
+
+    def register_pane_book(self, book: Any) -> dict[str, Any]:
+        """Register a whole index book (M-192).
+
+        Every pane and layout record of the book is held
+        by the pure registry, in held and recorded
+        order - the book is judged whole, and against
+        the held book, before anything is held, so a
+        refusal holds nothing new. The first book held
+        sets the registry's title; a later book under
+        a different title refuses, as does a book
+        naming a held pane id, sequence or target, or a
+        layout id or sequence. The book's panels are
+        derivations, not holdings, and are not held;
+        its notes travel with whole books and are
+        held on the record target, not this one. Every
+        pane is published as its session news and
+        every layout as its ``layout_record`` session
+        news, in order. Returns the held book, its
+        panes and layouts, their news records, the count
+        of panes held, the screen, and the explanation.
+        Registering moves no pointer, renders no live
+        UI and opens no file.
+        """
+        from ..core import multi_pane as pane_module
+        validated = pane_module.build_book(book)
+        registry = self._multi_pane_registry()
+        registry.register_book(validated)
+        records = [
+            pane_module.pane_record(item)
+            for item in validated.panes]
+        records += [
+            pane_module.layout_record(layout)
+            for layout in validated.layouts]
+        for news in records:
+            self._publish_pane_record(news)
+        return {
+            "book": validated.to_record(),
+            "panes": [item.to_record() for item in validated.panes],
+            "layouts": [item.to_record() for item in validated.layouts],
+            "records_news": records,
+            "count": len(validated.panes),
+            "screen": self._multi_pane_screen(),
+            "explanation": pane_module.PLAIN_EXPLANATION,
+        }
+
+    def record_pane_book(self, book: Any = None) -> dict[str, Any]:
+        """Record a whole index book (M-192).
+
+        With no book named, the shipped example book
+        is recorded through the pure layer - six panes
+        at the M-187 slice boundary, with its two
+        layouts, its two stance records and its one
+        pinned panel. A book loaded from a file (the
+        pure layer's ``load_multi_pane_file``
+        target) may be passed instead. The book is
+        judged whole before anything is held - a book
+        holding two panes under one target refuses here
+        by name, as does any record claiming a live
+        pane target. Every pane and layout is held and
+        published as its session news, in order, and
+        the panel derived under the book's default
+        layout as its ``panel_record`` session news;
+        the book is remembered whole as the session's
+        - its held panel and notes and all - and the
+        same book recorded twice refuses -
+        fingerprinted on its pane ids, layout ids and
+        title. Returns the held book, its panes and
+        layouts, their news records, the panel news
+        record, the index news record, the count,
+        the screen, and the explanation. Recording
+        moves no pointer, renders no live UI and
+        opens no file.
+        """
+        from ..core import multi_pane as pane_module
+        book = book if book is not None \
+            else pane_module.load_multi_pane()
+        validated = pane_module.build_book(book)
+        fingerprint = (tuple(validated.pane_ids()),
+                       tuple(v.layout_id for v in validated.layouts),
+                       validated.title)
+        recorded = getattr(self, "_multi_pane_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._multi_pane_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this pane book is already recorded for the "
+                "session; a book is recorded once")
+        registry = self._multi_pane_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._multi_pane_held = validated
+        records = [
+            pane_module.pane_record(item)
+            for item in validated.panes]
+        records += [
+            pane_module.layout_record(layout)
+            for layout in validated.layouts]
+        for news in records:
+            self._publish_pane_record(news)
+        panel_news = pane_module.panel_record(
+            pane_module.derive_panel(
+                validated,
+                self._multi_pane_default_layout(validated)),
+            validated)
+        self._publish_pane_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "panes": [item.to_record() for item in validated.panes],
+            "layouts": [item.to_record() for item in validated.layouts],
+            "records_news": records,
+            "panel_record": panel_news,
+            "index_record": pane_module.index_record(validated),
+            "count": len(validated.panes),
+            "screen": pane_module.format_pane_screen(validated),
+            "explanation": pane_module.PLAIN_EXPLANATION,
+        }
+
+    def report_multi_pane(self) -> dict[str, Any]:
+        """Render the session index book, as a report (M-192).
+
+        The book - the held registry's book when the
+        session holds any item, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - is rendered through the pure
+        formatters alone. Rendering registers and
+        publishes nothing, moves no pointer, renders
+        no live UI and writes nothing. Returns the
+        book, its panes, layouts, notes and panels as
+        plain records, the derived panel, verdict and
+        index (panel and verdict none while the book
+        holds no layout), the editor stance record, the
+        rendered book, panel, verdict and index,
+        the screen, and the plain explanation.
+        """
+        from ..core import multi_pane as pane_module
+        book = self.multi_pane_book()
+        default = self._multi_pane_default_layout(book)
+        modal = pane_module.first_note(book)
+        return {
+            "book": book.to_record(),
+            "panes": [item.to_record() for item in book.panes],
+            "layouts": [item.to_record() for item in book.layouts],
+            "notes": [item.to_record() for item in book.notes],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (pane_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "verdict": (pane_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "index": pane_module.index_record(book),
+            "first_note": (pane_module.note_record(modal)
+                         if modal is not None else None),
+            "book_text": pane_module.format_book(book),
+            "panel_text": (pane_module.format_panel(book, default)
+                           if default is not None else ""),
+            "verdict_text": (pane_module.format_verdict(
+                book, default)
+                if default is not None else ""),
+            "index_text": pane_module.format_index(book),
+            "screen": self._multi_pane_screen(),
+            "explanation": pane_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_pane_record(self, record: dict[str, Any]) -> None:
+        """Publish one pane record as session news (M-192).
+
+        The pure layer's ``pane_record``, ``layout_record``,
+        ``panel_record`` and ``verdict_record`` are
+        journaled through the same checkpoint target
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once per shape: a pane under its own pane id
+        and segment, a layout under its own layout id,
+        sequence and layout filter, a panel under its
+        whole derived shape, and a verdict under its
+        word and tallies, so a panel or verdict grown
+        by a newly held pane or layout announces again
+        as the new figure it is. A foreign record
+        type is never published on this target.
+        """
+        if record.get("type") == "diff_pane":
+            target = ("diff_pane", record.get("pane_id"),
+                   record.get("segment"))
+        elif record.get("type") == "pane_layout":
+            target = ("pane_layout", record.get("layout_id"),
+                   record.get("seq"), record.get("layout_filter"))
+        elif record.get("type") == "pane_panel":
+            target = ("pane_panel", record.get("panel_id"),
+                   record.get("layout_id"),
+                   tuple(row.get("item_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_shown"))
+        elif record.get("type") == "pane_verdict":
+            target = ("pane_verdict", record.get("verdict"),
+                   record.get("total_shown"),
+                   record.get("passing_shown"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(self, "_multi_pane_announced", None)
+        if announced is None:
+            announced = set()
+            self._multi_pane_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
