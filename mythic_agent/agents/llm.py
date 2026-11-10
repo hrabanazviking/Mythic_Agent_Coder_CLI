@@ -45754,6 +45754,620 @@ class Agent:
         announced.add(target)
         if self._session_store and self.session_id:
             self._checkpoint(record)
+    def _copy_share_registry(self):
+        """The held clip registry (M-195).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer clip and view records
+        one by one, beside the session keyboard registry
+        (M-194) and never in it: the book is one
+        index book to look at. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named
+        ``_copy_share_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_copy_share_store", None)
+        if registry is None:
+            from ..core.copy_share import CopyShareRegistry
+            registry = CopyShareRegistry()
+            self._copy_share_store = registry
+        return registry
+
+    def copy_share_book(self):
+        """The session's index book, as data (M-195).
+
+        The held registry's book when the session
+        holds any item - the things the session can
+        actually be viewed for (items held one by one
+        stand under a session book composed here in
+        the agent layer, so a later whole book
+        recorded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book recorded whole through
+        :meth:`record_share_book`, or the shipped
+        example book until one is recorded. Reading
+        registers and publishes nothing.
+        """
+        from ..core.copy_share import (
+            ClipBook, load_copy_share)
+        registry = self._copy_share_registry()
+        if registry.list_items():
+            try:
+                book = registry.book()
+            except ValueError:
+                return ClipBook(
+                    title="Copy and Share",
+                    clips=registry.list_clips(),
+                    views=registry.list_views(), notes=(), panels=())
+            held = getattr(self, "_copy_share_held", None)
+            if held is not None and held.title == book.title \
+                    and held.clip_ids() == book.clip_ids() \
+                    and [v.view_id for v in held.views] == [
+                        v.view_id for v in book.views]:
+                return held
+            return book
+        book = getattr(self, "_copy_share_held", None)
+        if book is None:
+            return load_copy_share()
+        return book
+
+    def _copy_share_default_view(self, book: Any):
+        """The view a book derives under by default (M-195).
+
+        The view its own stored panel stands under,
+        else its first held view, else None - a book
+        holding clips but no view yet derives no panel
+        and no verdict, and says so plainly.
+        """
+        for panel in book.panels:
+            if panel.view_id is not None:
+                try:
+                    return book.view_for(panel.view_id)
+                except KeyError:
+                    continue
+        if book.views:
+            return book.views[0]
+        return None
+
+    def _copy_share_screen(self) -> str:
+        """The /copyshare screen for the session's state (M-195)."""
+        from ..core import copy_share as clip_module
+        registry = self._copy_share_registry()
+        if not registry.list_items():
+            return clip_module.format_share_screen()
+        book = self.copy_share_book()
+        if not book.views:
+            return clip_module.format_book(book)
+        return clip_module.format_share_screen(book)
+
+    def copy_share_status(self) -> dict[str, Any]:
+        """The clip account, in plain data (M-195).
+
+        The clip and view records held this session as
+        plain records, the held book's record (none
+        until an item stands held), the session book's
+        clips, views and notes as plain records (the
+        shipped example book - six clips at the M-194
+        slice boundary, with its two views, its two
+        stance records and its one pinned panel - until
+        items are held), its whole-book record, the
+        panel derived from the whole book under its
+        default view and every panel the book holds
+        as plain records, the verdict derived for
+        the whole book, the index derived from the
+        book's held clips, the editor stance record the
+        book holds, the clip rule as data, the
+        last clip told in plain words, the panel and
+        the verdict told in plain words, the one
+        screen - rendered from the held book, or from
+        the shipped example book when nothing is held
+        yet - and the plain explanation. A book
+        holding clips but no view yet derives no panel
+        and no verdict. Reading registers and
+        publishes nothing, moves no pointer, renders
+        no live UI and opens no file: this
+        layer tells only.
+        """
+        from ..core import copy_share as clip_module
+        registry = self._copy_share_registry()
+        held_acts = registry.list_clips()
+        held_views = registry.list_views()
+        held_items = registry.list_items()
+        book = self.copy_share_book()
+        default = self._copy_share_default_view(book)
+        latest = book.clips[-1] if book.clips else None
+        latest_words = (clip_module.plain_words(latest)
+                        if latest is not None else "")
+        modal = clip_module.first_note(book)
+        return {
+            "clips": [item.to_record() for item in held_acts],
+            "views": [item.to_record() for item in held_views],
+            "book": (book.to_record() if held_items else None),
+            "copy_share": {
+                "title": book.title,
+                "clips": [item.to_record() for item in book.clips],
+                "views": [item.to_record() for item in book.views],
+                "notes": [item.to_record() for item in book.notes],
+            },
+            "book_record": clip_module.book_record(book),
+            "panel": (clip_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (clip_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "index": clip_module.index_record(book),
+            "first_note": (clip_module.note_record(modal)
+                         if modal is not None else None),
+            "rule": clip_module.SHARE_RULE,
+            "plain_words": latest_words,
+            "panel_plain_words": (
+                clip_module.panel_plain_words(book, default)
+                if default is not None else ""),
+            "verdict_plain_words": (
+                clip_module.verdict_plain_words(book, default)
+                if default is not None else ""),
+            "screen": self._copy_share_screen(),
+            "explanation": clip_module.PLAIN_EXPLANATION,
+        }
+
+    def get_share_clip(self, clip_id: Any):
+        """The one clip an id names (M-195).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). A held item answers
+        for its own book alone: an id the held book
+        holds no clip for raises KeyError, with no
+        silent fall back to the example, exactly as
+        the pure layer answers. Reading registers
+        and publishes nothing.
+        """
+        registry = self._copy_share_registry()
+        if registry.list_items():
+            return registry.get_clip(clip_id)
+        return self.copy_share_book().clip_for(clip_id)
+
+    def get_share_view(self, view_id: Any):
+        """The one view record an id names (M-195).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). Reading registers
+        and publishes nothing.
+        """
+        registry = self._copy_share_registry()
+        if registry.list_items():
+            return registry.get_view(view_id)
+        return self.copy_share_book().view_for(view_id)
+
+    def get_share_note(self, note_id: Any):
+        """The one stance record an id names (M-195).
+
+        The session book answers - the shipped example
+        book until a book is recorded whole for the
+        session. Notes travel with whole books: a
+        session holding clips one by one holds no
+        notes, and an id it holds no record for
+        raises KeyError - the stance stands unheld,
+        honestly. Reading registers and publishes
+        nothing, and opens no file: the record is
+        data alone.
+        """
+        return self.copy_share_book().note_for(note_id)
+
+    def share_clips_for_kind(self, area: Any):
+        """The session book's clips of one area (M-195)."""
+        from ..core.copy_share import (
+            clips_for_kind as _for_area)
+        return _for_area(self.copy_share_book(), area)
+
+    def share_clips_passing(self):
+        """The session book's clips standing reachable (M-195)."""
+        from ..core.copy_share import (
+            passing_clips as _passing)
+        return _passing(self.copy_share_book())
+
+    def copy_share_panel(self, view: Any = None):
+        """The panel derived for the whole book (M-195).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a book
+        holding no view at all refuses plainly rather
+        than inventing one.
+        """
+        from ..core.copy_share import (
+            derive_panel as _derive_panel)
+        book = self.copy_share_book()
+        resolved = view if view is not None \
+            else self._copy_share_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive a panel under")
+        return _derive_panel(book, resolved)
+
+    def copy_share_verdict(self, view: Any = None):
+        """The verdict derived for the whole book (M-195).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a book
+        holding no view at all refuses plainly rather
+        than inventing one.
+        """
+        from ..core.copy_share import (
+            derive_verdict as _derive_verdict)
+        book = self.copy_share_book()
+        resolved = view if view is not None \
+            else self._copy_share_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive a verdict under")
+        return _derive_verdict(book, resolved)
+
+    def share_index(self) -> dict[str, Any]:
+        """Print the index derived from the held clips (M-195).
+
+        The printable index target: the index is
+        derived at call time from the session book's
+        held clips alone - one entry per reachable
+        clip under its own target, and the unreachable
+        clips named in its gaps. Printing registers
+        and publishes nothing, moves no pointer,
+        renders no live UI and opens no file. Returns the derived index record, the
+        rendered index, the screen and the plain
+        explanation.
+        """
+        from ..core import copy_share as clip_module
+        book = self.copy_share_book()
+        index = clip_module.derive_index(book)
+        return {
+            "index": index.to_record(),
+            "index_record": clip_module.index_record(index),
+            "index_text": clip_module.format_index(book),
+            "screen": self._copy_share_screen(),
+            "explanation": clip_module.PLAIN_EXPLANATION,
+        }
+
+    def register_share_clip(self, clip: Any) -> dict[str, Any]:
+        """Hold one clip for the session (M-195).
+
+        The clip is held by the pure registry under
+        its clip id - a clip id or a sequence
+        already standing here refuses, and a refusal
+        holds nothing new and publishes nothing. The
+        clip is judged whole by the pure layer before
+        it is held: a clip naming no held area, or
+        claiming a live clip target, refuses by
+        name on this target too. A held clip is
+        published as its ``clip_record`` session-news
+        record through the checkpoint target. Returns
+        the held clip, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a clip moves no pointer:
+        the thing stands on this layer's book, as
+        data, provenance whole.
+        """
+        from ..core import copy_share as clip_module
+        registry = self._copy_share_registry()
+        held = registry.register_clip(clip)
+        news = clip_module.clip_record(held)
+        self._publish_share_record(news)
+        return {
+            "clip": held.to_record(),
+            "record_news": news,
+            "screen": self._copy_share_screen(),
+            "explanation": clip_module.PLAIN_EXPLANATION,
+        }
+
+    def register_share_view(self, view: Any) -> dict[str, Any]:
+        """Hold one view record for the session (M-195).
+
+        The view is held by the pure registry under
+        its id - a view id or a sequence already
+        standing here refuses, and a refusal holds
+        nothing new and publishes nothing. A held
+        view is published as its ``view_record``
+        session-news record through the checkpoint
+        target. Returns the held view, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding a view only ever
+        looks: it clicks nothing and sends nothing.
+        """
+        from ..core import copy_share as clip_module
+        registry = self._copy_share_registry()
+        held = registry.register_view(view)
+        news = clip_module.view_record(held)
+        self._publish_share_record(news)
+        return {
+            "view": held.to_record(),
+            "record_news": news,
+            "screen": self._copy_share_screen(),
+            "explanation": clip_module.PLAIN_EXPLANATION,
+        }
+
+    def view_share(
+            self, view_filter: Any, *,
+            detail: Any = None,
+            recorded_on: Any = "2026-11-10",
+            actor: Any = "the jarl",
+            source: Any = "copy and share",
+            origin_session: Any = "session-m195",
+            view_id: Any = None) -> dict[str, Any]:
+        """Stand one view on the session's held book (M-195).
+
+        This slice's own viewing target: the view record
+        is composed by the pure layer at the next
+        sequence of the session's held book, judged
+        whole, and held by the pure registry. The view
+        is published as its ``view_record`` session
+        news, the panel derived from the whole book as
+        its ``panel_record`` session news, and the
+        verdict derived for the whole book as its
+        ``verdict_record`` session news. Returns the
+        held view, its view filter, its news records,
+        the screen rendered after it landed and the
+        plain explanation. HONEST BOUNDARY: viewing
+        tells the book alone, as data - it moves no pointer and renders no live UI.
+        """
+        from ..core import copy_share as clip_module
+        registry = self._copy_share_registry()
+        held_views = registry.list_views()
+        seq = (max(v.seq for v in held_views) + 1) \
+            if held_views else 1
+        fields: dict[str, Any] = {
+            "seq": seq, "view_filter": view_filter,
+            "detail": detail if detail is not None else (
+                f"View filter {view_filter!r} in the "
+                "session's held book, composed on the "
+                "viewing target."),
+            "recorded_on": recorded_on,
+            "actor": actor, "source": source,
+            "origin_session": origin_session}
+        if view_id is not None:
+            fields["view_id"] = view_id
+        else:
+            held_ids = {v.view_id for v in held_views}
+            fresh = 1
+            while f"view-{fresh}" in held_ids:
+                fresh += 1
+            fields["view_id"] = f"view-{fresh}"
+        view = clip_module.build_view(fields)
+        held = registry.register_view(view)
+        view_news = clip_module.view_record(held)
+        self._publish_share_record(view_news)
+        book = self.copy_share_book()
+        panel_news = clip_module.panel_record(
+            clip_module.derive_panel(book, held))
+        self._publish_share_record(panel_news)
+        verdict_news = clip_module.verdict_record(
+            clip_module.derive_verdict(book, held))
+        self._publish_share_record(verdict_news)
+        return {
+            "view": held.to_record(),
+            "view_filter": held.view_filter,
+            "record_news": view_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._copy_share_screen(),
+            "explanation": clip_module.PLAIN_EXPLANATION,
+        }
+
+    def register_share_book(self, book: Any) -> dict[str, Any]:
+        """Register a whole index book (M-195).
+
+        Every clip and view record of the book is held
+        by the pure registry, in held and recorded
+        order - the book is judged whole, and against
+        the held book, before anything is held, so a
+        refusal holds nothing new. The first book held
+        sets the registry's title; a later book under
+        a different title refuses, as does a book
+        naming a held clip id, sequence or target, or a
+        view id or sequence. The book's panels are
+        derivations, not holdings, and are not held;
+        its notes travel with whole books and are
+        held on the record target, not this one. Every
+        clip is published as its session news and
+        every view as its ``view_record`` session
+        news, in order. Returns the held book, its
+        clips and views, their news records, the count
+        of clips held, the screen, and the explanation.
+        Registering moves no pointer, renders no live
+        UI and opens no file.
+        """
+        from ..core import copy_share as clip_module
+        validated = clip_module.build_book(book)
+        registry = self._copy_share_registry()
+        registry.register_book(validated)
+        records = [
+            clip_module.clip_record(item)
+            for item in validated.clips]
+        records += [
+            clip_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_share_record(news)
+        return {
+            "book": validated.to_record(),
+            "clips": [item.to_record() for item in validated.clips],
+            "views": [item.to_record() for item in validated.views],
+            "records_news": records,
+            "count": len(validated.clips),
+            "screen": self._copy_share_screen(),
+            "explanation": clip_module.PLAIN_EXPLANATION,
+        }
+
+    def record_share_book(self, book: Any = None) -> dict[str, Any]:
+        """Record a whole index book (M-195).
+
+        With no book named, the shipped example book
+        is recorded through the pure layer - six clips
+        at the M-194 slice boundary, with its two
+        views, its two stance records and its one
+        pinned panel. A book loaded from a file (the
+        pure layer's ``load_copy_share_file``
+        target) may be passed instead. The book is
+        judged whole before anything is held - a book
+        holding two clips under one target refuses here
+        by name, as does any record claiming a live
+        clip target. Every clip and view is held and
+        published as its session news, in order, and
+        the panel derived under the book's default
+        view as its ``panel_record`` session news;
+        the book is remembered whole as the session's
+        - its held panel and notes and all - and the
+        same book recorded twice refuses -
+        fingerprinted on its clip ids, view ids and
+        title. Returns the held book, its clips and
+        views, their news records, the panel news
+        record, the index news record, the count,
+        the screen, and the explanation. Recording
+        moves no pointer, renders no live UI and
+        opens no file.
+        """
+        from ..core import copy_share as clip_module
+        book = book if book is not None \
+            else clip_module.load_copy_share()
+        validated = clip_module.build_book(book)
+        fingerprint = (tuple(validated.clip_ids()),
+                       tuple(v.view_id for v in validated.views),
+                       validated.title)
+        recorded = getattr(self, "_copy_share_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._copy_share_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this clip book is already recorded for the "
+                "session; a book is recorded once")
+        registry = self._copy_share_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._copy_share_held = validated
+        records = [
+            clip_module.clip_record(item)
+            for item in validated.clips]
+        records += [
+            clip_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_share_record(news)
+        panel_news = clip_module.panel_record(
+            clip_module.derive_panel(
+                validated,
+                self._copy_share_default_view(validated)),
+            validated)
+        self._publish_share_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "clips": [item.to_record() for item in validated.clips],
+            "views": [item.to_record() for item in validated.views],
+            "records_news": records,
+            "panel_record": panel_news,
+            "index_record": clip_module.index_record(validated),
+            "count": len(validated.clips),
+            "screen": clip_module.format_share_screen(validated),
+            "explanation": clip_module.PLAIN_EXPLANATION,
+        }
+
+    def report_copy_share(self) -> dict[str, Any]:
+        """Render the session index book, as a report (M-195).
+
+        The book - the held registry's book when the
+        session holds any item, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - is rendered through the pure
+        formatters alone. Rendering registers and
+        publishes nothing, moves no pointer, renders
+        no live UI and writes nothing. Returns the
+        book, its clips, views, notes and panels as
+        plain records, the derived panel, verdict and
+        index (panel and verdict none while the book
+        holds no view), the editor stance record, the
+        rendered book, panel, verdict and index,
+        the screen, and the plain explanation.
+        """
+        from ..core import copy_share as clip_module
+        book = self.copy_share_book()
+        default = self._copy_share_default_view(book)
+        modal = clip_module.first_note(book)
+        return {
+            "book": book.to_record(),
+            "clips": [item.to_record() for item in book.clips],
+            "views": [item.to_record() for item in book.views],
+            "notes": [item.to_record() for item in book.notes],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (clip_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "verdict": (clip_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "index": clip_module.index_record(book),
+            "first_note": (clip_module.note_record(modal)
+                         if modal is not None else None),
+            "book_text": clip_module.format_book(book),
+            "panel_text": (clip_module.format_panel(book, default)
+                           if default is not None else ""),
+            "verdict_text": (clip_module.format_verdict(
+                book, default)
+                if default is not None else ""),
+            "index_text": clip_module.format_index(book),
+            "screen": self._copy_share_screen(),
+            "explanation": clip_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_share_record(self, record: dict[str, Any]) -> None:
+        """Publish one clip record as session news (M-195).
+
+        The pure layer's ``clip_record``, ``view_record``,
+        ``panel_record`` and ``verdict_record`` are
+        journaled through the same checkpoint target
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once per shape: a clip under its own clip id
+        and segment, a view under its own view id,
+        sequence and view filter, a panel under its
+        whole derived shape, and a verdict under its
+        word and tallies, so a panel or verdict grown
+        by a newly held clip or view announces again
+        as the new figure it is. A foreign record
+        type is never published on this target.
+        """
+        if record.get("type") == "share_clip":
+            target = ("share_clip", record.get("clip_id"),
+                   record.get("segment"))
+        elif record.get("type") == "share_view":
+            target = ("share_view", record.get("view_id"),
+                   record.get("seq"), record.get("view_filter"))
+        elif record.get("type") == "share_panel":
+            target = ("share_panel", record.get("panel_id"),
+                   record.get("view_id"),
+                   tuple(row.get("item_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_shown"))
+        elif record.get("type") == "share_verdict":
+            target = ("share_verdict", record.get("verdict"),
+                   record.get("total_shown"),
+                   record.get("passing_shown"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(self, "_copy_share_announced", None)
+        if announced is None:
+            announced = set()
+            self._copy_share_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
 
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
