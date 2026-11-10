@@ -415,6 +415,8 @@ class CommandHandler:
                 self._handle_pane(args)
             elif cmd == "/smallterminal":
                 self._handle_smallterminal(args)
+            elif cmd == "/copyshare":
+                self._handle_copyshare(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -8716,6 +8718,97 @@ class CommandHandler:
                 text = format_verdict(primary.small_terminal_grace_book())
             else:
                 text = primary.small_terminal_grace_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_copyshare(self, args: str):
+        """M-195: /copyshare - session clip.
+
+        ``/copyshare`` shows the clip book held this
+        session - session clip, held as data:
+        one record per clip with the target that reaches
+        it and the file notes held as
+        data beside them (the shipped example book -
+        six clips at the M-194 slice boundary, with
+        its two views, two stance records and its one
+        pinned panel - when none is held yet);
+        ``/copyshare clip <clip-id>`` shows one clip whole;
+        ``/copyshare markdown <markdown>`` shows the clip one target
+        reaches, or names the target unheld;
+        ``/copyshare kind <kind>`` shows the book's clips
+        of one kind; ``/copyshare view <view-id>`` shows
+        one held view record; ``/copyshare note
+        <note-id>`` shows one held stance record;
+        ``/copyshare index`` shows the index derived
+        from the whole book's held clips; ``/copyshare
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/copyshare
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: clips and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every clip held for the session is
+        journaled as a share_clip session event,
+        every view as a share_view session event,
+        every derived panel as a share_panel
+        session event and every derived verdict as a
+        share_verdict session event. This heading
+        moves no pointer, renders no live UI and
+        opens no file - holding and telling
+        are words only.
+        """
+        from ..core.copy_share import (
+            format_clip,
+            format_book,
+            format_markdown,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_share_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_share_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "clip":
+                text = format_clip(primary.get_share_clip(target))
+            elif stance == "markdown":
+                text = format_markdown(
+                    primary.copy_share_book(), target)
+            elif stance == "kind":
+                text = format_book(
+                    primary.copy_share_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_share_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.copy_share_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.copy_share_book())
+            elif stance == "panel":
+                text = format_panel(primary.copy_share_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.copy_share_book())
+            else:
+                text = primary.copy_share_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
