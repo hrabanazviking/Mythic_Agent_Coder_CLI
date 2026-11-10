@@ -431,6 +431,8 @@ class CommandHandler:
                 self._handle_intent(args)
             elif cmd == "/slicing":
                 self._handle_slicing(args)
+            elif cmd == "/juggernaut":
+                self._handle_juggernaut(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -9477,6 +9479,101 @@ class CommandHandler:
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
 
+
+
+    def _handle_juggernaut(self, args: str):
+        """M-204: /juggernaut - the juggernaut engine as data.
+
+        ``/juggernaut`` shows the juggernaut book held this
+        session - run slices as data: one record per
+        run, held whole with the active slice it
+        was runed from, its one verifiable phase
+        at the house grain and its questions, and
+        the notes held as data beside them (the shipped
+        example book - five runs at the M-202 slice
+        boundary, with its three slice references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/juggernaut run <run-id>``
+        shows one run whole; ``/juggernaut phase
+        <phase>`` shows the run one phase line
+        reaches, or names the phase unheld;
+        ``/juggernaut slice <slice-id>`` shows the book's
+        runs of one slice; ``/juggernaut view <view-id>``
+        shows one held view record; ``/juggernaut note
+        <note-id>`` shows one held stance record;
+        ``/juggernaut index`` shows the index derived
+        from the whole book's held runs; ``/juggernaut
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/juggernaut
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: runs and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every run held for the session is
+        journaled as a juggernaut_run session event,
+        every view as a juggernaut_view session event,
+        every derived panel as a juggernaut_panel
+        session event and every derived verdict as a
+        juggernaut_verdict session event. This heading
+        builds no slice, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.juggernaut_loop import (
+            format_run,
+            format_book,
+            format_phase,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_juggernaut_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_juggernaut_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "run":
+                text = format_run(
+                    primary.get_juggernaut_run(target),
+                    primary.juggernaut_book())
+            elif stance == "phase":
+                text = format_phase(
+                    primary.juggernaut_book(), target)
+            elif stance == "slice":
+                text = format_book(
+                    primary.juggernaut_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_juggernaut_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.juggernaut_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.juggernaut_book())
+            elif stance == "panel":
+                text = format_panel(primary.juggernaut_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.juggernaut_book())
+            else:
+                text = primary.juggernaut_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
 
 
     def _handle_conflicts(self, args: str):
