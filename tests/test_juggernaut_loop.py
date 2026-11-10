@@ -853,3 +853,438 @@ def test_parse_args_board_and_loader_targets():
         source="test source", origin_session="juggernaut-test")
     assert built.run_id == "run-kw"
     assert run_sound(built) is True
+
+# ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# M-204 agent layer: the agent holds a juggernaut
+# book for the session, runs and views are
+# published as session news through the
+# checkpoint target (journal first, deduped per
+# trace), the panel and verdict are derived at
+# call time from the whole book under a view,
+# never held, the index is derived from the
+# book's held runs, the board is derived from
+# the held runs' soundness, the roadmap standing
+# is read from the shipped roadmap itself, and the
+# stance targets are held as data beside them -
+# holding one builds no slice. This layer runs
+# nothing, executes nothing, banks nothing and
+# persists nothing beyond the session journal news.
+# ---------------------------------------------------------------------
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+_JUGGERNAUT_EVENT_TYPES = (
+    "juggernaut_run", "juggernaut_slice", "juggernaut_view",
+    "juggernaut_panel", "juggernaut_verdict")
+
+
+def _juggernaut_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_juggernaut_book_file(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data" / JUGGERNAUT_RESOURCE
+           ).read_text(encoding="utf-8")
+    path = tmp_path / "juggernaut_loop.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestJuggernautAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.juggernaut_status()
+        assert status["runs"] == []
+        assert status["slices"] == []
+        assert status["views"] == []
+        assert status["book"] is None
+        assert status["juggernaut_book"]["title"] == EXAMPLE_TITLE
+        assert len(status["juggernaut_book"]["slices"]) == 3
+        assert len(status["juggernaut_book"]["runs"]) == 5
+        assert len(status["juggernaut_book"]["views"]) == 2
+        assert len(status["juggernaut_book"]["notes"]) == 2
+        assert len(status["juggernaut_book"]["traces"]) == 1
+        assert status["panel"]["total_items"] == 5
+        assert status["panel"]["total_shown"] == 5
+        assert status["panels"][0]["panel_id"] == "panel-m203-boundary"
+        assert status["verdict"]["verdict"] == "strained"
+        assert status["verdict"]["passing_shown"] == 3
+        assert [e["phase"] for e in status["index"]["entries"]] == (
+            EXAMPLE_PHASES)
+        assert status["index"]["gaps"] == [
+            "run-asking-loop", "run-skipping-loop"]
+        assert status["first_note"]["note_id"] == "note-note-open"
+        assert status["board"]["total"] == 5
+        assert status["board"]["current_run"] == "run-asking-loop"
+        assert status["roadmap"]["slices"] == 272
+        assert status["roadmap"]["parts"] == 11
+        assert status["roadmap"]["done"] == 203
+        assert status["roadmap"]["next_slice"] == "M-204"
+        assert status["roadmap"]["m204_title"] == "The Juggernaut loop as runtime"
+        assert "held as data alone" in status["rule"]
+        assert "run-asking-loop" in status["plain_words"]
+        assert "The Juggernaut Loop (M-204)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._juggernaut_registry()
+        assert agent._juggernaut_registry() is first
+        assert agent._juggernaut_store is first
+        for name in ("juggernaut_book", "juggernaut_status", "juggernaut_panel",
+                     "juggernaut_verdict", "juggernaut_index", "report_juggernaut"):
+            assert callable(getattr(agent, name))
+        assert not (set(vars(agent)) & {
+            "_juggernaut_registry", "juggernaut_book", "juggernaut_status",
+            "get_juggernaut_run", "get_juggernaut_view", "get_juggernaut_note",
+            "juggernaut_runs_for_slice", "juggernaut_runs_sound",
+            "juggernaut_panel", "juggernaut_verdict", "juggernaut_index",
+            "register_juggernaut_run", "register_juggernaut_view",
+            "view_juggernaut", "register_juggernaut_book",
+            "record_juggernaut_book", "report_juggernaut",
+            "_publish_juggernaut_record", "_juggernaut_screen",
+            "_juggernaut_default_view"})
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.juggernaut_status()
+        assert agent.get_juggernaut_run(
+            "run-slicing-loop").title == "The slicing engine run"
+        assert agent.get_juggernaut_view(
+            "view-loop").view_filter == "all"
+        assert agent.get_juggernaut_note(
+            "note-note-open").note_id == "note-note-open"
+        assert [d.run_id for d in agent.juggernaut_runs_for_slice(
+            "slice-m204-juggernaut")] == [
+            "run-runtime-loop", "run-asking-loop",
+            "run-skipping-loop"]
+        assert [d.run_id for d in agent.juggernaut_runs_sound()] == [
+            "run-slicing-loop", "run-repair-loop", "run-runtime-loop"]
+        agent.juggernaut_panel()
+        agent.juggernaut_verdict()
+        agent.juggernaut_index()
+        agent.report_juggernaut()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"] in _JUGGERNAUT_EVENT_TYPES] == []
+        with pytest.raises(KeyError):
+            agent.get_juggernaut_run("run-nope")
+        with pytest.raises(KeyError):
+            agent.get_juggernaut_view("view-nope")
+        with pytest.raises(KeyError):
+            agent.get_juggernaut_note("note-nope")
+        with pytest.raises(ValueError):
+            agent.juggernaut_runs_for_slice("")
+        agent.close()
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_juggernaut_run(_run())
+        status = agent.juggernaut_status()
+        assert [d["run_id"] for d in status["runs"]] == ["run-test"]
+        assert status["book"]["title"] == "An unheld juggernaut book"
+        assert status["panel"] is None
+        assert status["verdict"] is None
+        assert [e["phase"] for e in status["index"]["entries"]] == [
+            "continue"]
+        assert status["first_note"] is None
+        assert "run-test" in status["screen"]
+    def test_held_run_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_juggernaut_run(_run())
+        with pytest.raises(KeyError):
+            agent.get_juggernaut_run("run-slicing-loop")
+        with pytest.raises(KeyError):
+            agent.get_juggernaut_view("view-loop")
+        with pytest.raises(KeyError):
+            agent.get_juggernaut_note("note-note-open")
+        run = agent.get_juggernaut_run("run-test")
+        assert run.title == "A test run"
+        assert agent.juggernaut_book().title == (
+            "An unheld juggernaut book")
+    def test_notes_and_index_stand_in_the_example(self, agent):
+        first = agent.get_juggernaut_note("note-note-open")
+        assert first.note_id == "note-note-open"
+        assert first.run_id == "run-slicing-loop"
+        status = agent.juggernaut_status()
+        assert status["index"]["gaps"] == [
+            "run-asking-loop", "run-skipping-loop"]
+        assert status["first_note"]["run_id"] == (
+            "run-slicing-loop")
+        assert status["first_note"]["stance"] == "note"
+
+class TestJuggernautAgentHolding:
+    def test_register_run_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_juggernaut_run(_run())
+        assert result["run"]["run_id"] == "run-test"
+        assert result["record_news"]["type"] == "juggernaut_run"
+        assert "run-test" in result["screen"]
+        events = _juggernaut_events(store, session_id, "juggernaut_run")
+        assert len(events) == 1
+        agent.close()
+
+    def test_duplicate_run_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_juggernaut_run(_run())
+        with pytest.raises(ValueError):
+            agent.register_juggernaut_run(_run(seq=9))
+        with pytest.raises(ValueError):
+            agent.register_juggernaut_run(_run(run_id="run-two"))
+        events = _juggernaut_events(store, session_id, "juggernaut_run")
+        assert len(events) == 1
+        agent.close()
+
+    def test_register_view_holds_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_juggernaut_view(_view())
+        assert result["view"]["view_id"] == "view-test"
+        assert len(_juggernaut_events(
+            store, session_id, "juggernaut_view")) == 1
+        agent.close()
+
+    def test_view_target_derives_sequence_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_juggernaut_run(_run())
+        result = agent.view_juggernaut("sound")
+        assert result["view"]["view_filter"] == "sound"
+        assert result["view"]["seq"] == 1
+        assert result["panel_record"]["type"] == "juggernaut_panel"
+        assert result["panel_record"]["total_shown"] == 1
+        assert result["verdict_record"]["verdict"] == "open"
+        assert len(_juggernaut_events(
+            store, session_id, "juggernaut_view")) == 1
+        assert len(_juggernaut_events(
+            store, session_id, "juggernaut_panel")) == 1
+        assert len(_juggernaut_events(
+            store, session_id, "juggernaut_verdict")) == 1
+        agent.close()
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_juggernaut_book(_book(views=[_view()]))
+        assert result["count"] == 1
+        assert [r["type"] for r in result["records_news"]] == [
+            "juggernaut_slice", "juggernaut_run", "juggernaut_view"]
+        assert len(_juggernaut_events(
+            store, session_id, "juggernaut_run")) == 1
+        agent.close()
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.record_juggernaut_book()
+        assert result["count"] == 5
+        assert result["book"]["title"] == EXAMPLE_TITLE
+        assert result["panel_record"]["type"] == "juggernaut_panel"
+        assert result["index_record"]["gaps"] == [
+            "run-asking-loop", "run-skipping-loop"]
+        with pytest.raises(ValueError):
+            agent.record_juggernaut_book()
+        assert len(_juggernaut_events(
+            store, session_id, "juggernaut_slice")) == 3
+        assert len(_juggernaut_events(
+            store, session_id, "juggernaut_run")) == 5
+        assert len(_juggernaut_events(
+            store, session_id, "juggernaut_view")) == 2
+        agent.close()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_juggernaut_book_file(tmp_path)
+        book = load_juggernaut_file(path)
+        result = agent.record_juggernaut_book(book)
+        assert result["count"] == 5
+        assert result["book"]["title"] == EXAMPLE_TITLE
+
+    def test_report_renders_example_then_held_book_only(self, agent):
+        report = agent.report_juggernaut()
+        assert report["book"]["title"] == EXAMPLE_TITLE
+        assert report["verdict"]["verdict"] == "strained"
+        assert report["index"]["gaps"] == [
+            "run-asking-loop", "run-skipping-loop"]
+        assert "run-slicing-loop" in report["book_text"]
+        assert "continue - The slicing engine run (run-slicing-loop)" in report["index_text"]
+        agent.register_juggernaut_run(_run())
+        report = agent.report_juggernaut()
+        assert report["book"]["title"] == "An unheld juggernaut book"
+        assert report["panel"] is None
+        assert report["verdict"] is None
+
+class TestJuggernautTerminalHeading:
+    def test_show_run_phase_slice_view_note_index_panel_verdict(
+            self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/juggernaut")
+        assert "The Juggernaut Loop (M-204)" in text
+        _, _, text = _slash(agent, "/juggernaut run run-slicing-loop")
+        assert "Run: The slicing engine run" in text
+        _, _, text = _slash(
+            agent, "/juggernaut phase continue")
+        assert "Run: The slicing engine run" in text
+        _, _, text = _slash(agent, "/juggernaut phase triple resume")
+        assert "reaches nothing in this book" in text
+        _, _, text = _slash(agent, "/juggernaut slice slice-m204-juggernaut")
+        assert "run-asking-loop" in text
+        assert "run-slicing-loop" not in text
+        _, _, text = _slash(agent, "/juggernaut view view-loop")
+        assert "filter all" in text
+        _, _, text = _slash(agent, "/juggernaut note note-note-open")
+        assert "Juggernaut note note run-slicing-loop" in text
+        _, _, text = _slash(agent, "/juggernaut index")
+        assert "Juggernaut index" in text
+        assert "run-asking-loop" in text
+        _, _, text = _slash(agent, "/juggernaut panel")
+        assert "Juggernaut panel under view view-loop" in text
+        _, _, text = _slash(agent, "/juggernaut verdict")
+        assert "strained" in text
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/juggernaut [show|run <run-id>"
+                "|phase <phase>|slice <slice-id>"
+                "|view <view-id>|note <note-id>|index|panel|verdict]") in text
+        _, _, text = _slash(agent, "/juggernaut dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/juggernaut run run-nope")
+        assert "no run named" in text
+@pytest.fixture()
+def juggernaut_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _juggernaut_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestJuggernautCommand:
+    def test_show_is_default(self, juggernaut_handler, agent):
+        juggernaut_handler._handle_juggernaut("")
+        assert "The Juggernaut Loop (M-204)" in (
+            _juggernaut_published_text(juggernaut_handler))
+
+    def test_run_phase_slice_view_note_index_panel_verdict(
+            self, juggernaut_handler, agent):
+        juggernaut_handler._handle_juggernaut("run run-slicing-loop")
+        assert "Run: The slicing engine run" in _juggernaut_published_text(
+            juggernaut_handler)
+        juggernaut_handler._handle_juggernaut(
+            "phase continue")
+        assert "Run: The slicing engine run" in _juggernaut_published_text(
+            juggernaut_handler)
+        juggernaut_handler._handle_juggernaut("slice slice-m204-juggernaut")
+        assert "run-asking-loop" in _juggernaut_published_text(
+            juggernaut_handler)
+        juggernaut_handler._handle_juggernaut("view view-loop")
+        assert "filter all" in _juggernaut_published_text(juggernaut_handler)
+        juggernaut_handler._handle_juggernaut("note note-note-open")
+        assert "Juggernaut note note run-slicing-loop" in (
+            _juggernaut_published_text(juggernaut_handler))
+        juggernaut_handler._handle_juggernaut("index")
+        assert "Juggernaut index" in _juggernaut_published_text(juggernaut_handler)
+        juggernaut_handler._handle_juggernaut("panel")
+        assert "Juggernaut panel under view" in _juggernaut_published_text(
+            juggernaut_handler)
+        juggernaut_handler._handle_juggernaut("verdict")
+        assert "strained" in _juggernaut_published_text(juggernaut_handler)
+    def test_bad_grammar_is_published(
+            self, juggernaut_handler, agent):
+        juggernaut_handler._handle_juggernaut("dance party")
+        assert USAGE in _juggernaut_published_text(juggernaut_handler)
+        juggernaut_handler._handle_juggernaut("run run-nope")
+        assert "no run named" in _juggernaut_published_text(
+            juggernaut_handler)
+
+
+class TestChatScreenRoutingJuggernaut:
+    def test_onboard_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/juggernaut panel", _FakeLog())
+        assert calls == [("/juggernaut", "panel")]
+
+    def test_chat_screen_help_and_usage_name_the_book(self):
+        text = (ROOT / "mythic_agent" / "ui" / "screens"
+                / "chat_screen.py").read_text(encoding="utf-8")
+        assert "/juggernaut[/green] - show the Juggernaut loop (M-204)" in (
+            text)
+        assert ('"/juggernaut": "Usage: /juggernaut | '
+                '/juggernaut run <run-id>') in text
+
+class TestJuggernautDerivedTargets:
+    def test_panel_and_verdict_are_derived_at_call_time(self, agent):
+        panel = agent.juggernaut_panel()
+        assert panel.total_shown == 5
+        assert panel.panel_id == "panel-view-loop"
+        verdict = agent.juggernaut_verdict()
+        assert verdict.verdict == "strained"
+        found = agent.juggernaut_verdict("view-sound")
+        assert found.verdict == "open"
+        assert found.passing_shown == 3
+        agent.register_juggernaut_run(_run())
+        with pytest.raises(ValueError):
+            agent.juggernaut_panel()
+        with pytest.raises(ValueError):
+            agent.juggernaut_verdict()
+
+    def test_view_target_over_an_unshown_filter_is_shut(self, agent):
+        agent.register_juggernaut_run(_run(phases=[]))
+        result = agent.view_juggernaut("sound")
+        assert result["verdict_record"]["verdict"] == "shut"
+        assert result["verdict_record"]["total_shown"] == 0
+
+    def test_index_target_derives_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.juggernaut_index()
+        assert [e["phase"] for e in result["index"]["entries"]] == (
+            EXAMPLE_PHASES)
+        assert result["index"]["gaps"] == [
+            "run-asking-loop", "run-skipping-loop"]
+        assert "continue - The slicing engine run (run-slicing-loop)" in (
+            result["index_text"])
+        run = agent.get_juggernaut_run("run-skipping-loop")
+        assert run_gaps(run, agent.juggernaut_book()) == (
+            "steps from build to continue, which the state "
+            "machine does not allow",)
+        assert run_sound(run, agent.juggernaut_book()) is False
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"] in _JUGGERNAUT_EVENT_TYPES] == []
+        agent.close()
