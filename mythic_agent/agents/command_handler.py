@@ -439,6 +439,8 @@ class CommandHandler:
                 self._handle_banking(args)
             elif cmd == "/keepruntime":
                 self._handle_keeping(args)
+            elif cmd == "/pauselines":
+                self._handle_pausing(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -9858,6 +9860,101 @@ class CommandHandler:
                 text = format_verdict(primary.keeping_book())
             else:
                 text = primary.keeping_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_pausing(self, args: str):
+        """M-208: /pauselines - the pausing engine as data.
+
+        ``/pauselines`` shows the pausing book held this
+        session - pausing slices as data: one record per
+        pausing, held whole with the active slice it
+        was pausinged from, its one verifiable check
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five pausings at the M-203 slice
+        boundary, with its three slice references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/pauselines pausing <pausing-id>``
+        shows one pausing whole; ``/pauselines check
+        <check>`` shows the pausing one check line
+        reaches, or names the check unheld;
+        ``/pauselines slice <slice-id>`` shows the book's
+        pausings of one slice; ``/pauselines view <view-id>``
+        shows one held view record; ``/pauselines note
+        <note-id>`` shows one held stance record;
+        ``/pauselines index`` shows the index derived
+        from the whole book's held pausings; ``/pauselines
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/pauselines
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: pausings and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every pausing held for the session is
+        journaled as a pausing_pausing session event,
+        every view as a pausing_view session event,
+        every derived panel as a pausing_panel
+        session event and every derived verdict as a
+        pausing_verdict session event. This heading
+        builds no slice, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.pause_lines import (
+            format_pausing,
+            format_book,
+            format_check,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_pausing_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_pausing_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "pausing":
+                text = format_pausing(
+                    primary.get_pausing_pausing(target),
+                    primary.pausing_book())
+            elif stance == "check":
+                text = format_check(
+                    primary.pausing_book(), target)
+            elif stance == "slice":
+                text = format_book(
+                    primary.pausing_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_pausing_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.pausing_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.pausing_book())
+            elif stance == "panel":
+                text = format_panel(primary.pausing_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.pausing_book())
+            else:
+                text = primary.pausing_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
