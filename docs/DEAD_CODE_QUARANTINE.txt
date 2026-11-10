@@ -806,3 +806,14 @@ mythic_agent/agents/llm.py:47941:view_undo:method
 mythic_agent/agents/llm.py:48008:register_undo_book:method
 mythic_agent/agents/llm.py:48053:record_undo_book:method
 mythic_agent/agents/llm.py:48126:report_ui_undo:method
+mythic_agent/agents/llm.py:48413:get_verify_note:method
+mythic_agent/agents/llm.py:48428:verify_gates_for_kind:method
+mythic_agent/agents/llm.py:48434:verify_gates_passing:method
+mythic_agent/agents/llm.py:48440:access_verify_panel:method
+mythic_agent/agents/llm.py:48458:access_verify_verdict:method
+mythic_agent/agents/llm.py:48500:register_verify_gate:method
+mythic_agent/agents/llm.py:48531:register_verify_view:method
+mythic_agent/agents/llm.py:48557:view_verify:method
+mythic_agent/agents/llm.py:48624:register_verify_book:method
+mythic_agent/agents/llm.py:48669:record_verify_book:method
+mythic_agent/agents/llm.py:48742:report_access_verify:method
