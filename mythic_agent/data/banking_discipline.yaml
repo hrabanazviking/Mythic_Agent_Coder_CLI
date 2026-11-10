@@ -1,0 +1,225 @@
+schema: mythic.banking_discipline/1
+slice: M-206
+banking_discipline:
+  title: The Banking discipline at the M-205 slice boundary
+slices:
+- slice_id: slice-m205-gates
+  seq: 1
+  title: Acceptance gates per slice
+  state: active
+  detail: 'The slice the house banks first: gated at M-205, standing active in the discipline''s hands.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the banking discipline
+  origin_session: session-m206
+- slice_id: slice-m206-banking
+  seq: 2
+  title: Banking discipline
+  state: active
+  detail: 'This very slice, standing active: the discipline holding its own banking as data.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the banking discipline
+  origin_session: session-m206
+- slice_id: slice-m207-keeper
+  seq: 3
+  title: Keeper runtime
+  state: queued
+  detail: A queued slice the house has not banked; a banking naming it refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the banking discipline
+  origin_session: session-m206
+bankings:
+- banking_id: banking-acceptance-gate
+  seq: 1
+  slice_id: slice-m205-gates
+  title: The acceptance gate banking
+  checks:
+  - suite_green
+  - commit
+  - push
+  - verify
+  claims:
+  - suite_log
+  detail: 'The opening banking: the house banked the acceptance slice in the open and carried the suite
+    log as its proof.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the banking discipline
+  origin_session: session-m206
+- banking_id: banking-rework-gate
+  seq: 2
+  slice_id: slice-m205-gates
+  title: The rework banking
+  checks:
+  - suite_green
+  - commit
+  - push
+  - rework
+  - push
+  - verify
+  claims: []
+  detail: 'The rework banking: a refused push stepped to rework and back to push for the retry, in the
+    open.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the banking discipline
+  origin_session: session-m206
+- banking_id: banking-discipline-gate
+  seq: 3
+  slice_id: slice-m206-banking
+  title: The discipline banking
+  checks:
+  - suite_green
+  - commit
+  - push
+  - verify
+  claims:
+  - ledger_row
+  detail: 'The discipline banking: this slice''s own banking, carrying its ledger row as proof.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the banking discipline
+  origin_session: session-m206
+- banking_id: banking-bare-gate
+  seq: 4
+  slice_id: slice-m206-banking
+  title: The bare claim banking
+  checks:
+  - suite_green
+  - commit
+  - push
+  - verify
+  claims:
+  - feeling
+  detail: A banking that carried a feeling in place of held proof, standing unbanked.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the banking discipline
+  origin_session: session-m206
+- banking_id: banking-leaping-gate
+  seq: 5
+  slice_id: slice-m206-banking
+  title: The leaping banking
+  checks:
+  - suite_green
+  - commit
+  - verify
+  claims: []
+  detail: A banking that stepped from commit straight to verify, outside the house sequence, standing
+    unbanked.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the banking discipline
+  origin_session: session-m206
+views:
+- view_id: view-bankings
+  seq: 1
+  view_filter: all
+  detail: Every held banking, banked or not.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the banking discipline
+  origin_session: session-m206
+- view_id: view-banked
+  seq: 2
+  view_filter: banked
+  detail: Only the bankings standing banked.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the banking discipline
+  origin_session: session-m206
+notes:
+- note_id: note-note-first
+  seq: 1
+  banking_id: banking-acceptance-gate
+  stance: note
+  target: the opening banking
+  title: Laws first
+  detail: The house opens by reciting its git laws, told honestly.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the banking discipline
+  origin_session: session-m206
+- note_id: note-concern-bare
+  seq: 2
+  banking_id: banking-bare-gate
+  stance: concern
+  target: the bare claim banking
+  title: Claim named
+  detail: A banking that carried a feeling claim is not the house's way, and stands named.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the banking discipline
+  origin_session: session-m206
+traces:
+- trace_id: trace-first
+  seq: 1
+  banking_id: banking-acceptance-gate
+  trace: suite_green > commit > push > verify
+  detail: 'The opening banking''s walk, held exactly as walked: the trace is the walk itself.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the banking discipline
+  origin_session: session-m206
+panels:
+- panel_id: panel-m205-boundary
+  view_id: view-bankings
+  view_filter: all
+  rows:
+  - item_id: banking-acceptance-gate
+    standing: banked
+    label: The acceptance gate banking
+    segment: 'banking-acceptance-gate: The acceptance gate banking - slice: ''slice-m205-gates'' - check:
+      ''verify'' - checks: 4 - claims: ''suite_log'' - detail: ''The opening banking: the house banked
+      the acceptance slice in the open and carried the suite log as its proof.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: banking-rework-gate
+    standing: banked
+    label: The rework banking
+    segment: 'banking-rework-gate: The rework banking - slice: ''slice-m205-gates'' - check: ''verify''
+      - checks: 6 - claims: ''none'' - detail: ''The rework banking: a refused push stepped to rework
+      and back to push for the retry, in the open.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: banking-discipline-gate
+    standing: banked
+    label: The discipline banking
+    segment: 'banking-discipline-gate: The discipline banking - slice: ''slice-m206-banking'' - check:
+      ''verify'' - checks: 4 - claims: ''ledger_row'' - detail: ''The discipline banking: this slice''s
+      own banking, carrying its ledger row as proof.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: banking-bare-gate
+    standing: unbanked
+    label: The bare claim banking
+    segment: 'banking-bare-gate: The bare claim banking - slice: ''slice-m206-banking'' - check: ''verify''
+      - checks: 4 - claims: ''feeling'' - detail: ''A banking that carried a feeling in place of held
+      proof, standing unbanked.'' - gaps: carries a feeling claim, a bare claim with no held proof: banked
+      stands on held proof alone'
+    recorded_on: '2026-11-10'
+  - item_id: banking-leaping-gate
+    standing: unbanked
+    label: The leaping banking
+    segment: 'banking-leaping-gate: The leaping banking - slice: ''slice-m206-banking'' - check: ''verify''
+      - checks: 3 - claims: ''none'' - detail: ''A banking that stepped from commit straight to verify,
+      outside the house sequence, standing unbanked.'' - gaps: steps from commit to verify, which the
+      house sequence does not allow'
+    recorded_on: '2026-11-10'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: banked
+    items: 3
+  - standing: unbanked
+    items: 2
+  as_of: '2026-11-10'
+  account:
+  - 'The banking book holds 5 bankings as of 2026-11-10: the view ''all'' shows 5 of them: banked 3, unbanked
+    2; 3 of the shown bankings stand banked.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its banking's own fields - the slice it banks, the laws it walked in
+    the open and the proofs it honestly carries - and no judgement is stored on any banking.
+  - 'Bankedness is judged from the held records alone: a banking that steps outside the house sequence,
+    carries a bare claim in place of held proof, or has not reached verify stands unbanked, named in its
+    gaps, and the banking index is derived from the held bankings, never stored where it could drift.'
