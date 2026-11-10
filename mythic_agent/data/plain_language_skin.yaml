@@ -1,0 +1,285 @@
+schema: mythic.plain_language_skin/1
+slice: M-182
+part: 8
+part_title: The Beautiful Face
+canon_note: >
+  The Plain-Language Skin - a Jarl mode register: reports,
+  approvals, and stand-ups in plain everyday words, technical
+  detail folded behind a keypress. A report, an approval ask and
+  a stand-up are each held whole - the report under its title
+  with its technical lines and the one next step it names, the
+  approval under its title with its ask, its context lines and
+  exactly the one action that matters, the stand-up under its
+  person's name with what they have done, what they are doing
+  and what stands blocked - and each renders two ways from the
+  SAME held fields: plain everyday words in Jarl mode, derived
+  line by line through the book's plain-words lexicon, and the
+  full technical words in the technical register, with the
+  technical lines standing folded as data in Jarl mode, unfolded
+  whole by the one named unfold action and never deleted. The
+  lexicon itself is held as data: six terms stand in it, and the
+  book watches seven - quorum stands watched with no lexicon
+  entry, so it is the one honest miss: it passes through every
+  rendering unchanged, stands named in the misses of the three
+  items that speak it, and keeps those three from standing
+  whole. No plain words are invented for it. The register is
+  derived from session or config state at call time, never
+  stored on any item: Jarl mode stands default. Two rows of the
+  M-171 TUI redesign charter name M-182 - the setup wizard
+  (S-02, plain words first with themed names kept as subtitles)
+  and the subagent editor panel (S-07, the panel's words go
+  plain first) - and this slice is the register both rows call
+  for, built to the roadmap words. This file is ONE EXAMPLE
+  BOOK, in the shape a real skin file takes - the M-181 slice
+  boundary - twelve items, two views, and the one pinned panel
+  of the every-kind view, whose shown items stand nine whole of
+  twelve, so the book verdict under it stands strained; under
+  the report view, whose two shown reports stand one whole, the
+  verdict stands strained too. A real book is a new file in
+  this same shape - it is never this file edited in place.
+  This layer renders words only: it approves nothing and sends
+  nothing.
+guide:
+  title: Plain language at the M-181 slice boundary
+reports:
+- report_id: report-morning-build
+  seq: 1
+  title: Morning build report
+  lines:
+  - We will deploy the build once the checkpoint stands.
+  - The build held latency steady at 42 and throughput steady at 18 slices an hour.
+  action: read the morning numbers
+  detail: The morning build report, held as data - it speaks only terms the lexicon holds, so it stands whole, and its plain lines carry its own numbers, 42 and 18, unchanged.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: plain language skin
+  origin_session: session-m182
+- report_id: report-usage
+  seq: 2
+  title: Usage report
+  lines:
+  - The quorum check passed before the count was taken.
+  - The count held throughput steady at 18 slices an hour.
+  action: share the usage numbers
+  detail: The usage report, held as data - it speaks quorum, the one watched term the lexicon holds no plain words for, so the word stands unchanged in its rendering, named in its misses, and the report does not stand whole until the lexicon learns it.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: plain language skin
+  origin_session: session-m182
+approvals:
+- approval_id: approval-release
+  seq: 1
+  title: Release approval
+  ask: Shall we deploy the build to the live shelf today?
+  action: deploy the build
+  lines:
+  - The checkpoint stands ready and the rollback is rehearsed.
+  - The release step is idempotent, so a second run changes nothing.
+  detail: The release approval, held as data - it asks plainly, names exactly the one action that matters, and speaks only terms the lexicon holds, so it stands whole in both registers.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: plain language skin
+  origin_session: session-m182
+- approval_id: approval-wipe
+  seq: 2
+  title: Wipe approval
+  ask: Shall we wipe the old quorum records from the shelf?
+  action: wipe the old records
+  lines:
+  - The checkpoint from this morning stands saved first.
+  detail: The wipe approval, held as data - it names exactly the one action that matters, but its ask speaks quorum, the watched term with no lexicon entry, so the ask stands with that word unchanged, the miss named, and the approval does not stand whole.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: plain language skin
+  origin_session: session-m182
+standups:
+- standup_id: standup-yrsa
+  seq: 1
+  person: yrsa
+  done:
+  - The checkpoint notes are written and filed.
+  doing:
+  - Walking the crew through how we deploy the build.
+  blocked: []
+  detail: Yrsa's stand-up, held as data - what she has done, what she is doing and nothing blocked, spoken only in terms the lexicon holds, so the stand-up stands whole and its plain lines are its own lines spoken plainly.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: plain language skin
+  origin_session: session-m182
+- standup_id: standup-tess
+  seq: 2
+  person: tess
+  done:
+  - The latency figures are gathered.
+  doing:
+  - Checking the throughput figures against the board.
+  blocked:
+  - The quorum record has not arrived from the shelf.
+  detail: Tess's stand-up, held as data - her blocked line speaks quorum, the one watched term the lexicon holds no plain words for, so that line stands unchanged, the miss is named, and the stand-up does not stand whole.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: plain language skin
+  origin_session: session-m182
+terms:
+- term_id: term-checkpoint
+  seq: 1
+  term: checkpoint
+  plain: saved stopping point
+  detail: The checkpoint entry of the lexicon, held as data - the technical word and the plain everyday words it is spoken with in Jarl mode.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: plain language skin
+  origin_session: session-m182
+- term_id: term-deploy
+  seq: 2
+  term: deploy
+  plain: send out
+  detail: The deploy entry of the lexicon, held as data - the technical word and the plain everyday words it is spoken with in Jarl mode.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: plain language skin
+  origin_session: session-m182
+- term_id: term-idempotent
+  seq: 3
+  term: idempotent
+  plain: safe to repeat
+  detail: The idempotent entry of the lexicon, held as data - the technical word and the plain everyday words it is spoken with in Jarl mode.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: plain language skin
+  origin_session: session-m182
+- term_id: term-latency
+  seq: 4
+  term: latency
+  plain: waiting time
+  detail: The latency entry of the lexicon, held as data - the technical word and the plain everyday words it is spoken with in Jarl mode.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: plain language skin
+  origin_session: session-m182
+- term_id: term-rollback
+  seq: 5
+  term: rollback
+  plain: undo
+  detail: The rollback entry of the lexicon, held as data - the technical word and the plain everyday words it is spoken with in Jarl mode.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: plain language skin
+  origin_session: session-m182
+- term_id: term-throughput
+  seq: 6
+  term: throughput
+  plain: work rate
+  detail: The throughput entry of the lexicon, held as data - the technical word and the plain everyday words it is spoken with in Jarl mode.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: plain language skin
+  origin_session: session-m182
+watched:
+- checkpoint
+- deploy
+- idempotent
+- latency
+- quorum
+- rollback
+- throughput
+views:
+- view_id: view-all
+  seq: 1
+  kind_filter: all
+  detail: See the whole plain-language book, every kind at once.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: plain language skin
+  origin_session: session-m182
+- view_id: view-report
+  seq: 2
+  kind_filter: report
+  detail: See only the reports of the book.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: plain language skin
+  origin_session: session-m182
+panels:
+- panel_id: panel-m181-boundary
+  view_id: view-all
+  kind_filter: all
+  rows:
+  - item_id: report-morning-build
+    kind: report
+    label: Morning build report
+    segment: 'report-morning-build: report says ''We will deploy the build once the checkpoint stands.'' - plainly: ''We will send out the build once the saved stopping point stands.'' - misses: none'
+    recorded_on: '2026-11-09'
+  - item_id: report-usage
+    kind: report
+    label: Usage report
+    segment: 'report-usage: report says ''The quorum check passed before the count was taken.'' - plainly: ''The quorum check passed before the count was taken.'' - misses: quorum'
+    recorded_on: '2026-11-09'
+  - item_id: approval-release
+    kind: approval
+    label: Release approval
+    segment: 'approval-release: approval says ''ask: Shall we deploy the build to the live shelf today?'' - plainly: ''ask: Shall we send out the build to the live shelf today?'' - misses: none'
+    recorded_on: '2026-11-09'
+  - item_id: approval-wipe
+    kind: approval
+    label: Wipe approval
+    segment: 'approval-wipe: approval says ''ask: Shall we wipe the old quorum records from the shelf?'' - plainly: ''ask: Shall we wipe the old quorum records from the shelf?'' - misses: quorum'
+    recorded_on: '2026-11-09'
+  - item_id: standup-yrsa
+    kind: standup
+    label: standup-yrsa
+    segment: 'standup-yrsa: standup says ''done: The checkpoint notes are written and filed.'' - plainly: ''done: The saved stopping point notes are written and filed.'' - misses: none'
+    recorded_on: '2026-11-09'
+  - item_id: standup-tess
+    kind: standup
+    label: standup-tess
+    segment: 'standup-tess: standup says ''done: The latency figures are gathered.'' - plainly: ''done: The waiting time figures are gathered.'' - misses: quorum'
+    recorded_on: '2026-11-09'
+  - item_id: term-checkpoint
+    kind: term
+    label: term-checkpoint
+    segment: 'term-checkpoint: term says ''checkpoint stands for: saved stopping point'' - plainly: ''saved stopping point stands for: saved stopping point'' - misses: none'
+    recorded_on: '2026-11-09'
+  - item_id: term-deploy
+    kind: term
+    label: term-deploy
+    segment: 'term-deploy: term says ''deploy stands for: send out'' - plainly: ''send out stands for: send out'' - misses: none'
+    recorded_on: '2026-11-09'
+  - item_id: term-idempotent
+    kind: term
+    label: term-idempotent
+    segment: 'term-idempotent: term says ''idempotent stands for: safe to repeat'' - plainly: ''safe to repeat stands for: safe to repeat'' - misses: none'
+    recorded_on: '2026-11-09'
+  - item_id: term-latency
+    kind: term
+    label: term-latency
+    segment: 'term-latency: term says ''latency stands for: waiting time'' - plainly: ''waiting time stands for: waiting time'' - misses: none'
+    recorded_on: '2026-11-09'
+  - item_id: term-rollback
+    kind: term
+    label: term-rollback
+    segment: 'term-rollback: term says ''rollback stands for: undo'' - plainly: ''undo stands for: undo'' - misses: none'
+    recorded_on: '2026-11-09'
+  - item_id: term-throughput
+    kind: term
+    label: term-throughput
+    segment: 'term-throughput: term says ''throughput stands for: work rate'' - plainly: ''work rate stands for: work rate'' - misses: none'
+    recorded_on: '2026-11-09'
+  total_items: 12
+  total_shown: 12
+  kind_counts:
+  - kind: report
+    items: 2
+  - kind: approval
+    items: 2
+  - kind: standup
+    items: 2
+  - kind: term
+    items: 6
+  as_of: '2026-11-09'
+  account:
+  - 'The plain-language book holds 12 items as of 2026-11-09: the view ''all'' shows 12 of them: report 2, approval 2, standup 2, term 6; 9 of the shown items stand whole.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly, segment by segment.
+  - Every segment is derived from its item's own fields and the book's lexicon - the plain line from the technical line through the lexicon alone - and no judgement is stored on any item.
+  - 'Jarl mode speaks plain everyday words and folds the technical detail behind the unfold keypress; the technical register folds nothing. A watched term with no lexicon entry is a miss: it passes through
+    unchanged, stands named, and keeps its item from standing whole.'
