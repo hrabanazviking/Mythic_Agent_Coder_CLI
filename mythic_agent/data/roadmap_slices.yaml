@@ -1228,7 +1228,7 @@ slices:
   title: Accessibility verification
   summary: M-016's tests re-run as gates — keyboard-only completion, contrast, reduced motion, no-colour
     play.
-  status: queued
+  status: done
 - id: M-200
   part: 8
   title: Part VIII gate
