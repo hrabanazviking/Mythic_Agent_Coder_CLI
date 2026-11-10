@@ -729,3 +729,14 @@ mythic_agent/agents/llm.py:43635:view_theatre:method
 mythic_agent/agents/llm.py:43702:register_theatre_book:method
 mythic_agent/agents/llm.py:43747:record_theatre_book:method
 mythic_agent/agents/llm.py:43820:report_diff_theatre_final:method
+mythic_agent/agents/llm.py:44107:get_pane_note:method
+mythic_agent/agents/llm.py:44122:pane_panes_for_kind:method
+mythic_agent/agents/llm.py:44128:pane_panes_passing:method
+mythic_agent/agents/llm.py:44134:multi_pane_panel:method
+mythic_agent/agents/llm.py:44152:multi_pane_verdict:method
+mythic_agent/agents/llm.py:44194:register_pane_pane:method
+mythic_agent/agents/llm.py:44225:register_pane_layout:method
+mythic_agent/agents/llm.py:44251:layout_pane:method
+mythic_agent/agents/llm.py:44318:register_pane_book:method
+mythic_agent/agents/llm.py:44363:record_pane_book:method
+mythic_agent/agents/llm.py:44436:report_multi_pane:method
