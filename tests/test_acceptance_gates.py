@@ -854,3 +854,438 @@ def test_parse_args_board_and_loader_targets():
         source="test source", origin_session="acceptance-test")
     assert built.audit_id == "audit-kw"
     assert audit_green(built) is True
+
+# ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# M-205 agent layer: the agent holds a acceptance
+# book for the session, audits and views are
+# published as session news through the
+# checkpoint target (journal first, deduped per
+# trace), the panel and verdict are derived at
+# call time from the whole book under a view,
+# never held, the index is derived from the
+# book's held audits, the board is derived from
+# the held audits' greenness, the roadmap standing
+# is read from the shipped roadmap itself, and the
+# stance targets are held as data beside them -
+# holding one builds no slice. This layer audits
+# nothing, executes nothing, banks nothing and
+# persists nothing beyond the session journal news.
+# ---------------------------------------------------------------------
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+_ACCEPTANCE_EVENT_TYPES = (
+    "acceptance_audit", "acceptance_slice", "acceptance_view",
+    "acceptance_panel", "acceptance_verdict")
+
+
+def _acceptance_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_acceptance_book_file(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data" / ACCEPTANCE_RESOURCE
+           ).read_text(encoding="utf-8")
+    path = tmp_path / "acceptance_gates.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestAcceptanceAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.acceptance_status()
+        assert status["audits"] == []
+        assert status["slices"] == []
+        assert status["views"] == []
+        assert status["book"] is None
+        assert status["acceptance_book"]["title"] == EXAMPLE_TITLE
+        assert len(status["acceptance_book"]["slices"]) == 3
+        assert len(status["acceptance_book"]["audits"]) == 5
+        assert len(status["acceptance_book"]["views"]) == 2
+        assert len(status["acceptance_book"]["notes"]) == 2
+        assert len(status["acceptance_book"]["traces"]) == 1
+        assert status["panel"]["total_items"] == 5
+        assert status["panel"]["total_shown"] == 5
+        assert status["panels"][0]["panel_id"] == "panel-m204-boundary"
+        assert status["verdict"]["verdict"] == "held"
+        assert status["verdict"]["green_shown"] == 3
+        assert [e["check"] for e in status["index"]["entries"]] == (
+            EXAMPLE_CHECKS)
+        assert status["index"]["gaps"] == [
+            "audit-feeling-gate", "audit-skipping-gate"]
+        assert status["first_note"]["note_id"] == "note-note-first"
+        assert status["board"]["total"] == 5
+        assert status["board"]["current_audit"] == "audit-feeling-gate"
+        assert status["roadmap"]["slices"] == 272
+        assert status["roadmap"]["parts"] == 11
+        assert status["roadmap"]["done"] == 204
+        assert status["roadmap"]["next_slice"] == "M-205"
+        assert status["roadmap"]["m205_title"] == "Acceptance gates per slice"
+        assert "held as data alone" in status["rule"]
+        assert "audit-feeling-gate" in status["plain_words"]
+        assert "The Acceptance Gate (M-205)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._acceptance_registry()
+        assert agent._acceptance_registry() is first
+        assert agent._acceptance_store is first
+        for name in ("acceptance_book", "acceptance_status", "acceptance_panel",
+                     "acceptance_verdict", "acceptance_index", "report_acceptance"):
+            assert callable(getattr(agent, name))
+        assert not (set(vars(agent)) & {
+            "_acceptance_registry", "acceptance_book", "acceptance_status",
+            "get_acceptance_audit", "get_acceptance_view", "get_acceptance_note",
+            "acceptance_audits_for_slice", "acceptance_audits_green",
+            "acceptance_panel", "acceptance_verdict", "acceptance_index",
+            "register_acceptance_audit", "register_acceptance_view",
+            "view_acceptance", "register_acceptance_book",
+            "record_acceptance_book", "report_acceptance",
+            "_publish_acceptance_record", "_acceptance_screen",
+            "_acceptance_default_view"})
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.acceptance_status()
+        assert agent.get_acceptance_audit(
+            "audit-juggernaut-gate").title == "The Juggernaut loop gate audit"
+        assert agent.get_acceptance_view(
+            "view-gates").view_filter == "all"
+        assert agent.get_acceptance_note(
+            "note-note-first").note_id == "note-note-first"
+        assert [d.audit_id for d in agent.acceptance_audits_for_slice(
+            "slice-m205-gates")] == [
+            "audit-acceptance-gate", "audit-feeling-gate",
+            "audit-skipping-gate"]
+        assert [d.audit_id for d in agent.acceptance_audits_green()] == [
+            "audit-juggernaut-gate", "audit-repair-gate", "audit-acceptance-gate"]
+        agent.acceptance_panel()
+        agent.acceptance_verdict()
+        agent.acceptance_index()
+        agent.report_acceptance()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"] in _ACCEPTANCE_EVENT_TYPES] == []
+        with pytest.raises(KeyError):
+            agent.get_acceptance_audit("audit-nope")
+        with pytest.raises(KeyError):
+            agent.get_acceptance_view("view-nope")
+        with pytest.raises(KeyError):
+            agent.get_acceptance_note("note-nope")
+        with pytest.raises(ValueError):
+            agent.acceptance_audits_for_slice("")
+        agent.close()
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_acceptance_audit(_audit())
+        status = agent.acceptance_status()
+        assert [d["audit_id"] for d in status["audits"]] == ["audit-test"]
+        assert status["book"]["title"] == "An unheld acceptance book"
+        assert status["panel"] is None
+        assert status["verdict"] is None
+        assert [e["check"] for e in status["index"]["entries"]] == [
+            "evidence"]
+        assert status["first_note"] is None
+        assert "audit-test" in status["screen"]
+    def test_held_audit_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_acceptance_audit(_audit())
+        with pytest.raises(KeyError):
+            agent.get_acceptance_audit("audit-juggernaut-gate")
+        with pytest.raises(KeyError):
+            agent.get_acceptance_view("view-gates")
+        with pytest.raises(KeyError):
+            agent.get_acceptance_note("note-note-first")
+        audit = agent.get_acceptance_audit("audit-test")
+        assert audit.title == "A test audit"
+        assert agent.acceptance_book().title == (
+            "An unheld acceptance book")
+    def test_notes_and_index_stand_in_the_example(self, agent):
+        first = agent.get_acceptance_note("note-note-first")
+        assert first.note_id == "note-note-first"
+        assert first.audit_id == "audit-juggernaut-gate"
+        status = agent.acceptance_status()
+        assert status["index"]["gaps"] == [
+            "audit-feeling-gate", "audit-skipping-gate"]
+        assert status["first_note"]["audit_id"] == (
+            "audit-juggernaut-gate")
+        assert status["first_note"]["stance"] == "note"
+
+class TestAcceptanceAgentHolding:
+    def test_register_audit_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_acceptance_audit(_audit())
+        assert result["audit"]["audit_id"] == "audit-test"
+        assert result["record_news"]["type"] == "acceptance_audit"
+        assert "audit-test" in result["screen"]
+        events = _acceptance_events(store, session_id, "acceptance_audit")
+        assert len(events) == 1
+        agent.close()
+
+    def test_duplicate_audit_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_acceptance_audit(_audit())
+        with pytest.raises(ValueError):
+            agent.register_acceptance_audit(_audit(seq=9))
+        with pytest.raises(ValueError):
+            agent.register_acceptance_audit(_audit(audit_id="audit-two"))
+        events = _acceptance_events(store, session_id, "acceptance_audit")
+        assert len(events) == 1
+        agent.close()
+
+    def test_register_view_holds_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_acceptance_view(_view())
+        assert result["view"]["view_id"] == "view-test"
+        assert len(_acceptance_events(
+            store, session_id, "acceptance_view")) == 1
+        agent.close()
+
+    def test_view_target_derives_sequence_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_acceptance_audit(_audit())
+        result = agent.view_acceptance("green")
+        assert result["view"]["view_filter"] == "green"
+        assert result["view"]["seq"] == 1
+        assert result["panel_record"]["type"] == "acceptance_panel"
+        assert result["panel_record"]["total_shown"] == 1
+        assert result["verdict_record"]["verdict"] == "bankable"
+        assert len(_acceptance_events(
+            store, session_id, "acceptance_view")) == 1
+        assert len(_acceptance_events(
+            store, session_id, "acceptance_panel")) == 1
+        assert len(_acceptance_events(
+            store, session_id, "acceptance_verdict")) == 1
+        agent.close()
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_acceptance_book(_book(views=[_view()]))
+        assert result["count"] == 1
+        assert [r["type"] for r in result["records_news"]] == [
+            "acceptance_slice", "acceptance_audit", "acceptance_view"]
+        assert len(_acceptance_events(
+            store, session_id, "acceptance_audit")) == 1
+        agent.close()
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.record_acceptance_book()
+        assert result["count"] == 5
+        assert result["book"]["title"] == EXAMPLE_TITLE
+        assert result["panel_record"]["type"] == "acceptance_panel"
+        assert result["index_record"]["gaps"] == [
+            "audit-feeling-gate", "audit-skipping-gate"]
+        with pytest.raises(ValueError):
+            agent.record_acceptance_book()
+        assert len(_acceptance_events(
+            store, session_id, "acceptance_slice")) == 3
+        assert len(_acceptance_events(
+            store, session_id, "acceptance_audit")) == 5
+        assert len(_acceptance_events(
+            store, session_id, "acceptance_view")) == 2
+        agent.close()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_acceptance_book_file(tmp_path)
+        book = load_acceptance_file(path)
+        result = agent.record_acceptance_book(book)
+        assert result["count"] == 5
+        assert result["book"]["title"] == EXAMPLE_TITLE
+
+    def test_report_renders_example_then_held_book_only(self, agent):
+        report = agent.report_acceptance()
+        assert report["book"]["title"] == EXAMPLE_TITLE
+        assert report["verdict"]["verdict"] == "held"
+        assert report["index"]["gaps"] == [
+            "audit-feeling-gate", "audit-skipping-gate"]
+        assert "audit-juggernaut-gate" in report["book_text"]
+        assert "evidence - The Juggernaut loop gate audit (audit-juggernaut-gate)" in report["index_text"]
+        agent.register_acceptance_audit(_audit())
+        report = agent.report_acceptance()
+        assert report["book"]["title"] == "An unheld acceptance book"
+        assert report["panel"] is None
+        assert report["verdict"] is None
+
+class TestAcceptanceTerminalHeading:
+    def test_show_audit_check_slice_view_note_index_panel_verdict(
+            self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/acceptance")
+        assert "The Acceptance Gate (M-205)" in text
+        _, _, text = _slash(agent, "/acceptance audit audit-juggernaut-gate")
+        assert "Audit: The Juggernaut loop gate audit" in text
+        _, _, text = _slash(
+            agent, "/acceptance check evidence")
+        assert "Audit: The Juggernaut loop gate audit" in text
+        _, _, text = _slash(agent, "/acceptance check triple resume")
+        assert "reaches nothing in this book" in text
+        _, _, text = _slash(agent, "/acceptance slice slice-m205-gates")
+        assert "audit-feeling-gate" in text
+        assert "audit-juggernaut-gate" not in text
+        _, _, text = _slash(agent, "/acceptance view view-gates")
+        assert "filter all" in text
+        _, _, text = _slash(agent, "/acceptance note note-note-first")
+        assert "Acceptance note note audit-juggernaut-gate" in text
+        _, _, text = _slash(agent, "/acceptance index")
+        assert "Acceptance index" in text
+        assert "audit-feeling-gate" in text
+        _, _, text = _slash(agent, "/acceptance panel")
+        assert "Acceptance panel under view view-gates" in text
+        _, _, text = _slash(agent, "/acceptance verdict")
+        assert "held" in text
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/acceptance [show|audit <audit-id>"
+                "|check <check>|slice <slice-id>"
+                "|view <view-id>|note <note-id>|index|panel|verdict]") in text
+        _, _, text = _slash(agent, "/acceptance dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/acceptance audit audit-nope")
+        assert "no audit named" in text
+@pytest.fixture()
+def acceptance_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _acceptance_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestAcceptanceCommand:
+    def test_show_is_default(self, acceptance_handler, agent):
+        acceptance_handler._handle_acceptance("")
+        assert "The Acceptance Gate (M-205)" in (
+            _acceptance_published_text(acceptance_handler))
+
+    def test_audit_check_slice_view_note_index_panel_verdict(
+            self, acceptance_handler, agent):
+        acceptance_handler._handle_acceptance("audit audit-juggernaut-gate")
+        assert "Audit: The Juggernaut loop gate audit" in _acceptance_published_text(
+            acceptance_handler)
+        acceptance_handler._handle_acceptance(
+            "check evidence")
+        assert "Audit: The Juggernaut loop gate audit" in _acceptance_published_text(
+            acceptance_handler)
+        acceptance_handler._handle_acceptance("slice slice-m205-gates")
+        assert "audit-feeling-gate" in _acceptance_published_text(
+            acceptance_handler)
+        acceptance_handler._handle_acceptance("view view-gates")
+        assert "filter all" in _acceptance_published_text(acceptance_handler)
+        acceptance_handler._handle_acceptance("note note-note-first")
+        assert "Acceptance note note audit-juggernaut-gate" in (
+            _acceptance_published_text(acceptance_handler))
+        acceptance_handler._handle_acceptance("index")
+        assert "Acceptance index" in _acceptance_published_text(acceptance_handler)
+        acceptance_handler._handle_acceptance("panel")
+        assert "Acceptance panel under view" in _acceptance_published_text(
+            acceptance_handler)
+        acceptance_handler._handle_acceptance("verdict")
+        assert "held" in _acceptance_published_text(acceptance_handler)
+    def test_bad_grammar_is_published(
+            self, acceptance_handler, agent):
+        acceptance_handler._handle_acceptance("dance party")
+        assert USAGE in _acceptance_published_text(acceptance_handler)
+        acceptance_handler._handle_acceptance("audit audit-nope")
+        assert "no audit named" in _acceptance_published_text(
+            acceptance_handler)
+
+
+class TestChatScreenRoutingAcceptance:
+    def test_onboard_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/acceptance panel", _FakeLog())
+        assert calls == [("/acceptance", "panel")]
+
+    def test_chat_screen_help_and_usage_name_the_book(self):
+        text = (ROOT / "mythic_agent" / "ui" / "screens"
+                / "chat_screen.py").read_text(encoding="utf-8")
+        assert "/acceptance[/green] - show the Acceptance gate (M-205)" in (
+            text)
+        assert ('"/acceptance": "Usage: /acceptance | '
+                '/acceptance audit <audit-id>') in text
+
+class TestAcceptanceDerivedTargets:
+    def test_panel_and_verdict_are_derived_at_call_time(self, agent):
+        panel = agent.acceptance_panel()
+        assert panel.total_shown == 5
+        assert panel.panel_id == "panel-view-gates"
+        verdict = agent.acceptance_verdict()
+        assert verdict.verdict == "held"
+        found = agent.acceptance_verdict("view-green")
+        assert found.verdict == "bankable"
+        assert found.green_shown == 3
+        agent.register_acceptance_audit(_audit())
+        with pytest.raises(ValueError):
+            agent.acceptance_panel()
+        with pytest.raises(ValueError):
+            agent.acceptance_verdict()
+
+    def test_view_target_over_an_unshown_filter_is_blocked(self, agent):
+        agent.register_acceptance_audit(_audit(checks=[]))
+        result = agent.view_acceptance("green")
+        assert result["verdict_record"]["verdict"] == "blocked"
+        assert result["verdict_record"]["total_shown"] == 0
+
+    def test_index_target_derives_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.acceptance_index()
+        assert [e["check"] for e in result["index"]["entries"]] == (
+            EXAMPLE_CHECKS)
+        assert result["index"]["gaps"] == [
+            "audit-feeling-gate", "audit-skipping-gate"]
+        assert "evidence - The Juggernaut loop gate audit (audit-juggernaut-gate)" in (
+            result["index_text"])
+        audit = agent.get_acceptance_audit("audit-skipping-gate")
+        assert audit_gaps(audit, agent.acceptance_book()) == (
+            "steps from build to evidence, which the gate sequence "
+            "does not allow",)
+        assert audit_green(audit, agent.acceptance_book()) is False
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"] in _ACCEPTANCE_EVENT_TYPES] == []
+        agent.close()
