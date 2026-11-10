@@ -1,0 +1,200 @@
+schema: mythic.keyboard_sovereignty/1
+slice: M-187
+part: 8
+part_title: The Beautiful Face
+canon_note: 'Keyboard sovereignty - every act reachable by keyboard; a printable keymap; vim-mode prompt option
+  for those whose hands speak it. An act is held whole - under its title, the area it lives in in the closed
+  vocabulary (chat, terminal, editor, review, settings, onboarding, lessons, command palace), the key that
+  reaches it, named as data, and its detail. An act naming no key is held honestly with an empty key: it stands
+  unreachable, named in its gaps, and no key is invented for it; two acts standing under one key refuse by name,
+  one act per key, or the keymap could not be read. The printable keymap is DERIVED at call time from the held
+  acts keys alone - never a second stored copy that could drift - and a stored keymap or reachability verdict
+  on any record refuses by name. The vim-mode prompt option is held as data: a mode record naming the mode, off
+  or modal, a closed vocabulary, its title, its detail and its key grammar; one record stands per mode word,
+  and holding the option changes no live prompt. A record claiming a live key press, a live UI render or a
+  live prompt-mode change refuses by name. This file is ONE EXAMPLE BOOK, in the shape a real keymap file
+  takes - the M-186 slice boundary - six acts and two views, two mode records, with its one pinned panel of
+  the every-act view, whose shown acts stand five reachable of six, so the book verdict under it stands
+  strained; under the reachable view, whose five shown acts all stand reachable, the verdict stands open. A
+  real book is a new file in this same shape - it is never this file edited in place. This layer presses no
+  keys, renders no live UI, changes no live prompt mode and writes nothing: it holds keyboard sovereignty as
+  data and tells it.'
+guide:
+  title: Keyboard sovereignty at the M-186 slice boundary
+acts:
+- act_id: act-ask-question
+  seq: 1
+  title: Ask the coder a question
+  area: chat
+  key: Enter
+  detail: On the chat screen, type the question in plain words and press Enter - the question goes to the coder
+    exactly as written, and nothing is sent before that key.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: keyboard sovereignty
+  origin_session: session-m187
+- act_id: act-undo-change
+  seq: 2
+  title: Undo the last change
+  area: editor
+  key: Ctrl-Z
+  detail: In the editor, Ctrl-Z takes back the last change the coder landed - the change set returns as it stood
+    before, and nothing is lost until you say so.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: keyboard sovereignty
+  origin_session: session-m187
+- act_id: act-open-keymap
+  seq: 3
+  title: Open the printable keymap
+  area: terminal
+  key: Ctrl-K
+  detail: On the terminal, Ctrl-K opens the printable keymap - every held act with the key that reaches it,
+    derived from the held records at the moment it is asked for.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: keyboard sovereignty
+  origin_session: session-m187
+- act_id: act-approve-tool
+  seq: 4
+  title: Approve a tool call
+  area: review
+  key: y
+  detail: At a review, the y key approves the tool call as named on its card - approval is one deliberate
+    keystroke, and silence or any other key answers no.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: keyboard sovereignty
+  origin_session: session-m187
+- act_id: act-drag-select
+  seq: 5
+  title: Drag to select text
+  area: editor
+  key: ''
+  detail: Selecting text by dragging the mouse names no key in this book, so the act stands unreachable by
+    keyboard honestly - named in its gaps until a keyboard road is held for it, and no key is invented here.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: keyboard sovereignty
+  origin_session: session-m187
+- act_id: act-toggle-plain
+  seq: 6
+  title: Toggle plain words
+  area: settings
+  key: Ctrl-P
+  detail: In settings, Ctrl-P toggles plain words - Jarl mode - on or off - reports, approvals and stand-ups are
+    told in plain everyday words first while it stands on.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: keyboard sovereignty
+  origin_session: session-m187
+views:
+- view_id: view-all
+  seq: 1
+  view_filter: all
+  detail: See the whole keymap book, every act at once.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: keyboard sovereignty
+  origin_session: session-m187
+- view_id: view-reachable
+  seq: 2
+  view_filter: reachable
+  detail: See only the acts that stand reachable by keyboard.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: keyboard sovereignty
+  origin_session: session-m187
+modes:
+- mode_id: mode-off
+  seq: 1
+  mode: 'off'
+  title: The prompt as it stands
+  detail: With the vim-mode option off, the prompt takes plain typing exactly as it stands - every key types
+    at the prompt, and no mode stands between the hands and the words.
+  grammar:
+  - Every key types at the prompt, as it stands.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: keyboard sovereignty
+  origin_session: session-m187
+- mode_id: mode-vim
+  seq: 2
+  mode: modal
+  title: Vim-mode prompt
+  detail: With the vim-mode option held, the prompt speaks the modal grammar - normal mode moves and edits,
+    insert mode types - for those whose hands speak it. The option stands held as data here; holding it
+    switches no live prompt.
+  grammar:
+  - Esc - leave insert and return to normal mode.
+  - i - enter insert at the prompt.
+  - h and l - move along the line in normal mode.
+  - dd - clear the line in normal mode.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: keyboard sovereignty
+  origin_session: session-m187
+panels:
+- panel_id: panel-m186-boundary
+  view_id: view-all
+  view_filter: all
+  rows:
+  - item_id: act-ask-question
+    reach: reachable
+    label: Ask the coder a question
+    segment: 'act-ask-question: Ask the coder a question in area ''chat'' - key: ''Enter'' - detail: ''On the chat
+      screen, type the question in plain words and press Enter - the question goes to the coder exactly as written,
+      and nothing is sent before that key.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: act-undo-change
+    reach: reachable
+    label: Undo the last change
+    segment: 'act-undo-change: Undo the last change in area ''editor'' - key: ''Ctrl-Z'' - detail: ''In the editor,
+      Ctrl-Z takes back the last change the coder landed - the change set returns as it stood before, and nothing
+      is lost until you say so.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: act-open-keymap
+    reach: reachable
+    label: Open the printable keymap
+    segment: 'act-open-keymap: Open the printable keymap in area ''terminal'' - key: ''Ctrl-K'' - detail: ''On the
+      terminal, Ctrl-K opens the printable keymap - every held act with the key that reaches it, derived from the
+      held records at the moment it is asked for.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: act-approve-tool
+    reach: reachable
+    label: Approve a tool call
+    segment: 'act-approve-tool: Approve a tool call in area ''review'' - key: ''y'' - detail: ''At a review, the
+      y key approves the tool call as named on its card - approval is one deliberate keystroke, and silence or any
+      other key answers no.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: act-drag-select
+    reach: unreachable
+    label: Drag to select text
+    segment: 'act-drag-select: Drag to select text in area ''editor'' - key: ''none'' - detail: ''Selecting text
+      by dragging the mouse names no key in this book, so the act stands unreachable by keyboard honestly - named
+      in its gaps until a keyboard road is held for it, and no key is invented here.'' - gaps: no key'
+    recorded_on: '2026-11-09'
+  - item_id: act-toggle-plain
+    reach: reachable
+    label: Toggle plain words
+    segment: 'act-toggle-plain: Toggle plain words in area ''settings'' - key: ''Ctrl-P'' - detail: ''In settings,
+      Ctrl-P toggles plain words - Jarl mode - on or off - reports, approvals and stand-ups are told in plain everyday
+      words first while it stands on.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  total_items: 6
+  total_shown: 6
+  reach_counts:
+  - reach: reachable
+    items: 5
+  - reach: unreachable
+    items: 1
+  as_of: '2026-11-09'
+  account:
+  - 'The keymap book holds 6 acts as of 2026-11-09: the view ''all'' shows 6 of them: reachable 5, unreachable 1;
+    5 of the shown acts stand reachable by keyboard.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly, segment
+    by segment.
+  - Every segment is derived from its act's own fields - the title, the area it lives in and the key that honestly
+    reaches it - and no judgement is stored on any act.
+  - 'Reachability is judged from the held records alone: an act naming no key stands unreachable, and the printable
+    keymap is derived from the held keys, never stored where it could drift.'
