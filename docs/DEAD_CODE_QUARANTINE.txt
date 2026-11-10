@@ -673,3 +673,15 @@ mythic_agent/agents/llm.py:40663:record_help_book:method
 mythic_agent/agents/llm.py:40734:report_help_answers:method
 mythic_agent/core/help_answers.py:770:_held_docs:function
 mythic_agent/core/help_answers.py:1197:help_for:method
+mythic_agent/agents/llm.py:41022:get_keyboard_mode:method
+mythic_agent/agents/llm.py:41044:keyboard_acts_for_area:method
+mythic_agent/agents/llm.py:41050:keyboard_acts_passing:method
+mythic_agent/agents/llm.py:41056:keyboard_sovereignty_panel:method
+mythic_agent/agents/llm.py:41074:keyboard_sovereignty_verdict:method
+mythic_agent/agents/llm.py:41092:print_keymap:method
+mythic_agent/agents/llm.py:41117:register_keyboard_act:method
+mythic_agent/agents/llm.py:41148:register_keyboard_view:method
+mythic_agent/agents/llm.py:41174:view_keyboard:method
+mythic_agent/agents/llm.py:41242:register_keyboard_book:method
+mythic_agent/agents/llm.py:41287:record_keyboard_book:method
+mythic_agent/agents/llm.py:41360:report_keyboard_sovereignty:method

@@ -1159,7 +1159,7 @@ slices:
   title: Keyboard sovereignty
   summary: every act reachable by keyboard; a printable keymap; vim-mode prompt option for those whose
     hands speak it.
-  status: queued
+  status: done
 - id: M-188
   part: 8
   title: Mouse manners
