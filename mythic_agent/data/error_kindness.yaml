@@ -1,0 +1,203 @@
+schema: mythic.error_kindness/1
+slice: M-183
+part: 8
+part_title: The Beautiful Face
+canon_note: >
+  Error Kindness - every error states what happened, what it
+  means, and the most likely fix in plain words, technical
+  trace one key away; no raw stack ever lands on a user
+  unaccompanied. An error is held whole - under its title,
+  with what happened, what it means and the one most likely
+  fix it names, each in plain words, and its technical trace
+  lines held folded as data behind the one named trace
+  action, unfolded whole by that action and never deleted.
+  The plain telling is DERIVED from the held error's own
+  fields: its three lines are the error's own happened,
+  meaning and fix spoken under their plain headings, so
+  there is no second hand-written telling that can drift.
+  The ruling stands as data in the layer: an error record
+  claiming to stand bare, standalone or unaccompanied
+  refuses by name, and an error naming no fix refuses by
+  name too. An error held with no trace folded stands
+  named in its gaps - the gap is called trace - and does
+  not stand whole; no trace is invented for it. This file
+  is ONE EXAMPLE BOOK, in the shape a real error file
+  takes - the M-182 slice boundary - six errors and two
+  views, with its one pinned panel of the every-error
+  view, whose shown errors stand four whole of six, so
+  the book verdict under it stands strained; under the
+  whole view, whose four shown errors all stand whole,
+  the verdict stands open. A real book is a new file in
+  this same shape - it is never this file edited in
+  place. This layer fixes nothing and sends nothing:
+  it tells.
+guide:
+  title: Error kindness at the M-182 slice boundary
+errors:
+- error_id: error-refused-push
+  seq: 1
+  kind: refused
+  title: The push was refused
+  happened: The shelf refused the push because the branch had moved since this work began.
+  meaning: Someone else landed work first, so this push would have overwritten theirs.
+  fix: Fetch the new work, set this work on top of it, and push again.
+  trace:
+  - 'To github.com:hrabanazviking/Mythic_Agent_Coder_CLI.git'
+  - '! [rejected] feature-roadmap-build -> feature-roadmap-build (non-fast-forward)'
+  - 'error: failed to push some refs'
+  detail: The refused push, held as data - it tells what happened, what it means and the most likely fix in plain words, and its trace stands folded behind the trace key, so the error stands whole.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: error kindness
+  origin_session: session-m183
+- error_id: error-missing-file
+  seq: 2
+  kind: missing
+  title: A needed file is missing
+  happened: The build could not find the file mythic_agent/core/error_kindness.py.
+  meaning: The build cannot start without that file, so nothing else in the build can be trusted until it stands again.
+  fix: Restore the file from the last good copy, then run the build again.
+  trace:
+  - 'FileNotFoundError: [Errno 2] No such file or directory'
+  - 'mythic_agent/core/error_kindness.py'
+  detail: The missing file, held as data - told plainly from its own fields, with its trace folded whole behind the trace key, so the error stands whole.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: error kindness
+  origin_session: session-m183
+- error_id: error-broken-test
+  seq: 3
+  kind: broken
+  title: A test broke
+  happened: The test named test_panel_is_derived failed while the panel was being derived.
+  meaning: The panel the code derives no longer matches the panel the test expects, so one of them has drifted from the book.
+  fix: Read the derived panel beside the expected one, mend the one that drifted, and run the test again.
+  trace:
+  - 'FAILED tests/test_error_kindness.py::test_panel_is_derived'
+  - 'AssertionError: the stored panel disagrees with the derived panel'
+  detail: The broken test, held as data - told plainly from its own fields, with its trace folded whole behind the trace key, so the error stands whole.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: error kindness
+  origin_session: session-m183
+- error_id: error-timeout-call
+  seq: 4
+  kind: timeout
+  title: A call ran out of time
+  happened: The call to the shelf took longer than the waiting limit and was cut off.
+  meaning: The answer may still exist on the shelf; this side simply stopped waiting for it.
+  fix: Check the shelf once by hand, then run the call again with the same words.
+  trace: []
+  detail: The timed-out call, held as data - told plainly from its own fields, but no trace was folded when it was recorded, so the gap stands named as trace and the error does not stand whole. No trace is invented for it.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: error kindness
+  origin_session: session-m183
+- error_id: error-mismatch-count
+  seq: 5
+  kind: mismatch
+  title: The counts do not agree
+  happened: The banked count reads 182 in the ledger and 183 on the shelf.
+  meaning: One of the two counts was written before the last banking landed, so they are counting different moments.
+  fix: Count again from the shelf, which is the ground truth, and mend the ledger to match it.
+  trace:
+  - 'ledger: 182 of 272 banked'
+  - 'shelf: 183 of 272 banked'
+  detail: The mismatched counts, held as data - told plainly from its own fields, with its trace folded whole behind the trace key, so the error stands whole.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: error kindness
+  origin_session: session-m183
+- error_id: error-denied-key
+  seq: 6
+  kind: denied
+  title: A key was turned away
+  happened: The shelf turned the session key away at the door.
+  meaning: The key this session carries is not the key the shelf expects, so the shelf will not speak with it.
+  fix: Sign in again with the account the shelf expects, then run the step again.
+  trace: []
+  detail: The denied key, held as data - told plainly from its own fields, but no trace was folded when it was recorded, so the gap stands named as trace and the error does not stand whole. No trace is invented for it.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: error kindness
+  origin_session: session-m183
+views:
+- view_id: view-all
+  seq: 1
+  view_filter: all
+  detail: See the whole error book, every error at once.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: error kindness
+  origin_session: session-m183
+- view_id: view-whole
+  seq: 2
+  view_filter: whole
+  detail: See only the errors that stand whole.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: error kindness
+  origin_session: session-m183
+panels:
+- panel_id: panel-m182-boundary
+  view_id: view-all
+  view_filter: all
+  rows:
+  - item_id: error-refused-push
+    kind: refused
+    label: The push was refused
+    segment: 'error-refused-push: refused says ''The shelf refused the push because the branch had moved since this work began.'' - plainly: ''Someone else landed work first, so this push would have overwritten
+      theirs.'' - fix: ''Fetch the new work, set this work on top of it, and push again.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: error-missing-file
+    kind: missing
+    label: A needed file is missing
+    segment: 'error-missing-file: missing says ''The build could not find the file mythic_agent/core/error_kindness.py.'' - plainly: ''The build cannot start without that file, so nothing else in the build
+      can be trusted until it stands again.'' - fix: ''Restore the file from the last good copy, then run the build again.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: error-broken-test
+    kind: broken
+    label: A test broke
+    segment: 'error-broken-test: broken says ''The test named test_panel_is_derived failed while the panel was being derived.'' - plainly: ''The panel the code derives no longer matches the panel the test
+      expects, so one of them has drifted from the book.'' - fix: ''Read the derived panel beside the expected one, mend the one that drifted, and run the test again.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: error-timeout-call
+    kind: timeout
+    label: A call ran out of time
+    segment: 'error-timeout-call: timeout says ''The call to the shelf took longer than the waiting limit and was cut off.'' - plainly: ''The answer may still exist on the shelf; this side simply stopped
+      waiting for it.'' - fix: ''Check the shelf once by hand, then run the call again with the same words.'' - gaps: trace'
+    recorded_on: '2026-11-09'
+  - item_id: error-mismatch-count
+    kind: mismatch
+    label: The counts do not agree
+    segment: 'error-mismatch-count: mismatch says ''The banked count reads 182 in the ledger and 183 on the shelf.'' - plainly: ''One of the two counts was written before the last banking landed, so they
+      are counting different moments.'' - fix: ''Count again from the shelf, which is the ground truth, and mend the ledger to match it.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: error-denied-key
+    kind: denied
+    label: A key was turned away
+    segment: 'error-denied-key: denied says ''The shelf turned the session key away at the door.'' - plainly: ''The key this session carries is not the key the shelf expects, so the shelf will not speak
+      with it.'' - fix: ''Sign in again with the account the shelf expects, then run the step again.'' - gaps: trace'
+    recorded_on: '2026-11-09'
+  total_items: 6
+  total_shown: 6
+  kind_counts:
+  - kind: refused
+    items: 1
+  - kind: missing
+    items: 1
+  - kind: broken
+    items: 1
+  - kind: timeout
+    items: 1
+  - kind: mismatch
+    items: 1
+  - kind: denied
+    items: 1
+  as_of: '2026-11-09'
+  account:
+  - 'The error book holds 6 errors as of 2026-11-09: the view ''all'' shows 6 of them: refused 1, missing 1, broken 1, timeout 1, mismatch 1, denied 1; 4 of the shown errors stand whole.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly, segment by segment.
+  - Every segment is derived from its error's own fields - what happened, what it means and the most likely fix - and no judgement is stored on any error.
+  - Every error is told plainly, and its technical trace stands folded behind the trace keypress, never shown by default and never deleted. An error with no trace folded stands named in its gaps and does
+    not stand whole.
