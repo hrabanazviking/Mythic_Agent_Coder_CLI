@@ -846,3 +846,451 @@ def test_parse_args_board_and_loader_targets():
     assert draft_sound(built) is True
 
 
+
+
+# ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# M-203 agent layer: the agent holds a slicing
+# book for the session, drafts and views are
+# published as session news through the
+# checkpoint target (journal first, deduped per
+# shape), the panel and verdict are derived at
+# call time from the whole book under a view,
+# never held, the index is derived from the
+# book's held drafts, the board is derived from
+# the held drafts' soundness, the roadmap standing
+# is read from the shipped roadmap itself, and the
+# stance targets are held as data beside them -
+# holding one builds no slice. This layer runs
+# nothing, executes nothing, banks nothing and
+# persists nothing beyond the session journal news.
+# ---------------------------------------------------------------------
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+_SLICING_EVENT_TYPES = (
+    "slicing_draft", "slicing_intent", "slicing_view",
+    "slicing_panel", "slicing_verdict")
+
+
+def _slicing_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_slicing_book_file(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data" / SLICING_RESOURCE
+           ).read_text(encoding="utf-8")
+    path = tmp_path / "slicing_engine.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestSlicingAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.slicing_status()
+        assert status["drafts"] == []
+        assert status["intents"] == []
+        assert status["views"] == []
+        assert status["book"] is None
+        assert status["slicing_book"]["title"] == EXAMPLE_TITLE
+        assert len(status["slicing_book"]["intents"]) == 3
+        assert len(status["slicing_book"]["drafts"]) == 5
+        assert len(status["slicing_book"]["views"]) == 2
+        assert len(status["slicing_book"]["notes"]) == 2
+        assert len(status["slicing_book"]["approvals"]) == 1
+        assert status["panel"]["total_items"] == 5
+        assert status["panel"]["total_shown"] == 5
+        assert status["panels"][0]["panel_id"] == "panel-m202-boundary"
+        assert status["verdict"]["verdict"] == "strained"
+        assert status["verdict"]["passing_shown"] == 3
+        assert [e["outcome"] for e in status["index"]["entries"]] == (
+            EXAMPLE_OUTCOMES)
+        assert status["index"]["gaps"] == [
+            "draft-two-outcomes", "draft-loose-thread"]
+        assert status["first_note"]["note_id"] == "note-note-open"
+        assert status["board"]["total"] == 5
+        assert status["board"]["current_draft"] == "draft-two-outcomes"
+        assert status["roadmap"]["slices"] == 272
+        assert status["roadmap"]["parts"] == 11
+        assert status["roadmap"]["done"] == 202
+        assert status["roadmap"]["next_slice"] == "M-203"
+        assert status["roadmap"]["m203_title"] == "The slicing engine"
+        assert "held as data alone" in status["rule"]
+        assert "draft-two-outcomes" in status["plain_words"]
+        assert "The Slicing Engine (M-203)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._slicing_registry()
+        assert agent._slicing_registry() is first
+        assert agent._slicing_store is first
+        for name in ("slicing_book", "slicing_status", "slicing_panel",
+                     "slicing_verdict", "slicing_index", "report_slicing"):
+            assert callable(getattr(agent, name))
+        assert not (set(vars(agent)) & {
+            "_slicing_registry", "slicing_book", "slicing_status",
+            "get_slicing_draft", "get_slicing_view", "get_slicing_note",
+            "slicing_drafts_for_intent", "slicing_drafts_sound",
+            "slicing_panel", "slicing_verdict", "slicing_index",
+            "register_slicing_draft", "register_slicing_view",
+            "view_slicing", "register_slicing_book",
+            "record_slicing_book", "report_slicing",
+            "_publish_slicing_record", "_slicing_screen",
+            "_slicing_default_view"})
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.slicing_status()
+        assert agent.get_slicing_draft(
+            "draft-capture-intent").title == "Capture the intent"
+        assert agent.get_slicing_view(
+            "view-slicing").view_filter == "all"
+        assert agent.get_slicing_note(
+            "note-note-open").note_id == "note-note-open"
+        assert [d.draft_id for d in agent.slicing_drafts_for_intent(
+            "intent-verbatim")] == [
+            "draft-two-outcomes", "draft-loose-thread"]
+        assert [d.draft_id for d in agent.slicing_drafts_sound()] == [
+            "draft-capture-intent", "draft-draft-slices",
+            "draft-shape-approval"]
+        agent.slicing_panel()
+        agent.slicing_verdict()
+        agent.slicing_index()
+        agent.report_slicing()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"] in _SLICING_EVENT_TYPES] == []
+        with pytest.raises(KeyError):
+            agent.get_slicing_draft("draft-nope")
+        with pytest.raises(KeyError):
+            agent.get_slicing_view("view-nope")
+        with pytest.raises(KeyError):
+            agent.get_slicing_note("note-nope")
+        with pytest.raises(ValueError):
+            agent.slicing_drafts_for_intent("")
+        agent.close()
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_slicing_draft(_draft())
+        status = agent.slicing_status()
+        assert [d["draft_id"] for d in status["drafts"]] == ["draft-test"]
+        assert status["book"]["title"] == "An unheld slicing book"
+        assert status["panel"] is None
+        assert status["verdict"] is None
+        assert [e["outcome"] for e in status["index"]["entries"]] == [
+            "the test draft stands sound"]
+        assert status["first_note"] is None
+        assert "draft-test" in status["screen"]
+
+    def test_held_draft_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_slicing_draft(_draft())
+        with pytest.raises(KeyError):
+            agent.get_slicing_draft("draft-capture-intent")
+        with pytest.raises(KeyError):
+            agent.get_slicing_view("view-slicing")
+        with pytest.raises(KeyError):
+            agent.get_slicing_note("note-note-open")
+        draft = agent.get_slicing_draft("draft-test")
+        assert draft.title == "A test draft"
+        assert agent.slicing_book().title == (
+            "An unheld slicing book")
+
+    def test_notes_and_index_stand_in_the_example(self, agent):
+        first = agent.get_slicing_note("note-note-open")
+        assert first.note_id == "note-note-open"
+        assert first.draft_id == "draft-capture-intent"
+        status = agent.slicing_status()
+        assert status["index"]["gaps"] == [
+            "draft-two-outcomes", "draft-loose-thread"]
+        assert status["first_note"]["draft_id"] == (
+            "draft-capture-intent")
+        assert status["first_note"]["stance"] == "note"
+
+
+class TestSlicingAgentHolding:
+    def test_register_draft_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_slicing_draft(_draft())
+        assert result["draft"]["draft_id"] == "draft-test"
+        assert result["record_news"]["type"] == "slicing_draft"
+        assert "draft-test" in result["screen"]
+        events = _slicing_events(store, session_id, "slicing_draft")
+        assert len(events) == 1
+        agent.close()
+
+    def test_duplicate_draft_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_slicing_draft(_draft())
+        with pytest.raises(ValueError):
+            agent.register_slicing_draft(_draft(seq=9))
+        with pytest.raises(ValueError):
+            agent.register_slicing_draft(_draft(draft_id="draft-two"))
+        events = _slicing_events(store, session_id, "slicing_draft")
+        assert len(events) == 1
+        agent.close()
+
+    def test_register_view_holds_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_slicing_view(_view())
+        assert result["view"]["view_id"] == "view-test"
+        assert len(_slicing_events(
+            store, session_id, "slicing_view")) == 1
+        agent.close()
+
+    def test_view_target_derives_sequence_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_slicing_draft(_draft())
+        result = agent.view_slicing("sound")
+        assert result["view"]["view_filter"] == "sound"
+        assert result["view"]["seq"] == 1
+        assert result["panel_record"]["type"] == "slicing_panel"
+        assert result["panel_record"]["total_shown"] == 1
+        assert result["verdict_record"]["verdict"] == "open"
+        assert len(_slicing_events(
+            store, session_id, "slicing_view")) == 1
+        assert len(_slicing_events(
+            store, session_id, "slicing_panel")) == 1
+        assert len(_slicing_events(
+            store, session_id, "slicing_verdict")) == 1
+        agent.close()
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_slicing_book(_book(views=[_view()]))
+        assert result["count"] == 1
+        assert [r["type"] for r in result["records_news"]] == [
+            "slicing_intent", "slicing_draft", "slicing_view"]
+        assert len(_slicing_events(
+            store, session_id, "slicing_draft")) == 1
+        agent.close()
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.record_slicing_book()
+        assert result["count"] == 5
+        assert result["book"]["title"] == EXAMPLE_TITLE
+        assert result["panel_record"]["type"] == "slicing_panel"
+        assert result["index_record"]["gaps"] == [
+            "draft-two-outcomes", "draft-loose-thread"]
+        with pytest.raises(ValueError):
+            agent.record_slicing_book()
+        assert len(_slicing_events(
+            store, session_id, "slicing_intent")) == 3
+        assert len(_slicing_events(
+            store, session_id, "slicing_draft")) == 5
+        assert len(_slicing_events(
+            store, session_id, "slicing_view")) == 2
+        agent.close()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_slicing_book_file(tmp_path)
+        book = load_slicing_file(path)
+        result = agent.record_slicing_book(book)
+        assert result["count"] == 5
+        assert result["book"]["title"] == EXAMPLE_TITLE
+
+    def test_report_renders_example_then_held_book_only(self, agent):
+        report = agent.report_slicing()
+        assert report["book"]["title"] == EXAMPLE_TITLE
+        assert report["verdict"]["verdict"] == "strained"
+        assert report["index"]["gaps"] == [
+            "draft-two-outcomes", "draft-loose-thread"]
+        assert "draft-capture-intent" in report["book_text"]
+        assert "the intent stands held in the user's plain words - Capture the intent (draft-capture-intent)" in report["index_text"]
+        agent.register_slicing_draft(_draft())
+        report = agent.report_slicing()
+        assert report["book"]["title"] == "An unheld slicing book"
+        assert report["panel"] is None
+        assert report["verdict"] is None
+
+
+class TestSlicingTerminalHeading:
+    def test_show_draft_outcome_intent_view_note_index_panel_verdict(
+            self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/slicing")
+        assert "The Slicing Engine (M-203)" in text
+        _, _, text = _slash(agent, "/slicing draft draft-capture-intent")
+        assert "Draft: Capture the intent" in text
+        _, _, text = _slash(
+            agent,
+            "/slicing outcome the intent stands held in the user's plain words")
+        assert "Draft: Capture the intent" in text
+        _, _, text = _slash(agent, "/slicing outcome triple resume")
+        assert "reaches nothing in this book" in text
+        _, _, text = _slash(agent, "/slicing intent intent-verbatim")
+        assert "draft-two-outcomes" in text
+        assert "draft-capture-intent" not in text
+        _, _, text = _slash(agent, "/slicing view view-slicing")
+        assert "filter all" in text
+        _, _, text = _slash(agent, "/slicing note note-note-open")
+        assert "Slicing note note draft-capture-intent" in text
+        _, _, text = _slash(agent, "/slicing index")
+        assert "Slicing index" in text
+        assert "draft-two-outcomes" in text
+        _, _, text = _slash(agent, "/slicing panel")
+        assert "Slicing panel under view view-slicing" in text
+        _, _, text = _slash(agent, "/slicing verdict")
+        assert "strained" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/slicing [show|draft <draft-id>"
+                "|outcome <outcome>|intent <intent-id>"
+                "|view <view-id>|note <note-id>|index|panel|verdict]") in text
+        _, _, text = _slash(agent, "/slicing dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/slicing draft draft-nope")
+        assert "no draft named" in text
+
+
+@pytest.fixture()
+def slicing_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _slicing_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestSlicingCommand:
+    def test_show_is_default(self, slicing_handler, agent):
+        slicing_handler._handle_slicing("")
+        assert "The Slicing Engine (M-203)" in (
+            _slicing_published_text(slicing_handler))
+
+    def test_draft_outcome_intent_view_note_index_panel_verdict(
+            self, slicing_handler, agent):
+        slicing_handler._handle_slicing("draft draft-capture-intent")
+        assert "Draft: Capture the intent" in _slicing_published_text(
+            slicing_handler)
+        slicing_handler._handle_slicing(
+            "outcome the intent stands held in the user's plain words")
+        assert "Draft: Capture the intent" in _slicing_published_text(
+            slicing_handler)
+        slicing_handler._handle_slicing("intent intent-verbatim")
+        assert "draft-two-outcomes" in _slicing_published_text(
+            slicing_handler)
+        slicing_handler._handle_slicing("view view-slicing")
+        assert "filter all" in _slicing_published_text(slicing_handler)
+        slicing_handler._handle_slicing("note note-note-open")
+        assert "Slicing note note draft-capture-intent" in (
+            _slicing_published_text(slicing_handler))
+        slicing_handler._handle_slicing("index")
+        assert "Slicing index" in _slicing_published_text(slicing_handler)
+        slicing_handler._handle_slicing("panel")
+        assert "Slicing panel under view" in _slicing_published_text(
+            slicing_handler)
+        slicing_handler._handle_slicing("verdict")
+        assert "strained" in _slicing_published_text(slicing_handler)
+
+    def test_bad_grammar_is_published(
+            self, slicing_handler, agent):
+        slicing_handler._handle_slicing("dance party")
+        assert USAGE in _slicing_published_text(slicing_handler)
+        slicing_handler._handle_slicing("draft draft-nope")
+        assert "no draft named" in _slicing_published_text(
+            slicing_handler)
+
+
+class TestChatScreenRoutingSlicing:
+    def test_onboard_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/slicing panel", _FakeLog())
+        assert calls == [("/slicing", "panel")]
+
+    def test_chat_screen_help_and_usage_name_the_book(self):
+        text = (ROOT / "mythic_agent" / "ui" / "screens"
+                / "chat_screen.py").read_text(encoding="utf-8")
+        assert "/slicing[/green] - show the slicing engine (M-203)" in (
+            text)
+        assert ('"/slicing": "Usage: /slicing | '
+                '/slicing draft <draft-id>') in text
+
+
+class TestSlicingDerivedTargets:
+    def test_panel_and_verdict_are_derived_at_call_time(self, agent):
+        panel = agent.slicing_panel()
+        assert panel.total_shown == 5
+        assert panel.panel_id == "panel-view-slicing"
+        verdict = agent.slicing_verdict()
+        assert verdict.verdict == "strained"
+        found = agent.slicing_verdict("view-sound")
+        assert found.verdict == "open"
+        assert found.passing_shown == 3
+        agent.register_slicing_draft(_draft())
+        with pytest.raises(ValueError):
+            agent.slicing_panel()
+        with pytest.raises(ValueError):
+            agent.slicing_verdict()
+
+    def test_view_target_over_an_unshown_filter_is_shut(self, agent):
+        agent.register_slicing_draft(_draft(outcomes=[]))
+        result = agent.view_slicing("sound")
+        assert result["verdict_record"]["verdict"] == "shut"
+        assert result["verdict_record"]["total_shown"] == 0
+
+    def test_index_target_derives_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.slicing_index()
+        assert [e["outcome"] for e in result["index"]["entries"]] == (
+            EXAMPLE_OUTCOMES)
+        assert result["index"]["gaps"] == [
+            "draft-two-outcomes", "draft-loose-thread"]
+        assert "the intent stands held in the user's plain words - Capture the intent (draft-capture-intent)" in (
+            result["index_text"])
+        draft = agent.get_slicing_draft("draft-loose-thread")
+        assert draft_gaps(draft, agent.slicing_book()) == (
+            "depends on draft-never-held, which stands nowhere "
+            "in this book",)
+        assert draft_sound(draft, agent.slicing_book()) is False
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"] in _SLICING_EVENT_TYPES] == []
+        agent.close()
