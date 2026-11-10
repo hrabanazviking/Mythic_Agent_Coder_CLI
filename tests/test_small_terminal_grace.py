@@ -1,36 +1,36 @@
-"""M-194 Splash and Grace, Restrained - pure-layer tests.
+"""M-194 Small-Terminal Grace - pure-layer tests.
 
 TIER: integration
 
-The pure layer is the grace, held as data:
+The pure layer is the folding, held as data:
 one record per fold, held whole as a card -
 under its surface, its kind in the closed
-vocabulary (wordmark, status, art, silence),
-its width and its height held honestly
-(unknown stays empty, never invented), the
-preserved work it carries, named as data,
-and its detail - the notes held as data beside
-them, each naming its fold, its stance and
-its target, and the grace index derived at
+vocabulary (full, folded, stacked, hidden,
+summary), its width and its height held
+honestly (unknown stays empty, never
+invented), the work it preserves, named as
+data, and its detail - the notes held as data
+beside them, each naming its fold, its stance
+and its target, and the fold index derived at
 call time from the held folds alone, never
 stored where it could drift. A fold naming
 no preserved work stands losable, named
 in its gaps; two folds standing for one
 fold id refuse by name, and one stance
 record stands per fold stance. A record
-claiming a grace actually showed, played
-or performed refuses by name, and a stored
+claiming a terminal was actually resized, a
+pane actually folded or work actually
+rendered refuses by name, and a stored
 index or verdict refuses by name. The panel
 is derived for one held view and the verdict
 is derived for the whole book under one view.
 The shipped example book is held in a data
 file, and a loader reads a book from any file.
-The M-171 charter names this slice on screen
-S-01 (the splash screen), and the tests pin
-that ownership live. This layer shows no
-splash, plays no grace, performs nothing
-and opens no network: it holds the grace
-as data and tells it.
+The M-171 charter names this slice on NO row,
+and the tests pin that absence live. This
+layer resizes no terminal, folds no pane,
+renders no work and opens no network: it
+holds the folding as data and tells it.
 """
 
 
