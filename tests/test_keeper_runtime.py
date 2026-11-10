@@ -1108,7 +1108,7 @@ class TestKeepingAgentHolding:
         assert report["index"]["gaps"] == [
             "keeping-bare-deal", "keeping-leaping-deal"]
         assert "keeping-clean-deal" in report["book_text"]
-        assert "verify - The clean deal keeping (keeping-clean-deal)" in report["index_text"]
+        assert "banked - The clean deal keeping (keeping-clean-deal)" in report["index_text"]
         agent.register_keeping_keeping(_keeping())
         report = agent.report_keeping()
         assert report["book"]["title"] == "An unheld keeping book"
@@ -1272,7 +1272,7 @@ class TestKeepingDerivedTargets:
             EXAMPLE_CHECKS)
         assert result["index"]["gaps"] == [
             "keeping-bare-deal", "keeping-leaping-deal"]
-        assert "verify - The clean deal keeping (keeping-clean-deal)" in (
+        assert "banked - The clean deal keeping (keeping-clean-deal)" in (
             result["index_text"])
         keeping = agent.get_keeping_keeping("keeping-leaping-deal")
         assert keeping_gaps(keeping, agent.keeping_book()) == (
