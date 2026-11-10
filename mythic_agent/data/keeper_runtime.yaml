@@ -1,0 +1,225 @@
+schema: mythic.keeper_runtime/1
+slice: M-207
+keeper_runtime:
+  title: The Keeper runtime at the M-206 slice boundary
+slices:
+- slice_id: slice-m206-banking
+  seq: 1
+  title: Banking discipline
+  state: active
+  detail: 'The slice the keeper deals first: banked at M-206, standing active in the runtime''s hands.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the keeper runtime
+  origin_session: session-m207
+- slice_id: slice-m207-keeper
+  seq: 2
+  title: Keeper runtime
+  state: active
+  detail: 'This very slice, standing active: the runtime holding its own keeping as data.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the keeper runtime
+  origin_session: session-m207
+- slice_id: slice-m208-pauselines
+  seq: 3
+  title: The pause-lines wired
+  state: queued
+  detail: A queued slice the keeper has not dealt; a keeping naming it refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the keeper runtime
+  origin_session: session-m207
+keepings:
+- keeping_id: keeping-clean-deal
+  seq: 1
+  slice_id: slice-m206-banking
+  title: The clean deal keeping
+  checks:
+  - dealt
+  - watched
+  - judged
+  - banked
+  claims:
+  - heartbeat_log
+  detail: 'The opening keeping: the keeper dealt the banking slice and watched it bank in the open, carrying
+    its heartbeat log as proof.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the keeper runtime
+  origin_session: session-m207
+- keeping_id: keeping-restart-deal
+  seq: 2
+  slice_id: slice-m206-banking
+  title: The restart keeping
+  checks:
+  - dealt
+  - watched
+  - judged
+  - restarted
+  - judged
+  - banked
+  claims: []
+  detail: 'The restart keeping: a judged stall stepped to restarted and back to judged for the rerun,
+    in the open.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the keeper runtime
+  origin_session: session-m207
+- keeping_id: keeping-runtime-deal
+  seq: 3
+  slice_id: slice-m207-keeper
+  title: The runtime keeping
+  checks:
+  - dealt
+  - watched
+  - judged
+  - banked
+  claims:
+  - ledger_row
+  detail: 'The runtime keeping: this slice''s own keeping, carrying its ledger row as proof.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the keeper runtime
+  origin_session: session-m207
+- keeping_id: keeping-bare-deal
+  seq: 4
+  slice_id: slice-m207-keeper
+  title: The bare claim keeping
+  checks:
+  - dealt
+  - watched
+  - judged
+  - banked
+  claims:
+  - feeling
+  detail: A keeping that carried a feeling in place of held proof, standing open.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the keeper runtime
+  origin_session: session-m207
+- keeping_id: keeping-leaping-deal
+  seq: 5
+  slice_id: slice-m207-keeper
+  title: The leaping keeping
+  checks:
+  - dealt
+  - watched
+  - banked
+  claims: []
+  detail: A keeping that stepped from watched straight to banked, outside the keeper sequence, standing
+    open.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the keeper runtime
+  origin_session: session-m207
+views:
+- view_id: view-keepings
+  seq: 1
+  view_filter: all
+  detail: Every held keeping, complete or not.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the keeper runtime
+  origin_session: session-m207
+- view_id: view-complete
+  seq: 2
+  view_filter: complete
+  detail: Only the keepings standing complete.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the keeper runtime
+  origin_session: session-m207
+notes:
+- note_id: note-note-first
+  seq: 1
+  keeping_id: keeping-clean-deal
+  stance: note
+  target: the opening keeping
+  title: Deals first
+  detail: The keeper opens by dealing the next slice in roadmap order, told honestly.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the keeper runtime
+  origin_session: session-m207
+- note_id: note-concern-bare
+  seq: 2
+  keeping_id: keeping-bare-deal
+  stance: concern
+  target: the bare claim keeping
+  title: Claim named
+  detail: A keeping that carried a feeling claim is not the keeper's way, and stands named.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the keeper runtime
+  origin_session: session-m207
+traces:
+- trace_id: trace-first
+  seq: 1
+  keeping_id: keeping-clean-deal
+  trace: dealt > watched > judged > banked
+  detail: 'The opening keeping''s walk, held exactly as walked: the trace is the walk itself.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the keeper runtime
+  origin_session: session-m207
+panels:
+- panel_id: panel-m206-boundary
+  view_id: view-keepings
+  view_filter: all
+  rows:
+  - item_id: keeping-clean-deal
+    standing: complete
+    label: The clean deal keeping
+    segment: 'keeping-clean-deal: The clean deal keeping - slice: ''slice-m206-banking'' - check: ''banked''
+      - checks: 4 - claims: ''heartbeat_log'' - detail: ''The opening keeping: the keeper dealt the banking
+      slice and watched it bank in the open, carrying its heartbeat log as proof.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: keeping-restart-deal
+    standing: complete
+    label: The restart keeping
+    segment: 'keeping-restart-deal: The restart keeping - slice: ''slice-m206-banking'' - check: ''banked''
+      - checks: 6 - claims: ''none'' - detail: ''The restart keeping: a judged stall stepped to restarted
+      and back to judged for the rerun, in the open.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: keeping-runtime-deal
+    standing: complete
+    label: The runtime keeping
+    segment: 'keeping-runtime-deal: The runtime keeping - slice: ''slice-m207-keeper'' - check: ''banked''
+      - checks: 4 - claims: ''ledger_row'' - detail: ''The runtime keeping: this slice''s own keeping,
+      carrying its ledger row as proof.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: keeping-bare-deal
+    standing: open
+    label: The bare claim keeping
+    segment: 'keeping-bare-deal: The bare claim keeping - slice: ''slice-m207-keeper'' - check: ''banked''
+      - checks: 4 - claims: ''feeling'' - detail: ''A keeping that carried a feeling in place of held
+      proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof: complete
+      stands on held proof alone'
+    recorded_on: '2026-11-10'
+  - item_id: keeping-leaping-deal
+    standing: open
+    label: The leaping keeping
+    segment: 'keeping-leaping-deal: The leaping keeping - slice: ''slice-m207-keeper'' - check: ''banked''
+      - checks: 3 - claims: ''none'' - detail: ''A keeping that stepped from watched straight to banked,
+      outside the keeper sequence, standing open.'' - gaps: steps from watched to banked, which the keeper
+      sequence does not allow'
+    recorded_on: '2026-11-10'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-10'
+  account:
+  - 'The keeping book holds 5 keepings as of 2026-11-10: the view ''all'' shows 5 of them: complete 3,
+    open 2; 3 of the shown keepings stand complete.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its keeping's own fields - the slice it keeps, the steps it walked in
+    the open and the evidence it honestly carries - and no judgement is stored on any keeping.
+  - 'Completeness is judged from the held records alone: a keeping that steps outside the keeper sequence,
+    carries a bare claim in place of held evidence, or has not reached banked stands open, named in its
+    gaps, and the keeping index is derived from the held keepings, never stored where it could drift.'
