@@ -853,3 +853,12 @@ mythic_agent/agents/llm.py:51044:view_juggernaut:method
 mythic_agent/agents/llm.py:51111:register_juggernaut_book:method
 mythic_agent/agents/llm.py:51160:record_juggernaut_book:method
 mythic_agent/agents/llm.py:51238:report_juggernaut:method
+mythic_agent/agents/llm.py:51534:get_acceptance_note:method
+mythic_agent/agents/llm.py:51549:acceptance_audits_for_slice:method
+mythic_agent/agents/llm.py:51555:acceptance_audits_green:method
+mythic_agent/agents/llm.py:51621:register_acceptance_audit:method
+mythic_agent/agents/llm.py:51652:register_acceptance_view:method
+mythic_agent/agents/llm.py:51678:view_acceptance:method
+mythic_agent/agents/llm.py:51745:register_acceptance_book:method
+mythic_agent/agents/llm.py:51794:record_acceptance_book:method
+mythic_agent/agents/llm.py:51872:report_acceptance:method

@@ -1264,7 +1264,7 @@ slices:
   title: Acceptance gates per slice
   summary: each slice carries its checks; the Auditor (M-130) runs them; a slice banks only green — "banked"
     is a state with evidence, not a feeling.
-  status: queued
+  status: done
 - id: M-206
   part: 9
   title: Banking discipline
