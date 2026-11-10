@@ -413,6 +413,8 @@ class CommandHandler:
                 self._handle_theatre(args)
             elif cmd == "/panes":
                 self._handle_pane(args)
+            elif cmd == "/smallterminal":
+                self._handle_smallterminal(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -8623,6 +8625,97 @@ class CommandHandler:
                 text = format_verdict(primary.splash_ceremony_book())
             else:
                 text = primary.splash_ceremony_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_smallterminal(self, args: str):
+        """M-194: /smallterminal - session fold.
+
+        ``/smallterminal`` shows the fold book held this
+        session - session fold, held as data:
+        one record per fold with the target that reaches
+        it and the file notes held as
+        data beside them (the shipped example book -
+        six folds at the M-193 slice boundary, with
+        its two views, two stance records and its one
+        pinned panel - when none is held yet);
+        ``/smallterminal fold <fold-id>`` shows one fold whole;
+        ``/smallterminal preserves <preserves>`` shows the fold one target
+        reaches, or names the target unheld;
+        ``/smallterminal kind <kind>`` shows the book's folds
+        of one kind; ``/smallterminal view <view-id>`` shows
+        one held view record; ``/smallterminal note
+        <note-id>`` shows one held stance record;
+        ``/smallterminal index`` shows the index derived
+        from the whole book's held folds; ``/smallterminal
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/smallterminal
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: folds and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every fold held for the session is
+        journaled as a grace_fold session event,
+        every view as a grace_view session event,
+        every derived panel as a grace_panel
+        session event and every derived verdict as a
+        grace_verdict session event. This surface
+        moves no pointer, renders no live UI and
+        opens no file - holding and telling
+        are words only.
+        """
+        from ..core.small_terminal_grace import (
+            format_fold,
+            format_book,
+            format_preserves,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_grace_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_grace_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "fold":
+                text = format_fold(primary.get_grace_fold(target))
+            elif stance == "preserves":
+                text = format_preserves(
+                    primary.small_terminal_grace_book(), target)
+            elif stance == "kind":
+                text = format_book(
+                    primary.small_terminal_grace_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_grace_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.small_terminal_grace_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.small_terminal_grace_book())
+            elif stance == "panel":
+                text = format_panel(primary.small_terminal_grace_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.small_terminal_grace_book())
+            else:
+                text = primary.small_terminal_grace_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
