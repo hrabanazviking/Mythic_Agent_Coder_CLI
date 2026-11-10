@@ -773,3 +773,14 @@ mythic_agent/agents/llm.py:46094:view_share:method
 mythic_agent/agents/llm.py:46161:register_share_book:method
 mythic_agent/agents/llm.py:46206:record_share_book:method
 mythic_agent/agents/llm.py:46279:report_copy_share:method
+mythic_agent/agents/llm.py:46565:get_room_note:method
+mythic_agent/agents/llm.py:46580:room_settings_for_section:method
+mythic_agent/agents/llm.py:46586:room_settings_passing:method
+mythic_agent/agents/llm.py:46592:settings_room_panel:method
+mythic_agent/agents/llm.py:46610:settings_room_verdict:method
+mythic_agent/agents/llm.py:46652:register_room_setting:method
+mythic_agent/agents/llm.py:46683:register_room_view:method
+mythic_agent/agents/llm.py:46709:view_room:method
+mythic_agent/agents/llm.py:46776:register_room_book:method
+mythic_agent/agents/llm.py:46821:record_room_book:method
+mythic_agent/agents/llm.py:46894:report_settings_room:method
