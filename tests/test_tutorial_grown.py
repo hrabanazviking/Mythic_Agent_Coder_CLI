@@ -734,3 +734,383 @@ def test_parse_args_inspect_and_loader_roads():
     assert lesson_passes(built) is True
 
 
+# ---------------------------------------------------------------------
+# M-185 agent layer: the agent holds a tutorial
+# book for the session, lessons and views are
+# published as session news through the checkpoint
+# road (journal first, deduped per shape), the
+# panel and verdict are derived at call time from
+# the whole book under a view, never held, and the
+# play is derived at call time from the book's held
+# steps under the scratch-repo rule - lessons run
+# inside a scratch repo, never against the real
+# workspace. This layer calls no model, runs no
+# lesson, opens no repo and persists nothing beyond
+# the session journal news.
+# ---------------------------------------------------------------------
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _tutorial_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_tutorial_book_file(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data" / TUTORIAL_GROWN_RESOURCE
+           ).read_text(encoding="utf-8")
+    path = tmp_path / "tutorial_grown.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestTutorialAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.tutorial_grown_status()
+        assert status["lessons"] == []
+        assert status["views"] == []
+        assert status["book"] is None
+        assert status["tutorial"]["title"] == EXAMPLE_TITLE
+        assert len(status["tutorial"]["lessons"]) == 6
+        assert len(status["tutorial"]["views"]) == 2
+        assert len(status["tutorial"]["steps"]) == 5
+        assert len(status["tutorial"]["scratches"]) == 1
+        assert status["panel"]["total_items"] == 6
+        assert status["panel"]["total_shown"] == 6
+        assert status["panels"][0]["panel_id"] == "panel-m184-boundary"
+        assert status["verdict"]["verdict"] == "strained"
+        assert status["verdict"]["passing_shown"] == 4
+        assert status["play"]["passes"] is True
+        assert "inside a scratch repo" in status["rule"]
+        assert "Memory you can play with" in status["plain_words"]
+        assert "The Tutorial Grown (M-185)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._tutorial_grown_registry()
+        assert agent._tutorial_grown_registry() is first
+        assert agent._tutorial_grown_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.tutorial_grown_status()
+        assert agent.get_tutorial_lesson(
+            "les-providers-first").title == "Meet your providers"
+        assert agent.get_tutorial_view("view-all").view_filter == "all"
+        assert agent.get_tutorial_scratch(
+            "scratch-tutorial-playground").state == "open"
+        assert [d.lesson_id for d in agent.tutorial_grown_with_readiness(
+            "blocked")] == ["les-sandboxing", "les-memory-context"]
+        assert [d.lesson_id for d in agent.tutorial_grown_passing()] == [
+            "les-providers-first", "les-code-intelligence", "les-editors-hand",
+            "les-parallel-crews"]
+        agent.tutorial_grown_panel()
+        agent.tutorial_grown_verdict()
+        agent.tutorial_grown_play()
+        agent.report_tutorial_grown()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("tutorial")] == []
+        with pytest.raises(KeyError):
+            agent.get_tutorial_lesson("les-nope")
+        with pytest.raises(KeyError):
+            agent.get_tutorial_view("view-nope")
+        with pytest.raises(KeyError):
+            agent.get_tutorial_scratch("scratch-nope")
+        with pytest.raises(ValueError):
+            agent.tutorial_grown_with_readiness("maybe")
+        agent.close()
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_tutorial_lesson(_lesson())
+        status = agent.tutorial_grown_status()
+        assert [d["lesson_id"] for d in status["lessons"]] == [
+            "les-test"]
+        assert status["book"]["title"] == "An unheld tutorial book"
+        assert status["panel"] is None
+        assert status["verdict"] is None
+        assert status["play"]["passes"] is False
+        assert "les-test" in status["screen"]
+
+    def test_held_lesson_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_tutorial_lesson(_lesson())
+        with pytest.raises(KeyError):
+            agent.get_tutorial_lesson("les-providers-first")
+        with pytest.raises(KeyError):
+            agent.get_tutorial_view("view-all")
+        lesson = agent.get_tutorial_lesson("les-test")
+        assert lesson.title == "A test lesson"
+        assert agent.tutorial_grown_book().title == (
+            "An unheld tutorial book")
+
+    def test_play_and_scratch_stand_in_the_example(self, agent):
+        play = agent.tutorial_grown_play()
+        assert [s.phase for s in play.steps] == [
+            "open", "read", "try", "check", "clean"]
+        assert play.passes() is True
+        scratch = agent.get_tutorial_scratch("scratch-tutorial-playground")
+        assert scratch.repo == "tutorial-playground"
+        assert scratch.state == "open"
+
+
+class TestTutorialAgentHolding:
+    def test_register_lesson_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_tutorial_lesson(_lesson())
+        assert result["lesson"]["lesson_id"] == "les-test"
+        assert result["record_news"]["type"] == "tutorial_lesson"
+        assert "les-test" in result["screen"]
+        events = _tutorial_events(
+            store, session_id, "tutorial_lesson")
+        assert len(events) == 1
+        agent.close()
+
+    def test_duplicate_lesson_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_tutorial_lesson(_lesson())
+        with pytest.raises(ValueError):
+            agent.register_tutorial_lesson(_lesson(seq=9))
+        events = _tutorial_events(
+            store, session_id, "tutorial_lesson")
+        assert len(events) == 1
+        agent.close()
+
+    def test_register_view_holds_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_tutorial_view(_view())
+        assert result["view"]["view_id"] == "view-test"
+        assert len(_tutorial_events(
+            store, session_id, "tutorial_view")) == 1
+        agent.close()
+
+    def test_view_road_derives_sequence_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_tutorial_lesson(_lesson())
+        result = agent.view_tutorial("ready")
+        assert result["view"]["view_filter"] == "ready"
+        assert result["view"]["seq"] == 1
+        assert result["panel_record"]["type"] == "tutorial_panel"
+        assert result["panel_record"]["total_shown"] == 1
+        assert result["verdict_record"]["verdict"] == "open"
+        assert len(_tutorial_events(
+            store, session_id, "tutorial_view")) == 1
+        assert len(_tutorial_events(
+            store, session_id, "tutorial_panel")) == 1
+        assert len(_tutorial_events(
+            store, session_id, "tutorial_verdict")) == 1
+        agent.close()
+
+    def test_view_road_over_an_unshown_filter_is_shut(self, agent):
+        agent.register_tutorial_lesson(_lesson(readiness="blocked"))
+        result = agent.view_tutorial("ready")
+        assert result["verdict_record"]["verdict"] == "shut"
+        assert result["verdict_record"]["total_shown"] == 0
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_tutorial_book(
+            _book(views=[_view()]))
+        assert result["count"] == 1
+        assert [r["type"] for r in result["records_news"]] == [
+            "tutorial_lesson", "tutorial_view"]
+        assert len(_tutorial_events(
+            store, session_id, "tutorial_lesson")) == 1
+        agent.close()
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.record_tutorial_book()
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+        assert result["panel_record"]["type"] == "tutorial_panel"
+        assert result["play_record"]["passes"] is True
+        with pytest.raises(ValueError):
+            agent.record_tutorial_book()
+        assert len(_tutorial_events(
+            store, session_id, "tutorial_lesson")) == 6
+        assert len(_tutorial_events(
+            store, session_id, "tutorial_view")) == 2
+        agent.close()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_tutorial_book_file(tmp_path)
+        book = load_tutorial_grown_file(path)
+        result = agent.record_tutorial_book(book)
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+
+    def test_report_renders_example_then_held_book_only(self, agent):
+        report = agent.report_tutorial_grown()
+        assert report["book"]["title"] == EXAMPLE_TITLE
+        assert report["verdict"]["verdict"] == "strained"
+        assert "les-providers-first" in report["book_text"]
+        assert "[try]" in report["play_text"]
+        assert "scratch-tutorial-playground" in report["play_text"]
+        agent.register_tutorial_lesson(_lesson())
+        report = agent.report_tutorial_grown()
+        assert report["book"]["title"] == "An unheld tutorial book"
+        assert report["panel"] is None
+        assert report["verdict"] is None
+
+
+class TestTutorialTerminalSurface:
+    def test_show_lesson_play_scratch_view_readiness_panel_verdict(
+            self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/lessons")
+        assert "The Tutorial Grown (M-185)" in text
+        _, _, text = _slash(agent, "/lessons lesson les-providers-first")
+        assert "Lesson: Meet your providers" in text
+        _, _, text = _slash(agent, "/lessons play")
+        assert "[try]" in text
+        _, _, text = _slash(agent, "/lessons scratch scratch-tutorial-playground")
+        assert "open" in text
+        _, _, text = _slash(agent, "/lessons view view-all")
+        assert "filter all" in text
+        _, _, text = _slash(agent, "/lessons readiness blocked")
+        assert "les-sandboxing" in text
+        assert "les-providers-first" not in text
+        _, _, text = _slash(agent, "/lessons panel")
+        assert "Tutorial panel under view view-all" in text
+        _, _, text = _slash(agent, "/lessons verdict")
+        assert "strained" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/lessons [show|lesson <lesson-id>"
+                "|play|scratch <scratch-id>|view <view-id>"
+                "|readiness <readiness>|panel|verdict]") in text
+        _, _, text = _slash(agent, "/lessons dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/lessons lesson les-nope")
+        assert "no lesson named" in text
+
+
+@pytest.fixture()
+def lessons_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _lessons_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestTutorialCommand:
+    def test_show_is_default(self, lessons_handler, agent):
+        lessons_handler._handle_lessons("")
+        assert "The Tutorial Grown (M-185)" in (
+            _lessons_published_text(lessons_handler))
+
+    def test_lesson_play_scratch_view_readiness_panel_verdict(
+            self, lessons_handler, agent):
+        lessons_handler._handle_lessons("lesson les-providers-first")
+        assert "Lesson: Meet your providers" in _lessons_published_text(
+            lessons_handler)
+        lessons_handler._handle_lessons("play")
+        assert "[try]" in _lessons_published_text(lessons_handler)
+        lessons_handler._handle_lessons("scratch scratch-tutorial-playground")
+        assert "open" in _lessons_published_text(lessons_handler)
+        lessons_handler._handle_lessons("view view-all")
+        assert "filter all" in _lessons_published_text(lessons_handler)
+        lessons_handler._handle_lessons("readiness blocked")
+        assert "les-sandboxing" in _lessons_published_text(
+            lessons_handler)
+        lessons_handler._handle_lessons("panel")
+        assert "Tutorial panel under view" in _lessons_published_text(
+            lessons_handler)
+        lessons_handler._handle_lessons("verdict")
+        assert "strained" in _lessons_published_text(lessons_handler)
+
+    def test_bad_grammar_is_published(
+            self, lessons_handler, agent):
+        lessons_handler._handle_lessons("dance party")
+        assert USAGE in _lessons_published_text(lessons_handler)
+        lessons_handler._handle_lessons("lesson les-nope")
+        assert "no lesson named" in _lessons_published_text(
+            lessons_handler)
+
+
+class TestChatScreenRoutingTutorial:
+    def test_onboard_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/lessons panel", _FakeLog())
+        assert calls == [("/lessons", "panel")]
+
+    def test_chat_screen_help_and_usage_name_the_book(self):
+        text = (ROOT / "mythic_agent" / "ui" / "screens"
+                / "chat_screen.py").read_text(encoding="utf-8")
+        assert "/lessons[/green] - show the tutorial grown (M-185)" in (
+            text)
+        assert ('"/lessons": "Usage: /lessons | '
+                '/lessons lesson <lesson-id>') in text
+
+
+class TestTutorialDerivedRoads:
+    def test_panel_and_verdict_are_derived_at_call_time(self, agent):
+        panel = agent.tutorial_grown_panel()
+        assert panel.total_shown == 6
+        assert panel.panel_id == "panel-view-all"
+        verdict = agent.tutorial_grown_verdict()
+        assert verdict.verdict == "strained"
+        found = agent.tutorial_grown_verdict("view-ready")
+        assert found.verdict == "open"
+        assert found.passing_shown == 4
+        agent.register_tutorial_lesson(_lesson())
+        with pytest.raises(ValueError):
+            agent.tutorial_grown_panel()
+        with pytest.raises(ValueError):
+            agent.tutorial_grown_verdict()
+
+    def test_absent_lesson_stands_named_in_its_gaps(self, agent):
+        lesson = agent.get_tutorial_lesson("les-sandboxing")
+        assert lesson_gaps(lesson) == ("exercise",)
+        assert lesson_passes(lesson) is False
+        status = agent.tutorial_grown_status()
+        assert status["verdict"]["passing_shown"] == 4
+        assert status["play"]["steps"][2]["phase"] == "try"
+        assert status["play"]["steps"][4]["phase"] == "clean"

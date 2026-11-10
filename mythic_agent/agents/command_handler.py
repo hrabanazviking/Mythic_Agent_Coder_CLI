@@ -397,6 +397,8 @@ class CommandHandler:
                 self._handle_errors(args)
             elif cmd == "/onboard":
                 self._handle_onboard(args)
+            elif cmd == "/lessons":
+                self._handle_lessons(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -7797,6 +7799,97 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_lessons(self, args: str):
+        """M-185: /lessons - the tutorial grown.
+
+        ``/lessons`` shows the tutorial book held
+        this session - the grown tutorial held as
+        data: interactive lessons per feature family,
+        ready or blocked and never faked, the scratch
+        repo a lesson runs inside held as data, and
+        the play in held steps under the scratch-repo
+        rule - lessons run inside a scratch repo,
+        never against the real workspace (the shipped
+        example book - six lessons at the M-184 slice
+        boundary, with its two views, five play steps,
+        one scratch and its one pinned panel - when
+        none is held yet); ``/lessons lesson
+        <lesson-id>`` shows one lesson whole;
+        ``/lessons play`` shows the play in held order
+        with its scratches; ``/lessons scratch
+        <scratch-id>`` shows one scratch repo with its
+        state; ``/lessons view <view-id>`` shows one
+        held view record; ``/lessons readiness
+        <readiness>`` shows the book's lessons of one
+        readiness; ``/lessons panel`` shows the panel
+        derived from the whole book under its default
+        view; ``/lessons verdict`` shows the verdict
+        derived for the whole book. Reading registers
+        and publishes nothing as session news: lessons
+        and views are held only when they are given
+        through the agent's register roads, stood on
+        the book on the viewing road, or held on the
+        book roads, and every lesson held for the
+        session is journaled as a tutorial_lesson
+        session event, every view as a tutorial_view
+        session event, every derived panel as a
+        tutorial_panel session event and every derived
+        verdict as a tutorial_verdict session event.
+        This surface runs no lesson, opens no repo and
+        writes nothing to any real workspace - holding
+        and telling are words only.
+        """
+        from ..core.tutorial_grown import (
+            format_book,
+            format_lesson,
+            format_scratch,
+            format_panel,
+            format_verdict,
+            format_view,
+            format_play,
+            parse_tutorial_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_tutorial_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "lesson":
+                text = format_lesson(
+                    primary.get_tutorial_lesson(target))
+            elif action == "play":
+                text = format_play(primary.tutorial_grown_book())
+            elif action == "scratch":
+                text = format_scratch(
+                    primary.get_tutorial_scratch(target))
+            elif action == "view":
+                text = format_view(
+                    primary.get_tutorial_view(target))
+            elif action == "readiness":
+                text = format_book(
+                    primary.tutorial_grown_book(), target)
+            elif action == "panel":
+                text = format_panel(primary.tutorial_grown_book())
+            elif action == "verdict":
+                text = format_verdict(primary.tutorial_grown_book())
+            else:
+                text = primary.tutorial_grown_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
 
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.
