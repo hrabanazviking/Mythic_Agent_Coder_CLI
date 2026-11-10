@@ -1270,7 +1270,7 @@ slices:
   title: Banking discipline
   summary: banked slices commit (M-078) and, where the user has so ruled, push with remote verification
     — the app knows the house git laws and recites them in its plan.
-  status: queued
+  status: done
 - id: M-207
   part: 9
   title: Keeper runtime
