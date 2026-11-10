@@ -1153,7 +1153,7 @@ slices:
   title: Help that answers
   summary: '`?` anywhere gives help *for that screen*; a question box ("how do I undo a commit?") answered
     from the local docs by the coder itself.'
-  status: queued
+  status: done
 - id: M-187
   part: 8
   title: Keyboard sovereignty
