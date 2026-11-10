@@ -707,3 +707,14 @@ mythic_agent/agents/llm.py:42405:view_gallery:method
 mythic_agent/agents/llm.py:42472:register_gallery_book:method
 mythic_agent/agents/llm.py:42517:record_gallery_book:method
 mythic_agent/agents/llm.py:42590:report_session_gallery:method
+mythic_agent/agents/llm.py:42876:get_costs_warning:method
+mythic_agent/agents/llm.py:42891:costs_lines_for_scope:method
+mythic_agent/agents/llm.py:42897:costs_lines_passing:method
+mythic_agent/agents/llm.py:42903:costs_face_panel:method
+mythic_agent/agents/llm.py:42921:costs_face_verdict:method
+mythic_agent/agents/llm.py:42963:register_costs_line:method
+mythic_agent/agents/llm.py:42994:register_costs_view:method
+mythic_agent/agents/llm.py:43020:view_costs:method
+mythic_agent/agents/llm.py:43087:register_costs_book:method
+mythic_agent/agents/llm.py:43132:record_costs_book:method
+mythic_agent/agents/llm.py:43205:report_costs_face:method

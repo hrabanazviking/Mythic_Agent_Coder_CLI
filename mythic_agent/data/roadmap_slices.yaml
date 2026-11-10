@@ -1176,7 +1176,7 @@ slices:
   title: The costs face
   summary: live spend per session and per slice, with the honesty rule kept (unknown = unknown) and budgets
     from M-107 as gentle warnings before walls.
-  status: queued
+  status: done
 - id: M-191
   part: 8
   title: Diff theatre final form (with M-091)
