@@ -417,6 +417,8 @@ class CommandHandler:
                 self._handle_smallterminal(args)
             elif cmd == "/copyshare":
                 self._handle_copyshare(args)
+            elif cmd == "/settingsroom":
+                self._handle_settingsroom(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -8809,6 +8811,97 @@ class CommandHandler:
                 text = format_verdict(primary.copy_share_book())
             else:
                 text = primary.copy_share_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_settingsroom(self, args: str):
+        """M-196: /settingsroom - the settings room.
+
+        ``/settingsroom`` shows the settings book held this
+        session - the settings room, held as data:
+        one record per setting with the meaning that reaches
+        it and the notes held as
+        data beside them (the shipped example book -
+        six settings at the M-195 slice boundary, with
+        its two views, two stance records and its one
+        pinned panel - when none is held yet);
+        ``/settingsroom setting <setting-id>`` shows one setting whole;
+        ``/settingsroom meaning <meaning>`` shows the setting one meaning
+        reaches, or names the meaning unheld;
+        ``/settingsroom section <section>`` shows the book's settings
+        of one section; ``/settingsroom view <view-id>`` shows
+        one held view record; ``/settingsroom note
+        <note-id>`` shows one held stance record;
+        ``/settingsroom index`` shows the index derived
+        from the whole book's held settings; ``/settingsroom
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/settingsroom
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: settings and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every setting held for the session is
+        journaled as a room_setting session event,
+        every view as a room_view session event,
+        every derived panel as a room_panel
+        session event and every derived verdict as a
+        room_verdict session event. This heading
+        changes no setting, applies nothing and
+        writes no config - holding and telling
+        are words only.
+        """
+        from ..core.settings_room import (
+            format_setting,
+            format_book,
+            format_meaning,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_room_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_room_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "setting":
+                text = format_setting(primary.get_room_setting(target))
+            elif stance == "meaning":
+                text = format_meaning(
+                    primary.settings_room_book(), target)
+            elif stance == "section":
+                text = format_book(
+                    primary.settings_room_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_room_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.settings_room_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.settings_room_book())
+            elif stance == "panel":
+                text = format_panel(primary.settings_room_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.settings_room_book())
+            else:
+                text = primary.settings_room_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
