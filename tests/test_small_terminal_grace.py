@@ -744,3 +744,407 @@ def test_parse_args_inspect_and_loader_targets():
     assert fold_passes(built) is True
 
 
+# ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# M-194 agent layer: the agent holds a fold book
+# for the session, folds and views are published
+# as session news through the checkpoint target
+# (journal first, deduped per shape), the panel
+# and verdict are derived at call time from the
+# whole book under a view, never held, the index
+# is derived from the book's held folds, and the
+# stance targets are held as data beside them -
+# holding one resumes no session. This layer
+# resumes nothing, renders no live UI, exports
+# nothing and persists nothing beyond the
+# session journal news.
+# ---------------------------------------------------------------------
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _fold_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_fold_book_file(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data" / SMALL_TERMINAL_GRACE_RESOURCE
+           ).read_text(encoding="utf-8")
+    path = tmp_path / "small_terminal_grace.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestGraceAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.small_terminal_grace_status()
+        assert status["folds"] == []
+        assert status["views"] == []
+        assert status["book"] is None
+        assert status["small_terminal_grace"]["title"] == EXAMPLE_TITLE
+        assert len(status["small_terminal_grace"]["folds"]) == 6
+        assert len(status["small_terminal_grace"]["views"]) == 2
+        assert len(status["small_terminal_grace"]["notes"]) == 2
+        assert status["panel"]["total_items"] == 6
+        assert status["panel"]["total_shown"] == 6
+        assert status["panels"][0]["panel_id"] == "panel-m193-boundary"
+        assert status["verdict"]["verdict"] == "strained"
+        assert status["verdict"]["passing_shown"] == 5
+        assert [e["preserves"] for e in status["index"]["entries"]] == ["the work in progress", "the board and its slice standings", "the crew roster and each worker's slice", "the file list, folded to names and standings", "the conversation and the question on the floor"]
+        assert status["index"]["gaps"] == ["fold-terminal-phone"]
+        assert status["first_note"]["note_id"] == "note-note-work"
+        assert "held as data alone" in status["rule"]
+        assert "the conversation and the question on the floor" in status["plain_words"]
+        assert "Small-Terminal Grace (M-194)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._small_terminal_grace_registry()
+        assert agent._small_terminal_grace_registry() is first
+        assert agent._small_terminal_grace_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.small_terminal_grace_status()
+        assert agent.get_grace_fold(
+            "fold-work-wide").surface == "Work pane on the wide terminal"
+        assert agent.get_grace_view("view-grace").view_filter == "all"
+        assert agent.get_grace_note(
+            "note-note-work").note_id == "note-note-work"
+        assert [a.fold_id for a in agent.grace_folds_for_kind(
+            "full")] == ["fold-work-wide", "fold-chat-wide"]
+        assert [a.fold_id for a in agent.grace_folds_for_kind(
+            "folded")] == ["fold-board-wide"]
+        assert [a.fold_id for a in agent.grace_folds_passing()] == [
+            "fold-work-wide", "fold-board-wide",
+            "fold-crew-phone", "fold-files-phone",
+            "fold-chat-wide"]
+        agent.small_terminal_grace_panel()
+        agent.small_terminal_grace_verdict()
+        agent.grace_index()
+        agent.report_small_terminal_grace()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("grace")
+                or e["type"] == "grace_fold"] == []
+        with pytest.raises(KeyError):
+            agent.get_grace_fold("fold-nope")
+        with pytest.raises(KeyError):
+            agent.get_grace_view("view-nope")
+        with pytest.raises(KeyError):
+            agent.get_grace_note("note-nope")
+        with pytest.raises(ValueError):
+            agent.grace_folds_for_kind("the void")
+        agent.close()
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_grace_fold(_fold())
+        status = agent.small_terminal_grace_status()
+        assert [a["fold_id"] for a in status["folds"]] == ["fold-test"]
+        assert status["book"]["title"] == "An unheld fold book"
+        assert status["panel"] is None
+        assert status["verdict"] is None
+        assert [e["preserves"] for e in status["index"]["entries"]] == [
+            "the work in progress"]
+        assert status["first_note"] is None
+        assert "fold-test" in status["screen"]
+
+    def test_held_fold_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_grace_fold(_fold())
+        with pytest.raises(KeyError):
+            agent.get_grace_fold("fold-work-wide")
+        with pytest.raises(KeyError):
+            agent.get_grace_view("view-grace")
+        with pytest.raises(KeyError):
+            agent.get_grace_note("modal")
+        fold = agent.get_grace_fold("fold-test")
+        assert fold.surface == "A test fold"
+        assert agent.small_terminal_grace_book().title == (
+            "An unheld fold book")
+
+    def test_notes_and_index_stand_in_the_example(self, agent):
+        first = agent.get_grace_note("note-note-work")
+        assert first.note_id == "note-note-work"
+        assert first.fold_id == "fold-work-wide"
+        status = agent.small_terminal_grace_status()
+        assert status["index"]["gaps"] == ["fold-terminal-phone"]
+        assert status["first_note"]["fold_id"] == (
+            "fold-work-wide")
+        assert status["first_note"]["stance"] == "note"
+
+
+class TestGraceAgentHolding:
+    def test_register_fold_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_grace_fold(_fold())
+        assert result["fold"]["fold_id"] == "fold-test"
+        assert result["record_news"]["type"] == "grace_fold"
+        assert "fold-test" in result["screen"]
+        events = _fold_events(store, session_id, "grace_fold")
+        assert len(events) == 1
+        agent.close()
+
+    def test_duplicate_fold_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_grace_fold(_fold())
+        with pytest.raises(ValueError):
+            agent.register_grace_fold(_fold(seq=9))
+        with pytest.raises(ValueError):
+            agent.register_grace_fold(_fold(fold_id="fold-two"))
+        events = _fold_events(store, session_id, "grace_fold")
+        assert len(events) == 1
+        agent.close()
+
+    def test_register_view_holds_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_grace_view(_view())
+        assert result["view"]["view_id"] == "view-test"
+        assert len(_fold_events(
+            store, session_id, "grace_view")) == 1
+        agent.close()
+
+    def test_view_target_derives_sequence_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_grace_fold(_fold())
+        result = agent.view_grace("preserved")
+        assert result["view"]["view_filter"] == "preserved"
+        assert result["view"]["seq"] == 1
+        assert result["panel_record"]["type"] == "grace_panel"
+        assert result["panel_record"]["total_shown"] == 1
+        assert result["verdict_record"]["verdict"] == "open"
+        assert len(_fold_events(
+            store, session_id, "grace_view")) == 1
+        assert len(_fold_events(
+            store, session_id, "grace_panel")) == 1
+        assert len(_fold_events(
+            store, session_id, "grace_verdict")) == 1
+        agent.close()
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_grace_book(_book(views=[_view()]))
+        assert result["count"] == 1
+        assert [r["type"] for r in result["records_news"]] == [
+            "grace_fold", "grace_view"]
+        assert len(_fold_events(
+            store, session_id, "grace_fold")) == 1
+        agent.close()
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.record_grace_book()
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+        assert result["panel_record"]["type"] == "grace_panel"
+        assert result["index_record"]["gaps"] == [
+            "fold-terminal-phone"]
+        with pytest.raises(ValueError):
+            agent.record_grace_book()
+        assert len(_fold_events(
+            store, session_id, "grace_fold")) == 6
+        assert len(_fold_events(
+            store, session_id, "grace_view")) == 2
+        agent.close()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_fold_book_file(tmp_path)
+        book = load_small_terminal_grace_file(path)
+        result = agent.record_grace_book(book)
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+
+    def test_report_renders_example_then_held_book_only(self, agent):
+        report = agent.report_small_terminal_grace()
+        assert report["book"]["title"] == EXAMPLE_TITLE
+        assert report["verdict"]["verdict"] == "strained"
+        assert report["index"]["gaps"] == ["fold-terminal-phone"]
+        assert "fold-work-wide" in report["book_text"]
+        assert "the work in progress - Work pane on the wide terminal (fold-work-wide)" in report["index_text"]
+        agent.register_grace_fold(_fold())
+        report = agent.report_small_terminal_grace()
+        assert report["book"]["title"] == "An unheld fold book"
+        assert report["panel"] is None
+        assert report["verdict"] is None
+
+
+class TestGraceTerminalSurface:
+    def test_show_fold_target_kind_view_note_index_panel_verdict(
+            self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/smallterminal")
+        assert "Small-Terminal Grace (M-194)" in text
+        _, _, text = _slash(agent, "/smallterminal fold fold-work-wide")
+        assert "Fold: Work pane on the wide terminal" in text
+        _, _, text = _slash(agent, "/smallterminal preserves the work in progress")
+        assert "the work in progress" in text
+        _, _, text = _slash(agent, "/smallterminal preserves triple resume")
+        assert "reaches nothing in this book" in text
+        _, _, text = _slash(agent, "/smallterminal kind full")
+        assert "fold-work-wide" in text
+        assert "fold-terminal-phone" not in text
+        _, _, text = _slash(agent, "/smallterminal view view-grace")
+        assert "filter all" in text
+        _, _, text = _slash(agent, "/smallterminal note note-note-work")
+        assert "Fold note note fold-work-wide" in text
+        _, _, text = _slash(agent, "/smallterminal index")
+        assert "Fold index" in text
+        assert "fold-files-phone" in text
+        _, _, text = _slash(agent, "/smallterminal panel")
+        assert "Grace panel under view view-grace" in text
+        _, _, text = _slash(agent, "/smallterminal verdict")
+        assert "strained" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/smallterminal [show|fold <fold-id>"
+                "|preserves <preserves>|kind <kind>|view <view-id>"
+                "|note <note-id>|index|panel|verdict]") in text
+        _, _, text = _slash(agent, "/smallterminal dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/smallterminal fold fold-nope")
+        assert "no fold named" in text
+
+
+@pytest.fixture()
+def grace_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _fold_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestGraceCommand:
+    def test_show_is_default(self, grace_handler, agent):
+        grace_handler._handle_smallterminal("")
+        assert "Small-Terminal Grace (M-194)" in (
+            _fold_published_text(grace_handler))
+
+    def test_fold_target_kind_view_note_index_panel_verdict(
+            self, grace_handler, agent):
+        grace_handler._handle_smallterminal("fold fold-work-wide")
+        assert "Fold: Work pane on the wide terminal" in _fold_published_text(
+            grace_handler)
+        grace_handler._handle_smallterminal("preserves the work in progress")
+        assert "the work in progress" in _fold_published_text(
+            grace_handler)
+        grace_handler._handle_smallterminal("kind full")
+        assert "fold-work-wide" in _fold_published_text(grace_handler)
+        grace_handler._handle_smallterminal("view view-grace")
+        assert "filter all" in _fold_published_text(grace_handler)
+        grace_handler._handle_smallterminal("note note-note-work")
+        assert "Fold note note fold-work-wide" in _fold_published_text(grace_handler)
+        grace_handler._handle_smallterminal("index")
+        assert "Fold index" in _fold_published_text(grace_handler)
+        grace_handler._handle_smallterminal("panel")
+        assert "Grace panel under view" in _fold_published_text(
+            grace_handler)
+        grace_handler._handle_smallterminal("verdict")
+        assert "strained" in _fold_published_text(grace_handler)
+
+    def test_bad_grammar_is_published(
+            self, grace_handler, agent):
+        grace_handler._handle_smallterminal("dance party")
+        assert USAGE in _fold_published_text(grace_handler)
+        grace_handler._handle_smallterminal("fold fold-nope")
+        assert "no fold named" in _fold_published_text(grace_handler)
+
+
+class TestChatScreenRoutingGrace:
+    def test_onboard_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/smallterminal panel", _FakeLog())
+        assert calls == [("/smallterminal", "panel")]
+
+    def test_chat_screen_help_and_usage_name_the_book(self):
+        text = (ROOT / "mythic_agent" / "ui" / "screens"
+                / "chat_screen.py").read_text(encoding="utf-8")
+        assert "/smallterminal[/green] - show small-terminal grace (M-194)" in (
+            text)
+        assert ('"/smallterminal": "Usage: /smallterminal | '
+                '/smallterminal fold <fold-id>') in text
+
+
+class TestGraceDerivedTargets:
+    def test_panel_and_verdict_are_derived_at_call_time(self, agent):
+        panel = agent.small_terminal_grace_panel()
+        assert panel.total_shown == 6
+        assert panel.panel_id == "panel-view-grace"
+        verdict = agent.small_terminal_grace_verdict()
+        assert verdict.verdict == "strained"
+        found = agent.small_terminal_grace_verdict("view-preserved")
+        assert found.verdict == "open"
+        assert found.passing_shown == 5
+        agent.register_grace_fold(_fold())
+        with pytest.raises(ValueError):
+            agent.small_terminal_grace_panel()
+        with pytest.raises(ValueError):
+            agent.small_terminal_grace_verdict()
+
+    def test_view_target_over_an_unshown_filter_is_shut(self, agent):
+        agent.register_grace_fold(_fold(preserves=""))
+        result = agent.view_grace("preserved")
+        assert result["verdict_record"]["verdict"] == "shut"
+        assert result["verdict_record"]["total_shown"] == 0
+
+    def test_index_target_derives_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.grace_index()
+        assert [e["preserves"] for e in result["index"]["entries"]] == ["the work in progress", "the board and its slice standings", "the crew roster and each worker's slice", "the file list, folded to names and standings", "the conversation and the question on the floor"]
+        assert result["index"]["gaps"] == ["fold-terminal-phone"]
+        assert "the work in progress - Work pane on the wide terminal (fold-work-wide)" in (
+            result["index_text"])
+        fold = agent.get_grace_fold("fold-terminal-phone")
+        assert fold_gaps(fold) == ("no preserved work",)
+        assert fold_passes(fold) is False
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("grace")
+                or e["type"] == "grace_fold"] == []
+        agent.close()
