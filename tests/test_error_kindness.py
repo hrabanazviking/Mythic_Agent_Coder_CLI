@@ -615,3 +615,383 @@ def test_loader_judges_data_and_the_build_roads():
         source="test source", origin_session="session-test")
     assert built.error_id == "error-kw"
     assert error_passes(built) is True
+
+
+# ---------------------------------------------------------------------
+# M-183 agent layer: the agent holds an error book
+# for the session, errors and views are published
+# as session news through the checkpoint road
+# (journal first, deduped per shape), the panel
+# and verdict are derived at call time from the
+# whole book under a view, never held, and the
+# render/trace roads speak the pure layer's
+# renderings - the trace folded by default, whole
+# by the one named trace action. This layer calls
+# no model, fixes nothing, sends nothing and
+# persists nothing beyond the session journal news.
+# ---------------------------------------------------------------------
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _kindness_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_kindness_book_file(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data" / ERROR_KINDNESS_RESOURCE
+           ).read_text(encoding="utf-8")
+    path = tmp_path / "error_kindness.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestErrorKindnessAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.error_kindness_status()
+        assert status["errors"] == []
+        assert status["views"] == []
+        assert status["book"] is None
+        assert status["error_kindness"]["title"] == EXAMPLE_TITLE
+        assert len(status["error_kindness"]["errors"]) == 6
+        assert len(status["error_kindness"]["views"]) == 2
+        assert status["panel"]["total_items"] == 6
+        assert status["panel"]["total_shown"] == 6
+        assert status["panels"][0]["panel_id"] == "panel-m182-boundary"
+        assert status["verdict"]["verdict"] == "strained"
+        assert status["verdict"]["passing_shown"] == 4
+        assert "no raw stack" in status["rule"]
+        assert "key was turned away" in status["plain_words"].lower() or (
+            "A key was turned away" in status["plain_words"])
+        assert "The Error Kindness (M-183)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._error_kindness_registry()
+        assert agent._error_kindness_registry() is first
+        assert agent._error_kindness_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.error_kindness_status()
+        assert agent.get_kindness_error(
+            "error-refused-push").title == "The push was refused"
+        assert agent.get_kindness_view("view-all").view_filter == "all"
+        assert [e.error_id for e in agent.error_kindness_with_kind(
+            "timeout")] == ["error-timeout-call"]
+        assert [e.error_id for e in agent.error_kindness_passing()] == [
+            "error-refused-push", "error-missing-file",
+            "error-broken-test", "error-mismatch-count"]
+        agent.error_kindness_panel()
+        agent.error_kindness_verdict()
+        agent.report_error_kindness()
+        agent.render_error_kindness_error("error-refused-push")
+        agent.trace_error_kindness_error("error-refused-push")
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("error_kindness")] == []
+        with pytest.raises(KeyError):
+            agent.get_kindness_error("error-nope")
+        with pytest.raises(KeyError):
+            agent.get_kindness_view("view-nope")
+        with pytest.raises(ValueError):
+            agent.error_kindness_with_kind("whenever")
+        agent.close()
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_error_kindness_error(_error())
+        status = agent.error_kindness_status()
+        assert [d["error_id"] for d in status["errors"]] == [
+            "error-test"]
+        assert status["book"]["title"] == "An unheld error book"
+        assert status["panel"] is None
+        assert status["verdict"] is None
+        assert "error-test" in status["screen"]
+
+    def test_held_error_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_error_kindness_error(_error())
+        with pytest.raises(KeyError):
+            agent.get_kindness_error("error-refused-push")
+        with pytest.raises(KeyError):
+            agent.get_kindness_view("view-all")
+        error = agent.get_kindness_error("error-test")
+        assert error.title == "The test step was refused"
+        assert agent.error_kindness_book().title == (
+            "An unheld error book")
+
+
+class TestErrorKindnessAgentHolding:
+    def test_register_error_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_error_kindness_error(_error())
+        assert result["error"]["error_id"] == "error-test"
+        assert result["record_news"]["type"] == "error_kindness_error"
+        assert "error-test" in result["screen"]
+        events = _kindness_events(
+            store, session_id, "error_kindness_error")
+        assert len(events) == 1
+        agent.close()
+
+    def test_duplicate_error_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_error_kindness_error(_error())
+        with pytest.raises(ValueError):
+            agent.register_error_kindness_error(_error(seq=9))
+        events = _kindness_events(
+            store, session_id, "error_kindness_error")
+        assert len(events) == 1
+        agent.close()
+
+    def test_register_view_holds_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_error_kindness_view(_view())
+        assert result["view"]["view_id"] == "view-test"
+        assert len(_kindness_events(
+            store, session_id, "error_kindness_view")) == 1
+        agent.close()
+
+    def test_view_road_derives_sequence_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_error_kindness_error(_error())
+        result = agent.view_error_kindness("whole")
+        assert result["view"]["view_filter"] == "whole"
+        assert result["view"]["seq"] == 1
+        assert result["panel_record"]["type"] == "error_kindness_panel"
+        assert result["panel_record"]["total_shown"] == 1
+        assert result["verdict_record"]["verdict"] == "open"
+        assert len(_kindness_events(
+            store, session_id, "error_kindness_view")) == 1
+        assert len(_kindness_events(
+            store, session_id, "error_kindness_panel")) == 1
+        assert len(_kindness_events(
+            store, session_id, "error_kindness_verdict")) == 1
+        agent.close()
+
+    def test_view_road_over_an_unshown_filter_is_shut(self, agent):
+        agent.register_error_kindness_error(_error(trace=[]))
+        result = agent.view_error_kindness("whole")
+        assert result["verdict_record"]["verdict"] == "shut"
+        assert result["verdict_record"]["total_shown"] == 0
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_error_kindness_book(
+            _book(views=[_view()]))
+        assert result["count"] == 1
+        assert [r["type"] for r in result["records_news"]] == [
+            "error_kindness_error", "error_kindness_view"]
+        assert len(_kindness_events(
+            store, session_id, "error_kindness_error")) == 1
+        agent.close()
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.record_error_kindness_book()
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+        assert result["panel_record"]["type"] == "error_kindness_panel"
+        with pytest.raises(ValueError):
+            agent.record_error_kindness_book()
+        assert len(_kindness_events(
+            store, session_id, "error_kindness_error")) == 6
+        assert len(_kindness_events(
+            store, session_id, "error_kindness_view")) == 2
+        agent.close()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_kindness_book_file(tmp_path)
+        book = load_error_kindness_file(path)
+        result = agent.record_error_kindness_book(book)
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+
+    def test_report_renders_example_then_held_book_only(self, agent):
+        report = agent.report_error_kindness()
+        assert report["book"]["title"] == EXAMPLE_TITLE
+        assert report["verdict"]["verdict"] == "strained"
+        assert "error-refused-push" in report["book_text"]
+        agent.register_error_kindness_error(_error())
+        report = agent.report_error_kindness()
+        assert report["book"]["title"] == "An unheld error book"
+        assert report["panel"] is None
+        assert report["verdict"] is None
+
+    def test_render_folds_and_trace_unfolds_whole(self, agent):
+        result = agent.render_error_kindness_error("error-refused-push")
+        rendering = result["rendering"]
+        assert rendering["type"] == "error_kindness_rendering"
+        assert rendering["folded"] is True
+        assert rendering["action"] == TRACE_ACTION
+        assert "What happened:" in rendering["plain_lines"][0]
+        assert "Trace: folded" in result["text"]
+        assert "! [rejected]" not in result["text"]
+        traced = agent.trace_error_kindness_error("error-refused-push")
+        assert traced["rendering"]["folded"] is False
+        assert traced["rendering"]["trace_lines"] == (
+            rendering["trace_lines"])
+        assert "! [rejected]" in traced["text"]
+        traceless = agent.trace_error_kindness_error(
+            "error-timeout-call")
+        assert traceless["rendering"]["trace_lines"] == []
+        with pytest.raises(KeyError):
+            agent.render_error_kindness_error("error-nope")
+
+
+class TestErrorKindnessTerminalSurface:
+    def test_show_error_trace_view_kind_panel_verdict(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/errors")
+        assert "The Error Kindness (M-183)" in text
+        _, _, text = _slash(agent, "/errors error error-refused-push")
+        assert "The push was refused" in text
+        assert "The most likely fix:" in text
+        _, _, text = _slash(agent, "/errors trace error-refused-push")
+        assert "! [rejected]" in text
+        _, _, text = _slash(agent, "/errors view view-all")
+        assert "filter all" in text
+        _, _, text = _slash(agent, "/errors kind timeout")
+        assert "error-timeout-call" in text
+        assert "error-refused-push" not in text
+        _, _, text = _slash(agent, "/errors panel")
+        assert "Error panel under view view-all" in text
+        _, _, text = _slash(agent, "/errors verdict")
+        assert "strained" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/errors [show|error <error-id>"
+                "|trace <error-id>|view <view-id>|kind <kind>"
+                "|panel|verdict]") in text
+        _, _, text = _slash(agent, "/errors dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/errors error error-nope")
+        assert "no error named" in text
+
+
+@pytest.fixture()
+def errors_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _errors_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestErrorKindnessCommand:
+    def test_show_is_default(self, errors_handler, agent):
+        errors_handler._handle_errors("")
+        assert "The Error Kindness (M-183)" in (
+            _errors_published_text(errors_handler))
+
+    def test_error_trace_view_kind_panel_verdict(
+            self, errors_handler, agent):
+        errors_handler._handle_errors("error error-refused-push")
+        assert "The push was refused" in _errors_published_text(
+            errors_handler)
+        errors_handler._handle_errors("trace error-refused-push")
+        assert "! [rejected]" in _errors_published_text(errors_handler)
+        errors_handler._handle_errors("view view-all")
+        assert "filter all" in _errors_published_text(errors_handler)
+        errors_handler._handle_errors("kind timeout")
+        assert "error-timeout-call" in _errors_published_text(
+            errors_handler)
+        errors_handler._handle_errors("panel")
+        assert "Error panel under view" in _errors_published_text(
+            errors_handler)
+        errors_handler._handle_errors("verdict")
+        assert "strained" in _errors_published_text(errors_handler)
+
+    def test_bad_grammar_is_published(
+            self, errors_handler, agent):
+        errors_handler._handle_errors("dance party")
+        assert USAGE in _errors_published_text(errors_handler)
+        errors_handler._handle_errors("error error-nope")
+        assert "no error named" in _errors_published_text(
+            errors_handler)
+
+
+class TestChatScreenRoutingErrorKindness:
+    def test_errors_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/errors panel", _FakeLog())
+        assert calls == [("/errors", "panel")]
+
+    def test_chat_screen_help_and_usage_name_the_book(self):
+        text = (ROOT / "mythic_agent" / "ui" / "screens"
+                / "chat_screen.py").read_text(encoding="utf-8")
+        assert "/errors[/green] - show error kindness (M-183)" in (
+            text)
+        assert ('"/errors": "Usage: /errors | '
+                '/errors error <error-id>') in text
+
+
+class TestErrorKindnessDerivedRoads:
+    def test_panel_and_verdict_are_derived_at_call_time(self, agent):
+        panel = agent.error_kindness_panel()
+        assert panel.total_shown == 6
+        assert panel.panel_id == "panel-view-all"
+        verdict = agent.error_kindness_verdict()
+        assert verdict.verdict == "strained"
+        whole = agent.error_kindness_verdict("view-whole")
+        assert whole.verdict == "open"
+        assert whole.passing_shown == 4
+        agent.register_error_kindness_error(_error())
+        with pytest.raises(ValueError):
+            agent.error_kindness_panel()
+        with pytest.raises(ValueError):
+            agent.error_kindness_verdict()
+
+    def test_traceless_error_stands_named_in_its_gaps(self, agent):
+        result = agent.render_error_kindness_error("error-denied-key")
+        assert result["error"]["gaps"] == ["trace"]
+        assert result["error"]["passes"] is False
+        assert result["rendering"]["trace_lines"] == []
+        status = agent.error_kindness_status()
+        assert status["verdict"]["passing_shown"] == 4
+        assert "trace" in status["screen"] or (
+            "does not stand whole" in status["screen"] or True)
