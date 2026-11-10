@@ -1,0 +1,209 @@
+schema: mythic.accessibility_verification/1
+slice: M-199
+canon_note: 'Accessibility verification - M-016''s tests re-run as gates: keyboard-only completion, contrast, reduced
+  motion, no-colour play. The M-171 charter names NO row for this slice, so there is no charter verdict for this
+  slice to honour; the slice is built to the roadmap words alone. A gate is held whole - under its title, its kind
+  in the closed vocabulary (keyboard, contrast, motion, colour), its measure held honestly (an unknown measure stands
+  empty, never invented), the evidence it carries, named as data, and its detail. A gate naming no held evidence
+  is held honestly with empty evidence: it stands incomplete, named in its gaps, and no evidence is invented for
+  it. The verification index is DERIVED at call time from the held gates alone - never a second stored copy that
+  could drift - and a stored index or completeness verdict on any record refuses by name. The notes are held as
+  data: a note record naming its gate, its stance (note, concern, praise or question) and what it feeds back toward;
+  one record stands per gate stance, and holding a note applies none of it. A record claiming a check was actually
+  run, a gate actually passed live, or a reader actually launched, refuses by name. This file is ONE EXAMPLE BOOK,
+  in the shape a real verification file takes - the M-198 slice boundary - six gates and two views, two note records,
+  with its one pinned panel of the every-gate view, whose shown gates stand five ready of six, so the book verdict
+  under it stands strained; under the ready view, whose five shown gates all stand ready, the verdict stands open.
+  A real book is a new file in this same shape - it is never this file edited in place. This layer runs no check,
+  measures nothing live, launches no reader, opens no network and writes nothing: it holds the gates as data and
+  tells them.'
+accessibility_verification:
+  title: Accessibility verification at the M-198 slice boundary
+gates:
+- gate_id: gate-keyboard-main
+  seq: 1
+  title: The keyboard-only task
+  kind: keyboard
+  measure: full tab order
+  evidence: the task completed by keyboard alone
+  detail: The keyboard-only task stands named in the book - the M-016 keyboard-only completion test re-run as a
+    gate, held as data; holding the card runs no check.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: Accessibility verification
+  origin_session: session-m199
+- gate_id: gate-contrast-main
+  seq: 2
+  title: The contrast gate
+  kind: contrast
+  measure: ''
+  evidence: body text clears the AA bar
+  detail: The contrast gate stands in the book with its measure honestly empty - the exact ratio bar it was re-measured
+    against was never recorded anywhere honest, so the card holds its measure empty, and no figure is invented for
+    it.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: Accessibility verification
+  origin_session: session-m199
+- gate_id: gate-motion-main
+  seq: 3
+  title: The reduced-motion gate
+  kind: motion
+  measure: reduced on request
+  evidence: the face stands still on request
+  detail: The reduced-motion gate stands named in the book as a re-run gate - with reduced motion requested the
+    face stands still, held as data; holding the card stills nothing.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: Accessibility verification
+  origin_session: session-m199
+- gate_id: gate-colour-main
+  seq: 4
+  title: The no-colour gate
+  kind: colour
+  measure: ''
+  evidence: meaning survives without colour
+  detail: The no-colour gate stands in the book as a re-run gate - meaning carried by words and shape alone with
+    colour removed, held as data; the card that says so removes no colour itself.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: Accessibility verification
+  origin_session: session-m199
+- gate_id: gate-reader-main
+  seq: 5
+  title: The muted-text gate
+  kind: contrast
+  measure: ''
+  evidence: ''
+  detail: The muted-text gate stands named in this book with no held evidence held for it yet - the muted role's
+    re-measurement waits to be set down - so the gate stands incomplete honestly, named in the gaps until its evidence
+    is held for it, and no evidence is invented here.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: Accessibility verification
+  origin_session: session-m199
+- gate_id: gate-focus-main
+  seq: 6
+  title: The focus-visible gate
+  kind: keyboard
+  measure: focus ring shown
+  evidence: focus stays visible throughout
+  detail: The focus-visible gate stands named in the book for the keyboard traveller - focus held visible through
+    the whole task, and the praise note on the focus gate stands held beside the book as data.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: Accessibility verification
+  origin_session: session-m199
+views:
+- view_id: view-verify
+  seq: 1
+  view_filter: all
+  detail: 'Every gate at once - the keyboard, contrast, motion and colour gates between: see every gate.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: Accessibility verification
+  origin_session: session-m199
+- view_id: view-ready
+  seq: 2
+  view_filter: ready
+  detail: Only the gates that carry their held evidence - everything provable in telling, honestly complete at a
+    glance.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: Accessibility verification
+  origin_session: session-m199
+notes:
+- note_id: note-note-keyboard
+  seq: 1
+  gate_id: gate-keyboard-main
+  stance: note
+  target: the user
+  title: Note the keyboard gate
+  detail: The note on the keyboard gate stands held as data - its gate, its stance and what it feeds back toward.
+    Holding the note runs no check; the feedback is told, never applied, by this layer.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: Accessibility verification
+  origin_session: session-m199
+- note_id: note-praise-focus
+  seq: 2
+  gate_id: gate-focus-main
+  stance: praise
+  target: the user
+  title: Praise the focus gate
+  detail: The praise for the focus gate stands held as data beside the first. One note record stands per gate stance
+    in this book, so a second record for one gate under one stance refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: Accessibility verification
+  origin_session: session-m199
+panels:
+- panel_id: panel-m198-boundary
+  view_id: view-verify
+  view_filter: all
+  rows:
+  - item_id: gate-keyboard-main
+    standing: ready
+    label: The keyboard-only task
+    segment: 'gate-keyboard-main: The keyboard-only task - kind: ''keyboard'' - measure: ''full tab order'' - evidence:
+      ''the task completed by keyboard alone'' - detail: ''The keyboard-only task stands named in the book - the
+      M-016 keyboard-only completion test re-run as a gate, held as data; holding the card runs no check.'' - gaps:
+      none'
+    recorded_on: '2026-11-10'
+  - item_id: gate-contrast-main
+    standing: ready
+    label: The contrast gate
+    segment: 'gate-contrast-main: The contrast gate - kind: ''contrast'' - measure: ''unknown'' - evidence: ''body
+      text clears the AA bar'' - detail: ''The contrast gate stands in the book with its measure honestly empty
+      - the exact ratio bar it was re-measured against was never recorded anywhere honest, so the card holds its
+      measure empty, and no figure is invented for it.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: gate-motion-main
+    standing: ready
+    label: The reduced-motion gate
+    segment: 'gate-motion-main: The reduced-motion gate - kind: ''motion'' - measure: ''reduced on request'' - evidence:
+      ''the face stands still on request'' - detail: ''The reduced-motion gate stands named in the book as a re-run
+      gate - with reduced motion requested the face stands still, held as data; holding the card stills nothing.''
+      - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: gate-colour-main
+    standing: ready
+    label: The no-colour gate
+    segment: 'gate-colour-main: The no-colour gate - kind: ''colour'' - measure: ''unknown'' - evidence: ''meaning
+      survives without colour'' - detail: ''The no-colour gate stands in the book as a re-run gate - meaning carried
+      by words and shape alone with colour removed, held as data; the card that says so removes no colour itself.''
+      - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: gate-reader-main
+    standing: unready
+    label: The muted-text gate
+    segment: 'gate-reader-main: The muted-text gate - kind: ''contrast'' - measure: ''unknown'' - evidence: ''none''
+      - detail: ''The muted-text gate stands named in this book with no held evidence held for it yet - the muted
+      role''s re-measurement waits to be set down - so the gate stands incomplete honestly, named in the gaps until
+      its evidence is held for it, and no evidence is invented here.'' - gaps: no held evidence'
+    recorded_on: '2026-11-10'
+  - item_id: gate-focus-main
+    standing: ready
+    label: The focus-visible gate
+    segment: 'gate-focus-main: The focus-visible gate - kind: ''keyboard'' - measure: ''focus ring shown'' - evidence:
+      ''focus stays visible throughout'' - detail: ''The focus-visible gate stands named in the book for the keyboard
+      traveller - focus held visible through the whole task, and the praise note on the focus gate stands held beside
+      the book as data.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  total_items: 6
+  total_shown: 6
+  target_counts:
+  - standing: ready
+    items: 5
+  - standing: unready
+    items: 1
+  as_of: '2026-11-10'
+  account:
+  - 'The Accessibility verification book holds 6 gates as of 2026-11-10: the view ''all'' shows 6 of them: ready
+    5, unready 1; 5 of the shown gates stand ready.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly, segment
+    by segment.
+  - Every segment is derived from its gate's own fields - the title, the kind, the measure honestly held and the
+    held evidence it honestly carries - and no judgement is stored on any gate.
+  - 'Completeness is judged from the held records alone: a gate naming no held evidence stands unready, and the
+    undo index is derived from the held gates, never stored where it could drift.'
