@@ -1,0 +1,213 @@
+schema: mythic.session_gallery/1
+slice: M-189
+part: 8
+part_title: The Beautiful Face
+canon_note: 'Session gallery - past sessions as browsable cards (task, outcome, cost, duration) with resume/fork/export
+  - history as a library, not a log file. A card is held whole - under its task, its outcome in the closed vocabulary
+  (completed, failed, stopped, abandoned), its cost and its duration held honestly (an unknown cost or duration
+  stands empty, never invented), the resume road that reaches it, named as data, and its detail. A card naming no
+  resume road is held honestly with an empty road: it stands unresumable, named in its gaps, and no road is invented
+  for it. The gallery index is DERIVED at call time from the held cards alone - never a second stored copy that
+  could drift - and a stored index or resumability verdict on any record refuses by name. The action roads are held
+  as data: an action record naming its session, its action (resume, fork or export) and the target the road stands
+  toward; one record stands per session road, and holding a road resumes, forks and exports nothing. A record claiming
+  a session actually resumed, forked or exported refuses by name. This file is ONE EXAMPLE BOOK, in the shape a
+  real gallery file takes - the M-188 slice boundary - six cards and two views, two action records, with its one
+  pinned panel of the every-session view, whose shown cards stand five resumable of six, so the book verdict under
+  it stands strained; under the resumable view, whose five shown cards all stand resumable, the verdict stands open.
+  A real book is a new file in this same shape - it is never this file edited in place. This layer resumes no session,
+  forks nothing, exports nothing and opens no network: it holds the gallery as data and tells it.'
+gallery:
+  title: Session gallery at the M-188 slice boundary
+cards:
+- card_id: session-fix-login-redirect
+  seq: 1
+  task: Fix the login redirect
+  outcome: completed
+  cost: $0.42
+  duration: 18 minutes
+  road: resume
+  detail: The login redirect loop was found and fixed - the session stands completed, and its card names the resume
+    road back into it as data; holding the card resumes nothing.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: session gallery
+  origin_session: session-m189
+- card_id: session-draft-costs-face
+  seq: 2
+  task: Draft the costs face
+  outcome: completed
+  cost: ''
+  duration: 42 minutes
+  road: resume from checkpoint
+  detail: The costs face was drafted and left ready for review. What the session cost is not recorded anywhere honest,
+    so the card holds its cost empty - unknown stays unknown, and no figure is invented for it.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: session gallery
+  origin_session: session-m189
+- card_id: session-repair-flaky-gate
+  seq: 3
+  task: Repair the flaky gate test
+  outcome: failed
+  cost: $0.17
+  duration: ''
+  road: fork and resume
+  detail: The gate test still flaked at the end of this session, so its outcome stands failed honestly. How long
+    it ran was never recorded, so the duration stands empty; the road back is a fork, named as data.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: session gallery
+  origin_session: session-m189
+- card_id: session-write-gallery-guide
+  seq: 4
+  task: Write the gallery guide
+  outcome: completed
+  cost: $0.05
+  duration: 9 minutes
+  road: resume
+  detail: A short guide to browsing past sessions was written in this session - it stands completed, a small session
+    with a small cost, held whole on its card.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: session gallery
+  origin_session: session-m189
+- card_id: session-abandoned-sweep
+  seq: 5
+  task: Sweep the verify store
+  outcome: stopped
+  cost: $0.31
+  duration: 1 hour 4 minutes
+  road: ''
+  detail: The store sweep was stopped partway and never picked up - it names no resume road in this book, so the
+    session stands unresumable honestly, named in the gaps until a road is held for it, and no road is invented
+    here.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: session gallery
+  origin_session: session-m189
+- card_id: session-bank-m188-wave
+  seq: 6
+  task: Bank the M-188 wave
+  outcome: completed
+  cost: $0.12
+  duration: 26 minutes
+  road: resume from checkpoint
+  detail: The mouse manners wave was banked in this session - it stands completed, and its card names the checkpoint
+    road back into it as data beside the others.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: session gallery
+  origin_session: session-m189
+views:
+- view_id: view-all
+  seq: 1
+  view_filter: all
+  detail: See the whole gallery, every past session at once.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: session gallery
+  origin_session: session-m189
+- view_id: view-resumable
+  seq: 2
+  view_filter: resumable
+  detail: See only the sessions that stand resumable.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: session gallery
+  origin_session: session-m189
+actions:
+- action_id: action-resume-login
+  seq: 1
+  session_id: session-fix-login-redirect
+  action: resume
+  target: a new live session, when the jarl asks
+  title: Resume the login session
+  detail: The resume road for the login session stands held as data - its session, its action and the target it
+    stands toward. Holding the road resumes no session; the road is told, never travelled, by this layer.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: session gallery
+  origin_session: session-m189
+- action_id: action-fork-guide
+  seq: 2
+  session_id: session-write-gallery-guide
+  action: fork
+  target: a branched session off the guide session
+  title: Fork the guide session
+  detail: The fork road for the guide session stands held as data beside the first. One action record stands per
+    session road in this book, so a second record for one session under one action refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: session gallery
+  origin_session: session-m189
+panels:
+- panel_id: panel-m188-boundary
+  view_id: view-all
+  view_filter: all
+  rows:
+  - item_id: session-fix-login-redirect
+    standing: resumable
+    label: Fix the login redirect
+    segment: 'session-fix-login-redirect: Fix the login redirect - outcome: ''completed'' - cost: ''$0.42'' - duration:
+      ''18 minutes'' - road: ''resume'' - detail: ''The login redirect loop was found and fixed - the session stands
+      completed, and its card names the resume road back into it as data; holding the card resumes nothing.'' -
+      gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: session-draft-costs-face
+    standing: resumable
+    label: Draft the costs face
+    segment: 'session-draft-costs-face: Draft the costs face - outcome: ''completed'' - cost: ''unknown'' - duration:
+      ''42 minutes'' - road: ''resume from checkpoint'' - detail: ''The costs face was drafted and left ready for
+      review. What the session cost is not recorded anywhere honest, so the card holds its cost empty - unknown
+      stays unknown, and no figure is invented for it.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: session-repair-flaky-gate
+    standing: resumable
+    label: Repair the flaky gate test
+    segment: 'session-repair-flaky-gate: Repair the flaky gate test - outcome: ''failed'' - cost: ''$0.17'' - duration:
+      ''unknown'' - road: ''fork and resume'' - detail: ''The gate test still flaked at the end of this session,
+      so its outcome stands failed honestly. How long it ran was never recorded, so the duration stands empty; the
+      road back is a fork, named as data.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: session-write-gallery-guide
+    standing: resumable
+    label: Write the gallery guide
+    segment: 'session-write-gallery-guide: Write the gallery guide - outcome: ''completed'' - cost: ''$0.05'' -
+      duration: ''9 minutes'' - road: ''resume'' - detail: ''A short guide to browsing past sessions was written
+      in this session - it stands completed, a small session with a small cost, held whole on its card.'' - gaps:
+      none'
+    recorded_on: '2026-11-10'
+  - item_id: session-abandoned-sweep
+    standing: unresumable
+    label: Sweep the verify store
+    segment: 'session-abandoned-sweep: Sweep the verify store - outcome: ''stopped'' - cost: ''$0.31'' - duration:
+      ''1 hour 4 minutes'' - road: ''none'' - detail: ''The store sweep was stopped partway and never picked up
+      - it names no resume road in this book, so the session stands unresumable honestly, named in the gaps until
+      a road is held for it, and no road is invented here.'' - gaps: no resume road'
+    recorded_on: '2026-11-10'
+  - item_id: session-bank-m188-wave
+    standing: resumable
+    label: Bank the M-188 wave
+    segment: 'session-bank-m188-wave: Bank the M-188 wave - outcome: ''completed'' - cost: ''$0.12'' - duration:
+      ''26 minutes'' - road: ''resume from checkpoint'' - detail: ''The mouse manners wave was banked in this session
+      - it stands completed, and its card names the checkpoint road back into it as data beside the others.'' -
+      gaps: none'
+    recorded_on: '2026-11-10'
+  total_items: 6
+  total_shown: 6
+  road_counts:
+  - standing: resumable
+    items: 5
+  - standing: unresumable
+    items: 1
+  as_of: '2026-11-10'
+  account:
+  - 'The gallery book holds 6 cards as of 2026-11-10: the view ''all'' shows 6 of them: resumable 5, unresumable
+    1; 5 of the shown cards stand resumable.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly, segment
+    by segment.
+  - Every segment is derived from its card's own fields - the task, the outcome, the cost and duration honestly
+    held and the resume road that honestly reaches it - and no judgement is stored on any card.
+  - 'Resumability is judged from the held records alone: a card naming no resume road stands unresumable, and the
+    gallery index is derived from the held cards, never stored where it could drift.'
