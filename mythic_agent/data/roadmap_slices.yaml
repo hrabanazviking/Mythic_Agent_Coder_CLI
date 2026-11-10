@@ -1188,7 +1188,7 @@ slices:
   title: Multi-pane working
   summary: chat, board, files, and terminal panes in the layouts the field loves — plus the Mythic layout
     (board left, work centre, crew right).
-  status: queued
+  status: done
 - id: M-193
   part: 8
   title: Splash and ceremony, restrained
