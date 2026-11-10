@@ -37460,6 +37460,863 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _plain_language_skin_registry(self):
+        """The held plain-language-skin registry (M-182).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer report, approval,
+        stand-up, term and view records one by one,
+        beside the session notifications-manners
+        registry (M-181) and never in it: the book is
+        one skin book to look at. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named ``_plain_language_skin_store``,
+        never the method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_plain_language_skin_store", None)
+        if registry is None:
+            from ..core.plain_language_skin import SkinRegistry
+            registry = SkinRegistry()
+            self._plain_language_skin_store = registry
+        return registry
+
+    def plain_language_skin_book(self):
+        """The session's plain-language book, as data (M-182).
+
+        The held registry's book when the session
+        holds any item - the things the session can
+        actually be viewed for (items held one by
+        one stand under a session book composed here
+        in the agent layer, so a later whole book
+        recorded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book recorded whole through
+        :meth:`record_plain_language_skin_book`, or
+        the shipped example book until one is
+        recorded. Reading registers and publishes
+        nothing.
+        """
+        from ..core.plain_language_skin import (
+            SkinBook, load_plain_language_skin)
+        registry = self._plain_language_skin_registry()
+        if registry.list_items():
+            try:
+                book = registry.book()
+            except ValueError:
+                return SkinBook(
+                    title="Plain Language Skin",
+                    reports=registry.list_reports(),
+                    approvals=registry.list_approvals(),
+                    standups=registry.list_standups(),
+                    terms=registry.list_terms(),
+                    watched=registry.watched(),
+                    views=registry.list_views(), panels=())
+            held = getattr(self, "_plain_language_skin_held", None)
+            if held is not None and held.title == book.title \
+                    and held.report_ids() == book.report_ids() \
+                    and held.approval_ids() == book.approval_ids() \
+                    and held.standup_ids() == book.standup_ids() \
+                    and held.term_ids() == book.term_ids() \
+                    and [v.view_id for v in held.views] == [
+                        v.view_id for v in book.views]:
+                return held
+            return book
+        book = getattr(self, "_plain_language_skin_held", None)
+        if book is None:
+            return load_plain_language_skin()
+        return book
+
+    def _plain_language_skin_default_view(self, book: Any):
+        """The view a book derives under by default (M-182).
+
+        The view its own stored panel stands under,
+        else its first held view, else None - a book
+        holding items but no view yet derives no
+        panel and no verdict, and says so plainly.
+        """
+        for panel in book.panels:
+            if panel.view_id is not None:
+                try:
+                    return book.view_for(panel.view_id)
+                except KeyError:
+                    continue
+        if book.views:
+            return book.views[0]
+        return None
+
+    def _plain_language_skin_screen(self) -> str:
+        """The /skin screen for the session's state (M-182)."""
+        from ..core import plain_language_skin as skin_module
+        registry = self._plain_language_skin_registry()
+        if not registry.list_items():
+            return skin_module.format_plain_language_skin_screen()
+        book = self.plain_language_skin_book()
+        if not book.views:
+            return skin_module.format_book(book)
+        return skin_module.format_plain_language_skin_screen(book)
+
+    def plain_language_skin_register(self) -> str:
+        """The register this session stands in (M-182).
+
+        The register is DERIVED at call time from
+        the agent's own config - never stored on
+        any item, any message or any held book -
+        by the pure layer's derivation: a config
+        naming a register, a mode or the Jarl switch
+        speaks, and Jarl mode stands when the config
+        names none, plain words first.
+        """
+        from ..core.plain_language_skin import derive_register
+        return derive_register(getattr(self, "config", None))
+
+    def plain_language_skin_status(self) -> dict[str, Any]:
+        """The plain-language-skin account, in plain data (M-182).
+
+        The report, approval, stand-up, term and
+        view records held this session as plain
+        records, the held book's record (none until
+        an item stands held), the session book's
+        items and views as plain records (the
+        shipped example book - twelve items at the
+        M-181 slice boundary, two reports, two
+        approvals, two stand-ups and six lexicon
+        terms, with its two views and its one pinned
+        panel - until items are held), its whole-book
+        record, the panel derived from the whole
+        book under its default view and every panel
+        the book holds as plain records, the verdict
+        derived for the whole book, the register
+        derived from this agent's config, the
+        lexicon's honest misses for the book, the
+        last item in plain words, the panel and the
+        verdict told in plain words, the one screen
+        - rendered from the held book, or from the
+        shipped example book when nothing is held
+        yet - and the plain explanation. A book
+        holding items but no view yet derives no
+        panel and no verdict. Reading registers and
+        publishes nothing, approves nothing and
+        sends nothing: this layer renders words only.
+        """
+        from ..core import plain_language_skin as skin_module
+        registry = self._plain_language_skin_registry()
+        held_reports = registry.list_reports()
+        held_approvals = registry.list_approvals()
+        held_standups = registry.list_standups()
+        held_terms = registry.list_terms()
+        held_views = registry.list_views()
+        held_items = registry.list_items()
+        book = self.plain_language_skin_book()
+        default = self._plain_language_skin_default_view(book)
+        latest = book.items()[-1] if book.items() else None
+        latest_words = (skin_module.plain_words(latest, book)
+                        if latest is not None else "")
+        return {
+            "reports": [item.to_record() for item in held_reports],
+            "approvals": [item.to_record() for item in held_approvals],
+            "standups": [item.to_record() for item in held_standups],
+            "terms": [item.to_record() for item in held_terms],
+            "views": [item.to_record() for item in held_views],
+            "book": (book.to_record() if held_items else None),
+            "plain_language_skin": {
+                "title": book.title,
+                "reports": [item.to_record() for item in book.reports],
+                "approvals": [
+                    item.to_record() for item in book.approvals],
+                "standups": [
+                    item.to_record() for item in book.standups],
+                "terms": [item.to_record() for item in book.terms],
+                "views": [item.to_record() for item in book.views],
+            },
+            "book_record": skin_module.book_record(book),
+            "panel": (skin_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (skin_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "register": self.plain_language_skin_register(),
+            "lexicon_misses": list(skin_module.lexicon_misses(book)),
+            "plain_words": latest_words,
+            "panel_plain_words": (
+                skin_module.panel_plain_words(book)
+                if default is not None else ""),
+            "verdict_plain_words": (
+                skin_module.verdict_plain_words(book)
+                if default is not None else ""),
+            "screen": self._plain_language_skin_screen(),
+            "explanation": skin_module.PLAIN_EXPLANATION,
+        }
+
+    def get_skin_report(self, report_id: Any):
+        """The one report an id names (M-182).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). A held item
+        answers for its own book alone: an id the
+        held book holds no report for raises KeyError,
+        with no silent fall back to the example,
+        exactly as the pure layer answers. Reading
+        registers and publishes nothing.
+        """
+        registry = self._plain_language_skin_registry()
+        if registry.list_items():
+            return registry.get_report(report_id)
+        return self.plain_language_skin_book().report_for(report_id)
+
+    def get_skin_approval(self, approval_id: Any):
+        """The one approval ask an id names (M-182).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). Reading
+        registers and publishes nothing.
+        """
+        registry = self._plain_language_skin_registry()
+        if registry.list_items():
+            return registry.get_approval(approval_id)
+        return self.plain_language_skin_book().approval_for(approval_id)
+
+    def get_skin_standup(self, standup_id: Any):
+        """The one stand-up an id names (M-182).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). Reading
+        registers and publishes nothing.
+        """
+        registry = self._plain_language_skin_registry()
+        if registry.list_items():
+            return registry.get_standup(standup_id)
+        return self.plain_language_skin_book().standup_for(standup_id)
+
+    def get_skin_term(self, term_id: Any):
+        """The one lexicon term an id names (M-182).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). Reading
+        registers and publishes nothing.
+        """
+        registry = self._plain_language_skin_registry()
+        if registry.list_items():
+            return registry.get_term(term_id)
+        return self.plain_language_skin_book().term_for(term_id)
+
+    def get_skin_view(self, view_id: Any):
+        """The one view record an id names (M-182).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the
+        shipped example book answers (or the book
+        recorded whole for the session). Reading
+        registers and publishes nothing.
+        """
+        registry = self._plain_language_skin_registry()
+        if registry.list_items():
+            return registry.get_view(view_id)
+        return self.plain_language_skin_book().view_for(view_id)
+
+    def plain_language_skin_with_kind(self, kind: Any):
+        """The session book's items of one kind (M-182)."""
+        from ..core.plain_language_skin import (
+            items_for_kind as _for_kind)
+        return _for_kind(self.plain_language_skin_book(), kind)
+
+    def plain_language_skin_passing(self):
+        """The session book's items standing whole (M-182)."""
+        from ..core.plain_language_skin import (
+            passing_items as _passing)
+        return _passing(self.plain_language_skin_book())
+
+    def plain_language_skin_panel(self, view: Any = None):
+        """The panel derived for the whole book (M-182).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a
+        book holding no view at all refuses plainly
+        rather than inventing one.
+        """
+        from ..core.plain_language_skin import derive_panel as _derive_panel
+        book = self.plain_language_skin_book()
+        resolved = view if view is not None \
+            else self._plain_language_skin_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive "
+                "a panel under")
+        return _derive_panel(book, resolved)
+
+    def plain_language_skin_verdict(self, view: Any = None):
+        """The verdict derived for the whole book (M-182).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a
+        book holding no view at all refuses plainly
+        rather than inventing one.
+        """
+        from ..core.plain_language_skin import (
+            derive_verdict as _derive_verdict)
+        book = self.plain_language_skin_book()
+        resolved = view if view is not None \
+            else self._plain_language_skin_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive "
+                "a verdict under")
+        return _derive_verdict(book, resolved)
+
+    def render_plain_language_skin_item(
+            self, item_id: Any, register: Any = None
+    ) -> dict[str, Any]:
+        """Render one item of the session book (M-182).
+
+        The item is rendered by the pure layer in
+        the named register, or in the register this
+        session stands in - derived from the agent's
+        config - when none is named: in Jarl mode
+        the plain lines stand shown and the technical
+        lines stand folded as data; in the technical
+        register the technical lines stand shown and
+        nothing stands folded. Rendering registers
+        and publishes nothing, approves nothing and
+        sends nothing. Returns the rendering as a
+        plain record, the item's session-news record,
+        the rendering spoken, the screen, and the
+        plain explanation.
+        """
+        from ..core import plain_language_skin as skin_module
+        book = self.plain_language_skin_book()
+        item = book.item_for(item_id)
+        mode = register if register is not None \
+            else self.plain_language_skin_register()
+        rendering = skin_module.render_item(item, book, mode)
+        return {
+            "rendering": rendering.to_record(),
+            "item": skin_module.item_record(item, book),
+            "text": skin_module.format_rendering(rendering),
+            "screen": self._plain_language_skin_screen(),
+            "explanation": skin_module.PLAIN_EXPLANATION,
+        }
+
+    def unfold_plain_language_skin_item(
+            self, item_id: Any, register: Any = None
+    ) -> dict[str, Any]:
+        """Unfold one item of the session book (M-182).
+
+        The one named unfold action, walked at the
+        agent layer: the item is rendered as on the
+        render road, and its folded technical detail
+        stands shown, whole, after the lines already
+        shown - nothing rewritten, nothing lost, the
+        folded lines move. In the technical register
+        nothing stands folded, so the rendering
+        stands as it was. Returns the unfolded
+        rendering as a plain record, the item's
+        session-news record, the rendering spoken,
+        the screen, and the plain explanation.
+        """
+        from ..core import plain_language_skin as skin_module
+        book = self.plain_language_skin_book()
+        item = book.item_for(item_id)
+        mode = register if register is not None \
+            else self.plain_language_skin_register()
+        rendering = skin_module.unfold_rendering(
+            skin_module.render_item(item, book, mode))
+        return {
+            "rendering": rendering.to_record(),
+            "item": skin_module.item_record(item, book),
+            "text": skin_module.format_rendering(rendering),
+            "screen": self._plain_language_skin_screen(),
+            "explanation": skin_module.PLAIN_EXPLANATION,
+        }
+
+    def register_skin_report(
+            self, report: Any) -> dict[str, Any]:
+        """Hold one report for the session (M-182).
+
+        The report is held by the pure registry
+        under its report id - a report id or a
+        sequence already standing here refuses, and
+        a refusal holds nothing new and publishes
+        nothing. A held report is published as its
+        ``report_record`` session-news record through
+        the checkpoint road. Returns the held report,
+        its news record, the screen rendered after it
+        landed, and the plain explanation. Holding a
+        report renders nothing aloud and approves
+        nothing: the thing stands on this layer's
+        book, as data, provenance whole.
+        """
+        from ..core import plain_language_skin as skin_module
+        registry = self._plain_language_skin_registry()
+        held = registry.register_report(report)
+        news = skin_module.report_record(held)
+        self._publish_plain_language_skin_record(news)
+        return {
+            "report": held.to_record(),
+            "record_news": news,
+            "screen": self._plain_language_skin_screen(),
+            "explanation": skin_module.PLAIN_EXPLANATION,
+        }
+
+    def register_skin_approval(
+            self, approval: Any) -> dict[str, Any]:
+        """Hold one approval ask for the session (M-182).
+
+        The approval is held by the pure registry
+        under its approval id - an approval id or a
+        sequence already standing here refuses, and
+        a refusal holds nothing new and publishes
+        nothing. The approval is judged whole by the
+        pure layer before it is held: an approval
+        naming no action, or several, refuses by
+        name on this road too. A held approval is
+        published as its ``approval_record``
+        session-news record through the checkpoint
+        road. Returns the held approval, its news
+        record, the screen, and the plain
+        explanation. Holding an approval approves
+        nothing - the ask stands as data, waiting to
+        be looked at.
+        """
+        from ..core import plain_language_skin as skin_module
+        registry = self._plain_language_skin_registry()
+        held = registry.register_approval(approval)
+        news = skin_module.approval_record(held)
+        self._publish_plain_language_skin_record(news)
+        return {
+            "approval": held.to_record(),
+            "record_news": news,
+            "screen": self._plain_language_skin_screen(),
+            "explanation": skin_module.PLAIN_EXPLANATION,
+        }
+
+    def register_skin_standup(
+            self, standup: Any) -> dict[str, Any]:
+        """Hold one stand-up for the session (M-182).
+
+        The stand-up is held by the pure registry
+        under its stand-up id - a stand-up id or a
+        sequence already standing here refuses, and
+        a refusal holds nothing new and publishes
+        nothing. A held stand-up is published as its
+        ``standup_record`` session-news record
+        through the checkpoint road. Returns the
+        held stand-up, its news record, the screen
+        rendered after it landed, and the plain
+        explanation.
+        """
+        from ..core import plain_language_skin as skin_module
+        registry = self._plain_language_skin_registry()
+        held = registry.register_standup(standup)
+        news = skin_module.standup_record(held)
+        self._publish_plain_language_skin_record(news)
+        return {
+            "standup": held.to_record(),
+            "record_news": news,
+            "screen": self._plain_language_skin_screen(),
+            "explanation": skin_module.PLAIN_EXPLANATION,
+        }
+
+    def register_skin_term(
+            self, term: Any) -> dict[str, Any]:
+        """Hold one lexicon term for the session (M-182).
+
+        The term is held by the pure registry under
+        its term id - a term id, a sequence, or a
+        second entry for a term already standing in
+        the lexicon refuses, and a refusal holds
+        nothing new and publishes nothing: the
+        lexicon speaks for a term once, or not at
+        all, and invents no plain words. A held term
+        is published as its ``term_record``
+        session-news record through the checkpoint
+        road. Returns the held term, its news record,
+        the screen, and the plain explanation.
+        """
+        from ..core import plain_language_skin as skin_module
+        registry = self._plain_language_skin_registry()
+        held = registry.register_term(term)
+        news = skin_module.term_record(held)
+        self._publish_plain_language_skin_record(news)
+        return {
+            "term": held.to_record(),
+            "record_news": news,
+            "screen": self._plain_language_skin_screen(),
+            "explanation": skin_module.PLAIN_EXPLANATION,
+        }
+
+    def register_skin_view(
+            self, view: Any) -> dict[str, Any]:
+        """Hold one view record for the session (M-182).
+
+        The view is held by the pure registry under
+        its id, or under a fresh view-N id when it
+        names none - a view id or a sequence already
+        standing here refuses, and a refusal holds
+        nothing new and publishes nothing. A held
+        view is published as its ``view_record``
+        session-news record through the checkpoint
+        road. Returns the held view, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding a view only ever
+        looks: it renders nothing and approves
+        nothing.
+        """
+        from ..core import plain_language_skin as skin_module
+        registry = self._plain_language_skin_registry()
+        held = registry.register_view(view)
+        news = skin_module.view_record(held)
+        self._publish_plain_language_skin_record(news)
+        return {
+            "view": held.to_record(),
+            "record_news": news,
+            "screen": self._plain_language_skin_screen(),
+            "explanation": skin_module.PLAIN_EXPLANATION,
+        }
+
+    def view_plain_language_skin(
+            self, kind_filter: Any, *,
+            detail: Any = None,
+            recorded_on: Any = "2026-11-09",
+            actor: Any = "the jarl",
+            source: Any = "plain language skin",
+            origin_session: Any = "session-m182",
+            view_id: Any = None) -> dict[str, Any]:
+        """Stand one view on the session's held book (M-182).
+
+        This slice's own viewing road: the view
+        record is composed by the pure layer at the
+        next sequence of the session's held book,
+        judged whole, and held by the pure registry.
+        The view is published as its ``view_record``
+        session news, the panel derived from the
+        whole book as its ``panel_record`` session
+        news, and the verdict derived for the whole
+        book as its ``verdict_record`` session news.
+        Returns the held view, its kind filter, its
+        news records, the screen rendered after it
+        landed and the plain explanation. HONEST
+        BOUNDARY: viewing renders the book alone, as
+        data - it approves nothing and sends nothing.
+        """
+        from ..core import plain_language_skin as skin_module
+        registry = self._plain_language_skin_registry()
+        held_views = registry.list_views()
+        seq = (max(v.seq for v in held_views) + 1) \
+            if held_views else 1
+        fields: dict[str, Any] = {
+            "seq": seq, "kind_filter": kind_filter,
+            "detail": detail if detail is not None else (
+                f"View kind {kind_filter!r} in the "
+                "session's held book, composed on the "
+                "viewing road."),
+            "recorded_on": recorded_on,
+            "actor": actor, "source": source,
+            "origin_session": origin_session}
+        if view_id is not None:
+            fields["view_id"] = view_id
+        else:
+            held_ids = {v.view_id for v in held_views}
+            fresh = 1
+            while f"view-{fresh}" in held_ids:
+                fresh += 1
+            fields["view_id"] = f"view-{fresh}"
+        view = skin_module.build_view(fields)
+        held = registry.register_view(view)
+        view_news = skin_module.view_record(held)
+        self._publish_plain_language_skin_record(view_news)
+        book = self.plain_language_skin_book()
+        panel_news = skin_module.panel_record(
+            skin_module.derive_panel(book, held))
+        self._publish_plain_language_skin_record(panel_news)
+        verdict_news = skin_module.verdict_record(
+            skin_module.derive_verdict(book, held))
+        self._publish_plain_language_skin_record(verdict_news)
+        return {
+            "view": held.to_record(),
+            "kind_filter": held.kind_filter,
+            "record_news": view_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._plain_language_skin_screen(),
+            "explanation": skin_module.PLAIN_EXPLANATION,
+        }
+
+    def register_plain_language_skin_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole plain-language book (M-182).
+
+        Every report, approval, stand-up, term and
+        view record of the book is held by the pure
+        registry, in held and recorded order - the
+        book is judged whole, and against the held
+        book, before anything is held, so a refusal
+        holds nothing new. The first book held sets
+        the registry's title and its watched list; a
+        later book under a different title refuses,
+        as does a book naming a held item id or
+        sequence, a second lexicon entry for one
+        term, or a view id or sequence. The book's
+        panels are derivations, not holdings, and
+        are not held. Every item is published as its
+        session news and every view as its
+        ``view_record`` session news, in order.
+        Returns the held book, its items and views,
+        their news records, the count of items held,
+        the screen, and the explanation. Registering
+        renders nothing aloud and approves nothing.
+        """
+        from ..core import plain_language_skin as skin_module
+        validated = skin_module.build_book(book)
+        registry = self._plain_language_skin_registry()
+        registry.register_book(validated)
+        records = [
+            skin_module.report_record(item)
+            for item in validated.reports]
+        records += [
+            skin_module.approval_record(item)
+            for item in validated.approvals]
+        records += [
+            skin_module.standup_record(item)
+            for item in validated.standups]
+        records += [
+            skin_module.term_record(item)
+            for item in validated.terms]
+        records += [
+            skin_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_plain_language_skin_record(news)
+        return {
+            "book": validated.to_record(),
+            "reports": [item.to_record() for item in validated.reports],
+            "approvals": [
+                item.to_record() for item in validated.approvals],
+            "standups": [
+                item.to_record() for item in validated.standups],
+            "terms": [item.to_record() for item in validated.terms],
+            "views": [item.to_record() for item in validated.views],
+            "records_news": records,
+            "count": len(validated.items()),
+            "screen": self._plain_language_skin_screen(),
+            "explanation": skin_module.PLAIN_EXPLANATION,
+        }
+
+    def record_plain_language_skin_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole plain-language book (M-182).
+
+        With no book named, the shipped example book
+        is recorded through the pure layer - twelve
+        items at the M-181 slice boundary, with its
+        two views and its one pinned panel. A book
+        loaded from a file (the pure layer's
+        ``load_plain_language_skin_file`` road) may
+        be passed instead. The book is judged whole
+        before anything is held. Every item and view
+        is held and published as its session news,
+        in order, and the panel derived under the
+        book's default view as its ``panel_record``
+        session news; the book is remembered whole
+        as the session's - its held panel and all -
+        and the same book recorded twice refuses -
+        fingerprinted on its item ids, view ids and
+        title. Returns the held book, its items and
+        views, their news records, the panel news
+        record, the count, the screen, and the
+        explanation. Recording approves nothing and
+        sends nothing.
+        """
+        from ..core import plain_language_skin as skin_module
+        book = book if book is not None \
+            else skin_module.load_plain_language_skin()
+        validated = skin_module.build_book(book)
+        fingerprint = (tuple(validated.report_ids()),
+                       tuple(validated.approval_ids()),
+                       tuple(validated.standup_ids()),
+                       tuple(validated.term_ids()),
+                       tuple(v.view_id for v in validated.views),
+                       validated.title)
+        recorded = getattr(
+            self, "_plain_language_skin_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._plain_language_skin_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this plain-language book is already "
+                "recorded for the session; a book is "
+                "recorded once")
+        registry = self._plain_language_skin_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._plain_language_skin_held = validated
+        records = [
+            skin_module.report_record(item)
+            for item in validated.reports]
+        records += [
+            skin_module.approval_record(item)
+            for item in validated.approvals]
+        records += [
+            skin_module.standup_record(item)
+            for item in validated.standups]
+        records += [
+            skin_module.term_record(item)
+            for item in validated.terms]
+        records += [
+            skin_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_plain_language_skin_record(news)
+        panel_news = skin_module.panel_record(
+            skin_module.derive_panel(
+                validated,
+                self._plain_language_skin_default_view(validated)),
+            validated)
+        self._publish_plain_language_skin_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "reports": [item.to_record() for item in validated.reports],
+            "approvals": [
+                item.to_record() for item in validated.approvals],
+            "standups": [
+                item.to_record() for item in validated.standups],
+            "terms": [item.to_record() for item in validated.terms],
+            "views": [item.to_record() for item in validated.views],
+            "records_news": records,
+            "panel_record": panel_news,
+            "count": len(validated.items()),
+            "screen": skin_module.format_plain_language_skin_screen(
+                validated),
+            "explanation": skin_module.PLAIN_EXPLANATION,
+        }
+
+    def report_plain_language_skin(self) -> dict[str, Any]:
+        """Render the session skin book, as a report (M-182).
+
+        The book - the held registry's book when the
+        session holds any item, otherwise the
+        shipped example book (or the book recorded
+        whole for the session) - is rendered through
+        the pure formatters alone, in the register
+        this session stands in. Rendering registers
+        and publishes nothing, approves nothing and
+        sends nothing. Returns the book, its items,
+        views and panels as plain records, the
+        derived panel and verdict (none while the
+        book holds no view), the register, the
+        rendered book, panel and verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import plain_language_skin as skin_module
+        book = self.plain_language_skin_book()
+        default = self._plain_language_skin_default_view(book)
+        return {
+            "book": book.to_record(),
+            "reports": [item.to_record() for item in book.reports],
+            "approvals": [
+                item.to_record() for item in book.approvals],
+            "standups": [item.to_record() for item in book.standups],
+            "terms": [item.to_record() for item in book.terms],
+            "views": [item.to_record() for item in book.views],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (skin_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "verdict": (skin_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "register": self.plain_language_skin_register(),
+            "book_text": skin_module.format_book(book),
+            "panel_text": (skin_module.format_panel(book)
+                           if default is not None else ""),
+            "verdict_text": (skin_module.format_verdict(book)
+                             if default is not None else ""),
+            "screen": self._plain_language_skin_screen(),
+            "explanation": skin_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_plain_language_skin_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one plain-language record as session news (M-182).
+
+        The pure layer's ``report_record``,
+        ``approval_record``, ``standup_record``,
+        ``term_record``, ``view_record``,
+        ``panel_record`` and ``verdict_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once per shape: a report under its own
+        report id and segment, an approval under its
+        own approval id and segment, a stand-up under
+        its own stand-up id and segment, a term under
+        its own term id and segment, a view under its
+        own view id, sequence and kind filter, a
+        panel under its whole derived shape, and a
+        verdict under its word and tallies, so a
+        panel or verdict grown by a newly held item
+        or view announces again as the new figure it
+        is. A foreign record type is never published
+        on this road.
+        """
+        if record.get("type") == "plain_language_report":
+            key = ("plain_language_report",
+                   record.get("report_id"),
+                   record.get("segment"))
+        elif record.get("type") == "plain_language_approval":
+            key = ("plain_language_approval",
+                   record.get("approval_id"),
+                   record.get("segment"))
+        elif record.get("type") == "plain_language_standup":
+            key = ("plain_language_standup",
+                   record.get("standup_id"),
+                   record.get("segment"))
+        elif record.get("type") == "plain_language_term":
+            key = ("plain_language_term",
+                   record.get("term_id"),
+                   record.get("segment"))
+        elif record.get("type") == "plain_language_view":
+            key = ("plain_language_view",
+                   record.get("view_id"),
+                   record.get("seq"),
+                   record.get("kind_filter"))
+        elif record.get("type") == "plain_language_panel":
+            key = ("plain_language_panel", record.get("panel_id"),
+                   record.get("view_id"),
+                   tuple(row.get("item_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_shown"))
+        elif record.get("type") == "plain_language_verdict":
+            key = ("plain_language_verdict",
+                   record.get("verdict"),
+                   record.get("total_shown"),
+                   record.get("passing_shown"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(
+            self, "_plain_language_skin_announced", None)
+        if announced is None:
+            announced = set()
+            self._plain_language_skin_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):

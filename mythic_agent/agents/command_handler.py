@@ -391,6 +391,8 @@ class CommandHandler:
                 self._handle_voiceinout(args)
             elif cmd == "/manners":
                 self._handle_manners(args)
+            elif cmd == "/skin":
+                self._handle_skin(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -7498,6 +7500,119 @@ class CommandHandler:
                 text = format_verdict(primary.notifications_manners_book())
             else:
                 text = primary.notifications_manners_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_skin(self, args: str):
+        """M-182: /skin - the plain-language skin.
+
+        ``/skin`` shows the plain-language skin held
+        this session - reports, approvals and stand-ups
+        in plain everyday words in Jarl mode, the
+        technical detail folded behind the unfold
+        keypress (the shipped example book - twelve
+        items at the M-181 slice boundary, two
+        reports, two approvals, two stand-ups and six
+        lexicon terms, with its two views and its one
+        pinned panel - when none is held yet);
+        ``/skin report <report-id>`` shows one report
+        whole; ``/skin approval <approval-id>`` shows
+        one approval ask with the one action that
+        matters; ``/skin standup <standup-id>`` shows
+        one stand-up; ``/skin term <term-id>`` shows
+        one lexicon term and its plain words;
+        ``/skin view <view-id>`` shows one held view
+        record; ``/skin kind <kind>`` shows the book's
+        items of one kind; ``/skin panel`` shows the
+        panel derived from the whole book under its
+        default view; ``/skin verdict`` shows the
+        verdict derived for the whole book;
+        ``/skin unfold <item-id>`` unfolds one item's
+        folded technical detail whole;
+        ``/skin register`` names the register the
+        session stands in. Reading registers and
+        publishes nothing as session news: items and
+        views are held only when they are given
+        through the agent's register roads, stood on
+        the book on the viewing road, or held on the
+        book roads, and every report held for the
+        session is journaled as a plain_language_report
+        session event, every approval as a
+        plain_language_approval session event, every
+        stand-up as a plain_language_standup session
+        event, every term as a plain_language_term
+        session event, every view as a
+        plain_language_view session event, every
+        derived panel as a plain_language_panel
+        session event and every derived verdict as a
+        plain_language_verdict session event. This
+        surface approves nothing and sends nothing -
+        rendering and unfolding are words only.
+        """
+        from ..core.plain_language_skin import (
+            format_approval,
+            format_book,
+            format_panel,
+            format_rendering,
+            format_report,
+            format_standup,
+            format_term,
+            format_verdict,
+            format_view,
+            parse_plain_language_skin_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_plain_language_skin_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "report":
+                text = format_report(
+                    primary.get_skin_report(target),
+                    primary.plain_language_skin_book())
+            elif action == "approval":
+                text = format_approval(
+                    primary.get_skin_approval(target),
+                    primary.plain_language_skin_book())
+            elif action == "standup":
+                text = format_standup(
+                    primary.get_skin_standup(target),
+                    primary.plain_language_skin_book())
+            elif action == "term":
+                text = format_term(
+                    primary.get_skin_term(target))
+            elif action == "view":
+                text = format_view(
+                    primary.get_skin_view(target))
+            elif action == "kind":
+                text = format_book(
+                    primary.plain_language_skin_book(), target)
+            elif action == "panel":
+                text = format_panel(primary.plain_language_skin_book())
+            elif action == "verdict":
+                text = format_verdict(primary.plain_language_skin_book())
+            elif action == "unfold":
+                text = primary.unfold_plain_language_skin_item(
+                    target)["text"]
+            elif action == "register":
+                text = (
+                    "Register: "
+                    f"{primary.plain_language_skin_register()}")
+            else:
+                text = primary.plain_language_skin_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
