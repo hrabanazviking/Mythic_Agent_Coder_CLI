@@ -740,3 +740,14 @@ mythic_agent/agents/llm.py:44251:layout_pane:method
 mythic_agent/agents/llm.py:44318:register_pane_book:method
 mythic_agent/agents/llm.py:44363:record_pane_book:method
 mythic_agent/agents/llm.py:44436:report_multi_pane:method
+mythic_agent/agents/llm.py:44722:get_ceremony_note:method
+mythic_agent/agents/llm.py:44737:ceremony_moments_for_kind:method
+mythic_agent/agents/llm.py:44743:ceremony_moments_passing:method
+mythic_agent/agents/llm.py:44749:splash_ceremony_panel:method
+mythic_agent/agents/llm.py:44767:splash_ceremony_verdict:method
+mythic_agent/agents/llm.py:44809:register_ceremony_moment:method
+mythic_agent/agents/llm.py:44840:register_ceremony_view:method
+mythic_agent/agents/llm.py:44866:view_ceremony:method
+mythic_agent/agents/llm.py:44933:register_ceremony_book:method
+mythic_agent/agents/llm.py:44978:record_ceremony_book:method
+mythic_agent/agents/llm.py:45051:report_splash_ceremony:method
