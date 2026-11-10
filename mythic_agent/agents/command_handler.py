@@ -401,6 +401,8 @@ class CommandHandler:
                 self._handle_lessons(args)
             elif cmd == "/helpask":
                 self._handle_helpask(args)
+            elif cmd == "/keymap":
+                self._handle_keymap(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -7977,6 +7979,96 @@ class CommandHandler:
                 text = format_coverage(primary.help_answers_book())
             else:
                 text = primary.help_answers_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_keymap(self, args: str):
+        """M-187: /keymap - keyboard sovereignty.
+
+        ``/keymap`` shows the keymap book held this
+        session - keyboard sovereignty, held as data:
+        one record per act with the key that reaches
+        it and the vim-mode prompt option held as
+        data beside them (the shipped example book -
+        six acts at the M-186 slice boundary, with
+        its two views, two mode records and its one
+        pinned panel - when none is held yet);
+        ``/keymap act <act-id>`` shows one act whole;
+        ``/keymap key <key>`` shows the act one key
+        reaches, or names the key unheld;
+        ``/keymap area <area>`` shows the book's acts
+        of one area; ``/keymap view <view-id>`` shows
+        one held view record; ``/keymap mode
+        <mode-id>`` shows one held mode record;
+        ``/keymap print`` prints the keymap derived
+        from the whole book's held acts; ``/keymap
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/keymap
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: acts and views are
+        held only when they are given through the
+        agent's register roads, stood on the book on
+        the viewing road, or held on the book roads,
+        and every act held for the session is
+        journaled as a keyboard_act session event,
+        every view as a keyboard_view session event,
+        every derived panel as a keyboard_panel
+        session event and every derived verdict as a
+        keyboard_verdict session event. This surface
+        presses no keys, renders no live UI and
+        changes no prompt mode - holding and telling
+        are words only.
+        """
+        from ..core.keyboard_sovereignty import (
+            format_act,
+            format_book,
+            format_key,
+            format_keymap,
+            format_mode,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_keyboard_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_keyboard_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "act":
+                text = format_act(primary.get_keyboard_act(target))
+            elif action == "key":
+                text = format_key(
+                    primary.keyboard_sovereignty_book(), target)
+            elif action == "area":
+                text = format_book(
+                    primary.keyboard_sovereignty_book(), target)
+            elif action == "view":
+                text = format_view(primary.get_keyboard_view(target))
+            elif action == "mode":
+                text = format_mode(
+                    primary.keyboard_sovereignty_book().mode_for(target))
+            elif action == "print":
+                text = format_keymap(primary.keyboard_sovereignty_book())
+            elif action == "panel":
+                text = format_panel(primary.keyboard_sovereignty_book())
+            elif action == "verdict":
+                text = format_verdict(primary.keyboard_sovereignty_book())
+            else:
+                text = primary.keyboard_sovereignty_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

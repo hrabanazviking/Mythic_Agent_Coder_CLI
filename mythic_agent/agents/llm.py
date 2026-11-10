@@ -40826,6 +40826,630 @@ class Agent:
             self._checkpoint(record)
 
 
+    def _keyboard_sovereignty_registry(self):
+        """The held keyboard registry (M-187).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer act and view records
+        one by one, beside the session help registry
+        (M-186) and never in it: the book is one
+        keymap book to look at. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named
+        ``_keyboard_sovereignty_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_keyboard_sovereignty_store", None)
+        if registry is None:
+            from ..core.keyboard_sovereignty import KeyboardRegistry
+            registry = KeyboardRegistry()
+            self._keyboard_sovereignty_store = registry
+        return registry
+
+    def keyboard_sovereignty_book(self):
+        """The session's keymap book, as data (M-187).
+
+        The held registry's book when the session
+        holds any item - the things the session can
+        actually be viewed for (items held one by one
+        stand under a session book composed here in
+        the agent layer, so a later whole book
+        recorded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book recorded whole through
+        :meth:`record_keyboard_book`, or the shipped
+        example book until one is recorded. Reading
+        registers and publishes nothing.
+        """
+        from ..core.keyboard_sovereignty import (
+            KeyboardBook, load_keyboard_sovereignty)
+        registry = self._keyboard_sovereignty_registry()
+        if registry.list_items():
+            try:
+                book = registry.book()
+            except ValueError:
+                return KeyboardBook(
+                    title="Keyboard Sovereignty",
+                    acts=registry.list_acts(),
+                    views=registry.list_views(), modes=(), panels=())
+            held = getattr(self, "_keyboard_sovereignty_held", None)
+            if held is not None and held.title == book.title \
+                    and held.act_ids() == book.act_ids() \
+                    and [v.view_id for v in held.views] == [
+                        v.view_id for v in book.views]:
+                return held
+            return book
+        book = getattr(self, "_keyboard_sovereignty_held", None)
+        if book is None:
+            return load_keyboard_sovereignty()
+        return book
+
+    def _keyboard_sovereignty_default_view(self, book: Any):
+        """The view a book derives under by default (M-187).
+
+        The view its own stored panel stands under,
+        else its first held view, else None - a book
+        holding acts but no view yet derives no panel
+        and no verdict, and says so plainly.
+        """
+        for panel in book.panels:
+            if panel.view_id is not None:
+                try:
+                    return book.view_for(panel.view_id)
+                except KeyError:
+                    continue
+        if book.views:
+            return book.views[0]
+        return None
+
+    def _keyboard_sovereignty_screen(self) -> str:
+        """The /keymap screen for the session's state (M-187)."""
+        from ..core import keyboard_sovereignty as keyboard_module
+        registry = self._keyboard_sovereignty_registry()
+        if not registry.list_items():
+            return keyboard_module.format_keyboard_screen()
+        book = self.keyboard_sovereignty_book()
+        if not book.views:
+            return keyboard_module.format_book(book)
+        return keyboard_module.format_keyboard_screen(book)
+
+    def keyboard_sovereignty_status(self) -> dict[str, Any]:
+        """The keyboard account, in plain data (M-187).
+
+        The act and view records held this session as
+        plain records, the held book's record (none
+        until an item stands held), the session book's
+        acts, views and modes as plain records (the
+        shipped example book - six acts at the M-186
+        slice boundary, with its two views, its two
+        mode records and its one pinned panel - until
+        items are held), its whole-book record, the
+        panel derived from the whole book under its
+        default view and every panel the book holds
+        as plain records, the verdict derived for
+        the whole book, the keymap derived from the
+        book's held acts, the vim-mode record the
+        book holds, the keyboard rule as data, the
+        last act told in plain words, the panel and
+        the verdict told in plain words, the one
+        screen - rendered from the held book, or from
+        the shipped example book when nothing is held
+        yet - and the plain explanation. A book
+        holding acts but no view yet derives no panel
+        and no verdict. Reading registers and
+        publishes nothing, presses no keys, renders
+        no live UI and changes no prompt mode: this
+        layer tells only.
+        """
+        from ..core import keyboard_sovereignty as keyboard_module
+        registry = self._keyboard_sovereignty_registry()
+        held_acts = registry.list_acts()
+        held_views = registry.list_views()
+        held_items = registry.list_items()
+        book = self.keyboard_sovereignty_book()
+        default = self._keyboard_sovereignty_default_view(book)
+        latest = book.acts[-1] if book.acts else None
+        latest_words = (keyboard_module.plain_words(latest)
+                        if latest is not None else "")
+        modal = keyboard_module.vim_mode(book)
+        return {
+            "acts": [item.to_record() for item in held_acts],
+            "views": [item.to_record() for item in held_views],
+            "book": (book.to_record() if held_items else None),
+            "keyboard": {
+                "title": book.title,
+                "acts": [item.to_record() for item in book.acts],
+                "views": [item.to_record() for item in book.views],
+                "modes": [item.to_record() for item in book.modes],
+            },
+            "book_record": keyboard_module.book_record(book),
+            "panel": (keyboard_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (keyboard_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "keymap": keyboard_module.keymap_record(book),
+            "vim_mode": (keyboard_module.mode_record(modal)
+                         if modal is not None else None),
+            "rule": keyboard_module.KEYBOARD_RULE,
+            "plain_words": latest_words,
+            "panel_plain_words": (
+                keyboard_module.panel_plain_words(book, default)
+                if default is not None else ""),
+            "verdict_plain_words": (
+                keyboard_module.verdict_plain_words(book, default)
+                if default is not None else ""),
+            "screen": self._keyboard_sovereignty_screen(),
+            "explanation": keyboard_module.PLAIN_EXPLANATION,
+        }
+
+    def get_keyboard_act(self, act_id: Any):
+        """The one act an id names (M-187).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). A held item answers
+        for its own book alone: an id the held book
+        holds no act for raises KeyError, with no
+        silent fall back to the example, exactly as
+        the pure layer answers. Reading registers
+        and publishes nothing.
+        """
+        registry = self._keyboard_sovereignty_registry()
+        if registry.list_items():
+            return registry.get_act(act_id)
+        return self.keyboard_sovereignty_book().act_for(act_id)
+
+    def get_keyboard_view(self, view_id: Any):
+        """The one view record an id names (M-187).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). Reading registers
+        and publishes nothing.
+        """
+        registry = self._keyboard_sovereignty_registry()
+        if registry.list_items():
+            return registry.get_view(view_id)
+        return self.keyboard_sovereignty_book().view_for(view_id)
+
+    def get_keyboard_mode(self, mode: Any):
+        """The held mode record for one mode word (M-187).
+
+        The session book answers - the shipped example
+        book until a book is recorded whole for the
+        session. Modes travel with whole books: a
+        session holding acts one by one holds no
+        modes, and a mode word it holds no record
+        for raises KeyError - the option stands
+        unheld, honestly. Reading registers and
+        publishes nothing, and switches no prompt
+        mode: the record is data alone.
+        """
+        from ..core.keyboard_sovereignty import (
+            mode_for_word as _for_word)
+        entry = _for_word(self.keyboard_sovereignty_book(), mode)
+        if entry is None:
+            raise KeyError(
+                f"no held mode stands for the {mode} prompt "
+                f"mode in this book")
+        return entry
+
+    def keyboard_acts_for_area(self, area: Any):
+        """The session book's acts of one area (M-187)."""
+        from ..core.keyboard_sovereignty import (
+            acts_for_area as _for_area)
+        return _for_area(self.keyboard_sovereignty_book(), area)
+
+    def keyboard_acts_passing(self):
+        """The session book's acts standing reachable (M-187)."""
+        from ..core.keyboard_sovereignty import (
+            passing_acts as _passing)
+        return _passing(self.keyboard_sovereignty_book())
+
+    def keyboard_sovereignty_panel(self, view: Any = None):
+        """The panel derived for the whole book (M-187).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a book
+        holding no view at all refuses plainly rather
+        than inventing one.
+        """
+        from ..core.keyboard_sovereignty import (
+            derive_panel as _derive_panel)
+        book = self.keyboard_sovereignty_book()
+        resolved = view if view is not None \
+            else self._keyboard_sovereignty_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive a panel under")
+        return _derive_panel(book, resolved)
+
+    def keyboard_sovereignty_verdict(self, view: Any = None):
+        """The verdict derived for the whole book (M-187).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a book
+        holding no view at all refuses plainly rather
+        than inventing one.
+        """
+        from ..core.keyboard_sovereignty import (
+            derive_verdict as _derive_verdict)
+        book = self.keyboard_sovereignty_book()
+        resolved = view if view is not None \
+            else self._keyboard_sovereignty_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive a verdict under")
+        return _derive_verdict(book, resolved)
+
+    def print_keymap(self) -> dict[str, Any]:
+        """Print the keymap derived from the held acts (M-187).
+
+        The printable keymap road: the keymap is
+        derived at call time from the session book's
+        held acts alone - one entry per reachable
+        act under its own key, and the unreachable
+        acts named in its gaps. Printing registers
+        and publishes nothing, presses no keys,
+        renders no live UI and changes no prompt
+        mode. Returns the derived keymap record, the
+        rendered keymap, the screen and the plain
+        explanation.
+        """
+        from ..core import keyboard_sovereignty as keyboard_module
+        book = self.keyboard_sovereignty_book()
+        keymap = keyboard_module.derive_keymap(book)
+        return {
+            "keymap": keymap.to_record(),
+            "keymap_record": keyboard_module.keymap_record(keymap),
+            "keymap_text": keyboard_module.format_keymap(book),
+            "screen": self._keyboard_sovereignty_screen(),
+            "explanation": keyboard_module.PLAIN_EXPLANATION,
+        }
+
+    def register_keyboard_act(self, act: Any) -> dict[str, Any]:
+        """Hold one act for the session (M-187).
+
+        The act is held by the pure registry under
+        its act id - an act id, a sequence or a key
+        already standing here refuses, and a refusal
+        holds nothing new and publishes nothing. The
+        act is judged whole by the pure layer before
+        it is held: an act naming no held area, or
+        claiming a live keyboard road, refuses by
+        name on this road too. A held act is
+        published as its ``act_record`` session-news
+        record through the checkpoint road. Returns
+        the held act, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding an act presses no key:
+        the thing stands on this layer's book, as
+        data, provenance whole.
+        """
+        from ..core import keyboard_sovereignty as keyboard_module
+        registry = self._keyboard_sovereignty_registry()
+        held = registry.register_act(act)
+        news = keyboard_module.act_record(held)
+        self._publish_keyboard_record(news)
+        return {
+            "act": held.to_record(),
+            "record_news": news,
+            "screen": self._keyboard_sovereignty_screen(),
+            "explanation": keyboard_module.PLAIN_EXPLANATION,
+        }
+
+    def register_keyboard_view(self, view: Any) -> dict[str, Any]:
+        """Hold one view record for the session (M-187).
+
+        The view is held by the pure registry under
+        its id - a view id or a sequence already
+        standing here refuses, and a refusal holds
+        nothing new and publishes nothing. A held
+        view is published as its ``view_record``
+        session-news record through the checkpoint
+        road. Returns the held view, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding a view only ever
+        looks: it presses nothing and sends nothing.
+        """
+        from ..core import keyboard_sovereignty as keyboard_module
+        registry = self._keyboard_sovereignty_registry()
+        held = registry.register_view(view)
+        news = keyboard_module.view_record(held)
+        self._publish_keyboard_record(news)
+        return {
+            "view": held.to_record(),
+            "record_news": news,
+            "screen": self._keyboard_sovereignty_screen(),
+            "explanation": keyboard_module.PLAIN_EXPLANATION,
+        }
+
+    def view_keyboard(
+            self, view_filter: Any, *,
+            detail: Any = None,
+            recorded_on: Any = "2026-11-09",
+            actor: Any = "the jarl",
+            source: Any = "keyboard sovereignty",
+            origin_session: Any = "session-m187",
+            view_id: Any = None) -> dict[str, Any]:
+        """Stand one view on the session's held book (M-187).
+
+        This slice's own viewing road: the view record
+        is composed by the pure layer at the next
+        sequence of the session's held book, judged
+        whole, and held by the pure registry. The view
+        is published as its ``view_record`` session
+        news, the panel derived from the whole book as
+        its ``panel_record`` session news, and the
+        verdict derived for the whole book as its
+        ``verdict_record`` session news. Returns the
+        held view, its view filter, its news records,
+        the screen rendered after it landed and the
+        plain explanation. HONEST BOUNDARY: viewing
+        tells the book alone, as data - it presses no
+        key and renders no live UI.
+        """
+        from ..core import keyboard_sovereignty as keyboard_module
+        registry = self._keyboard_sovereignty_registry()
+        held_views = registry.list_views()
+        seq = (max(v.seq for v in held_views) + 1) \
+            if held_views else 1
+        fields: dict[str, Any] = {
+            "seq": seq, "view_filter": view_filter,
+            "detail": detail if detail is not None else (
+                f"View filter {view_filter!r} in the "
+                "session's held book, composed on the "
+                "viewing road."),
+            "recorded_on": recorded_on,
+            "actor": actor, "source": source,
+            "origin_session": origin_session}
+        if view_id is not None:
+            fields["view_id"] = view_id
+        else:
+            held_ids = {v.view_id for v in held_views}
+            fresh = 1
+            while f"view-{fresh}" in held_ids:
+                fresh += 1
+            fields["view_id"] = f"view-{fresh}"
+        view = keyboard_module.build_view(fields)
+        held = registry.register_view(view)
+        view_news = keyboard_module.view_record(held)
+        self._publish_keyboard_record(view_news)
+        book = self.keyboard_sovereignty_book()
+        panel_news = keyboard_module.panel_record(
+            keyboard_module.derive_panel(book, held))
+        self._publish_keyboard_record(panel_news)
+        verdict_news = keyboard_module.verdict_record(
+            keyboard_module.derive_verdict(book, held))
+        self._publish_keyboard_record(verdict_news)
+        return {
+            "view": held.to_record(),
+            "view_filter": held.view_filter,
+            "record_news": view_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._keyboard_sovereignty_screen(),
+            "explanation": keyboard_module.PLAIN_EXPLANATION,
+        }
+
+    def register_keyboard_book(self, book: Any) -> dict[str, Any]:
+        """Register a whole keymap book (M-187).
+
+        Every act and view record of the book is held
+        by the pure registry, in held and recorded
+        order - the book is judged whole, and against
+        the held book, before anything is held, so a
+        refusal holds nothing new. The first book held
+        sets the registry's title; a later book under
+        a different title refuses, as does a book
+        naming a held act id, sequence or key, or a
+        view id or sequence. The book's panels are
+        derivations, not holdings, and are not held;
+        its modes travel with whole books and are
+        held on the record road, not this one. Every
+        act is published as its session news and
+        every view as its ``view_record`` session
+        news, in order. Returns the held book, its
+        acts and views, their news records, the count
+        of acts held, the screen, and the explanation.
+        Registering presses no keys, renders no live
+        UI and changes no prompt mode.
+        """
+        from ..core import keyboard_sovereignty as keyboard_module
+        validated = keyboard_module.build_book(book)
+        registry = self._keyboard_sovereignty_registry()
+        registry.register_book(validated)
+        records = [
+            keyboard_module.act_record(item)
+            for item in validated.acts]
+        records += [
+            keyboard_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_keyboard_record(news)
+        return {
+            "book": validated.to_record(),
+            "acts": [item.to_record() for item in validated.acts],
+            "views": [item.to_record() for item in validated.views],
+            "records_news": records,
+            "count": len(validated.acts),
+            "screen": self._keyboard_sovereignty_screen(),
+            "explanation": keyboard_module.PLAIN_EXPLANATION,
+        }
+
+    def record_keyboard_book(self, book: Any = None) -> dict[str, Any]:
+        """Record a whole keymap book (M-187).
+
+        With no book named, the shipped example book
+        is recorded through the pure layer - six acts
+        at the M-186 slice boundary, with its two
+        views, its two mode records and its one
+        pinned panel. A book loaded from a file (the
+        pure layer's ``load_keyboard_sovereignty_file``
+        road) may be passed instead. The book is
+        judged whole before anything is held - a book
+        holding two acts under one key refuses here
+        by name, as does any record claiming a live
+        keyboard road. Every act and view is held and
+        published as its session news, in order, and
+        the panel derived under the book's default
+        view as its ``panel_record`` session news;
+        the book is remembered whole as the session's
+        - its held panel and modes and all - and the
+        same book recorded twice refuses -
+        fingerprinted on its act ids, view ids and
+        title. Returns the held book, its acts and
+        views, their news records, the panel news
+        record, the keymap news record, the count,
+        the screen, and the explanation. Recording
+        presses no keys, renders no live UI and
+        changes no prompt mode.
+        """
+        from ..core import keyboard_sovereignty as keyboard_module
+        book = book if book is not None \
+            else keyboard_module.load_keyboard_sovereignty()
+        validated = keyboard_module.build_book(book)
+        fingerprint = (tuple(validated.act_ids()),
+                       tuple(v.view_id for v in validated.views),
+                       validated.title)
+        recorded = getattr(self, "_keyboard_sovereignty_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._keyboard_sovereignty_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this keyboard book is already recorded for the "
+                "session; a book is recorded once")
+        registry = self._keyboard_sovereignty_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._keyboard_sovereignty_held = validated
+        records = [
+            keyboard_module.act_record(item)
+            for item in validated.acts]
+        records += [
+            keyboard_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_keyboard_record(news)
+        panel_news = keyboard_module.panel_record(
+            keyboard_module.derive_panel(
+                validated,
+                self._keyboard_sovereignty_default_view(validated)),
+            validated)
+        self._publish_keyboard_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "acts": [item.to_record() for item in validated.acts],
+            "views": [item.to_record() for item in validated.views],
+            "records_news": records,
+            "panel_record": panel_news,
+            "keymap_record": keyboard_module.keymap_record(validated),
+            "count": len(validated.acts),
+            "screen": keyboard_module.format_keyboard_screen(validated),
+            "explanation": keyboard_module.PLAIN_EXPLANATION,
+        }
+
+    def report_keyboard_sovereignty(self) -> dict[str, Any]:
+        """Render the session keymap book, as a report (M-187).
+
+        The book - the held registry's book when the
+        session holds any item, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - is rendered through the pure
+        formatters alone. Rendering registers and
+        publishes nothing, presses no keys, renders
+        no live UI and writes nothing. Returns the
+        book, its acts, views, modes and panels as
+        plain records, the derived panel, verdict and
+        keymap (panel and verdict none while the book
+        holds no view), the vim-mode record, the
+        rendered book, panel, verdict and keymap,
+        the screen, and the plain explanation.
+        """
+        from ..core import keyboard_sovereignty as keyboard_module
+        book = self.keyboard_sovereignty_book()
+        default = self._keyboard_sovereignty_default_view(book)
+        modal = keyboard_module.vim_mode(book)
+        return {
+            "book": book.to_record(),
+            "acts": [item.to_record() for item in book.acts],
+            "views": [item.to_record() for item in book.views],
+            "modes": [item.to_record() for item in book.modes],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (keyboard_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "verdict": (keyboard_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "keymap": keyboard_module.keymap_record(book),
+            "vim_mode": (keyboard_module.mode_record(modal)
+                         if modal is not None else None),
+            "book_text": keyboard_module.format_book(book),
+            "panel_text": (keyboard_module.format_panel(book, default)
+                           if default is not None else ""),
+            "verdict_text": (keyboard_module.format_verdict(
+                book, default)
+                if default is not None else ""),
+            "keymap_text": keyboard_module.format_keymap(book),
+            "screen": self._keyboard_sovereignty_screen(),
+            "explanation": keyboard_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_keyboard_record(self, record: dict[str, Any]) -> None:
+        """Publish one keyboard record as session news (M-187).
+
+        The pure layer's ``act_record``, ``view_record``,
+        ``panel_record`` and ``verdict_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once per shape: an act under its own act id
+        and segment, a view under its own view id,
+        sequence and view filter, a panel under its
+        whole derived shape, and a verdict under its
+        word and tallies, so a panel or verdict grown
+        by a newly held act or view announces again
+        as the new figure it is. A foreign record
+        type is never published on this road.
+        """
+        if record.get("type") == "keyboard_act":
+            key = ("keyboard_act", record.get("act_id"),
+                   record.get("segment"))
+        elif record.get("type") == "keyboard_view":
+            key = ("keyboard_view", record.get("view_id"),
+                   record.get("seq"), record.get("view_filter"))
+        elif record.get("type") == "keyboard_panel":
+            key = ("keyboard_panel", record.get("panel_id"),
+                   record.get("view_id"),
+                   tuple(row.get("item_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_shown"))
+        elif record.get("type") == "keyboard_verdict":
+            key = ("keyboard_verdict", record.get("verdict"),
+                   record.get("total_shown"),
+                   record.get("passing_shown"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(self, "_keyboard_sovereignty_announced", None)
+        if announced is None:
+            announced = set()
+            self._keyboard_sovereignty_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):

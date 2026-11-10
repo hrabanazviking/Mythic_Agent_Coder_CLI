@@ -704,3 +704,401 @@ def test_parse_args_inspect_and_loader_roads():
         source="test source", origin_session="session-test")
     assert built.act_id == "act-kw"
     assert act_passes(built) is True
+
+
+# ---------------------------------------------------------------------
+# M-187 agent layer: the agent holds a keymap book
+# for the session, acts and views are published
+# as session news through the checkpoint road
+# (journal first, deduped per shape), the panel
+# and verdict are derived at call time from the
+# whole book under a view, never held, the keymap
+# is derived from the book's held acts, and the
+# vim-mode option is held as data - holding it
+# switches no live prompt. This layer presses no
+# keys, renders no live UI, changes no live
+# prompt mode and persists nothing beyond the
+# session journal news.
+# ---------------------------------------------------------------------
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _keyboard_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_keyboard_book_file(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data" / KEYBOARD_SOVEREIGNTY_RESOURCE
+           ).read_text(encoding="utf-8")
+    path = tmp_path / "keyboard_sovereignty.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestKeyboardAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.keyboard_sovereignty_status()
+        assert status["acts"] == []
+        assert status["views"] == []
+        assert status["book"] is None
+        assert status["keyboard"]["title"] == EXAMPLE_TITLE
+        assert len(status["keyboard"]["acts"]) == 6
+        assert len(status["keyboard"]["views"]) == 2
+        assert len(status["keyboard"]["modes"]) == 2
+        assert status["panel"]["total_items"] == 6
+        assert status["panel"]["total_shown"] == 6
+        assert status["panels"][0]["panel_id"] == "panel-m186-boundary"
+        assert status["verdict"]["verdict"] == "strained"
+        assert status["verdict"]["passing_shown"] == 5
+        assert [e["key"] for e in status["keymap"]["entries"]] == [
+            "Enter", "Ctrl-Z", "Ctrl-K", "y", "Ctrl-P"]
+        assert status["keymap"]["gaps"] == ["act-drag-select"]
+        assert status["vim_mode"]["mode_id"] == "mode-vim"
+        assert "held as data alone" in status["rule"]
+        assert "Toggle plain words" in status["plain_words"]
+        assert "Keyboard Sovereignty (M-187)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._keyboard_sovereignty_registry()
+        assert agent._keyboard_sovereignty_registry() is first
+        assert agent._keyboard_sovereignty_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.keyboard_sovereignty_status()
+        assert agent.get_keyboard_act("act-undo-change").title == (
+            "Undo the last change")
+        assert agent.get_keyboard_view("view-all").view_filter == "all"
+        assert agent.get_keyboard_mode("modal").mode_id == "mode-vim"
+        assert [a.act_id for a in agent.keyboard_acts_for_area(
+            "editor")] == ["act-undo-change", "act-drag-select"]
+        assert [a.act_id for a in agent.keyboard_acts_passing()] == [
+            "act-ask-question", "act-undo-change", "act-open-keymap",
+            "act-approve-tool", "act-toggle-plain"]
+        agent.keyboard_sovereignty_panel()
+        agent.keyboard_sovereignty_verdict()
+        agent.print_keymap()
+        agent.report_keyboard_sovereignty()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("keyboard")] == []
+        with pytest.raises(KeyError):
+            agent.get_keyboard_act("act-nope")
+        with pytest.raises(KeyError):
+            agent.get_keyboard_view("view-nope")
+        with pytest.raises(ValueError):
+            agent.get_keyboard_mode("insert")
+        with pytest.raises(ValueError):
+            agent.keyboard_acts_for_area("the void")
+        agent.close()
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_keyboard_act(_act())
+        status = agent.keyboard_sovereignty_status()
+        assert [a["act_id"] for a in status["acts"]] == ["act-test"]
+        assert status["book"]["title"] == "An unheld keyboard book"
+        assert status["panel"] is None
+        assert status["verdict"] is None
+        assert [e["key"] for e in status["keymap"]["entries"]] == [
+            "Ctrl-T"]
+        assert status["vim_mode"] is None
+        assert "act-test" in status["screen"]
+
+    def test_held_act_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_keyboard_act(_act())
+        with pytest.raises(KeyError):
+            agent.get_keyboard_act("act-undo-change")
+        with pytest.raises(KeyError):
+            agent.get_keyboard_view("view-all")
+        with pytest.raises(KeyError):
+            agent.get_keyboard_mode("modal")
+        act = agent.get_keyboard_act("act-test")
+        assert act.title == "A test act"
+        assert agent.keyboard_sovereignty_book().title == (
+            "An unheld keyboard book")
+
+    def test_modes_and_keymap_stand_in_the_example(self, agent):
+        off = agent.get_keyboard_mode("off")
+        assert off.mode_id == "mode-off"
+        assert off.mode == "off"
+        status = agent.keyboard_sovereignty_status()
+        assert status["keymap"]["gaps"] == ["act-drag-select"]
+        assert status["vim_mode"]["mode"] == "modal"
+
+
+class TestKeyboardAgentHolding:
+    def test_register_act_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_keyboard_act(_act())
+        assert result["act"]["act_id"] == "act-test"
+        assert result["record_news"]["type"] == "keyboard_act"
+        assert "act-test" in result["screen"]
+        events = _keyboard_events(store, session_id, "keyboard_act")
+        assert len(events) == 1
+        agent.close()
+
+    def test_duplicate_act_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_keyboard_act(_act())
+        with pytest.raises(ValueError):
+            agent.register_keyboard_act(_act(seq=9))
+        with pytest.raises(ValueError):
+            agent.register_keyboard_act(_act(act_id="act-two", seq=9))
+        events = _keyboard_events(store, session_id, "keyboard_act")
+        assert len(events) == 1
+        agent.close()
+
+    def test_register_view_holds_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_keyboard_view(_view())
+        assert result["view"]["view_id"] == "view-test"
+        assert len(_keyboard_events(
+            store, session_id, "keyboard_view")) == 1
+        agent.close()
+
+    def test_view_road_derives_sequence_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_keyboard_act(_act())
+        result = agent.view_keyboard("reachable")
+        assert result["view"]["view_filter"] == "reachable"
+        assert result["view"]["seq"] == 1
+        assert result["panel_record"]["type"] == "keyboard_panel"
+        assert result["panel_record"]["total_shown"] == 1
+        assert result["verdict_record"]["verdict"] == "open"
+        assert len(_keyboard_events(
+            store, session_id, "keyboard_view")) == 1
+        assert len(_keyboard_events(
+            store, session_id, "keyboard_panel")) == 1
+        assert len(_keyboard_events(
+            store, session_id, "keyboard_verdict")) == 1
+        agent.close()
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_keyboard_book(_book(views=[_view()]))
+        assert result["count"] == 1
+        assert [r["type"] for r in result["records_news"]] == [
+            "keyboard_act", "keyboard_view"]
+        assert len(_keyboard_events(
+            store, session_id, "keyboard_act")) == 1
+        agent.close()
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.record_keyboard_book()
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+        assert result["panel_record"]["type"] == "keyboard_panel"
+        assert result["keymap_record"]["gaps"] == ["act-drag-select"]
+        with pytest.raises(ValueError):
+            agent.record_keyboard_book()
+        assert len(_keyboard_events(
+            store, session_id, "keyboard_act")) == 6
+        assert len(_keyboard_events(
+            store, session_id, "keyboard_view")) == 2
+        agent.close()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_keyboard_book_file(tmp_path)
+        book = load_keyboard_sovereignty_file(path)
+        result = agent.record_keyboard_book(book)
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+
+    def test_report_renders_example_then_held_book_only(self, agent):
+        report = agent.report_keyboard_sovereignty()
+        assert report["book"]["title"] == EXAMPLE_TITLE
+        assert report["verdict"]["verdict"] == "strained"
+        assert report["keymap"]["gaps"] == ["act-drag-select"]
+        assert "act-undo-change" in report["book_text"]
+        assert "Ctrl-K" in report["keymap_text"]
+        agent.register_keyboard_act(_act())
+        report = agent.report_keyboard_sovereignty()
+        assert report["book"]["title"] == "An unheld keyboard book"
+        assert report["panel"] is None
+        assert report["verdict"] is None
+
+
+class TestKeyboardTerminalSurface:
+    def test_show_act_key_area_view_mode_print_panel_verdict(
+            self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/keymap")
+        assert "Keyboard Sovereignty (M-187)" in text
+        _, _, text = _slash(agent, "/keymap act act-undo-change")
+        assert "Act: Undo the last change" in text
+        _, _, text = _slash(agent, "/keymap key Ctrl-K")
+        assert "Open the printable keymap" in text
+        _, _, text = _slash(agent, "/keymap key F9")
+        assert "reaches nothing in this book" in text
+        _, _, text = _slash(agent, "/keymap area editor")
+        assert "act-drag-select" in text
+        assert "act-ask-question" not in text
+        _, _, text = _slash(agent, "/keymap view view-all")
+        assert "filter all" in text
+        _, _, text = _slash(agent, "/keymap mode mode-vim")
+        assert "Vim-mode prompt" in text
+        _, _, text = _slash(agent, "/keymap print")
+        assert "Printable keymap" in text
+        assert "act-drag-select" in text
+        _, _, text = _slash(agent, "/keymap panel")
+        assert "Keyboard panel under view view-all" in text
+        _, _, text = _slash(agent, "/keymap verdict")
+        assert "strained" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/keymap [show|act <act-id>"
+                "|key <key>|area <area>|view <view-id>"
+                "|mode <mode-id>|print|panel|verdict]") in text
+        _, _, text = _slash(agent, "/keymap dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/keymap act act-nope")
+        assert "no act named" in text
+
+
+@pytest.fixture()
+def keymap_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _keymap_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestKeyboardCommand:
+    def test_show_is_default(self, keymap_handler, agent):
+        keymap_handler._handle_keymap("")
+        assert "Keyboard Sovereignty (M-187)" in (
+            _keymap_published_text(keymap_handler))
+
+    def test_act_key_area_view_mode_print_panel_verdict(
+            self, keymap_handler, agent):
+        keymap_handler._handle_keymap("act act-undo-change")
+        assert "Act: Undo the last change" in _keymap_published_text(
+            keymap_handler)
+        keymap_handler._handle_keymap("key Ctrl-K")
+        assert "Open the printable keymap" in _keymap_published_text(
+            keymap_handler)
+        keymap_handler._handle_keymap("area editor")
+        assert "act-drag-select" in _keymap_published_text(keymap_handler)
+        keymap_handler._handle_keymap("view view-all")
+        assert "filter all" in _keymap_published_text(keymap_handler)
+        keymap_handler._handle_keymap("mode mode-vim")
+        assert "Vim-mode prompt" in _keymap_published_text(keymap_handler)
+        keymap_handler._handle_keymap("print")
+        assert "Printable keymap" in _keymap_published_text(keymap_handler)
+        keymap_handler._handle_keymap("panel")
+        assert "Keyboard panel under view" in _keymap_published_text(
+            keymap_handler)
+        keymap_handler._handle_keymap("verdict")
+        assert "strained" in _keymap_published_text(keymap_handler)
+
+    def test_bad_grammar_is_published(
+            self, keymap_handler, agent):
+        keymap_handler._handle_keymap("dance party")
+        assert USAGE in _keymap_published_text(keymap_handler)
+        keymap_handler._handle_keymap("act act-nope")
+        assert "no act named" in _keymap_published_text(keymap_handler)
+
+
+class TestChatScreenRoutingKeyboard:
+    def test_onboard_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/keymap panel", _FakeLog())
+        assert calls == [("/keymap", "panel")]
+
+    def test_chat_screen_help_and_usage_name_the_book(self):
+        text = (ROOT / "mythic_agent" / "ui" / "screens"
+                / "chat_screen.py").read_text(encoding="utf-8")
+        assert "/keymap[/green] - show keyboard sovereignty (M-187)" in (
+            text)
+        assert ('"/keymap": "Usage: /keymap | '
+                '/keymap act <act-id>') in text
+
+
+class TestKeyboardDerivedRoads:
+    def test_panel_and_verdict_are_derived_at_call_time(self, agent):
+        panel = agent.keyboard_sovereignty_panel()
+        assert panel.total_shown == 6
+        assert panel.panel_id == "panel-view-all"
+        verdict = agent.keyboard_sovereignty_verdict()
+        assert verdict.verdict == "strained"
+        found = agent.keyboard_sovereignty_verdict("view-reachable")
+        assert found.verdict == "open"
+        assert found.passing_shown == 5
+        agent.register_keyboard_act(_act())
+        with pytest.raises(ValueError):
+            agent.keyboard_sovereignty_panel()
+        with pytest.raises(ValueError):
+            agent.keyboard_sovereignty_verdict()
+
+    def test_view_road_over_an_unshown_filter_is_shut(self, agent):
+        agent.register_keyboard_act(_act(key=""))
+        result = agent.view_keyboard("reachable")
+        assert result["verdict_record"]["verdict"] == "shut"
+        assert result["verdict_record"]["total_shown"] == 0
+
+    def test_print_road_derives_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.print_keymap()
+        assert [e["key"] for e in result["keymap"]["entries"]] == [
+            "Enter", "Ctrl-Z", "Ctrl-K", "y", "Ctrl-P"]
+        assert result["keymap"]["gaps"] == ["act-drag-select"]
+        assert "Ctrl-K - Open the printable keymap" in (
+            result["keymap_text"])
+        act = agent.get_keyboard_act("act-drag-select")
+        assert act_gaps(act) == ("no key",)
+        assert act_passes(act) is False
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("keyboard")] == []
+        agent.close()
