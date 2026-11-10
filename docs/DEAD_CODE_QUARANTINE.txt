@@ -828,3 +828,10 @@ mythic_agent/agents/llm.py:49172:view_campaign:method
 mythic_agent/agents/llm.py:49239:register_campaign_book:method
 mythic_agent/agents/llm.py:49284:record_campaign_book:method
 mythic_agent/agents/llm.py:49357:report_campaigns:method
+mythic_agent/agents/llm.py:49643:get_intent_note:method
+mythic_agent/agents/llm.py:49664:intents_citing:method
+mythic_agent/agents/llm.py:49761:register_intent_view:method
+mythic_agent/agents/llm.py:49787:view_intent:method
+mythic_agent/agents/llm.py:49854:register_intent_book:method
+mythic_agent/agents/llm.py:49899:record_intent_book:method
+mythic_agent/agents/llm.py:49972:report_intent:method
