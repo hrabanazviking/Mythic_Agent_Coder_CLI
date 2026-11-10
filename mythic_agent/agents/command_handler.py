@@ -425,6 +425,8 @@ class CommandHandler:
                 self._handle_uiundo(args)
             elif cmd == "/accessverify":
                 self._handle_accessverify(args)
+            elif cmd == "/campaigns":
+                self._handle_campaigns(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -9183,6 +9185,98 @@ class CommandHandler:
                 text = format_verdict(primary.access_verify_book())
             else:
                 text = primary.access_verify_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+
+    def _handle_campaigns(self, args: str):
+        """M-201: /campaigns - campaigns as data.
+
+        ``/campaigns`` shows the campaign book held this
+        session - campaigns as data: one record per slice,
+        held whole with its title, the part it stands in,
+        its state, its evidence held honestly and the
+        acceptance checks it carries, and the notes held
+        as data beside them (the shipped example book -
+        six slices at the M-200 slice boundary, with its
+        two views, two stance records and its one pinned
+        panel - when none is held yet);
+        ``/campaigns slice <slice-id>`` shows one slice whole;
+        ``/campaigns checks <checks>`` shows the slice one
+        checks line reaches, or names the checks unheld;
+        ``/campaigns state <state>`` shows the book's slices
+        of one state; ``/campaigns view <view-id>`` shows
+        one held view record; ``/campaigns note
+        <note-id>`` shows one held stance record;
+        ``/campaigns index`` shows the index derived
+        from the whole book's held slices; ``/campaigns
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/campaigns
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: slices and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every slice held for the session is
+        journaled as a campaign_slice session event,
+        every view as a campaign_view session event,
+        every derived panel as a campaign_panel
+        session event and every derived verdict as a
+        campaign_verdict session event. This heading
+        executes no campaign, runs nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.campaigns import (
+            format_slice,
+            format_book,
+            format_checks,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_campaign_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_campaign_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "slice":
+                text = format_slice(primary.get_campaign_slice(target))
+            elif stance == "checks":
+                text = format_checks(
+                    primary.campaigns_book(), target)
+            elif stance == "state":
+                text = format_book(
+                    primary.campaigns_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_campaign_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.campaigns_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.campaigns_book())
+            elif stance == "panel":
+                text = format_panel(primary.campaigns_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.campaigns_book())
+            else:
+                text = primary.campaigns_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
