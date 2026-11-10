@@ -1257,7 +1257,7 @@ def _check_example(book: PaneBook) -> None:
         raise ValueError("the shipped example book must leave the terminal sweep pane honestly unanchored, named in its gaps")
     found = pane_for_target(book, EXAMPLE_TARGET)
     if found is None or found.pane_id != "pane-work-session":
-        raise ValueError("the shipped example book must reach its login pane under the example target")
+        raise ValueError("the shipped example book must reach its work pane under the example target")
     first = first_note(book)
     if first is None or first.note_id != "note-note-work":
         raise ValueError("the shipped example book must hold the work note as its first note road")
