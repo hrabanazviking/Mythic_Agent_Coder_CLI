@@ -1222,7 +1222,7 @@ slices:
   part: 8
   title: Undo of UI itself
   summary: closing a pane or clearing a view is never destructive to work; view state per session persists.
-  status: queued
+  status: done
 - id: M-199
   part: 8
   title: Accessibility verification

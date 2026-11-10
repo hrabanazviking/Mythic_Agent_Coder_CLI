@@ -795,3 +795,14 @@ mythic_agent/agents/llm.py:47324:view_palette:method
 mythic_agent/agents/llm.py:47391:register_palette_book:method
 mythic_agent/agents/llm.py:47436:record_palette_book:method
 mythic_agent/agents/llm.py:47509:report_command_palette:method
+mythic_agent/agents/llm.py:47797:get_undo_note:method
+mythic_agent/agents/llm.py:47812:undo_panes_for_kind:method
+mythic_agent/agents/llm.py:47818:undo_panes_passing:method
+mythic_agent/agents/llm.py:47824:ui_undo_panel:method
+mythic_agent/agents/llm.py:47842:ui_undo_verdict:method
+mythic_agent/agents/llm.py:47884:register_undo_pane:method
+mythic_agent/agents/llm.py:47915:register_undo_view:method
+mythic_agent/agents/llm.py:47941:view_undo:method
+mythic_agent/agents/llm.py:48008:register_undo_book:method
+mythic_agent/agents/llm.py:48053:record_undo_book:method
+mythic_agent/agents/llm.py:48126:report_ui_undo:method
