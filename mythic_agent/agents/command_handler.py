@@ -419,6 +419,8 @@ class CommandHandler:
                 self._handle_copyshare(args)
             elif cmd == "/settingsroom":
                 self._handle_settingsroom(args)
+            elif cmd == "/commandpalette":
+                self._handle_commandpalette(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -8902,6 +8904,97 @@ class CommandHandler:
                 text = format_verdict(primary.settings_room_book())
             else:
                 text = primary.settings_room_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_commandpalette(self, args: str):
+        """M-197: /commandpalette - the command palette.
+
+        ``/commandpalette`` shows the palette book held this
+        session - the command palette, held as data:
+        one record per entry with the words that reach
+        it and the notes held as
+        data beside them (the shipped example book -
+        six entries at the M-196 slice boundary, with
+        its two views, two stance records and its one
+        pinned panel - when none is held yet);
+        ``/commandpalette entry <entry-id>`` shows one entry whole;
+        ``/commandpalette keywords <keywords>`` shows the entry one set of words
+        reaches, or names the words unheld;
+        ``/commandpalette kind <kind>`` shows the book's entries
+        of one kind; ``/commandpalette view <view-id>`` shows
+        one held view record; ``/commandpalette note
+        <note-id>`` shows one held stance record;
+        ``/commandpalette index`` shows the index derived
+        from the whole book's held entries; ``/commandpalette
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/commandpalette
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: entries and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every entry held for the session is
+        journaled as a palette_entry session event,
+        every view as a palette_view session event,
+        every derived panel as a palette_panel
+        session event and every derived verdict as a
+        palette_verdict session event. This heading
+        executes no command, runs no action and
+        navigates nowhere - holding and telling
+        are words only.
+        """
+        from ..core.command_palette import (
+            format_entry,
+            format_book,
+            format_keywords,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_palette_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_palette_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "entry":
+                text = format_entry(primary.get_palette_entry(target))
+            elif stance == "keywords":
+                text = format_keywords(
+                    primary.command_palette_book(), target)
+            elif stance == "kind":
+                text = format_book(
+                    primary.command_palette_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_palette_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.command_palette_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.command_palette_book())
+            elif stance == "panel":
+                text = format_panel(primary.command_palette_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.command_palette_book())
+            else:
+                text = primary.command_palette_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

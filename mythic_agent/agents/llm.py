@@ -46984,6 +46984,622 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _command_palette_registry(self):
+        """The held palette registry (M-197).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer entry and view records
+        one by one, beside the session settings-room
+        registry (M-196) and never in it: the book is one
+        palette book to look at. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named
+        ``_command_palette_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_command_palette_store", None)
+        if registry is None:
+            from ..core.command_palette import CommandPaletteRegistry
+            registry = CommandPaletteRegistry()
+            self._command_palette_store = registry
+        return registry
+
+    def command_palette_book(self):
+        """The session's palette book, as data (M-197).
+
+        The held registry's book when the session
+        holds any item - the things the session can
+        actually be viewed for (items held one by one
+        stand under a session book composed here in
+        the agent layer, so a later whole book
+        recorded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book recorded whole through
+        :meth:`record_palette_book`, or the shipped
+        example book until one is recorded. Reading
+        registers and publishes nothing.
+        """
+        from ..core.command_palette import (
+            PaletteBook, load_command_palette)
+        registry = self._command_palette_registry()
+        if registry.list_items():
+            try:
+                book = registry.book()
+            except ValueError:
+                return PaletteBook(
+                    title="Command Palette",
+                    entries=registry.list_entries(),
+                    views=registry.list_views(), notes=(), panels=())
+            held = getattr(self, "_command_palette_held", None)
+            if held is not None and held.title == book.title \
+                    and held.entry_ids() == book.entry_ids() \
+                    and [v.view_id for v in held.views] == [
+                        v.view_id for v in book.views]:
+                return held
+            return book
+        book = getattr(self, "_command_palette_held", None)
+        if book is None:
+            return load_command_palette()
+        return book
+
+    def _command_palette_default_view(self, book: Any):
+        """The view a book derives under by default (M-197).
+
+        The view its own stored panel stands under,
+        else its first held view, else None - a book
+        holding entries but no view yet derives no panel
+        and no verdict, and says so plainly.
+        """
+        for panel in book.panels:
+            if panel.view_id is not None:
+                try:
+                    return book.view_for(panel.view_id)
+                except KeyError:
+                    continue
+        if book.views:
+            return book.views[0]
+        return None
+
+    def _command_palette_screen(self) -> str:
+        """The /commandpalette screen for the session's state (M-197)."""
+        from ..core import command_palette as palette_module
+        registry = self._command_palette_registry()
+        if not registry.list_items():
+            return palette_module.format_palette_screen()
+        book = self.command_palette_book()
+        if not book.views:
+            return palette_module.format_book(book)
+        return palette_module.format_palette_screen(book)
+
+    def command_palette_status(self) -> dict[str, Any]:
+        """The palette account, in plain data (M-197).
+
+        The entry and view records held this session as
+        plain records, the held book's record (none
+        until an item stands held), the session book's
+        entries, views and notes as plain records (the
+        shipped example book - six entries at the M-196
+        slice boundary, with its two views, its two
+        stance records and its one pinned panel - until
+        items are held), its whole-book record, the
+        panel derived from the whole book under its
+        default view and every panel the book holds
+        as plain records, the verdict derived for
+        the whole book, the index derived from the
+        book's held entries, the note record the
+        book holds first, the palette rule as data, the
+        last entry told in plain words, the panel and
+        the verdict told in plain words, the one
+        screen - rendered from the held book, or from
+        the shipped example book when nothing is held
+        yet - and the plain explanation. A book
+        holding entries but no view yet derives no panel
+        and no verdict. Reading registers and
+        publishes nothing, executes no command, runs
+        no action and navigates nowhere: this
+        layer tells only.
+        """
+        from ..core import command_palette as palette_module
+        registry = self._command_palette_registry()
+        held_acts = registry.list_entries()
+        held_views = registry.list_views()
+        held_items = registry.list_items()
+        book = self.command_palette_book()
+        default = self._command_palette_default_view(book)
+        latest = book.entries[-1] if book.entries else None
+        latest_words = (palette_module.plain_words(latest)
+                        if latest is not None else "")
+        modal = palette_module.first_note(book)
+        return {
+            "entries": [item.to_record() for item in held_acts],
+            "views": [item.to_record() for item in held_views],
+            "book": (book.to_record() if held_items else None),
+            "command_palette": {
+                "title": book.title,
+                "entries": [item.to_record() for item in book.entries],
+                "views": [item.to_record() for item in book.views],
+                "notes": [item.to_record() for item in book.notes],
+            },
+            "book_record": palette_module.book_record(book),
+            "panel": (palette_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (palette_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "index": palette_module.index_record(book),
+            "first_note": (palette_module.note_record(modal)
+                         if modal is not None else None),
+            "rule": palette_module.PALETTE_RULE,
+            "plain_words": latest_words,
+            "panel_plain_words": (
+                palette_module.panel_plain_words(book, default)
+                if default is not None else ""),
+            "verdict_plain_words": (
+                palette_module.verdict_plain_words(book, default)
+                if default is not None else ""),
+            "screen": self._command_palette_screen(),
+            "explanation": palette_module.PLAIN_EXPLANATION,
+        }
+
+    def get_palette_entry(self, entry_id: Any):
+        """The one entry an id names (M-197).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). A held item answers
+        for its own book alone: an id the held book
+        holds no entry for raises KeyError, with no
+        silent fall back to the example, exactly as
+        the pure layer answers. Reading registers
+        and publishes nothing.
+        """
+        registry = self._command_palette_registry()
+        if registry.list_items():
+            return registry.get_entry(entry_id)
+        return self.command_palette_book().entry_for(entry_id)
+
+    def get_palette_view(self, view_id: Any):
+        """The one view record an id names (M-197).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). Reading registers
+        and publishes nothing.
+        """
+        registry = self._command_palette_registry()
+        if registry.list_items():
+            return registry.get_view(view_id)
+        return self.command_palette_book().view_for(view_id)
+
+    def get_palette_note(self, note_id: Any):
+        """The one stance record an id names (M-197).
+
+        The session book answers - the shipped example
+        book until a book is recorded whole for the
+        session. Notes travel with whole books: a
+        session holding entries one by one holds no
+        notes, and an id it holds no record for
+        raises KeyError - the stance stands unheld,
+        honestly. Reading registers and publishes
+        nothing, and executes no command: the record is
+        data alone.
+        """
+        return self.command_palette_book().note_for(note_id)
+
+    def palette_entries_for_kind(self, area: Any):
+        """The session book's entries of one kind (M-197)."""
+        from ..core.command_palette import (
+            entries_for_kind as _for_area)
+        return _for_area(self.command_palette_book(), area)
+
+    def palette_entries_passing(self):
+        """The session book's entries standing complete (M-197)."""
+        from ..core.command_palette import (
+            passing_entries as _passing)
+        return _passing(self.command_palette_book())
+
+    def command_palette_panel(self, view: Any = None):
+        """The panel derived for the whole book (M-197).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a book
+        holding no view at all refuses plainly rather
+        than inventing one.
+        """
+        from ..core.command_palette import (
+            derive_panel as _derive_panel)
+        book = self.command_palette_book()
+        resolved = view if view is not None \
+            else self._command_palette_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive a panel under")
+        return _derive_panel(book, resolved)
+
+    def command_palette_verdict(self, view: Any = None):
+        """The verdict derived for the whole book (M-197).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a book
+        holding no view at all refuses plainly rather
+        than inventing one.
+        """
+        from ..core.command_palette import (
+            derive_verdict as _derive_verdict)
+        book = self.command_palette_book()
+        resolved = view if view is not None \
+            else self._command_palette_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive a verdict under")
+        return _derive_verdict(book, resolved)
+
+    def palette_index(self) -> dict[str, Any]:
+        """Print the index derived from the held entries (M-197).
+
+        The printable index target: the index is
+        derived at call time from the session book's
+        held entries alone - one entry per complete
+        entry under its own search words, and the incomplete
+        entries named in its gaps. Printing registers
+        and publishes nothing, executes no command,
+        runs no action and navigates nowhere. Returns the derived index record, the
+        rendered index, the screen and the plain
+        explanation.
+        """
+        from ..core import command_palette as palette_module
+        book = self.command_palette_book()
+        index = palette_module.derive_index(book)
+        return {
+            "index": index.to_record(),
+            "index_record": palette_module.index_record(index),
+            "index_text": palette_module.format_index(book),
+            "screen": self._command_palette_screen(),
+            "explanation": palette_module.PLAIN_EXPLANATION,
+        }
+
+    def register_palette_entry(self, entry: Any) -> dict[str, Any]:
+        """Hold one entry for the session (M-197).
+
+        The entry is held by the pure registry under
+        its entry id - an entry id or a sequence
+        already standing here refuses, and a refusal
+        holds nothing new and publishes nothing. The
+        entry is judged whole by the pure layer before
+        it is held: an entry naming no held kind, or
+        claiming a live palette execution, refuses by
+        name on this target too. A held entry is
+        published as its ``entry_record`` session-news
+        record through the checkpoint target. Returns
+        the held entry, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding an entry executes nothing:
+        the thing stands on this layer's book, as
+        data, provenance whole.
+        """
+        from ..core import command_palette as palette_module
+        registry = self._command_palette_registry()
+        held = registry.register_entry(entry)
+        news = palette_module.entry_record(held)
+        self._publish_palette_record(news)
+        return {
+            "entry": held.to_record(),
+            "record_news": news,
+            "screen": self._command_palette_screen(),
+            "explanation": palette_module.PLAIN_EXPLANATION,
+        }
+
+    def register_palette_view(self, view: Any) -> dict[str, Any]:
+        """Hold one view record for the session (M-197).
+
+        The view is held by the pure registry under
+        its id - a view id or a sequence already
+        standing here refuses, and a refusal holds
+        nothing new and publishes nothing. A held
+        view is published as its ``view_record``
+        session-news record through the checkpoint
+        target. Returns the held view, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding a view only ever
+        looks: it executes nothing and saves nothing.
+        """
+        from ..core import command_palette as palette_module
+        registry = self._command_palette_registry()
+        held = registry.register_view(view)
+        news = palette_module.view_record(held)
+        self._publish_palette_record(news)
+        return {
+            "view": held.to_record(),
+            "record_news": news,
+            "screen": self._command_palette_screen(),
+            "explanation": palette_module.PLAIN_EXPLANATION,
+        }
+
+    def view_palette(
+            self, view_filter: Any, *,
+            detail: Any = None,
+            recorded_on: Any = "2026-11-10",
+            actor: Any = "the jarl",
+            source: Any = "command palette",
+            origin_session: Any = "session-m197",
+            view_id: Any = None) -> dict[str, Any]:
+        """Stand one view on the session's held book (M-197).
+
+        This slice's own viewing target: the view record
+        is composed by the pure layer at the next
+        sequence of the session's held book, judged
+        whole, and held by the pure registry. The view
+        is published as its ``view_record`` session
+        news, the panel derived from the whole book as
+        its ``panel_record`` session news, and the
+        verdict derived for the whole book as its
+        ``verdict_record`` session news. Returns the
+        held view, its view filter, its news records,
+        the screen rendered after it landed and the
+        plain explanation. HONEST BOUNDARY: viewing
+        tells the book alone, as data - it executes no command and navigates nowhere.
+        """
+        from ..core import command_palette as palette_module
+        registry = self._command_palette_registry()
+        held_views = registry.list_views()
+        seq = (max(v.seq for v in held_views) + 1) \
+            if held_views else 1
+        fields: dict[str, Any] = {
+            "seq": seq, "view_filter": view_filter,
+            "detail": detail if detail is not None else (
+                f"View filter {view_filter!r} in the "
+                "session's held book, composed on the "
+                "viewing target."),
+            "recorded_on": recorded_on,
+            "actor": actor, "source": source,
+            "origin_session": origin_session}
+        if view_id is not None:
+            fields["view_id"] = view_id
+        else:
+            held_ids = {v.view_id for v in held_views}
+            fresh = 1
+            while f"view-{fresh}" in held_ids:
+                fresh += 1
+            fields["view_id"] = f"view-{fresh}"
+        view = palette_module.build_view(fields)
+        held = registry.register_view(view)
+        view_news = palette_module.view_record(held)
+        self._publish_palette_record(view_news)
+        book = self.command_palette_book()
+        panel_news = palette_module.panel_record(
+            palette_module.derive_panel(book, held))
+        self._publish_palette_record(panel_news)
+        verdict_news = palette_module.verdict_record(
+            palette_module.derive_verdict(book, held))
+        self._publish_palette_record(verdict_news)
+        return {
+            "view": held.to_record(),
+            "view_filter": held.view_filter,
+            "record_news": view_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._command_palette_screen(),
+            "explanation": palette_module.PLAIN_EXPLANATION,
+        }
+
+    def register_palette_book(self, book: Any) -> dict[str, Any]:
+        """Register a whole palette book (M-197).
+
+        Every entry and view record of the book is held
+        by the pure registry, in held and recorded
+        order - the book is judged whole, and against
+        the held book, before anything is held, so a
+        refusal holds nothing new. The first book held
+        sets the registry's title; a later book under
+        a different title refuses, as does a book
+        naming a held entry id, sequence or words, or a
+        view id or sequence. The book's panels are
+        derivations, not holdings, and are not held;
+        its notes travel with whole books and are
+        held on the record target, not this one. Every
+        entry is published as its session news and
+        every view as its ``view_record`` session
+        news, in order. Returns the held book, its
+        entries and views, their news records, the count
+        of entries held, the screen, and the explanation.
+        Registering executes no command, runs no
+        action and navigates nowhere.
+        """
+        from ..core import command_palette as palette_module
+        validated = palette_module.build_book(book)
+        registry = self._command_palette_registry()
+        registry.register_book(validated)
+        records = [
+            palette_module.entry_record(item)
+            for item in validated.entries]
+        records += [
+            palette_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_palette_record(news)
+        return {
+            "book": validated.to_record(),
+            "entries": [item.to_record() for item in validated.entries],
+            "views": [item.to_record() for item in validated.views],
+            "records_news": records,
+            "count": len(validated.entries),
+            "screen": self._command_palette_screen(),
+            "explanation": palette_module.PLAIN_EXPLANATION,
+        }
+
+    def record_palette_book(self, book: Any = None) -> dict[str, Any]:
+        """Record a whole palette book (M-197).
+
+        With no book named, the shipped example book
+        is recorded through the pure layer - six entries
+        at the M-196 slice boundary, with its two
+        views, its two stance records and its one
+        pinned panel. A book loaded from a file (the
+        pure layer's ``load_command_palette_file``
+        target) may be passed instead. The book is
+        judged whole before anything is held - a book
+        holding two entries under one set of words refuses here
+        by name, as does any record claiming a live
+        palette execution. Every entry and view is held and
+        published as its session news, in order, and
+        the panel derived under the book's default
+        view as its ``panel_record`` session news;
+        the book is remembered whole as the session's
+        - its held panel and notes and all - and the
+        same book recorded twice refuses -
+        fingerprinted on its entry ids, view ids and
+        title. Returns the held book, its entries and
+        views, their news records, the panel news
+        record, the index news record, the count,
+        the screen, and the explanation. Recording
+        executes no command, runs no action and
+        navigates nowhere.
+        """
+        from ..core import command_palette as palette_module
+        book = book if book is not None \
+            else palette_module.load_command_palette()
+        validated = palette_module.build_book(book)
+        fingerprint = (tuple(validated.entry_ids()),
+                       tuple(v.view_id for v in validated.views),
+                       validated.title)
+        recorded = getattr(self, "_command_palette_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._command_palette_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this palette book is already recorded for the "
+                "session; a book is recorded once")
+        registry = self._command_palette_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._command_palette_held = validated
+        records = [
+            palette_module.entry_record(item)
+            for item in validated.entries]
+        records += [
+            palette_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_palette_record(news)
+        panel_news = palette_module.panel_record(
+            palette_module.derive_panel(
+                validated,
+                self._command_palette_default_view(validated)),
+            validated)
+        self._publish_palette_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "entries": [item.to_record() for item in validated.entries],
+            "views": [item.to_record() for item in validated.views],
+            "records_news": records,
+            "panel_record": panel_news,
+            "index_record": palette_module.index_record(validated),
+            "count": len(validated.entries),
+            "screen": palette_module.format_palette_screen(validated),
+            "explanation": palette_module.PLAIN_EXPLANATION,
+        }
+
+    def report_command_palette(self) -> dict[str, Any]:
+        """Render the session palette book, as a report (M-197).
+
+        The book - the held registry's book when the
+        session holds any item, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - is rendered through the pure
+        formatters alone. Rendering registers and
+        publishes nothing, executes no command, runs
+        no action and writes nothing. Returns the
+        book, its entries, views, notes and panels as
+        plain records, the derived panel, verdict and
+        index (panel and verdict none while the book
+        holds no view), the first note record, the
+        rendered book, panel, verdict and index,
+        the screen, and the plain explanation.
+        """
+        from ..core import command_palette as palette_module
+        book = self.command_palette_book()
+        default = self._command_palette_default_view(book)
+        modal = palette_module.first_note(book)
+        return {
+            "book": book.to_record(),
+            "entries": [item.to_record() for item in book.entries],
+            "views": [item.to_record() for item in book.views],
+            "notes": [item.to_record() for item in book.notes],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (palette_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "verdict": (palette_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "index": palette_module.index_record(book),
+            "first_note": (palette_module.note_record(modal)
+                         if modal is not None else None),
+            "book_text": palette_module.format_book(book),
+            "panel_text": (palette_module.format_panel(book, default)
+                           if default is not None else ""),
+            "verdict_text": (palette_module.format_verdict(
+                book, default)
+                if default is not None else ""),
+            "index_text": palette_module.format_index(book),
+            "screen": self._command_palette_screen(),
+            "explanation": palette_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_palette_record(self, record: dict[str, Any]) -> None:
+        """Publish one palette record as session news (M-197).
+
+        The pure layer's ``entry_record``, ``view_record``,
+        ``panel_record`` and ``verdict_record`` are
+        journaled through the same checkpoint target
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once per shape: an entry under its own entry id
+        and segment, a view under its own view id,
+        sequence and view filter, a panel under its
+        whole derived shape, and a verdict under its
+        word and tallies, so a panel or verdict grown
+        by a newly held entry or view announces again
+        as the new figure it is. A foreign record
+        type is never published on this target.
+        """
+        if record.get("type") == "palette_entry":
+            target = ("palette_entry", record.get("entry_id"),
+                   record.get("segment"))
+        elif record.get("type") == "palette_view":
+            target = ("palette_view", record.get("view_id"),
+                   record.get("seq"), record.get("view_filter"))
+        elif record.get("type") == "palette_panel":
+            target = ("palette_panel", record.get("panel_id"),
+                   record.get("view_id"),
+                   tuple(row.get("item_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_shown"))
+        elif record.get("type") == "palette_verdict":
+            target = ("palette_verdict", record.get("verdict"),
+                   record.get("total_shown"),
+                   record.get("passing_shown"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(self, "_command_palette_announced", None)
+        if announced is None:
+            announced = set()
+            self._command_palette_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
