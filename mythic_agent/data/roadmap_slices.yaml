@@ -1276,7 +1276,7 @@ slices:
   title: Keeper runtime
   summary: Part V's keeper specialised — a campaign's keeper restarts stalled slices, deals the next slice
     when one banks, and only ever reports milestones, blockers, and completion.
-  status: queued
+  status: done
 - id: M-208
   part: 9
   title: The pause-lines wired

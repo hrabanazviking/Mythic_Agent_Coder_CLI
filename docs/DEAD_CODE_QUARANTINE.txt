@@ -871,3 +871,12 @@ mythic_agent/agents/llm.py:52313:view_banking:method
 mythic_agent/agents/llm.py:52380:register_banking_book:method
 mythic_agent/agents/llm.py:52429:record_banking_book:method
 mythic_agent/agents/llm.py:52507:report_banking:method
+mythic_agent/agents/llm.py:52803:get_keeping_note:method
+mythic_agent/agents/llm.py:52818:keeping_keepings_for_slice:method
+mythic_agent/agents/llm.py:52824:keeping_keepings_green:method
+mythic_agent/agents/llm.py:52890:register_keeping_keeping:method
+mythic_agent/agents/llm.py:52921:register_keeping_view:method
+mythic_agent/agents/llm.py:52947:view_keeping:method
+mythic_agent/agents/llm.py:53014:register_keeping_book:method
+mythic_agent/agents/llm.py:53063:record_keeping_book:method
+mythic_agent/agents/llm.py:53141:report_keeping:method
