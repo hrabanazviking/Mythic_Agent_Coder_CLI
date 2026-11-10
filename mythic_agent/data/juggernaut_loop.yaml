@@ -1,0 +1,222 @@
+schema: mythic.juggernaut_loop/1
+slice: M-204
+juggernaut_loop:
+  title: The Juggernaut loop at the M-203 slice boundary
+slices:
+- slice_id: slice-m203-slicing
+  seq: 1
+  title: The slicing engine
+  state: active
+  detail: 'The slice the loop walks first: drafted at M-203, standing active in the loop''s hands.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the juggernaut loop
+  origin_session: session-m204
+- slice_id: slice-m204-juggernaut
+  seq: 2
+  title: The Juggernaut loop as runtime
+  state: active
+  detail: 'This very slice, standing active: the loop holding its own runtime as data.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the juggernaut loop
+  origin_session: session-m204
+- slice_id: slice-m205-gates
+  seq: 3
+  title: Acceptance gates per slice
+  state: queued
+  detail: A queued slice the loop has not taken; a run naming it refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the juggernaut loop
+  origin_session: session-m204
+runs:
+- run_id: run-slicing-loop
+  seq: 1
+  slice_id: slice-m203-slicing
+  title: The slicing engine run
+  phases:
+  - inspect
+  - build
+  - test
+  - continue
+  questions:
+  - meaning
+  detail: 'The opening run: the loop walked the slicing slice in the open and asked only what the words
+    should mean.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the juggernaut loop
+  origin_session: session-m204
+- run_id: run-repair-loop
+  seq: 2
+  slice_id: slice-m203-slicing
+  title: The repair run
+  phases:
+  - inspect
+  - build
+  - test
+  - repair
+  - test
+  - continue
+  questions: []
+  detail: 'The repair run: a failed test stepped to repair and back to test for the rerun, in the open.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the juggernaut loop
+  origin_session: session-m204
+- run_id: run-runtime-loop
+  seq: 3
+  slice_id: slice-m204-juggernaut
+  title: The runtime run
+  phases:
+  - inspect
+  - build
+  - test
+  - continue
+  questions:
+  - direction
+  detail: 'The runtime run: this slice''s own walk, asking only which direction the human chose.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the juggernaut loop
+  origin_session: session-m204
+- run_id: run-asking-loop
+  seq: 4
+  slice_id: slice-m204-juggernaut
+  title: The asking run
+  phases:
+  - inspect
+  - build
+  - test
+  - continue
+  questions:
+  - file
+  detail: A run that asked which file to touch, a question the code answers itself, standing unsound.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the juggernaut loop
+  origin_session: session-m204
+- run_id: run-skipping-loop
+  seq: 5
+  slice_id: slice-m204-juggernaut
+  title: The skipping run
+  phases:
+  - inspect
+  - build
+  - continue
+  questions: []
+  detail: A run that stepped from build straight to continue, outside the state machine, standing unsound.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the juggernaut loop
+  origin_session: session-m204
+views:
+- view_id: view-loop
+  seq: 1
+  view_filter: all
+  detail: Every held run, sound or not.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the juggernaut loop
+  origin_session: session-m204
+- view_id: view-sound
+  seq: 2
+  view_filter: sound
+  detail: Only the runs standing sound.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the juggernaut loop
+  origin_session: session-m204
+notes:
+- note_id: note-note-open
+  seq: 1
+  run_id: run-slicing-loop
+  stance: note
+  target: the opening walk
+  title: Words first
+  detail: The loop opens by inspecting, told honestly.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the juggernaut loop
+  origin_session: session-m204
+- note_id: note-concern-asking
+  seq: 2
+  run_id: run-asking-loop
+  stance: concern
+  target: the asking run
+  title: Question named
+  detail: A run that asked a file question is not the loop's way, and stands named.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the juggernaut loop
+  origin_session: session-m204
+traces:
+- trace_id: trace-open
+  seq: 1
+  run_id: run-slicing-loop
+  trace: inspect > build > test > continue
+  detail: 'The opening run''s walk, held exactly as walked: the trace is the walk itself.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the juggernaut loop
+  origin_session: session-m204
+panels:
+- panel_id: panel-m203-boundary
+  view_id: view-loop
+  view_filter: all
+  rows:
+  - item_id: run-slicing-loop
+    standing: sound
+    label: The slicing engine run
+    segment: 'run-slicing-loop: The slicing engine run - slice: ''slice-m203-slicing'' - phase: ''continue''
+      - phases: 4 - questions: ''meaning'' - detail: ''The opening run: the loop walked the slicing slice
+      in the open and asked only what the words should mean.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: run-repair-loop
+    standing: sound
+    label: The repair run
+    segment: 'run-repair-loop: The repair run - slice: ''slice-m203-slicing'' - phase: ''continue'' -
+      phases: 6 - questions: ''none'' - detail: ''The repair run: a failed test stepped to repair and
+      back to test for the rerun, in the open.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: run-runtime-loop
+    standing: sound
+    label: The runtime run
+    segment: 'run-runtime-loop: The runtime run - slice: ''slice-m204-juggernaut'' - phase: ''continue''
+      - phases: 4 - questions: ''direction'' - detail: ''The runtime run: this slice''s own walk, asking
+      only which direction the human chose.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: run-asking-loop
+    standing: unsound
+    label: The asking run
+    segment: 'run-asking-loop: The asking run - slice: ''slice-m204-juggernaut'' - phase: ''continue''
+      - phases: 4 - questions: ''file'' - detail: ''A run that asked which file to touch, a question the
+      code answers itself, standing unsound.'' - gaps: asked a file question the code can answer'
+    recorded_on: '2026-11-10'
+  - item_id: run-skipping-loop
+    standing: unsound
+    label: The skipping run
+    segment: 'run-skipping-loop: The skipping run - slice: ''slice-m204-juggernaut'' - phase: ''continue''
+      - phases: 3 - questions: ''none'' - detail: ''A run that stepped from build straight to continue,
+      outside the state machine, standing unsound.'' - gaps: steps from build to continue, which the state
+      machine does not allow'
+    recorded_on: '2026-11-10'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: sound
+    items: 3
+  - standing: unsound
+    items: 2
+  as_of: '2026-11-10'
+  account:
+  - 'The juggernaut book holds 5 runs as of 2026-11-10: the view ''all'' shows 5 of them: sound 3, unsound
+    2; 3 of the shown runs stand sound.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its run's own fields - the slice it runs, the phases it walked in the
+    open and the questions it honestly carries - and no judgement is stored on any run.
+  - 'Soundness is judged from the held records alone: a run that steps outside the state machine, asks
+    a question the code can answer, or has not reached continue stands unsound, named in its gaps, and
+    the juggernaut index is derived from the held runs, never stored where it could drift.'
