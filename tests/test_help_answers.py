@@ -710,3 +710,393 @@ def test_parse_args_inspect_and_loader_roads():
         source="test source", origin_session="session-test")
     assert built.doc_id == "doc-kw"
     assert doc_passes(built) is True
+
+
+# ---------------------------------------------------------------------
+# M-186 agent layer: the agent holds a help book
+# for the session, docs and views are published
+# as session news through the checkpoint road
+# (journal first, deduped per shape), the panel
+# and verdict are derived at call time from the
+# whole book under a view, never held, the
+# coverage is derived from the book's held screen
+# helps, and every answer is derived at call time
+# from the held docs alone - a question no current
+# doc answers stands unanswered. This layer calls
+# no model, searches nothing live, opens no
+# network and persists nothing beyond the session
+# journal news.
+# ---------------------------------------------------------------------
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _help_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_help_book_file(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data" / HELP_ANSWERS_RESOURCE
+           ).read_text(encoding="utf-8")
+    path = tmp_path / "help_answers.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestHelpAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.help_answers_status()
+        assert status["docs"] == []
+        assert status["views"] == []
+        assert status["book"] is None
+        assert status["help"]["title"] == EXAMPLE_TITLE
+        assert len(status["help"]["docs"]) == 6
+        assert len(status["help"]["views"]) == 2
+        assert len(status["help"]["helps"]) == 4
+        assert status["panel"]["total_items"] == 6
+        assert status["panel"]["total_shown"] == 6
+        assert status["panels"][0]["panel_id"] == "panel-m185-boundary"
+        assert status["verdict"]["verdict"] == "strained"
+        assert status["verdict"]["passing_shown"] == 5
+        assert status["coverage"]["uncovered"] == [
+            "review", "settings", "onboarding", "command palace"]
+        assert status["example_answer"]["answered"] is True
+        assert status["example_answer"]["matched"] == ["doc-undo-commit"]
+        assert "local docs held on this machine alone" in status["rule"]
+        assert "Plain words, Jarl mode" in status["plain_words"]
+        assert "Help That Answers (M-186)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._help_answers_registry()
+        assert agent._help_answers_registry() is first
+        assert agent._help_answers_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.help_answers_status()
+        assert agent.get_help_doc("doc-undo-commit").title == (
+            "Undo a commit")
+        assert agent.get_help_view("view-all").view_filter == "all"
+        assert agent.get_screen_help("chat").help_id == "help-chat"
+        assert [d.doc_id for d in agent.help_answers_with_standing(
+            "stale")] == ["doc-sandbox-commands"]
+        assert [d.doc_id for d in agent.help_answers_passing()] == [
+            "doc-undo-commit", "doc-first-task", "doc-provider-keys",
+            "doc-crew-dealing", "doc-plain-words"]
+        agent.help_answers_panel()
+        agent.help_answers_verdict()
+        agent.ask_help(EXAMPLE_QUESTION)
+        agent.report_help_answers()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("help")] == []
+        with pytest.raises(KeyError):
+            agent.get_help_doc("doc-nope")
+        with pytest.raises(KeyError):
+            agent.get_help_view("view-nope")
+        with pytest.raises(KeyError):
+            agent.get_screen_help("review")
+        with pytest.raises(ValueError):
+            agent.help_answers_with_standing("maybe")
+        agent.close()
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_help_doc(_doc())
+        status = agent.help_answers_status()
+        assert [d["doc_id"] for d in status["docs"]] == ["doc-test"]
+        assert status["book"]["title"] == "An unheld help book"
+        assert status["panel"] is None
+        assert status["verdict"] is None
+        assert status["coverage"]["covered"] == []
+        assert "doc-test" in status["screen"]
+
+    def test_held_doc_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_help_doc(_doc())
+        with pytest.raises(KeyError):
+            agent.get_help_doc("doc-undo-commit")
+        with pytest.raises(KeyError):
+            agent.get_help_view("view-all")
+        doc = agent.get_help_doc("doc-test")
+        assert doc.title == "A test doc"
+        assert agent.help_answers_book().title == "An unheld help book"
+
+    def test_screen_helps_and_coverage_stand_in_the_example(self, agent):
+        with pytest.raises(KeyError):
+            agent.get_screen_help("command palace")
+        chat = agent.get_screen_help("chat")
+        assert chat.help_id == "help-chat"
+        assert chat.screen == "chat"
+        status = agent.help_answers_status()
+        assert status["coverage"]["covered"] == [
+            "chat", "terminal", "editor", "lessons"]
+
+
+class TestHelpAgentHolding:
+    def test_register_doc_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_help_doc(_doc())
+        assert result["doc"]["doc_id"] == "doc-test"
+        assert result["record_news"]["type"] == "help_doc"
+        assert "doc-test" in result["screen"]
+        events = _help_events(store, session_id, "help_doc")
+        assert len(events) == 1
+        agent.close()
+
+    def test_duplicate_doc_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_help_doc(_doc())
+        with pytest.raises(ValueError):
+            agent.register_help_doc(_doc(seq=9))
+        events = _help_events(store, session_id, "help_doc")
+        assert len(events) == 1
+        agent.close()
+
+    def test_register_view_holds_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_help_view(_view())
+        assert result["view"]["view_id"] == "view-test"
+        assert len(_help_events(store, session_id, "help_view")) == 1
+        agent.close()
+
+    def test_view_road_derives_sequence_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_help_doc(_doc())
+        result = agent.view_help("current")
+        assert result["view"]["view_filter"] == "current"
+        assert result["view"]["seq"] == 1
+        assert result["panel_record"]["type"] == "help_panel"
+        assert result["panel_record"]["total_shown"] == 1
+        assert result["verdict_record"]["verdict"] == "open"
+        assert len(_help_events(store, session_id, "help_view")) == 1
+        assert len(_help_events(store, session_id, "help_panel")) == 1
+        assert len(_help_events(store, session_id, "help_verdict")) == 1
+        agent.close()
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_help_book(_book(views=[_view()]))
+        assert result["count"] == 1
+        assert [r["type"] for r in result["records_news"]] == [
+            "help_doc", "help_view"]
+        assert len(_help_events(store, session_id, "help_doc")) == 1
+        agent.close()
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.record_help_book()
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+        assert result["panel_record"]["type"] == "help_panel"
+        assert result["coverage_record"]["uncovered"] == [
+            "review", "settings", "onboarding", "command palace"]
+        with pytest.raises(ValueError):
+            agent.record_help_book()
+        assert len(_help_events(store, session_id, "help_doc")) == 6
+        assert len(_help_events(store, session_id, "help_view")) == 2
+        agent.close()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_help_book_file(tmp_path)
+        book = load_help_answers_file(path)
+        result = agent.record_help_book(book)
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+
+    def test_report_renders_example_then_held_book_only(self, agent):
+        report = agent.report_help_answers()
+        assert report["book"]["title"] == EXAMPLE_TITLE
+        assert report["verdict"]["verdict"] == "strained"
+        assert report["example_answer"]["answered"] is True
+        assert "doc-undo-commit" in report["book_text"]
+        assert "Undo a commit" in report["answer_text"]
+        agent.register_help_doc(_doc())
+        report = agent.report_help_answers()
+        assert report["book"]["title"] == "An unheld help book"
+        assert report["panel"] is None
+        assert report["verdict"] is None
+
+
+class TestHelpTerminalSurface:
+    def test_show_doc_ask_screen_view_standing_panel_verdict(
+            self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/helpask")
+        assert "Help That Answers (M-186)" in text
+        _, _, text = _slash(agent, "/helpask doc doc-undo-commit")
+        assert "Doc: Undo a commit" in text
+        _, _, text = _slash(agent, "/helpask ask how do I undo a commit?")
+        assert "Undo a commit" in text
+        assert "local docs" in text
+        _, _, text = _slash(agent, "/helpask screen chat")
+        assert "chat screen" in text
+        _, _, text = _slash(agent, "/helpask screen review")
+        assert "stands uncovered" in text
+        _, _, text = _slash(agent, "/helpask view view-all")
+        assert "filter all" in text
+        _, _, text = _slash(agent, "/helpask standing stale")
+        assert "doc-sandbox-commands" in text
+        assert "doc-undo-commit" not in text
+        _, _, text = _slash(agent, "/helpask panel")
+        assert "Help panel under view view-all" in text
+        _, _, text = _slash(agent, "/helpask verdict")
+        assert "strained" in text
+        _, _, text = _slash(agent, "/helpask coverage")
+        assert "uncovered" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/helpask [show|doc <doc-id>"
+                "|ask <words>|screen <screen>|view <view-id>"
+                "|standing <standing>|panel|verdict|coverage]") in text
+        _, _, text = _slash(agent, "/helpask dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/helpask doc doc-nope")
+        assert "no doc named" in text
+
+
+@pytest.fixture()
+def helpask_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _helpask_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestHelpCommand:
+    def test_show_is_default(self, helpask_handler, agent):
+        helpask_handler._handle_helpask("")
+        assert "Help That Answers (M-186)" in (
+            _helpask_published_text(helpask_handler))
+
+    def test_doc_ask_screen_view_standing_panel_verdict(
+            self, helpask_handler, agent):
+        helpask_handler._handle_helpask("doc doc-undo-commit")
+        assert "Doc: Undo a commit" in _helpask_published_text(
+            helpask_handler)
+        helpask_handler._handle_helpask("ask how do I undo a commit?")
+        assert "Undo a commit" in _helpask_published_text(helpask_handler)
+        helpask_handler._handle_helpask("screen chat")
+        assert "chat screen" in _helpask_published_text(helpask_handler)
+        helpask_handler._handle_helpask("view view-all")
+        assert "filter all" in _helpask_published_text(helpask_handler)
+        helpask_handler._handle_helpask("standing stale")
+        assert "doc-sandbox-commands" in _helpask_published_text(
+            helpask_handler)
+        helpask_handler._handle_helpask("panel")
+        assert "Help panel under view" in _helpask_published_text(
+            helpask_handler)
+        helpask_handler._handle_helpask("verdict")
+        assert "strained" in _helpask_published_text(helpask_handler)
+
+    def test_bad_grammar_is_published(
+            self, helpask_handler, agent):
+        helpask_handler._handle_helpask("dance party")
+        assert USAGE in _helpask_published_text(helpask_handler)
+        helpask_handler._handle_helpask("doc doc-nope")
+        assert "no doc named" in _helpask_published_text(helpask_handler)
+
+
+class TestChatScreenRoutingHelp:
+    def test_onboard_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/helpask panel", _FakeLog())
+        assert calls == [("/helpask", "panel")]
+
+    def test_chat_screen_help_and_usage_name_the_book(self):
+        text = (ROOT / "mythic_agent" / "ui" / "screens"
+                / "chat_screen.py").read_text(encoding="utf-8")
+        assert "/helpask[/green] - show help that answers (M-186)" in (
+            text)
+        assert ('"/helpask": "Usage: /helpask | '
+                '/helpask doc <doc-id>') in text
+
+
+class TestHelpDerivedRoads:
+    def test_panel_and_verdict_are_derived_at_call_time(self, agent):
+        panel = agent.help_answers_panel()
+        assert panel.total_shown == 6
+        assert panel.panel_id == "panel-view-all"
+        verdict = agent.help_answers_verdict()
+        assert verdict.verdict == "strained"
+        found = agent.help_answers_verdict("view-current")
+        assert found.verdict == "open"
+        assert found.passing_shown == 5
+        agent.register_help_doc(_doc())
+        with pytest.raises(ValueError):
+            agent.help_answers_panel()
+        with pytest.raises(ValueError):
+            agent.help_answers_verdict()
+
+    def test_view_road_over_an_unshown_filter_is_shut(self, agent):
+        agent.register_help_doc(_doc(standing="stale"))
+        result = agent.view_help("current")
+        assert result["verdict_record"]["verdict"] == "shut"
+        assert result["verdict_record"]["total_shown"] == 0
+
+    def test_ask_road_answers_and_stands_unanswered_honestly(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.ask_help("how do I undo a commit?")
+        assert result["answer"]["answered"] is True
+        assert result["answer"]["matched"] == ["doc-undo-commit"]
+        assert "Undo a commit" in result["answer_text"]
+        stale = agent.ask_help("which sandbox command is allowed?")
+        assert stale["answer"]["answered"] is False
+        assert stale["answer"]["gaps"] == ["stale doc"]
+        none = agent.ask_help("how do I juggle flaming torches?")
+        assert none["answer"]["answered"] is False
+        assert none["answer"]["gaps"] == ["no local doc"]
+        doc = agent.get_help_doc("doc-sandbox-commands")
+        assert doc_gaps(doc) == ("stale",)
+        assert doc_passes(doc) is False
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("help")] == []
+        agent.close()

@@ -399,6 +399,8 @@ class CommandHandler:
                 self._handle_onboard(args)
             elif cmd == "/lessons":
                 self._handle_lessons(args)
+            elif cmd == "/helpask":
+                self._handle_helpask(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -7890,6 +7892,98 @@ class CommandHandler:
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
 
+
+    def _handle_helpask(self, args: str):
+        """M-186: /helpask - help that answers.
+
+        ``/helpask`` shows the help book held this
+        session - help that answers, held as data:
+        one help entry per screen and the local docs
+        the question box answers from, held whole
+        under their standings, current or stale (the
+        shipped example book - six docs at the M-185
+        slice boundary, with its two views, four
+        screen helps and its one pinned panel - when
+        none is held yet); ``/helpask doc <doc-id>``
+        shows one local doc whole; ``/helpask ask
+        <words>`` answers one question from the held
+        docs alone - a question no current doc
+        answers stands honestly unanswered;
+        ``/helpask screen <screen>`` shows the held
+        help for that screen, or names it uncovered;
+        ``/helpask view <view-id>`` shows one held
+        view record; ``/helpask standing <standing>``
+        shows the book's docs of one standing;
+        ``/helpask panel`` shows the panel derived
+        from the whole book under its default view;
+        ``/helpask verdict`` shows the verdict
+        derived for the whole book; ``/helpask
+        coverage`` shows which screens hold help.
+        Reading registers and publishes nothing as
+        session news: docs and views are held only
+        when they are given through the agent's
+        register roads, stood on the book on the
+        viewing road, or held on the book roads, and
+        every doc held for the session is journaled
+        as a help_doc session event, every view as a
+        help_view session event, every derived panel
+        as a help_panel session event and every
+        derived verdict as a help_verdict session
+        event. This surface searches nothing live,
+        calls no model and opens no network - holding
+        and telling are words only.
+        """
+        from ..core.help_answers import (
+            format_answer,
+            format_book,
+            format_coverage,
+            format_doc,
+            format_panel,
+            format_screen,
+            format_verdict,
+            format_view,
+            parse_help_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_help_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "doc":
+                text = format_doc(primary.get_help_doc(target))
+            elif action == "ask":
+                text = format_answer(
+                    primary.help_answers_book(), target)
+            elif action == "screen":
+                text = format_screen(
+                    primary.help_answers_book(), target)
+            elif action == "view":
+                text = format_view(primary.get_help_view(target))
+            elif action == "standing":
+                text = format_book(
+                    primary.help_answers_book(), target)
+            elif action == "panel":
+                text = format_panel(primary.help_answers_book())
+            elif action == "verdict":
+                text = format_verdict(primary.help_answers_book())
+            elif action == "coverage":
+                text = format_coverage(primary.help_answers_book())
+            else:
+                text = primary.help_answers_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
 
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.
