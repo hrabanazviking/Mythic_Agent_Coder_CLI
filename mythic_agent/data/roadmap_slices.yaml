@@ -1217,7 +1217,7 @@ slices:
   title: Command palette
   summary: Ctrl-K over everything — commands, actions, navigation, settings — the one door frequent hands
     use.
-  status: queued
+  status: done
 - id: M-198
   part: 8
   title: Undo of UI itself
