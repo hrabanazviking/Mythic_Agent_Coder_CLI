@@ -1246,7 +1246,7 @@ slices:
   title: Intent capture (PROJECT_FORGE form)
   summary: a new project opens with what/why/success in the user's plain words, stored verbatim; the coder's
     plan must cite it.
-  status: queued
+  status: done
 - id: M-203
   part: 9
   title: The slicing engine
