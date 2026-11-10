@@ -411,6 +411,8 @@ class CommandHandler:
                 self._handle_costs(args)
             elif cmd == "/theatre":
                 self._handle_theatre(args)
+            elif cmd == "/panes":
+                self._handle_pane(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -8446,6 +8448,96 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
+    def _handle_pane(self, args: str):
+        """M-192: /panes - session pane.
+
+        ``/pane`` shows the pane book held this
+        session - session pane, held as data:
+        one record per pane with the target that reaches
+        it and the file notes held as
+        data beside them (the shipped example book -
+        six panes at the M-191 slice boundary, with
+        its two layouts, two stance records and its one
+        pinned panel - when none is held yet);
+        ``/panes pane <pane-id>`` shows one pane whole;
+        ``/panes target <target>`` shows the pane one target
+        reaches, or names the target unheld;
+        ``/panes kind <kind>`` shows the book's panes
+        of one kind; ``/panes layout <layout-id>`` shows
+        one held layout record; ``/panes stance
+        <stance-id>`` shows one held stance record;
+        ``/panes index`` shows the index derived
+        from the whole book's held panes; ``/pane
+        panel`` shows the panel derived from the
+        whole book under its default layout; ``/pane
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: panes and layouts are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the layouting target, or held on the book targets,
+        and every pane held for the session is
+        journaled as a pane_pane session event,
+        every layout as a pane_layout session event,
+        every derived panel as a pane_panel
+        session event and every derived verdict as a
+        pane_verdict session event. This surface
+        moves no pointer, renders no live UI and
+        opens no file - holding and telling
+        are words only.
+        """
+        from ..core.multi_pane import (
+            format_pane,
+            format_book,
+            format_target,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_layout,
+            parse_pane_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_pane_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "pane":
+                text = format_pane(primary.get_pane_pane(target))
+            elif stance == "target":
+                text = format_target(
+                    primary.multi_pane_book(), target)
+            elif stance == "kind":
+                text = format_book(
+                    primary.multi_pane_book(), target)
+            elif stance == "layout":
+                text = format_layout(primary.get_pane_layout(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.multi_pane_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.multi_pane_book())
+            elif stance == "panel":
+                text = format_panel(primary.multi_pane_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.multi_pane_book())
+            else:
+                text = primary.multi_pane_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
 
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.
