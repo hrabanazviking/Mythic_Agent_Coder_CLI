@@ -934,3 +934,430 @@ def test_inspect_item_source_names_pieces():
     assert "stored judgements" in refused["reason"]
     assert inspect_item_source("nope")["kind"] is None
     assert inspect_item_source({})["kind"] is None
+
+
+# ---------------------------------------------------------------------
+# M-182 agent layer: the agent holds a skin book
+# for the session, items and views are published
+# as session news through the checkpoint road
+# (journal first, deduped per shape), the panel
+# and verdict are derived at call time from the
+# whole book under a view, never held, the
+# register is derived from the agent's config at
+# call time, and the render/unfold roads speak
+# the pure layer's renderings. This layer calls
+# no model, approves nothing, sends nothing and
+# persists nothing beyond the session journal news.
+# ---------------------------------------------------------------------
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _skin_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_book_file(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data"
+           / "plain_language_skin.yaml").read_text(encoding="utf-8")
+    path = tmp_path / "plain_language_skin.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestPlainLanguageSkinAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.plain_language_skin_status()
+        assert status["reports"] == []
+        assert status["approvals"] == []
+        assert status["standups"] == []
+        assert status["terms"] == []
+        assert status["views"] == []
+        assert status["book"] is None
+        assert status["plain_language_skin"]["title"] == EXAMPLE_TITLE
+        assert len(status["plain_language_skin"]["reports"]) == 2
+        assert len(status["plain_language_skin"]["approvals"]) == 2
+        assert len(status["plain_language_skin"]["standups"]) == 2
+        assert len(status["plain_language_skin"]["terms"]) == 6
+        assert len(status["plain_language_skin"]["views"]) == 2
+        assert status["panel"]["total_items"] == 12
+        assert status["panel"]["total_shown"] == 12
+        assert status["panels"][0]["panel_id"] == "panel-m181-boundary"
+        assert status["verdict"]["verdict"] == "strained"
+        assert status["verdict"]["passing_shown"] == 9
+        assert status["register"] == "jarl"
+        assert status["lexicon_misses"] == ["quorum"]
+        assert "work rate" in status["plain_words"]
+        assert "The Plain-Language Skin (M-182)" in status["screen"]
+        assert "12 of 12 items show" in status["screen"] or (
+            "12 of 12" in status["screen"])
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._plain_language_skin_registry()
+        assert agent._plain_language_skin_registry() is first
+        assert agent._plain_language_skin_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.plain_language_skin_status()
+        assert agent.get_skin_report(
+            "report-morning-build").title == "Morning build report"
+        assert agent.get_skin_approval(
+            "approval-release").action == "deploy the build"
+        assert agent.get_skin_standup("standup-yrsa").person == "yrsa"
+        assert agent.get_skin_term("term-deploy").plain == "send out"
+        assert agent.get_skin_view("view-all").kind_filter == "all"
+        assert [i.item_id for i in agent.plain_language_skin_with_kind(
+            "report")] == ["report-morning-build", "report-usage"]
+        assert len(agent.plain_language_skin_with_kind(
+            "lexicon")) == 6
+        assert [i.item_id for i in agent.plain_language_skin_passing()] == [
+            "report-morning-build", "approval-release", "standup-yrsa",
+            "term-checkpoint", "term-deploy", "term-idempotent",
+            "term-latency", "term-rollback", "term-throughput"]
+        agent.plain_language_skin_panel()
+        agent.plain_language_skin_verdict()
+        agent.report_plain_language_skin()
+        agent.render_plain_language_skin_item("report-morning-build")
+        agent.unfold_plain_language_skin_item("report-morning-build")
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("plain_language")] == []
+        with pytest.raises(KeyError):
+            agent.get_skin_report("report-nope")
+        with pytest.raises(KeyError):
+            agent.get_skin_view("view-nope")
+        agent.close()
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_skin_report(_report())
+        status = agent.plain_language_skin_status()
+        assert [d["report_id"] for d in status["reports"]] == [
+            "report-test"]
+        assert status["book"]["title"] == "An unheld skin book"
+        assert status["panel"] is None
+        assert status["verdict"] is None
+        assert "report-test" in status["screen"]
+
+    def test_held_item_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_skin_report(_report())
+        with pytest.raises(KeyError):
+            agent.get_skin_report("report-morning-build")
+        with pytest.raises(KeyError):
+            agent.get_skin_view("view-all")
+        report = agent.get_skin_report("report-test")
+        assert report.title == "Test report"
+        assert agent.plain_language_skin_book().title == (
+            "An unheld skin book")
+
+
+class TestPlainLanguageSkinAgentHolding:
+    def test_register_report_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_skin_report(_report())
+        assert result["report"]["report_id"] == "report-test"
+        assert result["record_news"]["type"] == "plain_language_report"
+        assert "report-test" in result["screen"]
+        agent.register_skin_approval(_approval())
+        events = _skin_events(store, session_id, "plain_language_report")
+        assert len(events) == 1
+        agent.close()
+
+    def test_duplicate_report_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_skin_report(_report())
+        with pytest.raises(ValueError):
+            agent.register_skin_report(_report(seq=9))
+        events = _skin_events(store, session_id, "plain_language_report")
+        assert len(events) == 1
+        agent.close()
+
+    def test_register_approval_standup_and_term_hold_and_publish(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        approval = agent.register_skin_approval(_approval())
+        assert approval["approval"]["action"] == "deploy the build"
+        standup = agent.register_skin_standup(_standup())
+        assert standup["standup"]["person"] == "yrsa"
+        term = agent.register_skin_term(_term())
+        assert term["term"]["term"] == "deploy"
+        with pytest.raises(ValueError):
+            agent.register_skin_term(
+                _term(term_id="term-two", seq=2))
+        assert len(_skin_events(
+            store, session_id, "plain_language_approval")) == 1
+        assert len(_skin_events(
+            store, session_id, "plain_language_standup")) == 1
+        assert len(_skin_events(
+            store, session_id, "plain_language_term")) == 1
+        agent.close()
+
+    def test_register_view_holds_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_skin_view(_view())
+        assert result["view"]["view_id"] == "view-test"
+        assert len(_skin_events(
+            store, session_id, "plain_language_view")) == 1
+        agent.close()
+
+    def test_view_road_derives_sequence_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_skin_report(_report())
+        result = agent.view_plain_language_skin("report")
+        assert result["view"]["kind_filter"] == "report"
+        assert result["view"]["seq"] == 1
+        assert result["panel_record"]["type"] == "plain_language_panel"
+        assert result["panel_record"]["total_shown"] == 1
+        assert result["verdict_record"]["verdict"] == "open"
+        assert len(_skin_events(
+            store, session_id, "plain_language_view")) == 1
+        assert len(_skin_events(
+            store, session_id, "plain_language_panel")) == 1
+        assert len(_skin_events(
+            store, session_id, "plain_language_verdict")) == 1
+        agent.close()
+
+    def test_view_road_over_an_unshown_kind_is_shut(self, agent):
+        agent.register_skin_report(_report())
+        result = agent.view_plain_language_skin("term")
+        assert result["verdict_record"]["verdict"] == "shut"
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_plain_language_skin_book(
+            _book(views=[_view()]))
+        assert result["count"] == 5
+        assert [r["type"] for r in result["records_news"]] == [
+            "plain_language_report",
+            "plain_language_approval",
+            "plain_language_standup",
+            "plain_language_term",
+            "plain_language_term",
+            "plain_language_view"]
+        assert len(_skin_events(
+            store, session_id, "plain_language_report")) == 1
+        agent.close()
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.record_plain_language_skin_book()
+        assert result["count"] == 12
+        assert result["book"]["title"] == EXAMPLE_TITLE
+        assert result["panel_record"]["type"] == "plain_language_panel"
+        with pytest.raises(ValueError):
+            agent.record_plain_language_skin_book()
+        assert len(_skin_events(
+            store, session_id, "plain_language_report")) == 2
+        assert len(_skin_events(
+            store, session_id, "plain_language_term")) == 6
+        agent.close()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_book_file(tmp_path)
+        book = load_plain_language_skin_file(path)
+        result = agent.record_plain_language_skin_book(book)
+        assert result["count"] == 12
+        assert result["book"]["title"] == EXAMPLE_TITLE
+
+    def test_report_renders_example_then_held_book_only(self, agent):
+        report = agent.report_plain_language_skin()
+        assert report["book"]["title"] == EXAMPLE_TITLE
+        assert report["verdict"]["verdict"] == "strained"
+        assert report["register"] == "jarl"
+        assert "report-morning-build" in report["book_text"]
+        agent.register_skin_report(_report())
+        report = agent.report_plain_language_skin()
+        assert report["book"]["title"] == "An unheld skin book"
+        assert report["panel"] is None
+        assert report["verdict"] is None
+
+    def test_register_is_derived_from_the_agent_config(self, agent):
+        assert agent.plain_language_skin_register() == "jarl"
+        agent.config["register"] = "technical"
+        assert agent.plain_language_skin_register() == "technical"
+        assert agent.plain_language_skin_status()["register"] == (
+            "technical")
+        del agent.config["register"]
+        agent.config["jarl_mode"] = False
+        assert agent.plain_language_skin_register() == "technical"
+        agent.config["jarl_mode"] = True
+        assert agent.plain_language_skin_register() == "jarl"
+
+    def test_render_and_unfold_roads(self, agent):
+        result = agent.render_plain_language_skin_item(
+            "report-morning-build")
+        rendering = result["rendering"]
+        assert rendering["type"] == "plain_language_rendering"
+        assert rendering["register"] == "jarl"
+        assert rendering["shown"][0] == (
+            "We will send out the build once the saved "
+            "stopping point stands.")
+        assert len(rendering["folded"]) == 3
+        assert rendering["misses"] == []
+        technical = agent.render_plain_language_skin_item(
+            "report-morning-build", register="technical")
+        assert technical["rendering"]["folded"] == []
+        assert technical["rendering"]["shown"][0] == (
+            "We will deploy the build once the checkpoint stands.")
+        unfolded = agent.unfold_plain_language_skin_item(
+            "report-morning-build")
+        assert unfolded["rendering"]["folded"] == []
+        assert unfolded["rendering"]["shown"] == (
+            rendering["shown"] + rendering["folded"])
+        assert "Folded detail" not in unfolded["text"]
+        missed = agent.render_plain_language_skin_item("report-usage")
+        assert missed["rendering"]["misses"] == ["quorum"]
+        with pytest.raises(KeyError):
+            agent.render_plain_language_skin_item("report-nope")
+
+
+class TestPlainLanguageSkinTerminalSurface:
+    def test_show_report_approval_standup_term_view_kind_panel(
+            self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/skin")
+        assert "The Plain-Language Skin (M-182)" in text
+        _, _, text = _slash(agent, "/skin report report-morning-build")
+        assert "Morning build report" in text
+        assert "send out" in text
+        _, _, text = _slash(agent, "/skin approval approval-release")
+        assert "The one action: send out the build" in text
+        _, _, text = _slash(agent, "/skin standup standup-yrsa")
+        assert "Doing: Walking the crew through how we send out" in text
+        _, _, text = _slash(agent, "/skin term term-deploy")
+        assert "In plain words: send out" in text
+        _, _, text = _slash(agent, "/skin view view-all")
+        assert "kind 'all'" in text
+        _, _, text = _slash(agent, "/skin kind report")
+        assert "report-usage" in text
+        assert "standup-yrsa" not in text
+        _, _, text = _slash(agent, "/skin panel")
+        assert "Panel in Plain language at the M-181 slice boundary" in text
+        _, _, text = _slash(agent, "/skin verdict")
+        assert "strained" in text
+        _, _, text = _slash(agent, "/skin unfold report-morning-build")
+        assert "We will deploy the build once the checkpoint" in text
+        assert "Folded detail" not in text
+        _, _, text = _slash(agent, "/skin register")
+        assert "jarl" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/skin [show|report <report-id>"
+                "|approval <approval-id>|standup <standup-id>"
+                "|term <term-id>|view <view-id>|kind <kind>"
+                "|panel|verdict|unfold <item-id>|register]") in text
+        _, _, text = _slash(agent, "/skin dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/skin report report-nope")
+        assert "no report named" in text
+
+
+@pytest.fixture()
+def skin_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _skin_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestPlainLanguageSkinCommand:
+    def test_show_is_default(self, skin_handler, agent):
+        skin_handler._handle_skin("")
+        assert "The Plain-Language Skin (M-182)" in (
+            _skin_published_text(skin_handler))
+
+    def test_report_approval_standup_term_view_kind_panel_verdict(
+            self, skin_handler, agent):
+        skin_handler._handle_skin("report report-morning-build")
+        assert "Morning build report" in _skin_published_text(
+            skin_handler)
+        skin_handler._handle_skin("approval approval-release")
+        assert "send out the build" in _skin_published_text(skin_handler)
+        skin_handler._handle_skin("standup standup-yrsa")
+        assert "yrsa" in _skin_published_text(skin_handler)
+        skin_handler._handle_skin("term term-deploy")
+        assert "send out" in _skin_published_text(skin_handler)
+        skin_handler._handle_skin("view view-all")
+        assert "kind 'all'" in _skin_published_text(skin_handler)
+        skin_handler._handle_skin("kind term")
+        assert "term-deploy" in _skin_published_text(skin_handler)
+        skin_handler._handle_skin("panel")
+        assert "Panel in Plain language" in _skin_published_text(
+            skin_handler)
+        skin_handler._handle_skin("verdict")
+        assert "strained" in _skin_published_text(skin_handler)
+        skin_handler._handle_skin("unfold report-morning-build")
+        assert "We will deploy" in _skin_published_text(skin_handler)
+        skin_handler._handle_skin("register")
+        assert "jarl" in _skin_published_text(skin_handler)
+
+    def test_bad_grammar_is_published(
+            self, skin_handler, agent):
+        skin_handler._handle_skin("dance party")
+        assert USAGE in _skin_published_text(skin_handler)
+        skin_handler._handle_skin("report report-nope")
+        assert "no report named" in _skin_published_text(skin_handler)
+
+
+class TestChatScreenRoutingPlainLanguageSkin:
+    def test_skin_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/skin panel", _FakeLog())
+        assert calls == [("/skin", "panel")]
+
+    def test_chat_screen_help_and_usage_name_the_book(self):
+        text = (ROOT / "mythic_agent" / "ui" / "screens"
+                / "chat_screen.py").read_text(encoding="utf-8")
+        assert "/skin[/green] - show the plain-language skin (M-182)" in (
+            text)
+        assert ('"/skin": "Usage: /skin | '
+                '/skin report <report-id>') in text
