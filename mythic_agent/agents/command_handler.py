@@ -407,6 +407,8 @@ class CommandHandler:
                 self._handle_mouse(args)
             elif cmd == "/gallery":
                 self._handle_gallery(args)
+            elif cmd == "/costs":
+                self._handle_costs(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -8260,6 +8262,97 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_costs(self, args: str):
+        """M-190: /costs - costs face.
+
+        ``/costs`` shows the costs book held this
+        session - costs face, held as data:
+        one record per line with the budget that reaches
+        it and the file warnings held as
+        data beside them (the shipped example book -
+        six lines at the M-189 slice boundary, with
+        its two views, two warning records and its one
+        pinned panel - when none is held yet);
+        ``/costs line <line-id>`` shows one line whole;
+        ``/costs budget <budget>`` shows the line one budget
+        reaches, or names the budget unheld;
+        ``/costs scope <scope>`` shows the book's lines
+        of one scope; ``/costs view <view-id>`` shows
+        one held view record; ``/costs warning
+        <warning-id>`` shows one held warning record;
+        ``/costs index`` shows the index derived
+        from the whole book's held lines; ``/costs
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/costs
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: lines and views are
+        held only when they are given through the
+        agent's register budgets, stood on the book on
+        the viewing budget, or held on the book budgets,
+        and every line held for the session is
+        journaled as a costs_line session event,
+        every view as a costs_view session event,
+        every derived panel as a costs_panel
+        session event and every derived verdict as a
+        costs_verdict session event. This surface
+        moves no pointer, renders no live UI and
+        opens no file - holding and telling
+        are words only.
+        """
+        from ..core.costs_face import (
+            format_line,
+            format_book,
+            format_budget,
+            format_index,
+            format_warning,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_costs_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            warning, target = parse_costs_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if warning == "line":
+                text = format_line(primary.get_costs_line(target))
+            elif warning == "budget":
+                text = format_budget(
+                    primary.costs_face_book(), target)
+            elif warning == "scope":
+                text = format_book(
+                    primary.costs_face_book(), target)
+            elif warning == "view":
+                text = format_view(primary.get_costs_view(target))
+            elif warning == "warning":
+                text = format_warning(
+                    primary.costs_face_book().warning_for(target))
+            elif warning == "index":
+                text = format_index(primary.costs_face_book())
+            elif warning == "panel":
+                text = format_panel(primary.costs_face_book())
+            elif warning == "verdict":
+                text = format_verdict(primary.costs_face_book())
+            else:
+                text = primary.costs_face_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
 
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.
