@@ -1258,7 +1258,7 @@ slices:
   title: The Juggernaut loop as runtime
   summary: inspect → build → test → repair → continue, per slice, without asking file/framework questions
     the code can answer; the loop's state machine is explicit and visible.
-  status: queued
+  status: done
 - id: M-205
   part: 9
   title: Acceptance gates per slice
