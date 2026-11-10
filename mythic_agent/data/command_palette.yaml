@@ -1,0 +1,214 @@
+schema: mythic.command_palette/1
+slice: M-197
+part: 8
+part_title: The Beautiful Face
+canon_note: 'Command palette - Ctrl-K over everything, commands, actions, navigation, settings, the one
+  door frequent hands use. The M-171 charter names NO row for this slice, so there is no charter verdict
+  for this slice to honour; the slice is built to the roadmap words alone. An entry is held whole - under
+  its title, its kind in the closed vocabulary (command, action, navigation, setting), its shortcut held
+  honestly (an unknown shortcut stands empty, never invented), the search words it carries, named as data,
+  and its detail. An entry naming no search words is held honestly with empty words: it stands incomplete,
+  named in its gaps, and no words are invented for it. The palette index is DERIVED at call time from
+  the held entries alone - never a second stored copy that could drift - and a stored index or completeness
+  verdict on any record refuses by name. The notes are held as data: a note record naming its entry, its
+  stance (note, concern, praise or question) and what it feeds back toward; one record stands per entry
+  stance, and holding a note applies none of it. A record claiming a command was actually executed, an
+  action actually run, or a navigation actually taken, refuses by name. This file is ONE EXAMPLE BOOK,
+  in the shape a real palette file takes - the M-196 slice boundary - six entries and two views, two note
+  records, with its one pinned panel of the every-entry view, whose shown entries stand five ready of
+  six, so the book verdict under it stands strained; under the ready view, whose five shown entries all
+  stand ready, the verdict stands open. A real book is a new file in this same shape - it is never this
+  file edited in place. This layer executes nothing, runs no command, navigates nowhere, opens no network
+  and writes nothing: it holds the palette as data and tells it.'
+command_palette:
+  title: Command palette at the M-196 slice boundary
+entries:
+- entry_id: entry-open-main
+  seq: 1
+  title: Open the palette
+  kind: command
+  shortcut: ctrl+k
+  keywords: the one door frequent hands use
+  detail: Open the palette stands named in the book - the one door over commands, actions, navigation
+    and settings, held as data; holding the card opens no palette.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: command palette
+  origin_session: session-m197
+- entry_id: entry-save-main
+  seq: 2
+  title: Save the work
+  kind: action
+  shortcut: ''
+  keywords: keep the work safe
+  detail: Save the work stands in the book with its shortcut honestly empty - what key saves the work
+    was never recorded anywhere honest, so the card holds its shortcut empty, and no key is invented for
+    it.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: command palette
+  origin_session: session-m197
+- entry_id: entry-home-main
+  seq: 3
+  title: Go to the home screen
+  kind: navigation
+  shortcut: ctrl+home
+  keywords: return to the first screen
+  detail: Go to the home screen stands named in the book as a road home - the way back to the first screen,
+    held as data; holding the card navigates nowhere.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: command palette
+  origin_session: session-m197
+- entry_id: entry-model-main
+  seq: 4
+  title: Choose the model
+  kind: setting
+  shortcut: ''
+  keywords: the model that answers you
+  detail: Choose the model stands at the palette door as a setting - the mind doing the work can be chosen
+    from the one door, and the card that says so chooses no model itself.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: command palette
+  origin_session: session-m197
+- entry_id: entry-quiet-main
+  seq: 5
+  title: Quiet the room
+  kind: action
+  shortcut: ctrl+q
+  keywords: ''
+  detail: Quiet the room stands named in this book with no search words held for it yet - how frequent
+    hands would find it waits to be set down - so the entry stands incomplete honestly, named in the gaps
+    until its words are held for it, and no words are invented here.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: command palette
+  origin_session: session-m197
+- entry_id: entry-help-main
+  seq: 6
+  title: Ask for help
+  kind: command
+  shortcut: f1
+  keywords: help when you are stuck
+  detail: Ask for help stands named in the book for the stuck moment - help reached from the one door,
+    held as data, and the praise note on the help entry stands held beside the book as data.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: command palette
+  origin_session: session-m197
+views:
+- view_id: view-palette
+  seq: 1
+  view_filter: all
+  detail: 'Every entry at once - the commands, the actions, the navigation and the settings between: see
+    every entry.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: command palette
+  origin_session: session-m197
+- view_id: view-ready
+  seq: 2
+  view_filter: ready
+  detail: Only the entries that carry their search words - everything findable, honestly complete at a
+    glance.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: command palette
+  origin_session: session-m197
+notes:
+- note_id: note-note-open
+  seq: 1
+  entry_id: entry-open-main
+  stance: note
+  target: the user
+  title: Note the open entry
+  detail: The note on the open entry stands held as data - its entry, its stance and what it feeds back
+    toward. Holding the note executes nothing; the feedback is told, never applied, by this layer.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: command palette
+  origin_session: session-m197
+- note_id: note-praise-help
+  seq: 2
+  entry_id: entry-help-main
+  stance: praise
+  target: the user
+  title: Praise the help entry
+  detail: The praise for the help entry stands held as data beside the first. One note record stands per
+    entry stance in this book, so a second record for one entry under one stance refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: command palette
+  origin_session: session-m197
+panels:
+- panel_id: panel-m196-boundary
+  view_id: view-palette
+  view_filter: all
+  rows:
+  - item_id: entry-open-main
+    standing: ready
+    label: Open the palette
+    segment: 'entry-open-main: Open the palette - kind: ''command'' - shortcut: ''ctrl+k'' - keywords:
+      ''the one door frequent hands use'' - detail: ''Open the palette stands named in the book - the
+      one door over commands, actions, navigation and settings, held as data; holding the card opens no
+      palette.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: entry-save-main
+    standing: ready
+    label: Save the work
+    segment: 'entry-save-main: Save the work - kind: ''action'' - shortcut: ''unknown'' - keywords: ''keep
+      the work safe'' - detail: ''Save the work stands in the book with its shortcut honestly empty -
+      what key saves the work was never recorded anywhere honest, so the card holds its shortcut empty,
+      and no key is invented for it.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: entry-home-main
+    standing: ready
+    label: Go to the home screen
+    segment: 'entry-home-main: Go to the home screen - kind: ''navigation'' - shortcut: ''ctrl+home''
+      - keywords: ''return to the first screen'' - detail: ''Go to the home screen stands named in the
+      book as a road home - the way back to the first screen, held as data; holding the card navigates
+      nowhere.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: entry-model-main
+    standing: ready
+    label: Choose the model
+    segment: 'entry-model-main: Choose the model - kind: ''setting'' - shortcut: ''unknown'' - keywords:
+      ''the model that answers you'' - detail: ''Choose the model stands at the palette door as a setting
+      - the mind doing the work can be chosen from the one door, and the card that says so chooses no
+      model itself.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: entry-quiet-main
+    standing: unready
+    label: Quiet the room
+    segment: 'entry-quiet-main: Quiet the room - kind: ''action'' - shortcut: ''ctrl+q'' - keywords: ''none''
+      - detail: ''Quiet the room stands named in this book with no search words held for it yet - how
+      frequent hands would find it waits to be set down - so the entry stands incomplete honestly, named
+      in the gaps until its words are held for it, and no words are invented here.'' - gaps: no search
+      words'
+    recorded_on: '2026-11-10'
+  - item_id: entry-help-main
+    standing: ready
+    label: Ask for help
+    segment: 'entry-help-main: Ask for help - kind: ''command'' - shortcut: ''f1'' - keywords: ''help
+      when you are stuck'' - detail: ''Ask for help stands named in the book for the stuck moment - help
+      reached from the one door, held as data, and the praise note on the help entry stands held beside
+      the book as data.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  total_items: 6
+  total_shown: 6
+  target_counts:
+  - standing: ready
+    items: 5
+  - standing: unready
+    items: 1
+  as_of: '2026-11-10'
+  account:
+  - 'The command palette book holds 6 entries as of 2026-11-10: the view ''all'' shows 6 of them: ready
+    5, unready 1; 5 of the shown entries stand ready.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its entry's own fields - the title, the kind, the shortcut honestly
+    held and the search words it honestly carries - and no judgement is stored on any entry.
+  - 'Completeness is judged from the held records alone: an entry naming no search words stands unready,
+    and the palette index is derived from the held entries, never stored where it could drift.'
