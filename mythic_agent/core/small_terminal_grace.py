@@ -208,19 +208,19 @@ GRACE_RULE = (
     "is judged from the held records "
     "alone, never claimed live")
 PLAIN_EXPLANATION = (
-    "Splash and grace, restrained (M-194): "
-    "every grace fold stands held as a card "
+    "Small-terminal grace (M-194): "
+    "every fold stands held as a card "
     "with its surface, its kind, its width "
-    "and height honestly held, the preserved work "
-    "it carries, and the views that arrange the "
-    "folds - grace at start and at a roadmap's "
-    "completion, quiet the rest of the time, inside "
-    "the Lawbook's heights.")
+    "and height honestly held, the work "
+    "it preserves, and the views that arrange the "
+    "folds - the TUI folds gracefully to 80x24 "
+    "and to a phone-over-SSH width, without "
+    "losing the work.")
 USAGE = (
-    "Usage: /grace | /grace fold <fold-id> | "
-    "/grace preserves <preserves> | /grace kind <kind> | "
-    "/grace view <view-id> | /grace note <note-id> | "
-    "/grace index | /grace panel | /grace verdict")
+    "Usage: /smallterminal | /smallterminal fold <fold-id> | "
+    "/smallterminal preserves <preserves> | /smallterminal kind <kind> | "
+    "/smallterminal view <view-id> | /smallterminal note <note-id> | "
+    "/smallterminal index | /smallterminal panel | /smallterminal verdict")
 
 _PROVENANCE = ("recorded_on", "actor", "source", "origin_session")
 _FOLD_KEYS = frozenset({
@@ -239,7 +239,10 @@ _DERIVED_KEYS = frozenset({
     "plain_lines", "telling", "verdict", "index",
     "entries", "coverage", "covered", "uncovered"})
 _LIVE_KEYS = (
-    "live_fold", "live_view", "resizes_terminal",
+    "live_fold", "live_view", "shows_fold",
+    "show_fold", "shown_fold", "plays_fold",
+    "played_fold", "performs_fold", "performed_fold",
+    "resizes_terminal",
     "resized_terminal", "resizes_fold", "resized_fold",
     "folds_pane", "folded_pane", "folds_terminal",
     "folded_terminal", "renders_work", "rendered_work",
@@ -1650,7 +1653,7 @@ def format_book(source: Any = None, kind: Any = None) -> str:
     book = _source_book(source)
     folds = (folds_for_kind(book, kind)
                 if kind is not None else book.folds)
-    lines = [f"Splash and Grace (M-194) - {book.title}"]
+    lines = [f"Small-Terminal Grace (M-194) - {book.title}"]
     lines.extend(segment_of(fold) for fold in folds)
     return "\n".join(lines)
 
@@ -1688,7 +1691,7 @@ def format_index(source: Any = None) -> str:
 def format_grace_screen(source: Any = None) -> str:
     book = _source_book(source)
     lines = [
-        "Splash and Grace (M-194)",
+        "Small-Terminal Grace (M-194)",
         f"{book.title}: {len(book.folds)} folds held, "
         f"{len(passing_folds(book))} folds standing preserved, "
         f"{len(book.notes)} notes held.",
