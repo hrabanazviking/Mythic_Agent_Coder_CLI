@@ -784,3 +784,14 @@ mythic_agent/agents/llm.py:46709:view_room:method
 mythic_agent/agents/llm.py:46776:register_room_book:method
 mythic_agent/agents/llm.py:46821:record_room_book:method
 mythic_agent/agents/llm.py:46894:report_settings_room:method
+mythic_agent/agents/llm.py:47180:get_palette_note:method
+mythic_agent/agents/llm.py:47195:palette_entries_for_kind:method
+mythic_agent/agents/llm.py:47201:palette_entries_passing:method
+mythic_agent/agents/llm.py:47207:command_palette_panel:method
+mythic_agent/agents/llm.py:47225:command_palette_verdict:method
+mythic_agent/agents/llm.py:47267:register_palette_entry:method
+mythic_agent/agents/llm.py:47298:register_palette_view:method
+mythic_agent/agents/llm.py:47324:view_palette:method
+mythic_agent/agents/llm.py:47391:register_palette_book:method
+mythic_agent/agents/llm.py:47436:record_palette_book:method
+mythic_agent/agents/llm.py:47509:report_command_palette:method
