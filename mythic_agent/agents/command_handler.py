@@ -423,6 +423,8 @@ class CommandHandler:
                 self._handle_commandpalette(args)
             elif cmd == "/uiundo":
                 self._handle_uiundo(args)
+            elif cmd == "/accessverify":
+                self._handle_accessverify(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -9096,6 +9098,98 @@ class CommandHandler:
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
 
+
+
+
+    def _handle_accessverify(self, args: str):
+        """M-199: /accessverify - the accessibility verification.
+
+        ``/accessverify`` shows the verification book held this
+        session - the accessibility verification, held as data:
+        one record per gate with the words that reach
+        it and the notes held as
+        data beside them (the shipped example book -
+        six gates at the M-198 slice boundary, with
+        its two views, two stance records and its one
+        pinned panel - when none is held yet);
+        ``/accessverify gate <gate-id>`` shows one gate whole;
+        ``/accessverify evidence <evidence>`` shows the gate one set of words
+        reaches, or names the words unheld;
+        ``/accessverify kind <kind>`` shows the book's gates
+        of one kind; ``/accessverify view <view-id>`` shows
+        one held view record; ``/accessverify note
+        <note-id>`` shows one held stance record;
+        ``/accessverify index`` shows the index derived
+        from the whole book's held gates; ``/accessverify
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/accessverify
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: gates and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every gate held for the session is
+        journaled as a verify_gate session event,
+        every view as a verify_view session event,
+        every derived panel as a verify_panel
+        session event and every derived verdict as a
+        verify_verdict session event. This heading
+        executes no command, runs no action and
+        navigates nowhere - holding and telling
+        are words only.
+        """
+        from ..core.accessibility_verification import (
+            format_gate,
+            format_book,
+            format_evidence,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_verify_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_verify_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "gate":
+                text = format_gate(primary.get_verify_gate(target))
+            elif stance == "evidence":
+                text = format_evidence(
+                    primary.access_verify_book(), target)
+            elif stance == "kind":
+                text = format_book(
+                    primary.access_verify_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_verify_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.access_verify_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.access_verify_book())
+            elif stance == "panel":
+                text = format_panel(primary.access_verify_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.access_verify_book())
+            else:
+                text = primary.access_verify_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
 
 
 
