@@ -1240,7 +1240,7 @@ slices:
   title: Campaigns as data
   summary: a roadmap/campaign file (parts, slices, acceptance checks, state) the app reads, displays (M-173),
     executes, and keeps current — this roadmap is its first citizen (M-017).
-  status: queued
+  status: done
 - id: M-202
   part: 9
   title: Intent capture (PROJECT_FORGE form)
