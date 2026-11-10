@@ -717,3 +717,385 @@ def test_parse_args_inspect_and_loader_roads():
         source="test source", origin_session="session-test")
     assert built.detection_id == "det-kw"
     assert detection_passes(built) is True
+
+
+# ---------------------------------------------------------------------
+# M-184 agent layer: the agent holds an onboarding
+# book for the session, detections and views are
+# published as session news through the checkpoint
+# road (journal first, deduped per shape), the
+# panel and verdict are derived at call time from
+# the whole book under a view, never held, and the
+# walk is derived at call time from the book's held
+# steps under the ordering rule - success before
+# configuration, always. This layer calls no model,
+# detects nothing live, keeps no key, runs no task,
+# configures nothing and persists nothing beyond
+# the session journal news.
+# ---------------------------------------------------------------------
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _onboarding_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_onboarding_book_file(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data" / ONBOARDING_FIVE_RESOURCE
+           ).read_text(encoding="utf-8")
+    path = tmp_path / "onboarding_five.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestOnboardingAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.onboarding_five_status()
+        assert status["detections"] == []
+        assert status["views"] == []
+        assert status["book"] is None
+        assert status["onboarding"]["title"] == EXAMPLE_TITLE
+        assert len(status["onboarding"]["detections"]) == 6
+        assert len(status["onboarding"]["views"]) == 2
+        assert len(status["onboarding"]["steps"]) == 5
+        assert len(status["onboarding"]["offers"]) == 1
+        assert status["panel"]["total_items"] == 6
+        assert status["panel"]["total_shown"] == 6
+        assert status["panels"][0]["panel_id"] == "panel-m183-boundary"
+        assert status["verdict"]["verdict"] == "strained"
+        assert status["verdict"]["passing_shown"] == 4
+        assert status["walk"]["passes"] is True
+        assert "success before configuration" in status["rule"]
+        assert "OpenRouter" in status["plain_words"]
+        assert "Onboarding in Five Minutes (M-184)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._onboarding_five_registry()
+        assert agent._onboarding_five_registry() is first
+        assert agent._onboarding_five_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.onboarding_five_status()
+        assert agent.get_onboarding_detection(
+            "det-ollama-door").provider == "Ollama"
+        assert agent.get_onboarding_view("view-all").view_filter == "all"
+        assert agent.get_onboarding_offer(
+            "offer-kista-openai").decision == "declined"
+        assert [d.detection_id for d in agent.onboarding_five_with_outcome(
+            "absent")] == ["det-anthropic-env", "det-openrouter-registry"]
+        assert [d.detection_id for d in agent.onboarding_five_passing()] == [
+            "det-ollama-door", "det-openai-env", "det-aesir-door",
+            "det-lmstudio-door"]
+        agent.onboarding_five_panel()
+        agent.onboarding_five_verdict()
+        agent.onboarding_five_walk()
+        agent.report_onboarding()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("onboarding")] == []
+        with pytest.raises(KeyError):
+            agent.get_onboarding_detection("det-nope")
+        with pytest.raises(KeyError):
+            agent.get_onboarding_view("view-nope")
+        with pytest.raises(KeyError):
+            agent.get_onboarding_offer("offer-nope")
+        with pytest.raises(ValueError):
+            agent.onboarding_five_with_outcome("maybe")
+        agent.close()
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_onboarding_detection(_detection())
+        status = agent.onboarding_five_status()
+        assert [d["detection_id"] for d in status["detections"]] == [
+            "det-test"]
+        assert status["book"]["title"] == "An unheld onboarding book"
+        assert status["panel"] is None
+        assert status["verdict"] is None
+        assert status["walk"]["passes"] is False
+        assert "det-test" in status["screen"]
+
+    def test_held_detection_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_onboarding_detection(_detection())
+        with pytest.raises(KeyError):
+            agent.get_onboarding_detection("det-ollama-door")
+        with pytest.raises(KeyError):
+            agent.get_onboarding_view("view-all")
+        detection = agent.get_onboarding_detection("det-test")
+        assert detection.provider == "Ollama"
+        assert agent.onboarding_five_book().title == (
+            "An unheld onboarding book")
+
+    def test_walk_and_offer_stand_in_the_example(self, agent):
+        walk = agent.onboarding_five_walk()
+        assert [s.phase for s in walk.steps] == [
+            "detect", "walk", "success", "offer", "configure"]
+        assert walk.passes() is True
+        offer = agent.get_onboarding_offer("offer-kista-openai")
+        assert offer.provider == "OpenAI"
+        assert offer.decision == "declined"
+
+
+class TestOnboardingAgentHolding:
+    def test_register_detection_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_onboarding_detection(_detection())
+        assert result["detection"]["detection_id"] == "det-test"
+        assert result["record_news"]["type"] == "onboarding_detection"
+        assert "det-test" in result["screen"]
+        events = _onboarding_events(
+            store, session_id, "onboarding_detection")
+        assert len(events) == 1
+        agent.close()
+
+    def test_duplicate_detection_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_onboarding_detection(_detection())
+        with pytest.raises(ValueError):
+            agent.register_onboarding_detection(_detection(seq=9))
+        events = _onboarding_events(
+            store, session_id, "onboarding_detection")
+        assert len(events) == 1
+        agent.close()
+
+    def test_register_view_holds_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_onboarding_view(_view())
+        assert result["view"]["view_id"] == "view-test"
+        assert len(_onboarding_events(
+            store, session_id, "onboarding_view")) == 1
+        agent.close()
+
+    def test_view_road_derives_sequence_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_onboarding_detection(_detection())
+        result = agent.view_onboarding("found")
+        assert result["view"]["view_filter"] == "found"
+        assert result["view"]["seq"] == 1
+        assert result["panel_record"]["type"] == "onboarding_panel"
+        assert result["panel_record"]["total_shown"] == 1
+        assert result["verdict_record"]["verdict"] == "open"
+        assert len(_onboarding_events(
+            store, session_id, "onboarding_view")) == 1
+        assert len(_onboarding_events(
+            store, session_id, "onboarding_panel")) == 1
+        assert len(_onboarding_events(
+            store, session_id, "onboarding_verdict")) == 1
+        agent.close()
+
+    def test_view_road_over_an_unshown_filter_is_shut(self, agent):
+        agent.register_onboarding_detection(_detection(outcome="absent"))
+        result = agent.view_onboarding("found")
+        assert result["verdict_record"]["verdict"] == "shut"
+        assert result["verdict_record"]["total_shown"] == 0
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_onboarding_book(
+            _book(views=[_view()]))
+        assert result["count"] == 1
+        assert [r["type"] for r in result["records_news"]] == [
+            "onboarding_detection", "onboarding_view"]
+        assert len(_onboarding_events(
+            store, session_id, "onboarding_detection")) == 1
+        agent.close()
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.record_onboarding_book()
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+        assert result["panel_record"]["type"] == "onboarding_panel"
+        assert result["walk_record"]["passes"] is True
+        with pytest.raises(ValueError):
+            agent.record_onboarding_book()
+        assert len(_onboarding_events(
+            store, session_id, "onboarding_detection")) == 6
+        assert len(_onboarding_events(
+            store, session_id, "onboarding_view")) == 2
+        agent.close()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_onboarding_book_file(tmp_path)
+        book = load_onboarding_five_file(path)
+        result = agent.record_onboarding_book(book)
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+
+    def test_report_renders_example_then_held_book_only(self, agent):
+        report = agent.report_onboarding()
+        assert report["book"]["title"] == EXAMPLE_TITLE
+        assert report["verdict"]["verdict"] == "strained"
+        assert "det-ollama-door" in report["book_text"]
+        assert "[success]" in report["walk_text"]
+        assert "offer-kista-openai" in report["walk_text"]
+        agent.register_onboarding_detection(_detection())
+        report = agent.report_onboarding()
+        assert report["book"]["title"] == "An unheld onboarding book"
+        assert report["panel"] is None
+        assert report["verdict"] is None
+
+
+class TestOnboardingTerminalSurface:
+    def test_show_detection_walk_offer_view_outcome_panel_verdict(
+            self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/onboard")
+        assert "Onboarding in Five Minutes (M-184)" in text
+        _, _, text = _slash(agent, "/onboard detection det-ollama-door")
+        assert "Provider: Ollama" in text
+        _, _, text = _slash(agent, "/onboard walk")
+        assert "[success]" in text
+        _, _, text = _slash(agent, "/onboard offer offer-kista-openai")
+        assert "declined" in text
+        _, _, text = _slash(agent, "/onboard view view-all")
+        assert "filter all" in text
+        _, _, text = _slash(agent, "/onboard outcome absent")
+        assert "det-anthropic-env" in text
+        assert "det-ollama-door" not in text
+        _, _, text = _slash(agent, "/onboard panel")
+        assert "Onboarding panel under view view-all" in text
+        _, _, text = _slash(agent, "/onboard verdict")
+        assert "strained" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/onboard [show|detection <detection-id>"
+                "|walk|offer <offer-id>|view <view-id>"
+                "|outcome <outcome>|panel|verdict]") in text
+        _, _, text = _slash(agent, "/onboard dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/onboard detection det-nope")
+        assert "no detection named" in text
+
+
+@pytest.fixture()
+def onboard_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _onboard_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestOnboardingCommand:
+    def test_show_is_default(self, onboard_handler, agent):
+        onboard_handler._handle_onboard("")
+        assert "Onboarding in Five Minutes (M-184)" in (
+            _onboard_published_text(onboard_handler))
+
+    def test_detection_walk_offer_view_outcome_panel_verdict(
+            self, onboard_handler, agent):
+        onboard_handler._handle_onboard("detection det-ollama-door")
+        assert "Provider: Ollama" in _onboard_published_text(
+            onboard_handler)
+        onboard_handler._handle_onboard("walk")
+        assert "[success]" in _onboard_published_text(onboard_handler)
+        onboard_handler._handle_onboard("offer offer-kista-openai")
+        assert "declined" in _onboard_published_text(onboard_handler)
+        onboard_handler._handle_onboard("view view-all")
+        assert "filter all" in _onboard_published_text(onboard_handler)
+        onboard_handler._handle_onboard("outcome absent")
+        assert "det-anthropic-env" in _onboard_published_text(
+            onboard_handler)
+        onboard_handler._handle_onboard("panel")
+        assert "Onboarding panel under view" in _onboard_published_text(
+            onboard_handler)
+        onboard_handler._handle_onboard("verdict")
+        assert "strained" in _onboard_published_text(onboard_handler)
+
+    def test_bad_grammar_is_published(
+            self, onboard_handler, agent):
+        onboard_handler._handle_onboard("dance party")
+        assert USAGE in _onboard_published_text(onboard_handler)
+        onboard_handler._handle_onboard("detection det-nope")
+        assert "no detection named" in _onboard_published_text(
+            onboard_handler)
+
+
+class TestChatScreenRoutingOnboarding:
+    def test_onboard_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/onboard panel", _FakeLog())
+        assert calls == [("/onboard", "panel")]
+
+    def test_chat_screen_help_and_usage_name_the_book(self):
+        text = (ROOT / "mythic_agent" / "ui" / "screens"
+                / "chat_screen.py").read_text(encoding="utf-8")
+        assert "/onboard[/green] - show onboarding in five minutes (M-184)" in (
+            text)
+        assert ('"/onboard": "Usage: /onboard | '
+                '/onboard detection <detection-id>') in text
+
+
+class TestOnboardingDerivedRoads:
+    def test_panel_and_verdict_are_derived_at_call_time(self, agent):
+        panel = agent.onboarding_five_panel()
+        assert panel.total_shown == 6
+        assert panel.panel_id == "panel-view-all"
+        verdict = agent.onboarding_five_verdict()
+        assert verdict.verdict == "strained"
+        found = agent.onboarding_five_verdict("view-found")
+        assert found.verdict == "open"
+        assert found.passing_shown == 4
+        agent.register_onboarding_detection(_detection())
+        with pytest.raises(ValueError):
+            agent.onboarding_five_panel()
+        with pytest.raises(ValueError):
+            agent.onboarding_five_verdict()
+
+    def test_absent_detection_stands_named_in_its_gaps(self, agent):
+        detection = agent.get_onboarding_detection("det-anthropic-env")
+        assert detection_gaps(detection) == ("provider",)
+        assert detection_passes(detection) is False
+        status = agent.onboarding_five_status()
+        assert status["verdict"]["passing_shown"] == 4
+        assert status["walk"]["steps"][2]["phase"] == "success"
+        assert status["walk"]["steps"][4]["phase"] == "configure"

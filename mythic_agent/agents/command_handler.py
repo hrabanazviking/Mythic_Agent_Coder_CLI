@@ -395,6 +395,8 @@ class CommandHandler:
                 self._handle_skin(args)
             elif cmd == "/errors":
                 self._handle_errors(args)
+            elif cmd == "/onboard":
+                self._handle_onboard(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -7697,6 +7699,97 @@ class CommandHandler:
                 text = format_verdict(primary.error_kindness_book())
             else:
                 text = primary.error_kindness_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_onboard(self, args: str):
+        """M-184: /onboard - onboarding in five minutes.
+
+        ``/onboard`` shows the onboarding book held
+        this session - the first run held as data:
+        providers detected by named probes, found or
+        absent and never faked, Kista key-keeping
+        offered as data with its answer, and one tiny
+        real task walked in held steps under the
+        ordering rule, success before configuration,
+        always (the shipped example book - six
+        detections at the M-183 slice boundary, with
+        its two views, five walk steps, one offer and
+        its one pinned panel - when none is held
+        yet); ``/onboard detection <detection-id>``
+        shows one detection whole; ``/onboard walk``
+        shows the walk in held order with its offers;
+        ``/onboard offer <offer-id>`` shows one Kista
+        offer with its answer; ``/onboard view
+        <view-id>`` shows one held view record;
+        ``/onboard outcome <outcome>`` shows the
+        book's detections of one outcome; ``/onboard
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/onboard
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: detections and views
+        are held only when they are given through the
+        agent's register roads, stood on the book on
+        the viewing road, or held on the book roads,
+        and every detection held for the session is
+        journaled as an onboarding_detection session
+        event, every view as an onboarding_view
+        session event, every derived panel as an
+        onboarding_panel session event and every
+        derived verdict as an onboarding_verdict
+        session event. This surface detects nothing
+        live, keeps no key, runs no task and
+        configures nothing - holding and telling are
+        words only.
+        """
+        from ..core.onboarding_five import (
+            format_book,
+            format_detection,
+            format_offer,
+            format_panel,
+            format_verdict,
+            format_view,
+            format_walk,
+            parse_onboarding_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_onboarding_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "detection":
+                text = format_detection(
+                    primary.get_onboarding_detection(target))
+            elif action == "walk":
+                text = format_walk(primary.onboarding_five_book())
+            elif action == "offer":
+                text = format_offer(
+                    primary.get_onboarding_offer(target))
+            elif action == "view":
+                text = format_view(
+                    primary.get_onboarding_view(target))
+            elif action == "outcome":
+                text = format_book(
+                    primary.onboarding_five_book(), target)
+            elif action == "panel":
+                text = format_panel(primary.onboarding_five_book())
+            elif action == "verdict":
+                text = format_verdict(primary.onboarding_five_book())
+            else:
+                text = primary.onboarding_five_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
