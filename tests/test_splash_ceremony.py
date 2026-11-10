@@ -749,3 +749,406 @@ def test_parse_args_inspect_and_loader_targets():
 
 
 # ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# M-193 agent layer: the agent holds a moment book
+# for the session, moments and views are published
+# as session news through the checkpoint target
+# (journal first, deduped per shape), the panel
+# and verdict are derived at call time from the
+# whole book under a view, never held, the index
+# is derived from the book's held moments, and the
+# stance targets are held as data beside them -
+# holding one resumes no session. This layer
+# resumes nothing, renders no live UI, exports
+# nothing and persists nothing beyond the
+# session journal news.
+# ---------------------------------------------------------------------
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _moment_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_moment_book_file(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data" / SPLASH_CEREMONY_RESOURCE
+           ).read_text(encoding="utf-8")
+    path = tmp_path / "splash_ceremony.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestCeremonyAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.splash_ceremony_status()
+        assert status["moments"] == []
+        assert status["views"] == []
+        assert status["book"] is None
+        assert status["splash_ceremony"]["title"] == EXAMPLE_TITLE
+        assert len(status["splash_ceremony"]["moments"]) == 6
+        assert len(status["splash_ceremony"]["views"]) == 2
+        assert len(status["splash_ceremony"]["notes"]) == 2
+        assert status["panel"]["total_items"] == 6
+        assert status["panel"]["total_shown"] == 6
+        assert status["panels"][0]["panel_id"] == "panel-m192-boundary"
+        assert status["verdict"]["verdict"] == "strained"
+        assert status["verdict"]["passing_shown"] == 5
+        assert [e["alternative"] for e in status["index"]["entries"]] == ["Mythic Agent Coder", "Loading the forge: provider, model and tools.", "A longship under sail, drawn in line art.", "Ready - the chat stands open.", "Roadmap complete - all 272 slices stand banked."]
+        assert status["index"]["gaps"] == ["moment-silence-work"]
+        assert status["first_note"]["note_id"] == "note-note-wordmark"
+        assert "held as data alone" in status["rule"]
+        assert "Roadmap complete - all 272 slices stand banked." in status["plain_words"]
+        assert "Splash and Ceremony (M-193)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._splash_ceremony_registry()
+        assert agent._splash_ceremony_registry() is first
+        assert agent._splash_ceremony_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.splash_ceremony_status()
+        assert agent.get_ceremony_moment(
+            "moment-wordmark-start").occasion == "Wordmark at start"
+        assert agent.get_ceremony_view("view-ceremony").view_filter == "all"
+        assert agent.get_ceremony_note(
+            "note-note-wordmark").note_id == "note-note-wordmark"
+        assert [a.moment_id for a in agent.ceremony_moments_for_kind(
+            "wordmark")] == ["moment-wordmark-start", "moment-wordmark-complete"]
+        assert [a.moment_id for a in agent.ceremony_moments_for_kind(
+            "status")] == ["moment-status-loading", "moment-status-ready"]
+        assert [a.moment_id for a in agent.ceremony_moments_passing()] == [
+            "moment-wordmark-start", "moment-status-loading",
+            "moment-art-longship", "moment-status-ready",
+            "moment-wordmark-complete"]
+        agent.splash_ceremony_panel()
+        agent.splash_ceremony_verdict()
+        agent.ceremony_index()
+        agent.report_splash_ceremony()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("ceremony")
+                or e["type"] == "ceremony_moment"] == []
+        with pytest.raises(KeyError):
+            agent.get_ceremony_moment("moment-nope")
+        with pytest.raises(KeyError):
+            agent.get_ceremony_view("view-nope")
+        with pytest.raises(KeyError):
+            agent.get_ceremony_note("note-nope")
+        with pytest.raises(ValueError):
+            agent.ceremony_moments_for_kind("the void")
+        agent.close()
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_ceremony_moment(_moment())
+        status = agent.splash_ceremony_status()
+        assert [a["moment_id"] for a in status["moments"]] == ["moment-test"]
+        assert status["book"]["title"] == "An unheld moment book"
+        assert status["panel"] is None
+        assert status["verdict"] is None
+        assert [e["alternative"] for e in status["index"]["entries"]] == [
+            "Mythic Agent Coder"]
+        assert status["first_note"] is None
+        assert "moment-test" in status["screen"]
+
+    def test_held_moment_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_ceremony_moment(_moment())
+        with pytest.raises(KeyError):
+            agent.get_ceremony_moment("moment-wordmark-start")
+        with pytest.raises(KeyError):
+            agent.get_ceremony_view("view-ceremony")
+        with pytest.raises(KeyError):
+            agent.get_ceremony_note("modal")
+        moment = agent.get_ceremony_moment("moment-test")
+        assert moment.occasion == "A test moment"
+        assert agent.splash_ceremony_book().title == (
+            "An unheld moment book")
+
+    def test_notes_and_index_stand_in_the_example(self, agent):
+        first = agent.get_ceremony_note("note-note-wordmark")
+        assert first.note_id == "note-note-wordmark"
+        assert first.moment_id == "moment-wordmark-start"
+        status = agent.splash_ceremony_status()
+        assert status["index"]["gaps"] == ["moment-silence-work"]
+        assert status["first_note"]["moment_id"] == (
+            "moment-wordmark-start")
+        assert status["first_note"]["stance"] == "note"
+
+
+class TestCeremonyAgentHolding:
+    def test_register_moment_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_ceremony_moment(_moment())
+        assert result["moment"]["moment_id"] == "moment-test"
+        assert result["record_news"]["type"] == "ceremony_moment"
+        assert "moment-test" in result["screen"]
+        events = _moment_events(store, session_id, "ceremony_moment")
+        assert len(events) == 1
+        agent.close()
+
+    def test_duplicate_moment_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_ceremony_moment(_moment())
+        with pytest.raises(ValueError):
+            agent.register_ceremony_moment(_moment(seq=9))
+        with pytest.raises(ValueError):
+            agent.register_ceremony_moment(_moment(moment_id="moment-two"))
+        events = _moment_events(store, session_id, "ceremony_moment")
+        assert len(events) == 1
+        agent.close()
+
+    def test_register_view_holds_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_ceremony_view(_view())
+        assert result["view"]["view_id"] == "view-test"
+        assert len(_moment_events(
+            store, session_id, "ceremony_view")) == 1
+        agent.close()
+
+    def test_view_target_derives_sequence_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_ceremony_moment(_moment())
+        result = agent.view_ceremony("alternated")
+        assert result["view"]["view_filter"] == "alternated"
+        assert result["view"]["seq"] == 1
+        assert result["panel_record"]["type"] == "ceremony_panel"
+        assert result["panel_record"]["total_shown"] == 1
+        assert result["verdict_record"]["verdict"] == "open"
+        assert len(_moment_events(
+            store, session_id, "ceremony_view")) == 1
+        assert len(_moment_events(
+            store, session_id, "ceremony_panel")) == 1
+        assert len(_moment_events(
+            store, session_id, "ceremony_verdict")) == 1
+        agent.close()
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_ceremony_book(_book(views=[_view()]))
+        assert result["count"] == 1
+        assert [r["type"] for r in result["records_news"]] == [
+            "ceremony_moment", "ceremony_view"]
+        assert len(_moment_events(
+            store, session_id, "ceremony_moment")) == 1
+        agent.close()
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.record_ceremony_book()
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+        assert result["panel_record"]["type"] == "ceremony_panel"
+        assert result["index_record"]["gaps"] == [
+            "moment-silence-work"]
+        with pytest.raises(ValueError):
+            agent.record_ceremony_book()
+        assert len(_moment_events(
+            store, session_id, "ceremony_moment")) == 6
+        assert len(_moment_events(
+            store, session_id, "ceremony_view")) == 2
+        agent.close()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_moment_book_file(tmp_path)
+        book = load_splash_ceremony_file(path)
+        result = agent.record_ceremony_book(book)
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+
+    def test_report_renders_example_then_held_book_only(self, agent):
+        report = agent.report_splash_ceremony()
+        assert report["book"]["title"] == EXAMPLE_TITLE
+        assert report["verdict"]["verdict"] == "strained"
+        assert report["index"]["gaps"] == ["moment-silence-work"]
+        assert "moment-wordmark-start" in report["book_text"]
+        assert "Mythic Agent Coder - Wordmark at start (moment-wordmark-start)" in report["index_text"]
+        agent.register_ceremony_moment(_moment())
+        report = agent.report_splash_ceremony()
+        assert report["book"]["title"] == "An unheld moment book"
+        assert report["panel"] is None
+        assert report["verdict"] is None
+
+
+class TestCeremonyTerminalSurface:
+    def test_show_moment_target_kind_view_note_index_panel_verdict(
+            self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/ceremony")
+        assert "Splash and Ceremony (M-193)" in text
+        _, _, text = _slash(agent, "/ceremony moment moment-wordmark-start")
+        assert "Moment: Wordmark at start" in text
+        _, _, text = _slash(agent, "/ceremony alternative Mythic Agent Coder")
+        assert "Mythic Agent Coder" in text
+        _, _, text = _slash(agent, "/ceremony alternative triple resume")
+        assert "reaches nothing in this book" in text
+        _, _, text = _slash(agent, "/ceremony kind wordmark")
+        assert "moment-wordmark-start" in text
+        assert "moment-silence-work" not in text
+        _, _, text = _slash(agent, "/ceremony view view-ceremony")
+        assert "filter all" in text
+        _, _, text = _slash(agent, "/ceremony note note-note-wordmark")
+        assert "Moment note note moment-wordmark-start" in text
+        _, _, text = _slash(agent, "/ceremony index")
+        assert "Moment index" in text
+        assert "moment-status-ready" in text
+        _, _, text = _slash(agent, "/ceremony panel")
+        assert "Ceremony panel under view view-ceremony" in text
+        _, _, text = _slash(agent, "/ceremony verdict")
+        assert "strained" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/ceremony [show|moment <moment-id>"
+                "|alternative <alternative>|kind <kind>|view <view-id>"
+                "|note <note-id>|index|panel|verdict]") in text
+        _, _, text = _slash(agent, "/ceremony dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/ceremony moment moment-nope")
+        assert "no moment named" in text
+
+
+@pytest.fixture()
+def ceremony_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _moment_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestCeremonyCommand:
+    def test_show_is_default(self, ceremony_handler, agent):
+        ceremony_handler._handle_ceremony("")
+        assert "Splash and Ceremony (M-193)" in (
+            _moment_published_text(ceremony_handler))
+
+    def test_moment_target_kind_view_note_index_panel_verdict(
+            self, ceremony_handler, agent):
+        ceremony_handler._handle_ceremony("moment moment-wordmark-start")
+        assert "Moment: Wordmark at start" in _moment_published_text(
+            ceremony_handler)
+        ceremony_handler._handle_ceremony("alternative Mythic Agent Coder")
+        assert "Mythic Agent Coder" in _moment_published_text(
+            ceremony_handler)
+        ceremony_handler._handle_ceremony("kind wordmark")
+        assert "moment-wordmark-start" in _moment_published_text(ceremony_handler)
+        ceremony_handler._handle_ceremony("view view-ceremony")
+        assert "filter all" in _moment_published_text(ceremony_handler)
+        ceremony_handler._handle_ceremony("note note-note-wordmark")
+        assert "Moment note note moment-wordmark-start" in _moment_published_text(ceremony_handler)
+        ceremony_handler._handle_ceremony("index")
+        assert "Moment index" in _moment_published_text(ceremony_handler)
+        ceremony_handler._handle_ceremony("panel")
+        assert "Ceremony panel under view" in _moment_published_text(
+            ceremony_handler)
+        ceremony_handler._handle_ceremony("verdict")
+        assert "strained" in _moment_published_text(ceremony_handler)
+
+    def test_bad_grammar_is_published(
+            self, ceremony_handler, agent):
+        ceremony_handler._handle_ceremony("dance party")
+        assert USAGE in _moment_published_text(ceremony_handler)
+        ceremony_handler._handle_ceremony("moment moment-nope")
+        assert "no moment named" in _moment_published_text(ceremony_handler)
+
+
+class TestChatScreenRoutingCeremony:
+    def test_onboard_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/ceremony panel", _FakeLog())
+        assert calls == [("/ceremony", "panel")]
+
+    def test_chat_screen_help_and_usage_name_the_book(self):
+        text = (ROOT / "mythic_agent" / "ui" / "screens"
+                / "chat_screen.py").read_text(encoding="utf-8")
+        assert "/ceremony[/green] - show splash and ceremony, restrained (M-193)" in (
+            text)
+        assert ('"/ceremony": "Usage: /ceremony | '
+                '/ceremony moment <moment-id>') in text
+
+
+class TestCeremonyDerivedTargets:
+    def test_panel_and_verdict_are_derived_at_call_time(self, agent):
+        panel = agent.splash_ceremony_panel()
+        assert panel.total_shown == 6
+        assert panel.panel_id == "panel-view-ceremony"
+        verdict = agent.splash_ceremony_verdict()
+        assert verdict.verdict == "strained"
+        found = agent.splash_ceremony_verdict("view-alternated")
+        assert found.verdict == "open"
+        assert found.passing_shown == 5
+        agent.register_ceremony_moment(_moment())
+        with pytest.raises(ValueError):
+            agent.splash_ceremony_panel()
+        with pytest.raises(ValueError):
+            agent.splash_ceremony_verdict()
+
+    def test_view_target_over_an_unshown_filter_is_shut(self, agent):
+        agent.register_ceremony_moment(_moment(text_alternative=""))
+        result = agent.view_ceremony("alternated")
+        assert result["verdict_record"]["verdict"] == "shut"
+        assert result["verdict_record"]["total_shown"] == 0
+
+    def test_index_target_derives_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.ceremony_index()
+        assert [e["alternative"] for e in result["index"]["entries"]] == ["Mythic Agent Coder", "Loading the forge: provider, model and tools.", "A longship under sail, drawn in line art.", "Ready - the chat stands open.", "Roadmap complete - all 272 slices stand banked."]
+        assert result["index"]["gaps"] == ["moment-silence-work"]
+        assert "Mythic Agent Coder - Wordmark at start (moment-wordmark-start)" in (
+            result["index_text"])
+        moment = agent.get_ceremony_moment("moment-silence-work")
+        assert moment_gaps(moment) == ("no text alternative",)
+        assert moment_passes(moment) is False
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("ceremony")
+                or e["type"] == "ceremony_moment"] == []
+        agent.close()
