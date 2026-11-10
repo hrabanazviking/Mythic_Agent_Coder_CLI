@@ -665,6 +665,10 @@ class CampaignView:
             object.__setattr__(
                 self, key, _clean_text(getattr(self, key), f"a {key}"))
 
+    @property
+    def item_id(self) -> str:
+        return self.view_id
+
     def to_record(self) -> Dict[str, Any]:
         record = {
             "view_id": self.view_id, "seq": self.seq,
