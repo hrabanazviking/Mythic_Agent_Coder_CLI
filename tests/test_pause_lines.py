@@ -152,7 +152,7 @@ from mythic_agent.core.tui_redesign_charter import load_charter
 ROOT = Path(__file__).resolve().parents[1]
 ON = "2026-11-10"
 BY = "the coordinator"
-EXAMPLE_TITLE = "The pause-lines wired at the M-208 slice boundary"
+EXAMPLE_TITLE = "The pause-lines wired at the M-207 slice boundary"
 EXAMPLE_CHECKS = ["crossed", "crossed", "crossed"]
 EXAMPLE_RUN_IDS = (
     "pausing-approved-crossing", "pausing-reasked-crossing",
@@ -395,7 +395,7 @@ def test_shipped_book_judged_honestly_as_data():
     assert pausing_green(asking, book) is False
     skipping = book.pausing_for("pausing-leaping-crossing")
     assert pausing_gaps(skipping, book) == (
-        "steps from watched to banked, which the pause sequence "
+        "steps from checked to crossed, which the pause sequence "
         "does not allow",)
     assert [g.pausing_id for g in green_pausings(book)] == [
         "pausing-approved-crossing", "pausing-reasked-crossing", "pausing-wired-crossing"]
@@ -406,7 +406,7 @@ def test_shipped_book_judged_honestly_as_data():
         "pausing-approved-crossing")
     assert pausing_for_check(book, "triple resume") is None
     assert transition_breaks(book) == (
-        "pausing-leaping-crossing: watched > banked",)
+        "pausing-leaping-crossing: checked > crossed",)
     assert [g.pausing_id for g in pausing_order(book)] == list(
         EXAMPLE_RUN_IDS)
     assert trace_of(book, "pausing-approved-crossing") == EXAMPLE_TRACE
@@ -432,7 +432,7 @@ def test_shipped_book_judged_honestly_as_data():
         {"pausing_id": "pausing-wired-crossing", "trace": "unheld"},
         {"pausing_id": "pausing-bare-crossing", "trace": "unheld"},
         {"pausing_id": "pausing-leaping-crossing", "trace": "unheld"}]
-    assert board["breaks"] == ["pausing-leaping-crossing: watched > banked"]
+    assert board["breaks"] == ["pausing-leaping-crossing: checked > crossed"]
     citizen = roadmap_record()
     assert citizen["roadmap_file"] == "roadmap_slices.yaml"
     assert citizen["parts"] == 11
@@ -470,7 +470,7 @@ def test_the_walk_is_derived_from_the_checks_alone():
     assert walking.check == "checked"
     sideways = _pausing(checks=["checked", "paused", "crossed"])
     assert pausing_gaps(sideways) == (
-        "opens at watched, not at dealt: the pausing opens "
+        "opens at checked, not at proposed: the pausing opens "
         "with the proposal",)
     repaired = _pausing(checks=[
         "proposed", "checked", "paused", "reasked", "paused", "crossed"])
@@ -552,7 +552,7 @@ def test_red_pausings_stand_named_in_their_gaps():
     assert pausing_green(asking) is False
     skipping = _pausing(checks=["proposed", "checked", "crossed"])
     assert pausing_gaps(skipping) == (
-        "steps from watched to banked, which the pause sequence "
+        "steps from checked to crossed, which the pause sequence "
         "does not allow",)
     book = _book(pausings=[
         _pausing(),
@@ -560,7 +560,7 @@ def test_red_pausings_stand_named_in_their_gaps():
              checks=["proposed", "checked", "crossed"]),
     ])
     assert transition_breaks(book) == (
-        "pausing-skipping: watched > banked",)
+        "pausing-skipping: checked > crossed",)
     assert current_pausing(book).pausing_id == "pausing-skipping"
     assert [g.pausing_id for g in pausing_order(book)] == [
         "pausing-test", "pausing-skipping"]
@@ -781,7 +781,7 @@ def test_plain_words_and_formatters():
     assert panel_plain_words(_mixed_book()).startswith(
         "The pausing book holds 2 pausings")
     assert verdict_plain_words(_mixed_book()) == (
-        "The pausings stand kept: 1 of 2 shown pausings stand complete.")
+        "The pausings stand held: 1 of 2 shown pausings stand complete.")
     assert index_plain_words(_mixed_book()) == (
         "The index holds 1 green pausings; red, "
         "named in its gaps: pausing-hidden.")
@@ -798,7 +798,7 @@ def test_plain_words_and_formatters():
     assert "Pausing panel under view view-test" in format_panel(_mixed_book())
     assert "held" in format_verdict(_mixed_book())
     index_text = format_index(_mixed_book())
-    assert "banked - A test pausing (pausing-test)" in index_text
+    assert "crossed - A test pausing (pausing-test)" in index_text
     assert "pausing-hidden" in index_text
     screen = format_pausing_screen()
     assert "The Pause Gate (M-208)" in screen
@@ -810,7 +810,7 @@ def test_parse_args_board_and_loader_targets():
     assert parse_pausing_args("show") == ("show", None)
     assert parse_pausing_args("pausing pausing-test") == (
         "pausing", "pausing-test")
-    assert parse_pausing_args("check banked") == (
+    assert parse_pausing_args("check crossed") == (
         "check", "crossed")
     assert parse_pausing_args("slice slice-test") == (
         "slice", "slice-test")
@@ -1126,7 +1126,7 @@ class TestPausingTerminalHeading:
         _, _, text = _slash(agent, "/pauselines pausing pausing-approved-crossing")
         assert "Pausing: The approved crossing pausing" in text
         _, _, text = _slash(
-            agent, "/pauselines check banked")
+            agent, "/pauselines check crossed")
         assert "Pausing: The approved crossing pausing" in text
         _, _, text = _slash(agent, "/pauselines check triple resume")
         assert "reaches nothing in this book" in text
@@ -1188,7 +1188,7 @@ class TestPausingCommand:
         assert "Pausing: The approved crossing pausing" in _pausing_published_text(
             pausing_handler)
         pausing_handler._handle_pausing(
-            "check banked")
+            "check crossed")
         assert "Pausing: The approved crossing pausing" in _pausing_published_text(
             pausing_handler)
         pausing_handler._handle_pausing("slice slice-m208-pauselines")
@@ -1278,7 +1278,7 @@ class TestPausingDerivedTargets:
             result["index_text"])
         pausing = agent.get_pausing_pausing("pausing-leaping-crossing")
         assert pausing_gaps(pausing, agent.pausing_book()) == (
-            "steps from watched to banked, which the pause sequence "
+            "steps from checked to crossed, which the pause sequence "
             "does not allow",)
         assert pausing_green(pausing, agent.pausing_book()) is False
         assert [e for e in store.export(session_id)["events"]
