@@ -719,3 +719,402 @@ def test_parse_args_inspect_and_loader_roads():
         source="test source", origin_session="session-test")
     assert built.gesture_id == "gesture-kw"
     assert gesture_passes(built) is True
+
+
+# ---------------------------------------------------------------------
+# M-188 agent layer: the agent holds a mouse book
+# for the session, gestures and views are published
+# as session news through the checkpoint road
+# (journal first, deduped per shape), the panel
+# and verdict are derived at call time from the
+# whole book under a view, never held, the guide
+# is derived from the book's held gestures, and the
+# file links are held as data beside them -
+# holding one opens no file. This layer moves no
+# pointer, renders no live UI, opens no file
+# and persists nothing beyond the
+# session journal news.
+# ---------------------------------------------------------------------
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _mouse_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_mouse_book_file(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data" / MOUSE_MANNERS_RESOURCE
+           ).read_text(encoding="utf-8")
+    path = tmp_path / "mouse_manners.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestMouseAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.mouse_manners_status()
+        assert status["gestures"] == []
+        assert status["views"] == []
+        assert status["book"] is None
+        assert status["mouse"]["title"] == EXAMPLE_TITLE
+        assert len(status["mouse"]["gestures"]) == 6
+        assert len(status["mouse"]["views"]) == 2
+        assert len(status["mouse"]["links"]) == 2
+        assert status["panel"]["total_items"] == 6
+        assert status["panel"]["total_shown"] == 6
+        assert status["panels"][0]["panel_id"] == "panel-m187-boundary"
+        assert status["verdict"]["verdict"] == "strained"
+        assert status["verdict"]["passing_shown"] == 5
+        assert [e["road"] for e in status["guide"]["entries"]] == [
+            "click", "left click", "drag", "wheel", "left click"]
+        assert status["guide"]["gaps"] == ["gesture-touch-pan"]
+        assert status["editor_link"]["link_id"] == "link-terminal-help"
+        assert "held as data alone" in status["rule"]
+        assert "Approve a tool call" in status["plain_words"]
+        assert "Mouse Manners (M-188)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._mouse_manners_registry()
+        assert agent._mouse_manners_registry() is first
+        assert agent._mouse_manners_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.mouse_manners_status()
+        assert agent.get_mouse_gesture("gesture-place-cursor").title == (
+            "Place the cursor")
+        assert agent.get_mouse_view("view-all").view_filter == "all"
+        assert agent.get_mouse_link("link-terminal-help").link_id == "link-terminal-help"
+        assert [a.gesture_id for a in agent.mouse_gestures_for_area(
+            "editor")] == ["gesture-place-cursor", "gesture-drag-select"]
+        assert [a.gesture_id for a in agent.mouse_gestures_passing()] == [
+            "gesture-open-file-link", "gesture-place-cursor", "gesture-drag-select",
+            "gesture-scroll-transcript", "gesture-click-approve"]
+        agent.mouse_manners_panel()
+        agent.mouse_manners_verdict()
+        agent.mouse_guide()
+        agent.report_mouse_manners()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("mouse")] == []
+        with pytest.raises(KeyError):
+            agent.get_mouse_gesture("gesture-nope")
+        with pytest.raises(KeyError):
+            agent.get_mouse_view("view-nope")
+        with pytest.raises(KeyError):
+            agent.get_mouse_link("link-nope")
+        with pytest.raises(ValueError):
+            agent.mouse_gestures_for_area("the void")
+        agent.close()
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_mouse_gesture(_gesture())
+        status = agent.mouse_manners_status()
+        assert [a["gesture_id"] for a in status["gestures"]] == ["gesture-test"]
+        assert status["book"]["title"] == "An unheld mouse book"
+        assert status["panel"] is None
+        assert status["verdict"] is None
+        assert [e["road"] for e in status["guide"]["entries"]] == [
+            "drag"]
+        assert status["editor_link"] is None
+        assert "gesture-test" in status["screen"]
+
+    def test_held_act_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_mouse_gesture(_gesture())
+        with pytest.raises(KeyError):
+            agent.get_mouse_gesture("gesture-place-cursor")
+        with pytest.raises(KeyError):
+            agent.get_mouse_view("view-all")
+        with pytest.raises(KeyError):
+            agent.get_mouse_link("modal")
+        act = agent.get_mouse_gesture("gesture-test")
+        assert act.title == "A test gesture"
+        assert agent.mouse_manners_book().title == (
+            "An unheld mouse book")
+
+    def test_links_and_guide_stand_in_the_example(self, agent):
+        first = agent.get_mouse_link("link-terminal-help")
+        assert first.link_id == "link-terminal-help"
+        assert first.path == "mythic_agent/terminal.py"
+        status = agent.mouse_manners_status()
+        assert status["guide"]["gaps"] == ["gesture-touch-pan"]
+        assert status["editor_link"]["path"] == "mythic_agent/terminal.py"
+        assert status["editor_link"]["line"] == 279
+
+
+class TestMouseAgentHolding:
+    def test_register_act_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_mouse_gesture(_gesture())
+        assert result["gesture"]["gesture_id"] == "gesture-test"
+        assert result["record_news"]["type"] == "mouse_gesture"
+        assert "gesture-test" in result["screen"]
+        events = _mouse_events(store, session_id, "mouse_gesture")
+        assert len(events) == 1
+        agent.close()
+
+    def test_duplicate_act_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_mouse_gesture(_gesture())
+        with pytest.raises(ValueError):
+            agent.register_mouse_gesture(_gesture(seq=9))
+        with pytest.raises(ValueError):
+            agent.register_mouse_gesture(_gesture(gesture_id="gesture-two"))
+        events = _mouse_events(store, session_id, "mouse_gesture")
+        assert len(events) == 1
+        agent.close()
+
+    def test_register_view_holds_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_mouse_view(_view())
+        assert result["view"]["view_id"] == "view-test"
+        assert len(_mouse_events(
+            store, session_id, "mouse_view")) == 1
+        agent.close()
+
+    def test_view_road_derives_sequence_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_mouse_gesture(_gesture())
+        result = agent.view_mouse("wired")
+        assert result["view"]["view_filter"] == "wired"
+        assert result["view"]["seq"] == 1
+        assert result["panel_record"]["type"] == "mouse_panel"
+        assert result["panel_record"]["total_shown"] == 1
+        assert result["verdict_record"]["verdict"] == "open"
+        assert len(_mouse_events(
+            store, session_id, "mouse_view")) == 1
+        assert len(_mouse_events(
+            store, session_id, "mouse_panel")) == 1
+        assert len(_mouse_events(
+            store, session_id, "mouse_verdict")) == 1
+        agent.close()
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_mouse_book(_book(views=[_view()]))
+        assert result["count"] == 1
+        assert [r["type"] for r in result["records_news"]] == [
+            "mouse_gesture", "mouse_view"]
+        assert len(_mouse_events(
+            store, session_id, "mouse_gesture")) == 1
+        agent.close()
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.record_mouse_book()
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+        assert result["panel_record"]["type"] == "mouse_panel"
+        assert result["guide_record"]["gaps"] == ["gesture-touch-pan"]
+        with pytest.raises(ValueError):
+            agent.record_mouse_book()
+        assert len(_mouse_events(
+            store, session_id, "mouse_gesture")) == 6
+        assert len(_mouse_events(
+            store, session_id, "mouse_view")) == 2
+        agent.close()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_mouse_book_file(tmp_path)
+        book = load_mouse_manners_file(path)
+        result = agent.record_mouse_book(book)
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+
+    def test_report_renders_example_then_held_book_only(self, agent):
+        report = agent.report_mouse_manners()
+        assert report["book"]["title"] == EXAMPLE_TITLE
+        assert report["verdict"]["verdict"] == "strained"
+        assert report["guide"]["gaps"] == ["gesture-touch-pan"]
+        assert "gesture-place-cursor" in report["book_text"]
+        assert "drag - Drag to select text" in report["guide_text"]
+        agent.register_mouse_gesture(_gesture())
+        report = agent.report_mouse_manners()
+        assert report["book"]["title"] == "An unheld mouse book"
+        assert report["panel"] is None
+        assert report["verdict"] is None
+
+
+class TestMouseTerminalSurface:
+    def test_show_gesture_road_area_view_link_guide_panel_verdict(
+            self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/mouse")
+        assert "Mouse Manners (M-188)" in text
+        _, _, text = _slash(agent, "/mouse gesture gesture-place-cursor")
+        assert "Gesture: Place the cursor" in text
+        _, _, text = _slash(agent, "/mouse road drag")
+        assert "Drag to select text" in text
+        _, _, text = _slash(agent, "/mouse road triple click")
+        assert "reaches nothing in this book" in text
+        _, _, text = _slash(agent, "/mouse area editor")
+        assert "gesture-drag-select" in text
+        assert "gesture-open-file-link" not in text
+        _, _, text = _slash(agent, "/mouse view view-all")
+        assert "filter all" in text
+        _, _, text = _slash(agent, "/mouse link link-terminal-help")
+        assert "File link mythic_agent/terminal.py:279" in text
+        _, _, text = _slash(agent, "/mouse guide")
+        assert "Gesture guide" in text
+        assert "gesture-drag-select" in text
+        _, _, text = _slash(agent, "/mouse panel")
+        assert "Mouse panel under view view-all" in text
+        _, _, text = _slash(agent, "/mouse verdict")
+        assert "strained" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/mouse [show|gesture <gesture-id>"
+                "|road <road>|area <area>|view <view-id>"
+                "|link <link-id>|guide|panel|verdict]") in text
+        _, _, text = _slash(agent, "/mouse dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/mouse gesture gesture-nope")
+        assert "no gesture named" in text
+
+
+@pytest.fixture()
+def mouse_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _mouse_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestMouseCommand:
+    def test_show_is_default(self, mouse_handler, agent):
+        mouse_handler._handle_mouse("")
+        assert "Mouse Manners (M-188)" in (
+            _mouse_published_text(mouse_handler))
+
+    def test_gesture_road_area_view_link_guide_panel_verdict(
+            self, mouse_handler, agent):
+        mouse_handler._handle_mouse("gesture gesture-place-cursor")
+        assert "Gesture: Place the cursor" in _mouse_published_text(
+            mouse_handler)
+        mouse_handler._handle_mouse("road drag")
+        assert "Drag to select text" in _mouse_published_text(
+            mouse_handler)
+        mouse_handler._handle_mouse("area editor")
+        assert "gesture-drag-select" in _mouse_published_text(mouse_handler)
+        mouse_handler._handle_mouse("view view-all")
+        assert "filter all" in _mouse_published_text(mouse_handler)
+        mouse_handler._handle_mouse("link link-terminal-help")
+        assert "File link mythic_agent/terminal.py:279" in _mouse_published_text(mouse_handler)
+        mouse_handler._handle_mouse("guide")
+        assert "Gesture guide" in _mouse_published_text(mouse_handler)
+        mouse_handler._handle_mouse("panel")
+        assert "Mouse panel under view" in _mouse_published_text(
+            mouse_handler)
+        mouse_handler._handle_mouse("verdict")
+        assert "strained" in _mouse_published_text(mouse_handler)
+
+    def test_bad_grammar_is_published(
+            self, mouse_handler, agent):
+        mouse_handler._handle_mouse("dance party")
+        assert USAGE in _mouse_published_text(mouse_handler)
+        mouse_handler._handle_mouse("gesture gesture-nope")
+        assert "no gesture named" in _mouse_published_text(mouse_handler)
+
+
+class TestChatScreenRoutingMouse:
+    def test_onboard_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/mouse panel", _FakeLog())
+        assert calls == [("/mouse", "panel")]
+
+    def test_chat_screen_help_and_usage_name_the_book(self):
+        text = (ROOT / "mythic_agent" / "ui" / "screens"
+                / "chat_screen.py").read_text(encoding="utf-8")
+        assert "/mouse[/green] - show mouse manners (M-188)" in (
+            text)
+        assert ('"/mouse": "Usage: /mouse | '
+                '/mouse gesture <gesture-id>') in text
+
+
+class TestMouseDerivedRoads:
+    def test_panel_and_verdict_are_derived_at_call_time(self, agent):
+        panel = agent.mouse_manners_panel()
+        assert panel.total_shown == 6
+        assert panel.panel_id == "panel-view-all"
+        verdict = agent.mouse_manners_verdict()
+        assert verdict.verdict == "strained"
+        found = agent.mouse_manners_verdict("view-wired")
+        assert found.verdict == "open"
+        assert found.passing_shown == 5
+        agent.register_mouse_gesture(_gesture())
+        with pytest.raises(ValueError):
+            agent.mouse_manners_panel()
+        with pytest.raises(ValueError):
+            agent.mouse_manners_verdict()
+
+    def test_view_road_over_an_unshown_filter_is_shut(self, agent):
+        agent.register_mouse_gesture(_gesture(road=""))
+        result = agent.view_mouse("wired")
+        assert result["verdict_record"]["verdict"] == "shut"
+        assert result["verdict_record"]["total_shown"] == 0
+
+    def test_print_road_derives_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.mouse_guide()
+        assert [e["road"] for e in result["guide"]["entries"]] == [
+            "click", "left click", "drag", "wheel", "left click"]
+        assert result["guide"]["gaps"] == ["gesture-touch-pan"]
+        assert "drag - Drag to select text (gesture-drag-select)" in (
+            result["guide_text"])
+        act = agent.get_mouse_gesture("gesture-touch-pan")
+        assert gesture_gaps(act) == ("no mouse road",)
+        assert gesture_passes(act) is False
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("mouse")] == []
+        agent.close()

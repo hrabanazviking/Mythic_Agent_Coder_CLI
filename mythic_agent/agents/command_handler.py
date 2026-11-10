@@ -403,6 +403,8 @@ class CommandHandler:
                 self._handle_helpask(args)
             elif cmd == "/keymap":
                 self._handle_keymap(args)
+            elif cmd == "/mouse":
+                self._handle_mouse(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -8069,6 +8071,96 @@ class CommandHandler:
                 text = format_verdict(primary.keyboard_sovereignty_book())
             else:
                 text = primary.keyboard_sovereignty_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_mouse(self, args: str):
+        """M-188: /mouse - mouse manners.
+
+        ``/mouse`` shows the mouse book held this
+        session - mouse manners, held as data:
+        one record per gesture with the road that reaches
+        it and the file links held as
+        data beside them (the shipped example book -
+        six gestures at the M-187 slice boundary, with
+        its two views, two link records and its one
+        pinned panel - when none is held yet);
+        ``/mouse gesture <gesture-id>`` shows one gesture whole;
+        ``/mouse road <road>`` shows the gesture one road
+        reaches, or names the road unheld;
+        ``/mouse area <area>`` shows the book's gestures
+        of one area; ``/mouse view <view-id>`` shows
+        one held view record; ``/mouse link
+        <link-id>`` shows one held link record;
+        ``/mouse guide`` shows the guide derived
+        from the whole book's held gestures; ``/mouse
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/mouse
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: gestures and views are
+        held only when they are given through the
+        agent's register roads, stood on the book on
+        the viewing road, or held on the book roads,
+        and every gesture held for the session is
+        journaled as a mouse_gesture session event,
+        every view as a mouse_view session event,
+        every derived panel as a mouse_panel
+        session event and every derived verdict as a
+        mouse_verdict session event. This surface
+        moves no pointer, renders no live UI and
+        opens no file - holding and telling
+        are words only.
+        """
+        from ..core.mouse_manners import (
+            format_gesture,
+            format_book,
+            format_road,
+            format_guide,
+            format_link,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_mouse_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_mouse_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "gesture":
+                text = format_gesture(primary.get_mouse_gesture(target))
+            elif action == "road":
+                text = format_road(
+                    primary.mouse_manners_book(), target)
+            elif action == "area":
+                text = format_book(
+                    primary.mouse_manners_book(), target)
+            elif action == "view":
+                text = format_view(primary.get_mouse_view(target))
+            elif action == "link":
+                text = format_link(
+                    primary.mouse_manners_book().link_for(target))
+            elif action == "guide":
+                text = format_guide(primary.mouse_manners_book())
+            elif action == "panel":
+                text = format_panel(primary.mouse_manners_book())
+            elif action == "verdict":
+                text = format_verdict(primary.mouse_manners_book())
+            else:
+                text = primary.mouse_manners_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
