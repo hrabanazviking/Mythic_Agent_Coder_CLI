@@ -1135,7 +1135,7 @@ slices:
   title: Error kindness
   summary: every error states what happened, what it means, and the most likely fix in plain words — technical
     trace one key away; no raw stack ever lands on a user unaccompanied.
-  status: queued
+  status: done
 - id: M-184
   part: 8
   title: Onboarding in five minutes
