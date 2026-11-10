@@ -1141,7 +1141,7 @@ slices:
   title: Onboarding in five minutes
   summary: first run detects providers, offers Kista key-keeping, walks one tiny real task — success before
     configuration, always.
-  status: queued
+  status: done
 - id: M-185
   part: 8
   title: The tutorial grown
