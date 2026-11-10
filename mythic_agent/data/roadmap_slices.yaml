@@ -1147,7 +1147,7 @@ slices:
   title: The tutorial grown
   summary: interactive lessons per feature family, runnable inside a scratch repo; `mythic tutorial` becomes
     the manual you play.
-  status: queued
+  status: done
 - id: M-186
   part: 8
   title: Help that answers

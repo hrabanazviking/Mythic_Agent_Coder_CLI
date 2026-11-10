@@ -648,3 +648,14 @@ mythic_agent/agents/llm.py:39349:register_onboarding_book:method
 mythic_agent/agents/llm.py:39397:record_onboarding_book:method
 mythic_agent/agents/llm.py:39477:report_onboarding:method
 mythic_agent/core/onboarding_five.py:862:_held_detections:function
+mythic_agent/agents/llm.py:39786:tutorial_grown_with_readiness:method
+mythic_agent/agents/llm.py:39792:tutorial_grown_passing:method
+mythic_agent/agents/llm.py:39798:tutorial_grown_panel:method
+mythic_agent/agents/llm.py:39816:tutorial_grown_verdict:method
+mythic_agent/agents/llm.py:39835:tutorial_grown_play:method
+mythic_agent/agents/llm.py:39850:register_tutorial_lesson:method
+mythic_agent/agents/llm.py:39884:register_tutorial_view:method
+mythic_agent/agents/llm.py:39912:view_tutorial:method
+mythic_agent/agents/llm.py:39981:register_tutorial_book:method
+mythic_agent/agents/llm.py:40029:record_tutorial_book:method
+mythic_agent/agents/llm.py:40110:report_tutorial_grown:method
