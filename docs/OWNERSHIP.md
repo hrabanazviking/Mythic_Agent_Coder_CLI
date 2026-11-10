@@ -2,18 +2,18 @@
 
 > **GENERATED FILE — do not edit by hand.**
 > Regenerate with: `python scripts/gen_ownership.py`
-> Generated at: 2026-11-10T14:16:59Z
+> Generated at: 2026-11-10T15:30:09Z
 
 Ownership is derived from real git history: for each module the owner is the top author by commit count touching that file (ties resolve to the most recently active author). Share is the owner's commit count divided by the total commit count on the file.
 
 ## Per-author rollup
 
-Total modules: **317**
+Total modules: **318**
 
 | Author | Modules owned | File commits | Share of modules |
 | --- | ---: | ---: | ---: |
-| Yrsa Freydisdottir | 161 | 279 | 50.8% |
-| Volmarr Wyrd | 156 | 831 | 49.2% |
+| Yrsa Freydisdottir | 161 | 279 | 50.6% |
+| Volmarr Wyrd | 157 | 832 | 49.4% |
 
 ## Per-module ownership
 
@@ -171,6 +171,7 @@ Total modules: **317**
 | `mythic_agent/core/part5_gate.py` | Volmarr Wyrd | 100.0% | 2 / 2 | 2026-11-07 |
 | `mythic_agent/core/part6_gate.py` | Volmarr Wyrd | 100.0% | 1 / 1 | 2026-11-08 |
 | `mythic_agent/core/part7_gate.py` | Volmarr Wyrd | 100.0% | 1 / 1 | 2026-11-09 |
+| `mythic_agent/core/part8_gate.py` | Volmarr Wyrd | 100.0% | 1 / 1 | 2026-11-10 |
 | `mythic_agent/core/patch_exchange.py` | Volmarr Wyrd | 100.0% | 1 / 1 | 2026-11-06 |
 | `mythic_agent/core/path_jail.py` | Volmarr Wyrd | 100.0% | 1 / 1 | 2026-11-06 |
 | `mythic_agent/core/permission_profiles.py` | Volmarr Wyrd | 100.0% | 2 / 2 | 2026-11-06 |
@@ -1561,6 +1562,14 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
       "last_touch": "2026-11-09"
     },
     {
+      "module": "mythic_agent/core/part8_gate.py",
+      "owner": "Volmarr Wyrd",
+      "owner_commits": 1,
+      "total_commits": 1,
+      "share": 1.0,
+      "last_touch": "2026-11-10"
+    },
+    {
       "module": "mythic_agent/core/patch_exchange.py",
       "owner": "Volmarr Wyrd",
       "owner_commits": 1,
@@ -2889,10 +2898,10 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
     },
     {
       "author": "Volmarr Wyrd",
-      "modules_owned": 156,
-      "file_commits": 831
+      "modules_owned": 157,
+      "file_commits": 832
     }
   ],
-  "total_modules": 317
+  "total_modules": 318
 }
 ```
