@@ -409,6 +409,8 @@ class CommandHandler:
                 self._handle_gallery(args)
             elif cmd == "/costs":
                 self._handle_costs(args)
+            elif cmd == "/theatre":
+                self._handle_theatre(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -8353,6 +8355,97 @@ class CommandHandler:
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
 
+
+
+    def _handle_theatre(self, args: str):
+        """M-191: /theatre - session theatre.
+
+        ``/theatre`` shows the theatre book held this
+        session - session theatre, held as data:
+        one record per hunk with the target that reaches
+        it and the file comments held as
+        data beside them (the shipped example book -
+        six hunks at the M-190 slice boundary, with
+        its two views, two stance records and its one
+        pinned panel - when none is held yet);
+        ``/theatre hunk <hunk-id>`` shows one hunk whole;
+        ``/theatre target <target>`` shows the hunk one target
+        reaches, or names the target unheld;
+        ``/theatre kind <kind>`` shows the book's hunks
+        of one kind; ``/theatre view <view-id>`` shows
+        one held view record; ``/theatre stance
+        <stance-id>`` shows one held stance record;
+        ``/theatre index`` shows the index derived
+        from the whole book's held hunks; ``/theatre
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/theatre
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: hunks and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every hunk held for the session is
+        journaled as a theatre_hunk session event,
+        every view as a theatre_view session event,
+        every derived panel as a theatre_panel
+        session event and every derived verdict as a
+        theatre_verdict session event. This surface
+        moves no pointer, renders no live UI and
+        opens no file - holding and telling
+        are words only.
+        """
+        from ..core.diff_theatre_final import (
+            format_hunk,
+            format_book,
+            format_target,
+            format_index,
+            format_comment,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_theatre_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_theatre_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "hunk":
+                text = format_hunk(primary.get_theatre_hunk(target))
+            elif stance == "target":
+                text = format_target(
+                    primary.diff_theatre_final_book(), target)
+            elif stance == "kind":
+                text = format_book(
+                    primary.diff_theatre_final_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_theatre_view(target))
+            elif stance == "comment":
+                text = format_comment(
+                    primary.diff_theatre_final_book().comment_for(target))
+            elif stance == "index":
+                text = format_index(primary.diff_theatre_final_book())
+            elif stance == "panel":
+                text = format_panel(primary.diff_theatre_final_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.diff_theatre_final_book())
+            else:
+                text = primary.diff_theatre_final_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
 
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.
