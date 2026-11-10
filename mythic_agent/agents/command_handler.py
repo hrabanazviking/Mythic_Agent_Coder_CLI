@@ -435,6 +435,8 @@ class CommandHandler:
                 self._handle_juggernaut(args)
             elif cmd == "/acceptance":
                 self._handle_acceptance(args)
+            elif cmd == "/banking":
+                self._handle_banking(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -9671,6 +9673,102 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_banking(self, args: str):
+        """M-206: /banking - the banking engine as data.
+
+        ``/banking`` shows the banking book held this
+        session - banking slices as data: one record per
+        banking, held whole with the active slice it
+        was bankinged from, its one verifiable check
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five bankings at the M-203 slice
+        boundary, with its three slice references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/banking banking <banking-id>``
+        shows one banking whole; ``/banking check
+        <check>`` shows the banking one check line
+        reaches, or names the check unheld;
+        ``/banking slice <slice-id>`` shows the book's
+        bankings of one slice; ``/banking view <view-id>``
+        shows one held view record; ``/banking note
+        <note-id>`` shows one held stance record;
+        ``/banking index`` shows the index derived
+        from the whole book's held bankings; ``/banking
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/banking
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: bankings and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every banking held for the session is
+        journaled as a banking_banking session event,
+        every view as a banking_view session event,
+        every derived panel as a banking_panel
+        session event and every derived verdict as a
+        banking_verdict session event. This heading
+        builds no slice, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.banking_discipline import (
+            format_banking,
+            format_book,
+            format_check,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_banking_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_banking_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "banking":
+                text = format_banking(
+                    primary.get_banking_banking(target),
+                    primary.banking_book())
+            elif stance == "check":
+                text = format_check(
+                    primary.banking_book(), target)
+            elif stance == "slice":
+                text = format_book(
+                    primary.banking_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_banking_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.banking_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.banking_book())
+            elif stance == "panel":
+                text = format_panel(primary.banking_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.banking_book())
+            else:
+                text = primary.banking_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
 
     def _handle_conflicts(self, args: str):
         """M-081: /conflicts — the conflict workbench.
