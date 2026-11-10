@@ -751,3 +751,14 @@ mythic_agent/agents/llm.py:44866:view_ceremony:method
 mythic_agent/agents/llm.py:44933:register_ceremony_book:method
 mythic_agent/agents/llm.py:44978:record_ceremony_book:method
 mythic_agent/agents/llm.py:45051:report_splash_ceremony:method
+mythic_agent/agents/llm.py:45336:get_grace_note:method
+mythic_agent/agents/llm.py:45351:grace_folds_for_kind:method
+mythic_agent/agents/llm.py:45357:grace_folds_passing:method
+mythic_agent/agents/llm.py:45363:small_terminal_grace_panel:method
+mythic_agent/agents/llm.py:45381:small_terminal_grace_verdict:method
+mythic_agent/agents/llm.py:45423:register_grace_fold:method
+mythic_agent/agents/llm.py:45454:register_grace_view:method
+mythic_agent/agents/llm.py:45480:view_grace:method
+mythic_agent/agents/llm.py:45547:register_grace_book:method
+mythic_agent/agents/llm.py:45592:record_grace_book:method
+mythic_agent/agents/llm.py:45665:report_small_terminal_grace:method
