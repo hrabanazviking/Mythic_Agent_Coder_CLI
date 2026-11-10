@@ -1,0 +1,215 @@
+schema: mythic.multi_pane/1
+slice: M-192
+part: 8
+part_title: The Beautiful Face
+canon_note: 'Multi-pane working - chat, board, files, and terminal panes in the layouts the field loves, plus the
+  Mythic layout (board left, work centre, crew right). A pane is held whole - under its title, its kind in the closed
+  vocabulary (chat, board, files, terminal, work, crew), its width and its height held honestly (an unknown width
+  or height stands empty, never invented), the target it opens on, named as data, and its detail. A pane naming
+  no target is held honestly with an empty target: it stands unanchored, named in its gaps, and no target is invented
+  for it. The pane index is DERIVED at call time from the held panes alone - never a second stored copy that could
+  drift - and a stored index or anchoredness verdict on any record refuses by name. The notes are held as data:
+  a note record naming its pane, its stance (note, concern, praise or question) and what it feeds back toward; one
+  record stands per pane stance, and holding a note posts none of it. A record claiming a pane was actually opened,
+  focused or resized refuses by name. This file is ONE EXAMPLE BOOK, in the shape a real pane file takes - the M-191
+  slice boundary - six panes and two layouts, two note records, with its one pinned panel of the every-pane layout,
+  whose shown panes stand five anchored of six, so the book verdict under it stands strained; under the anchored
+  layout, whose five shown panes all stand anchored, the verdict stands open. A real book is a new file in this
+  same shape - it is never this file edited in place. This layer opens no pane, focuses nothing, resizes nothing
+  and opens no network: it holds the working screen as data and tells it.'
+multi_pane:
+  title: Multi-pane working at the M-191 slice boundary
+panes:
+- pane_id: pane-work-session
+  seq: 1
+  title: Work
+  kind: work
+  width: 2 shares
+  height: full height
+  target: mythic_agent/core/session.py:128
+  detail: The work pane stands at the centre of the Mythic layout, opening on the session code - its card names
+    the target it opens on as data; holding the card opens no pane.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: multi-pane working
+  origin_session: session-m192
+- pane_id: pane-files-costs
+  seq: 2
+  title: Files
+  kind: files
+  width: ''
+  height: full height
+  target: mythic_agent/core/costs_face.py:12
+  detail: The files pane stands beside the work pane, opening on the costs face code. How wide it stands was never
+    recorded anywhere honest, so the pane holds its width empty - unknown stays unknown, and no figure is invented
+    for it.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: multi-pane working
+  origin_session: session-m192
+- pane_id: pane-board-gate
+  seq: 3
+  title: Board
+  kind: board
+  width: 1 share
+  height: ''
+  target: tests/test_part7_gate.py:41
+  detail: The board pane stands at the left of the Mythic layout, opening on the roadmap gate test. How tall it
+    stands was never recorded anywhere honest, so the pane holds its height empty - unknown stays unknown, and no
+    figure is invented for it.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: multi-pane working
+  origin_session: session-m192
+- pane_id: pane-chat-guide
+  seq: 4
+  title: Chat
+  kind: chat
+  width: 1 share
+  height: half height
+  target: docs/gallery_guide.md:1
+  detail: The chat pane holds the conversation beside the others in the field layout - a small pane with a small
+    height, held whole on its card, and the praise note on it stands held beside it as data.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: multi-pane working
+  origin_session: session-m192
+- pane_id: pane-terminal-sweep
+  seq: 5
+  title: Terminal
+  kind: terminal
+  width: 2 shares
+  height: half height
+  target: ''
+  detail: The terminal pane names no target in this book - nothing has been opened in it yet - so the pane stands
+    unanchored honestly, named in the gaps until a target is held for it, and no target is invented here.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: multi-pane working
+  origin_session: session-m192
+- pane_id: pane-crew-roadmap
+  seq: 6
+  title: Crew
+  kind: crew
+  width: 1 share
+  height: full height
+  target: mythic_agent/data/roadmap_slices.yaml:1186
+  detail: The crew pane stands at the right of the Mythic layout, opening on the roadmap data at the M-192 line
+    - its card names the target it opens on as data beside the others.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: multi-pane working
+  origin_session: session-m192
+layouts:
+- layout_id: layout-field
+  seq: 1
+  layout_filter: all
+  detail: 'The field''s favourite split - chat, board, files and terminal side by side: see every pane at once.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: multi-pane working
+  origin_session: session-m192
+- layout_id: layout-anchored
+  seq: 2
+  layout_filter: anchored
+  detail: 'The Mythic layout - board left, work centre, crew right: see only the anchored panes, each standing in
+    its place.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: multi-pane working
+  origin_session: session-m192
+notes:
+- note_id: note-note-work
+  seq: 1
+  pane_id: pane-work-session
+  stance: note
+  target: the user
+  title: Note the work pane
+  detail: The note on the work pane stands held as data - its pane, its stance and what it feeds back toward. Holding
+    the note posts nothing; the feedback is told, never sent, by this layer.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: multi-pane working
+  origin_session: session-m192
+- note_id: note-praise-chat
+  seq: 2
+  pane_id: pane-chat-guide
+  stance: praise
+  target: the user
+  title: Praise the chat pane
+  detail: The praise for the chat pane stands held as data beside the first. One note record stands per pane stance
+    in this book, so a second record for one pane under one stance refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: multi-pane working
+  origin_session: session-m192
+panels:
+- panel_id: panel-m191-boundary
+  layout_id: layout-field
+  layout_filter: all
+  rows:
+  - item_id: pane-work-session
+    standing: anchored
+    label: Work
+    segment: 'pane-work-session: Work - kind: ''work'' - width: ''2 shares'' - height: ''full height'' - target:
+      ''mythic_agent/core/session.py:128'' - detail: ''The work pane stands at the centre of the Mythic layout,
+      opening on the session code - its card names the target it opens on as data; holding the card opens no pane.''
+      - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: pane-files-costs
+    standing: anchored
+    label: Files
+    segment: 'pane-files-costs: Files - kind: ''files'' - width: ''unknown'' - height: ''full height'' - target:
+      ''mythic_agent/core/costs_face.py:12'' - detail: ''The files pane stands beside the work pane, opening on
+      the costs face code. How wide it stands was never recorded anywhere honest, so the pane holds its width empty
+      - unknown stays unknown, and no figure is invented for it.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: pane-board-gate
+    standing: anchored
+    label: Board
+    segment: 'pane-board-gate: Board - kind: ''board'' - width: ''1 share'' - height: ''unknown'' - target: ''tests/test_part7_gate.py:41''
+      - detail: ''The board pane stands at the left of the Mythic layout, opening on the roadmap gate test. How
+      tall it stands was never recorded anywhere honest, so the pane holds its height empty - unknown stays unknown,
+      and no figure is invented for it.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: pane-chat-guide
+    standing: anchored
+    label: Chat
+    segment: 'pane-chat-guide: Chat - kind: ''chat'' - width: ''1 share'' - height: ''half height'' - target: ''docs/gallery_guide.md:1''
+      - detail: ''The chat pane holds the conversation beside the others in the field layout - a small pane with
+      a small height, held whole on its card, and the praise note on it stands held beside it as data.'' - gaps:
+      none'
+    recorded_on: '2026-11-10'
+  - item_id: pane-terminal-sweep
+    standing: unanchored
+    label: Terminal
+    segment: 'pane-terminal-sweep: Terminal - kind: ''terminal'' - width: ''2 shares'' - height: ''half height''
+      - target: ''none'' - detail: ''The terminal pane names no target in this book - nothing has been opened in
+      it yet - so the pane stands unanchored honestly, named in the gaps until a target is held for it, and no target
+      is invented here.'' - gaps: no pane target'
+    recorded_on: '2026-11-10'
+  - item_id: pane-crew-roadmap
+    standing: anchored
+    label: Crew
+    segment: 'pane-crew-roadmap: Crew - kind: ''crew'' - width: ''1 share'' - height: ''full height'' - target:
+      ''mythic_agent/data/roadmap_slices.yaml:1186'' - detail: ''The crew pane stands at the right of the Mythic
+      layout, opening on the roadmap data at the M-192 line - its card names the target it opens on as data beside
+      the others.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  total_items: 6
+  total_shown: 6
+  target_counts:
+  - standing: anchored
+    items: 5
+  - standing: unanchored
+    items: 1
+  as_of: '2026-11-10'
+  account:
+  - 'The pane book holds 6 panes as of 2026-11-10: the layout ''all'' shows 6 of them: anchored 5, unanchored 1;
+    5 of the shown panes stand anchored.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one layout diff cleanly, segment
+    by segment.
+  - Every segment is derived from its pane's own fields - the file, the kind, the width and height honestly held
+    and the pane target that honestly reaches it - and no judgement is stored on any pane.
+  - 'Targetedness is judged from the held records alone: a pane naming no pane target stands unanchored, and the
+    pane index is derived from the held panes, never stored where it could drift.'
