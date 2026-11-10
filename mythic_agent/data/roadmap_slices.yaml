@@ -1182,7 +1182,7 @@ slices:
   title: Diff theatre final form (with M-091)
   summary: the review screen a user would *choose* to read code in — folding, intra-line colour, jump-to-file,
     comment-on-hunk feeding back to the coder.
-  status: queued
+  status: done
 - id: M-192
   part: 8
   title: Multi-pane working

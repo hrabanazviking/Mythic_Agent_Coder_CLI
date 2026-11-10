@@ -718,3 +718,14 @@ mythic_agent/agents/llm.py:43020:view_costs:method
 mythic_agent/agents/llm.py:43087:register_costs_book:method
 mythic_agent/agents/llm.py:43132:record_costs_book:method
 mythic_agent/agents/llm.py:43205:report_costs_face:method
+mythic_agent/agents/llm.py:43491:get_theatre_comment:method
+mythic_agent/agents/llm.py:43506:theatre_hunks_for_kind:method
+mythic_agent/agents/llm.py:43512:theatre_hunks_passing:method
+mythic_agent/agents/llm.py:43518:diff_theatre_final_panel:method
+mythic_agent/agents/llm.py:43536:diff_theatre_final_verdict:method
+mythic_agent/agents/llm.py:43578:register_theatre_hunk:method
+mythic_agent/agents/llm.py:43609:register_theatre_view:method
+mythic_agent/agents/llm.py:43635:view_theatre:method
+mythic_agent/agents/llm.py:43702:register_theatre_book:method
+mythic_agent/agents/llm.py:43747:record_theatre_book:method
+mythic_agent/agents/llm.py:43820:report_diff_theatre_final:method
