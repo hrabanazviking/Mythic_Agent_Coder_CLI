@@ -1234,7 +1234,7 @@ slices:
   title: Part VIII gate
   summary: the Stranger Test — a new user, docs only, completes a real task in the TUI inside thirty minutes;
     every stumble is a fix or a doc correction before the gate passes.
-  status: queued
+  status: done
 - id: M-201
   part: 9
   title: Campaigns as data
