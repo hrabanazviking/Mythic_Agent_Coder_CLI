@@ -1,0 +1,182 @@
+schema: mythic.campaigns/1
+slice: M-201
+campaigns:
+  title: Campaigns as data at the M-200 slice boundary
+slices:
+- slice_id: slice-part9-open
+  seq: 1
+  title: Part IX opens
+  part: 9
+  state: banked
+  evidence: the part VIII gate, banked at M-200
+  checks: the part gate stands banked
+  detail: The method engine part opens on the banked gate of part VIII.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: campaigns as data
+  origin_session: session-m201
+- slice_id: slice-campaigns-data
+  seq: 2
+  title: Campaigns as data
+  part: 9
+  state: building
+  evidence: ''
+  checks: the campaign file loads, validates and displays
+  detail: A campaign file the app reads, displays, executes and keeps current.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: campaigns as data
+  origin_session: session-m201
+- slice_id: slice-intent-capture
+  seq: 3
+  title: Intent capture
+  part: 9
+  state: queued
+  evidence: ''
+  checks: the intent stands in the user's plain words
+  detail: The user's intent held in their own plain words.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: campaigns as data
+  origin_session: session-m201
+- slice_id: slice-slicing-engine
+  seq: 4
+  title: The slicing engine
+  part: 9
+  state: queued
+  evidence: ''
+  checks: each slice stands one verifiable outcome
+  detail: Work cut into slices, one verifiable outcome each.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: campaigns as data
+  origin_session: session-m201
+- slice_id: slice-juggernaut-loop
+  seq: 5
+  title: The juggernaut loop
+  part: 9
+  state: queued
+  evidence: ''
+  checks: ''
+  detail: The inspect, build, test and repair loop, not yet given its checks.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: campaigns as data
+  origin_session: session-m201
+- slice_id: slice-acceptance-gates
+  seq: 6
+  title: Acceptance gates
+  part: 9
+  state: queued
+  evidence: ''
+  checks: each slice carries its checks
+  detail: No slice banks without its acceptance checks standing.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: campaigns as data
+  origin_session: session-m201
+views:
+- view_id: view-campaign
+  seq: 1
+  view_filter: all
+  detail: Every held slice, ready or not.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: campaigns as data
+  origin_session: session-m201
+- view_id: view-ready
+  seq: 2
+  view_filter: ready
+  detail: Only the slices standing ready.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: campaigns as data
+  origin_session: session-m201
+notes:
+- note_id: note-note-open
+  seq: 1
+  slice_id: slice-part9-open
+  stance: note
+  target: the part gate
+  title: The gate stands
+  detail: Part IX opens on a banked gate, told honestly.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: campaigns as data
+  origin_session: session-m201
+- note_id: note-praise-data
+  seq: 2
+  slice_id: slice-campaigns-data
+  stance: praise
+  target: the campaign file
+  title: Data before doing
+  detail: The campaign stands as data first, so every later step can be checked.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: campaigns as data
+  origin_session: session-m201
+panels:
+- panel_id: panel-m200-boundary
+  view_id: view-campaign
+  view_filter: all
+  rows:
+  - item_id: slice-part9-open
+    standing: ready
+    label: Part IX opens
+    segment: 'slice-part9-open: Part IX opens - part: ''9'' - state: ''banked'' - evidence: ''the part
+      VIII gate, banked at M-200'' - checks: ''the part gate stands banked'' - detail: ''The method engine
+      part opens on the banked gate of part VIII.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: slice-campaigns-data
+    standing: ready
+    label: Campaigns as data
+    segment: 'slice-campaigns-data: Campaigns as data - part: ''9'' - state: ''building'' - evidence:
+      ''unknown'' - checks: ''the campaign file loads, validates and displays'' - detail: ''A campaign
+      file the app reads, displays, executes and keeps current.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: slice-intent-capture
+    standing: ready
+    label: Intent capture
+    segment: 'slice-intent-capture: Intent capture - part: ''9'' - state: ''queued'' - evidence: ''unknown''
+      - checks: ''the intent stands in the user''s plain words'' - detail: ''The user''s intent held in
+      their own plain words.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: slice-slicing-engine
+    standing: ready
+    label: The slicing engine
+    segment: 'slice-slicing-engine: The slicing engine - part: ''9'' - state: ''queued'' - evidence: ''unknown''
+      - checks: ''each slice stands one verifiable outcome'' - detail: ''Work cut into slices, one verifiable
+      outcome each.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: slice-juggernaut-loop
+    standing: unready
+    label: The juggernaut loop
+    segment: 'slice-juggernaut-loop: The juggernaut loop - part: ''9'' - state: ''queued'' - evidence:
+      ''unknown'' - checks: ''none'' - detail: ''The inspect, build, test and repair loop, not yet given
+      its checks.'' - gaps: no acceptance checks'
+    recorded_on: '2026-11-10'
+  - item_id: slice-acceptance-gates
+    standing: ready
+    label: Acceptance gates
+    segment: 'slice-acceptance-gates: Acceptance gates - part: ''9'' - state: ''queued'' - evidence: ''unknown''
+      - checks: ''each slice carries its checks'' - detail: ''No slice banks without its acceptance checks
+      standing.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  total_items: 6
+  total_shown: 6
+  target_counts:
+  - standing: ready
+    items: 5
+  - standing: unready
+    items: 1
+  as_of: '2026-11-10'
+  account:
+  - 'The campaign book holds 6 slices as of 2026-11-10: the view ''all'' shows 6 of them: ready 5, unready
+    1; 5 of the shown slices stand ready.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its slice's own fields - the title, the part, the state and evidence
+    honestly held and the checks it honestly carries - and no judgement is stored on any slice.
+  - 'State is judged from the held records alone: a slice naming no acceptance checks stands unready,
+    a slice claiming banked with no evidence stands named in its gaps, and the campaign index is derived
+    from the held slices, never stored where it could drift.'
