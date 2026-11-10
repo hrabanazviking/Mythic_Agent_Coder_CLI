@@ -40206,6 +40206,626 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _help_answers_registry(self):
+        """The held help registry (M-186).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer doc and view records
+        one by one, beside the session tutorial
+        registry (M-185) and never in it: the book is
+        one help book to look at. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named ``_help_answers_store``,
+        never the method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_help_answers_store", None)
+        if registry is None:
+            from ..core.help_answers import HelpRegistry
+            registry = HelpRegistry()
+            self._help_answers_store = registry
+        return registry
+
+    def help_answers_book(self):
+        """The session's help book, as data (M-186).
+
+        The held registry's book when the session
+        holds any item - the things the session can
+        actually be viewed for (items held one by one
+        stand under a session book composed here in
+        the agent layer, so a later whole book
+        recorded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book recorded whole through
+        :meth:`record_help_book`, or the shipped
+        example book until one is recorded. Reading
+        registers and publishes nothing.
+        """
+        from ..core.help_answers import HelpBook, load_help_answers
+        registry = self._help_answers_registry()
+        if registry.list_items():
+            try:
+                book = registry.book()
+            except ValueError:
+                return HelpBook(
+                    title="Help That Answers",
+                    docs=registry.list_docs(),
+                    views=registry.list_views(), helps=(), panels=())
+            held = getattr(self, "_help_answers_held", None)
+            if held is not None and held.title == book.title \
+                    and held.doc_ids() == book.doc_ids() \
+                    and [v.view_id for v in held.views] == [
+                        v.view_id for v in book.views]:
+                return held
+            return book
+        book = getattr(self, "_help_answers_held", None)
+        if book is None:
+            return load_help_answers()
+        return book
+
+    def _help_answers_default_view(self, book: Any):
+        """The view a book derives under by default (M-186).
+
+        The view its own stored panel stands under,
+        else its first held view, else None - a book
+        holding docs but no view yet derives no panel
+        and no verdict, and says so plainly.
+        """
+        for panel in book.panels:
+            if panel.view_id is not None:
+                try:
+                    return book.view_for(panel.view_id)
+                except KeyError:
+                    continue
+        if book.views:
+            return book.views[0]
+        return None
+
+    def _help_answers_screen(self) -> str:
+        """The /helpask screen for the session's state (M-186)."""
+        from ..core import help_answers as help_module
+        registry = self._help_answers_registry()
+        if not registry.list_items():
+            return help_module.format_help_answers_screen()
+        book = self.help_answers_book()
+        if not book.views:
+            return help_module.format_book(book)
+        return help_module.format_help_answers_screen(book)
+
+    def help_answers_status(self) -> dict[str, Any]:
+        """The help account, in plain data (M-186).
+
+        The doc and view records held this session as
+        plain records, the held book's record (none
+        until an item stands held), the session book's
+        docs, views and screen helps as plain records
+        (the shipped example book - six docs at the
+        M-185 slice boundary, with its two views, its
+        four screen helps and its one pinned panel -
+        until items are held), its whole-book record,
+        the panel derived from the whole book under
+        its default view and every panel the book
+        holds as plain records, the verdict derived
+        for the whole book, the coverage derived from
+        the book's held screen helps, the answer
+        derived for the roadmap's example question,
+        the local-docs rule as data, the last doc told
+        in plain words, the panel and the verdict told
+        in plain words, the one screen - rendered from
+        the held book, or from the shipped example
+        book when nothing is held yet - and the plain
+        explanation. A book holding docs but no view
+        yet derives no panel and no verdict. Reading
+        registers and publishes nothing, searches
+        nothing live, calls no model and opens no
+        network: this layer tells only.
+        """
+        from ..core import help_answers as help_module
+        registry = self._help_answers_registry()
+        held_docs = registry.list_docs()
+        held_views = registry.list_views()
+        held_items = registry.list_items()
+        book = self.help_answers_book()
+        default = self._help_answers_default_view(book)
+        latest = book.docs[-1] if book.docs else None
+        latest_words = (help_module.plain_words(latest)
+                        if latest is not None else "")
+        return {
+            "docs": [item.to_record() for item in held_docs],
+            "views": [item.to_record() for item in held_views],
+            "book": (book.to_record() if held_items else None),
+            "help": {
+                "title": book.title,
+                "docs": [item.to_record() for item in book.docs],
+                "views": [item.to_record() for item in book.views],
+                "helps": [item.to_record() for item in book.helps],
+            },
+            "book_record": help_module.book_record(book),
+            "panel": (help_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (help_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "coverage": help_module.coverage_record(book),
+            "example_answer": help_module.answer_record(
+                book, help_module.EXAMPLE_QUESTION),
+            "rule": help_module.LOCAL_DOCS_RULE,
+            "plain_words": latest_words,
+            "panel_plain_words": (
+                help_module.panel_plain_words(book, default)
+                if default is not None else ""),
+            "verdict_plain_words": (
+                help_module.verdict_plain_words(book, default)
+                if default is not None else ""),
+            "screen": self._help_answers_screen(),
+            "explanation": help_module.PLAIN_EXPLANATION,
+        }
+
+    def get_help_doc(self, doc_id: Any):
+        """The one doc an id names (M-186).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). A held item answers
+        for its own book alone: an id the held book
+        holds no doc for raises KeyError, with no
+        silent fall back to the example, exactly as
+        the pure layer answers. Reading registers
+        and publishes nothing.
+        """
+        registry = self._help_answers_registry()
+        if registry.list_items():
+            return registry.get_doc(doc_id)
+        return self.help_answers_book().doc_for(doc_id)
+
+    def get_help_view(self, view_id: Any):
+        """The one view record an id names (M-186).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). Reading registers
+        and publishes nothing.
+        """
+        registry = self._help_answers_registry()
+        if registry.list_items():
+            return registry.get_view(view_id)
+        return self.help_answers_book().view_for(view_id)
+
+    def get_screen_help(self, screen: Any):
+        """The held help entry for one screen (M-186).
+
+        The session book answers - the shipped example
+        book until a book is recorded whole for the
+        session. Screen helps travel with whole books:
+        a session holding docs one by one holds no
+        screen helps, and a screen it holds no help
+        for raises KeyError - it stands uncovered,
+        honestly, and no other screen's help is
+        borrowed for it. Reading registers and
+        publishes nothing.
+        """
+        from ..core.help_answers import help_for_screen as _for_screen
+        entry = _for_screen(self.help_answers_book(), screen)
+        if entry is None:
+            raise KeyError(
+                f"no held help stands for the {screen} screen "
+                f"in this book")
+        return entry
+
+    def help_answers_with_standing(self, standing: Any):
+        """The session book's docs of one standing (M-186)."""
+        from ..core.help_answers import (
+            docs_for_standing as _for_standing)
+        return _for_standing(self.help_answers_book(), standing)
+
+    def help_answers_passing(self):
+        """The session book's docs standing current (M-186)."""
+        from ..core.help_answers import passing_docs as _passing
+        return _passing(self.help_answers_book())
+
+    def help_answers_panel(self, view: Any = None):
+        """The panel derived for the whole book (M-186).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a book
+        holding no view at all refuses plainly rather
+        than inventing one.
+        """
+        from ..core.help_answers import derive_panel as _derive_panel
+        book = self.help_answers_book()
+        resolved = view if view is not None \
+            else self._help_answers_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive a panel under")
+        return _derive_panel(book, resolved)
+
+    def help_answers_verdict(self, view: Any = None):
+        """The verdict derived for the whole book (M-186).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a book
+        holding no view at all refuses plainly rather
+        than inventing one.
+        """
+        from ..core.help_answers import (
+            derive_verdict as _derive_verdict)
+        book = self.help_answers_book()
+        resolved = view if view is not None \
+            else self._help_answers_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive a verdict under")
+        return _derive_verdict(book, resolved)
+
+    def ask_help(self, question: Any) -> dict[str, Any]:
+        """Answer one question from the local docs (M-186).
+
+        The question box road: the answer is derived
+        at call time from the session book's held docs
+        alone - a question matching a current doc is
+        answered from that doc's own words, a question
+        matching only a stale doc stands unanswered
+        and named stale in its gaps, and a question
+        matching no held doc stands honestly
+        unanswered. Asking registers and publishes
+        nothing, searches nothing live, calls no
+        model and opens no network. Returns the
+        question as asked, its derived answer record,
+        the rendered answer, the screen and the plain
+        explanation.
+        """
+        from ..core import help_answers as help_module
+        book = self.help_answers_book()
+        answer = help_module.derive_answer(book, question)
+        return {
+            "question": answer.question,
+            "answer": answer.to_record(),
+            "answer_record": help_module.answer_record(answer),
+            "answer_text": help_module.format_answer(answer),
+            "screen": self._help_answers_screen(),
+            "explanation": help_module.PLAIN_EXPLANATION,
+        }
+
+    def register_help_doc(self, doc: Any) -> dict[str, Any]:
+        """Hold one doc for the session (M-186).
+
+        The doc is held by the pure registry under
+        its doc id - a doc id or a sequence already
+        standing here refuses, and a refusal holds
+        nothing new and publishes nothing. The doc
+        is judged whole by the pure layer before it
+        is held: a doc naming no held topic, or
+        claiming a live answer road, refuses by name
+        on this road too. A held doc is published as
+        its ``doc_record`` session-news record through
+        the checkpoint road. Returns the held doc,
+        its news record, the screen rendered after it
+        landed, and the plain explanation. Holding a
+        doc searches nothing live: the thing stands
+        on this layer's book, as data, provenance
+        whole.
+        """
+        from ..core import help_answers as help_module
+        registry = self._help_answers_registry()
+        held = registry.register_doc(doc)
+        news = help_module.doc_record(held)
+        self._publish_help_record(news)
+        return {
+            "doc": held.to_record(),
+            "record_news": news,
+            "screen": self._help_answers_screen(),
+            "explanation": help_module.PLAIN_EXPLANATION,
+        }
+
+    def register_help_view(self, view: Any) -> dict[str, Any]:
+        """Hold one view record for the session (M-186).
+
+        The view is held by the pure registry under
+        its id - a view id or a sequence already
+        standing here refuses, and a refusal holds
+        nothing new and publishes nothing. A held
+        view is published as its ``view_record``
+        session-news record through the checkpoint
+        road. Returns the held view, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding a view only ever
+        looks: it searches nothing and sends nothing.
+        """
+        from ..core import help_answers as help_module
+        registry = self._help_answers_registry()
+        held = registry.register_view(view)
+        news = help_module.view_record(held)
+        self._publish_help_record(news)
+        return {
+            "view": held.to_record(),
+            "record_news": news,
+            "screen": self._help_answers_screen(),
+            "explanation": help_module.PLAIN_EXPLANATION,
+        }
+
+    def view_help(
+            self, view_filter: Any, *,
+            detail: Any = None,
+            recorded_on: Any = "2026-11-09",
+            actor: Any = "the jarl",
+            source: Any = "help that answers",
+            origin_session: Any = "session-m186",
+            view_id: Any = None) -> dict[str, Any]:
+        """Stand one view on the session's held book (M-186).
+
+        This slice's own viewing road: the view record
+        is composed by the pure layer at the next
+        sequence of the session's held book, judged
+        whole, and held by the pure registry. The view
+        is published as its ``view_record`` session
+        news, the panel derived from the whole book as
+        its ``panel_record`` session news, and the
+        verdict derived for the whole book as its
+        ``verdict_record`` session news. Returns the
+        held view, its view filter, its news records,
+        the screen rendered after it landed and the
+        plain explanation. HONEST BOUNDARY: viewing
+        tells the book alone, as data - it answers no
+        question and searches nothing live.
+        """
+        from ..core import help_answers as help_module
+        registry = self._help_answers_registry()
+        held_views = registry.list_views()
+        seq = (max(v.seq for v in held_views) + 1) \
+            if held_views else 1
+        fields: dict[str, Any] = {
+            "seq": seq, "view_filter": view_filter,
+            "detail": detail if detail is not None else (
+                f"View filter {view_filter!r} in the "
+                "session's held book, composed on the "
+                "viewing road."),
+            "recorded_on": recorded_on,
+            "actor": actor, "source": source,
+            "origin_session": origin_session}
+        if view_id is not None:
+            fields["view_id"] = view_id
+        else:
+            held_ids = {v.view_id for v in held_views}
+            fresh = 1
+            while f"view-{fresh}" in held_ids:
+                fresh += 1
+            fields["view_id"] = f"view-{fresh}"
+        view = help_module.build_view(fields)
+        held = registry.register_view(view)
+        view_news = help_module.view_record(held)
+        self._publish_help_record(view_news)
+        book = self.help_answers_book()
+        panel_news = help_module.panel_record(
+            help_module.derive_panel(book, held))
+        self._publish_help_record(panel_news)
+        verdict_news = help_module.verdict_record(
+            help_module.derive_verdict(book, held))
+        self._publish_help_record(verdict_news)
+        return {
+            "view": held.to_record(),
+            "view_filter": held.view_filter,
+            "record_news": view_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._help_answers_screen(),
+            "explanation": help_module.PLAIN_EXPLANATION,
+        }
+
+    def register_help_book(self, book: Any) -> dict[str, Any]:
+        """Register a whole help book (M-186).
+
+        Every doc and view record of the book is held
+        by the pure registry, in held and recorded
+        order - the book is judged whole, and against
+        the held book, before anything is held, so a
+        refusal holds nothing new. The first book held
+        sets the registry's title; a later book under
+        a different title refuses, as does a book
+        naming a held doc id or sequence, or a view
+        id or sequence. The book's panels are
+        derivations, not holdings, and are not held;
+        its screen helps travel with whole books and
+        are held on the record road, not this one.
+        Every doc is published as its session news
+        and every view as its ``view_record`` session
+        news, in order. Returns the held book, its
+        docs and views, their news records, the count
+        of docs held, the screen, and the explanation.
+        Registering searches nothing live, calls no
+        model and opens no network.
+        """
+        from ..core import help_answers as help_module
+        validated = help_module.build_book(book)
+        registry = self._help_answers_registry()
+        registry.register_book(validated)
+        records = [
+            help_module.doc_record(item) for item in validated.docs]
+        records += [
+            help_module.view_record(view) for view in validated.views]
+        for news in records:
+            self._publish_help_record(news)
+        return {
+            "book": validated.to_record(),
+            "docs": [item.to_record() for item in validated.docs],
+            "views": [item.to_record() for item in validated.views],
+            "records_news": records,
+            "count": len(validated.docs),
+            "screen": self._help_answers_screen(),
+            "explanation": help_module.PLAIN_EXPLANATION,
+        }
+
+    def record_help_book(self, book: Any = None) -> dict[str, Any]:
+        """Record a whole help book (M-186).
+
+        With no book named, the shipped example book
+        is recorded through the pure layer - six docs
+        at the M-185 slice boundary, with its two
+        views, its four screen helps and its one
+        pinned panel. A book loaded from a file (the
+        pure layer's ``load_help_answers_file`` road)
+        may be passed instead. The book is judged
+        whole before anything is held - a screen
+        holding two help entries refuses here by
+        name, as does any record claiming a live
+        answer road. Every doc and view is held and
+        published as its session news, in order, and
+        the panel derived under the book's default
+        view as its ``panel_record`` session news;
+        the book is remembered whole as the session's
+        - its held panel and screen helps and all -
+        and the same book recorded twice refuses -
+        fingerprinted on its doc ids, view ids and
+        title. Returns the held book, its docs and
+        views, their news records, the panel news
+        record, the coverage news record, the count,
+        the screen, and the explanation. Recording
+        searches nothing live, calls no model and
+        opens no network.
+        """
+        from ..core import help_answers as help_module
+        book = book if book is not None \
+            else help_module.load_help_answers()
+        validated = help_module.build_book(book)
+        fingerprint = (tuple(validated.doc_ids()),
+                       tuple(v.view_id for v in validated.views),
+                       validated.title)
+        recorded = getattr(self, "_help_answers_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._help_answers_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this help book is already recorded for the "
+                "session; a book is recorded once")
+        registry = self._help_answers_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._help_answers_held = validated
+        records = [
+            help_module.doc_record(item) for item in validated.docs]
+        records += [
+            help_module.view_record(view) for view in validated.views]
+        for news in records:
+            self._publish_help_record(news)
+        panel_news = help_module.panel_record(
+            help_module.derive_panel(
+                validated,
+                self._help_answers_default_view(validated)),
+            validated)
+        self._publish_help_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "docs": [item.to_record() for item in validated.docs],
+            "views": [item.to_record() for item in validated.views],
+            "records_news": records,
+            "panel_record": panel_news,
+            "coverage_record": help_module.coverage_record(validated),
+            "count": len(validated.docs),
+            "screen": help_module.format_help_answers_screen(validated),
+            "explanation": help_module.PLAIN_EXPLANATION,
+        }
+
+    def report_help_answers(self) -> dict[str, Any]:
+        """Render the session help book, as a report (M-186).
+
+        The book - the held registry's book when the
+        session holds any item, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - is rendered through the pure
+        formatters alone. Rendering registers and
+        publishes nothing, answers no question,
+        searches nothing live and writes nothing.
+        Returns the book, its docs, views, helps and
+        panels as plain records, the derived panel,
+        verdict and coverage (panel and verdict none
+        while the book holds no view), the answer
+        derived for the roadmap's example question,
+        the rendered book, panel, verdict and answer,
+        the screen, and the plain explanation.
+        """
+        from ..core import help_answers as help_module
+        book = self.help_answers_book()
+        default = self._help_answers_default_view(book)
+        return {
+            "book": book.to_record(),
+            "docs": [item.to_record() for item in book.docs],
+            "views": [item.to_record() for item in book.views],
+            "helps": [item.to_record() for item in book.helps],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (help_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "verdict": (help_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "coverage": help_module.coverage_record(book),
+            "example_answer": help_module.answer_record(
+                book, help_module.EXAMPLE_QUESTION),
+            "book_text": help_module.format_book(book),
+            "panel_text": (help_module.format_panel(book, default)
+                           if default is not None else ""),
+            "verdict_text": (help_module.format_verdict(
+                book, default)
+                if default is not None else ""),
+            "answer_text": help_module.format_answer(
+                book, help_module.EXAMPLE_QUESTION),
+            "screen": self._help_answers_screen(),
+            "explanation": help_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_help_record(self, record: dict[str, Any]) -> None:
+        """Publish one help record as session news (M-186).
+
+        The pure layer's ``doc_record``, ``view_record``,
+        ``panel_record`` and ``verdict_record`` are
+        journaled through the same checkpoint road
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once per shape: a doc under its own doc id
+        and segment, a view under its own view id,
+        sequence and view filter, a panel under its
+        whole derived shape, and a verdict under its
+        word and tallies, so a panel or verdict grown
+        by a newly held doc or view announces again
+        as the new figure it is. A foreign record
+        type is never published on this road.
+        """
+        if record.get("type") == "help_doc":
+            key = ("help_doc", record.get("doc_id"),
+                   record.get("segment"))
+        elif record.get("type") == "help_view":
+            key = ("help_view", record.get("view_id"),
+                   record.get("seq"), record.get("view_filter"))
+        elif record.get("type") == "help_panel":
+            key = ("help_panel", record.get("panel_id"),
+                   record.get("view_id"),
+                   tuple(row.get("item_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_shown"))
+        elif record.get("type") == "help_verdict":
+            key = ("help_verdict", record.get("verdict"),
+                   record.get("total_shown"),
+                   record.get("passing_shown"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(self, "_help_answers_announced", None)
+        if announced is None:
+            announced = set()
+            self._help_answers_announced = announced
+        if key in announced:
+            return
+        announced.add(key)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
