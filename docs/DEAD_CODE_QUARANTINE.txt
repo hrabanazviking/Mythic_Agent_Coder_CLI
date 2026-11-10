@@ -762,3 +762,14 @@ mythic_agent/agents/llm.py:45480:view_grace:method
 mythic_agent/agents/llm.py:45547:register_grace_book:method
 mythic_agent/agents/llm.py:45592:record_grace_book:method
 mythic_agent/agents/llm.py:45665:report_small_terminal_grace:method
+mythic_agent/agents/llm.py:45950:get_share_note:method
+mythic_agent/agents/llm.py:45965:share_clips_for_kind:method
+mythic_agent/agents/llm.py:45971:share_clips_passing:method
+mythic_agent/agents/llm.py:45977:copy_share_panel:method
+mythic_agent/agents/llm.py:45995:copy_share_verdict:method
+mythic_agent/agents/llm.py:46037:register_share_clip:method
+mythic_agent/agents/llm.py:46068:register_share_view:method
+mythic_agent/agents/llm.py:46094:view_share:method
+mythic_agent/agents/llm.py:46161:register_share_book:method
+mythic_agent/agents/llm.py:46206:record_share_book:method
+mythic_agent/agents/llm.py:46279:report_copy_share:method

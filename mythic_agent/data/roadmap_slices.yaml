@@ -1205,7 +1205,7 @@ slices:
   title: Copy and share
   summary: any answer, diff, or report copyable as clean markdown; a shareable session summary generated
     on command.
-  status: queued
+  status: done
 - id: M-196
   part: 8
   title: Settings as one room
