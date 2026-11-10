@@ -744,3 +744,410 @@ def test_parse_args_inspect_and_loader_targets():
     assert hunk_passes(built) is True
 
 
+# ---------------------------------------------------------------------
+# M-191 agent layer: the agent holds a theatre book
+# for the session, hunks and views are published
+# as session news through the checkpoint target
+# (journal first, deduped per shape), the panel
+# and verdict are derived at call time from the
+# whole book under a view, never held, the index
+# is derived from the book's held hunks, and the
+# stance targets are held as data beside them -
+# holding one resumes no session. This layer
+# resumes nothing, renders no live UI, exports
+# nothing and persists nothing beyond the
+# session journal news.
+# ---------------------------------------------------------------------
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _theatre_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_theatre_book_file(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data" / DIFF_THEATRE_FINAL_RESOURCE
+           ).read_text(encoding="utf-8")
+    path = tmp_path / "diff_theatre_final.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestTheatreAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.diff_theatre_final_status()
+        assert status["hunks"] == []
+        assert status["views"] == []
+        assert status["book"] is None
+        assert status["theatre"]["title"] == EXAMPLE_TITLE
+        assert len(status["theatre"]["hunks"]) == 6
+        assert len(status["theatre"]["views"]) == 2
+        assert len(status["theatre"]["comments"]) == 2
+        assert status["panel"]["total_items"] == 6
+        assert status["panel"]["total_shown"] == 6
+        assert status["panels"][0]["panel_id"] == "panel-m190-boundary"
+        assert status["verdict"]["verdict"] == "strained"
+        assert status["verdict"]["passing_shown"] == 5
+        assert [e["target"] for e in status["index"]["entries"]] == [
+            "mythic_agent/core/session.py:128", "mythic_agent/core/costs_face.py:12", "tests/test_part7_gate.py:41",
+            "docs/gallery_guide.md:1", "mythic_agent/data/roadmap_slices.yaml:1180"]
+        assert status["index"]["gaps"] == ["hunk-store-sweep"]
+        assert status["first_comment"]["comment_id"] == "comment-note-login"
+        assert "held as data alone" in status["rule"]
+        assert "mythic_agent/data/roadmap_slices.yaml" in status["plain_words"]
+        assert "Diff Theatre Final Form (M-191)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._diff_theatre_final_registry()
+        assert agent._diff_theatre_final_registry() is first
+        assert agent._diff_theatre_final_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.diff_theatre_final_status()
+        assert agent.get_theatre_hunk(
+            "hunk-login-redirect").file == (
+                "mythic_agent/core/session.py")
+        assert agent.get_theatre_view("view-all").view_filter == "all"
+        assert agent.get_theatre_comment(
+            "comment-note-login").comment_id == "comment-note-login"
+        assert [a.hunk_id for a in agent.theatre_hunks_for_kind(
+            "changed")] == [
+                "hunk-login-redirect", "hunk-flaky-gate-test"]
+        assert [a.hunk_id for a in agent.theatre_hunks_passing()] == [
+            "hunk-login-redirect", "hunk-costs-face-view",
+            "hunk-flaky-gate-test", "hunk-gallery-guide",
+            "hunk-bank-m190-wave"]
+        agent.diff_theatre_final_panel()
+        agent.diff_theatre_final_verdict()
+        agent.theatre_index()
+        agent.report_diff_theatre_final()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("theatre")
+                or e["type"] == "diff_hunk"] == []
+        with pytest.raises(KeyError):
+            agent.get_theatre_hunk("hunk-nope")
+        with pytest.raises(KeyError):
+            agent.get_theatre_view("view-nope")
+        with pytest.raises(KeyError):
+            agent.get_theatre_comment("comment-nope")
+        with pytest.raises(ValueError):
+            agent.theatre_hunks_for_kind("the void")
+        agent.close()
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_theatre_hunk(_hunk())
+        status = agent.diff_theatre_final_status()
+        assert [a["hunk_id"] for a in status["hunks"]] == ["hunk-test"]
+        assert status["book"]["title"] == "An unheld theatre book"
+        assert status["panel"] is None
+        assert status["verdict"] is None
+        assert [e["target"] for e in status["index"]["entries"]] == [
+            "mythic_agent/core/session.py:128"]
+        assert status["first_comment"] is None
+        assert "hunk-test" in status["screen"]
+
+    def test_held_hunk_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_theatre_hunk(_hunk())
+        with pytest.raises(KeyError):
+            agent.get_theatre_hunk("hunk-login-redirect")
+        with pytest.raises(KeyError):
+            agent.get_theatre_view("view-all")
+        with pytest.raises(KeyError):
+            agent.get_theatre_comment("modal")
+        hunk = agent.get_theatre_hunk("hunk-test")
+        assert hunk.file == "A test file"
+        assert agent.diff_theatre_final_book().title == (
+            "An unheld theatre book")
+
+    def test_comments_and_index_stand_in_the_example(self, agent):
+        first = agent.get_theatre_comment("comment-note-login")
+        assert first.comment_id == "comment-note-login"
+        assert first.hunk_id == "hunk-login-redirect"
+        status = agent.diff_theatre_final_status()
+        assert status["index"]["gaps"] == ["hunk-store-sweep"]
+        assert status["first_comment"]["hunk_id"] == (
+            "hunk-login-redirect")
+        assert status["first_comment"]["stance"] == "note"
+
+
+class TestTheatreAgentHolding:
+    def test_register_hunk_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_theatre_hunk(_hunk())
+        assert result["hunk"]["hunk_id"] == "hunk-test"
+        assert result["record_news"]["type"] == "diff_hunk"
+        assert "hunk-test" in result["screen"]
+        events = _theatre_events(store, session_id, "diff_hunk")
+        assert len(events) == 1
+        agent.close()
+
+    def test_duplicate_hunk_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_theatre_hunk(_hunk())
+        with pytest.raises(ValueError):
+            agent.register_theatre_hunk(_hunk(seq=9))
+        with pytest.raises(ValueError):
+            agent.register_theatre_hunk(_hunk(hunk_id="hunk-two"))
+        events = _theatre_events(store, session_id, "diff_hunk")
+        assert len(events) == 1
+        agent.close()
+
+    def test_register_view_holds_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_theatre_view(_view())
+        assert result["view"]["view_id"] == "view-test"
+        assert len(_theatre_events(
+            store, session_id, "theatre_view")) == 1
+        agent.close()
+
+    def test_view_target_derives_sequence_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_theatre_hunk(_hunk())
+        result = agent.view_theatre("targeted")
+        assert result["view"]["view_filter"] == "targeted"
+        assert result["view"]["seq"] == 1
+        assert result["panel_record"]["type"] == "theatre_panel"
+        assert result["panel_record"]["total_shown"] == 1
+        assert result["verdict_record"]["verdict"] == "open"
+        assert len(_theatre_events(
+            store, session_id, "theatre_view")) == 1
+        assert len(_theatre_events(
+            store, session_id, "theatre_panel")) == 1
+        assert len(_theatre_events(
+            store, session_id, "theatre_verdict")) == 1
+        agent.close()
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_theatre_book(_book(views=[_view()]))
+        assert result["count"] == 1
+        assert [r["type"] for r in result["records_news"]] == [
+            "diff_hunk", "theatre_view"]
+        assert len(_theatre_events(
+            store, session_id, "diff_hunk")) == 1
+        agent.close()
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.record_theatre_book()
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+        assert result["panel_record"]["type"] == "theatre_panel"
+        assert result["index_record"]["gaps"] == [
+            "hunk-store-sweep"]
+        with pytest.raises(ValueError):
+            agent.record_theatre_book()
+        assert len(_theatre_events(
+            store, session_id, "diff_hunk")) == 6
+        assert len(_theatre_events(
+            store, session_id, "theatre_view")) == 2
+        agent.close()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_theatre_book_file(tmp_path)
+        book = load_diff_theatre_final_file(path)
+        result = agent.record_theatre_book(book)
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+
+    def test_report_renders_example_then_held_book_only(self, agent):
+        report = agent.report_diff_theatre_final()
+        assert report["book"]["title"] == EXAMPLE_TITLE
+        assert report["verdict"]["verdict"] == "strained"
+        assert report["index"]["gaps"] == ["hunk-store-sweep"]
+        assert "hunk-login-redirect" in report["book_text"]
+        assert "mythic_agent/core/session.py:128 - mythic_agent/core/session.py" in report["index_text"]
+        agent.register_theatre_hunk(_hunk())
+        report = agent.report_diff_theatre_final()
+        assert report["book"]["title"] == "An unheld theatre book"
+        assert report["panel"] is None
+        assert report["verdict"] is None
+
+
+class TestTheatreTerminalSurface:
+    def test_show_hunk_target_kind_view_comment_index_panel_verdict(
+            self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/theatre")
+        assert "Diff Theatre Final Form (M-191)" in text
+        _, _, text = _slash(agent, "/theatre hunk hunk-login-redirect")
+        assert "Hunk: mythic_agent/core/session.py" in text
+        _, _, text = _slash(agent, "/theatre target mythic_agent/core/session.py:128")
+        assert "mythic_agent/core/session.py" in text
+        _, _, text = _slash(agent, "/theatre target triple resume")
+        assert "reaches nothing in this book" in text
+        _, _, text = _slash(agent, "/theatre kind changed")
+        assert "hunk-login-redirect" in text
+        assert "hunk-store-sweep" not in text
+        _, _, text = _slash(agent, "/theatre view view-all")
+        assert "filter all" in text
+        _, _, text = _slash(agent, "/theatre comment comment-note-login")
+        assert "Hunk comment note hunk-login-redirect" in text
+        _, _, text = _slash(agent, "/theatre index")
+        assert "Hunk index" in text
+        assert "hunk-gallery-guide" in text
+        _, _, text = _slash(agent, "/theatre panel")
+        assert "Theatre panel under view view-all" in text
+        _, _, text = _slash(agent, "/theatre verdict")
+        assert "strained" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/theatre [show|hunk <hunk-id>"
+                "|target <target>|kind <kind>|view <view-id>"
+                "|comment <comment-id>|index|panel|verdict]") in text
+        _, _, text = _slash(agent, "/theatre dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/theatre hunk hunk-nope")
+        assert "no hunk named" in text
+
+
+@pytest.fixture()
+def theatre_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _theatre_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestTheatreCommand:
+    def test_show_is_default(self, theatre_handler, agent):
+        theatre_handler._handle_theatre("")
+        assert "Diff Theatre Final Form (M-191)" in (
+            _theatre_published_text(theatre_handler))
+
+    def test_hunk_target_kind_view_comment_index_panel_verdict(
+            self, theatre_handler, agent):
+        theatre_handler._handle_theatre("hunk hunk-login-redirect")
+        assert "Hunk: mythic_agent/core/session.py" in _theatre_published_text(
+            theatre_handler)
+        theatre_handler._handle_theatre("target mythic_agent/core/session.py:128")
+        assert "mythic_agent/core/session.py" in _theatre_published_text(
+            theatre_handler)
+        theatre_handler._handle_theatre("kind changed")
+        assert "hunk-login-redirect" in _theatre_published_text(theatre_handler)
+        theatre_handler._handle_theatre("view view-all")
+        assert "filter all" in _theatre_published_text(theatre_handler)
+        theatre_handler._handle_theatre("comment comment-note-login")
+        assert "Hunk comment note hunk-login-redirect" in _theatre_published_text(theatre_handler)
+        theatre_handler._handle_theatre("index")
+        assert "Hunk index" in _theatre_published_text(theatre_handler)
+        theatre_handler._handle_theatre("panel")
+        assert "Theatre panel under view" in _theatre_published_text(
+            theatre_handler)
+        theatre_handler._handle_theatre("verdict")
+        assert "strained" in _theatre_published_text(theatre_handler)
+
+    def test_bad_grammar_is_published(
+            self, theatre_handler, agent):
+        theatre_handler._handle_theatre("dance party")
+        assert USAGE in _theatre_published_text(theatre_handler)
+        theatre_handler._handle_theatre("hunk hunk-nope")
+        assert "no hunk named" in _theatre_published_text(theatre_handler)
+
+
+class TestChatScreenRoutingTheatre:
+    def test_onboard_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/theatre panel", _FakeLog())
+        assert calls == [("/theatre", "panel")]
+
+    def test_chat_screen_help_and_usage_name_the_book(self):
+        text = (ROOT / "mythic_agent" / "ui" / "screens"
+                / "chat_screen.py").read_text(encoding="utf-8")
+        assert "/theatre[/green] - show diff theatre final form (M-191)" in (
+            text)
+        assert ('"/theatre": "Usage: /theatre | '
+                '/theatre hunk <hunk-id>') in text
+
+
+class TestTheatreDerivedTargets:
+    def test_panel_and_verdict_are_derived_at_call_time(self, agent):
+        panel = agent.diff_theatre_final_panel()
+        assert panel.total_shown == 6
+        assert panel.panel_id == "panel-view-all"
+        verdict = agent.diff_theatre_final_verdict()
+        assert verdict.verdict == "strained"
+        found = agent.diff_theatre_final_verdict("view-targeted")
+        assert found.verdict == "open"
+        assert found.passing_shown == 5
+        agent.register_theatre_hunk(_hunk())
+        with pytest.raises(ValueError):
+            agent.diff_theatre_final_panel()
+        with pytest.raises(ValueError):
+            agent.diff_theatre_final_verdict()
+
+    def test_view_target_over_an_unshown_filter_is_shut(self, agent):
+        agent.register_theatre_hunk(_hunk(target=""))
+        result = agent.view_theatre("targeted")
+        assert result["verdict_record"]["verdict"] == "shut"
+        assert result["verdict_record"]["total_shown"] == 0
+
+    def test_index_target_derives_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.theatre_index()
+        assert [e["target"] for e in result["index"]["entries"]] == [
+            "mythic_agent/core/session.py:128", "mythic_agent/core/costs_face.py:12", "tests/test_part7_gate.py:41",
+            "docs/gallery_guide.md:1", "mythic_agent/data/roadmap_slices.yaml:1180"]
+        assert result["index"]["gaps"] == ["hunk-store-sweep"]
+        assert "mythic_agent/core/session.py:128 - mythic_agent/core/session.py (hunk-login-redirect)" in (
+            result["index_text"])
+        hunk = agent.get_theatre_hunk("hunk-store-sweep")
+        assert hunk_gaps(hunk) == ("no jump target",)
+        assert hunk_passes(hunk) is False
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("theatre")
+                or e["type"] == "diff_hunk"] == []
+        agent.close()
