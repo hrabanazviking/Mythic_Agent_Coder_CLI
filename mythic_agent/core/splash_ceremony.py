@@ -1478,7 +1478,7 @@ def moment_record(moment: Any, source: Any = None) -> Dict[str, Any]:
         "type": "ceremony_moment",
         "slice": SPLASH_CEREMONY_SLICE,
         "moment_id": checked.moment_id,
-        "title": checked.title,
+        "occasion": checked.occasion,
         "segment": segment_of(checked),
         "passes": moment_passes(checked),
         "gaps": list(moment_gaps(checked)),
