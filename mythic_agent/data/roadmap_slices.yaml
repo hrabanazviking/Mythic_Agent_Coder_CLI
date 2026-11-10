@@ -1199,7 +1199,7 @@ slices:
   part: 8
   title: Small-terminal grace
   summary: the TUI folds gracefully to 80×24 and to a phone-over-SSH width without losing the work.
-  status: queued
+  status: done
 - id: M-195
   part: 8
   title: Copy and share
