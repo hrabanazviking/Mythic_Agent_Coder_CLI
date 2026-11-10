@@ -696,3 +696,14 @@ mythic_agent/agents/llm.py:41790:view_mouse:method
 mythic_agent/agents/llm.py:41857:register_mouse_book:method
 mythic_agent/agents/llm.py:41902:record_mouse_book:method
 mythic_agent/agents/llm.py:41975:report_mouse_manners:method
+mythic_agent/agents/llm.py:42261:get_gallery_action:method
+mythic_agent/agents/llm.py:42276:gallery_cards_for_outcome:method
+mythic_agent/agents/llm.py:42282:gallery_cards_passing:method
+mythic_agent/agents/llm.py:42288:session_gallery_panel:method
+mythic_agent/agents/llm.py:42306:session_gallery_verdict:method
+mythic_agent/agents/llm.py:42348:register_gallery_card:method
+mythic_agent/agents/llm.py:42379:register_gallery_view:method
+mythic_agent/agents/llm.py:42405:view_gallery:method
+mythic_agent/agents/llm.py:42472:register_gallery_book:method
+mythic_agent/agents/llm.py:42517:record_gallery_book:method
+mythic_agent/agents/llm.py:42590:report_session_gallery:method

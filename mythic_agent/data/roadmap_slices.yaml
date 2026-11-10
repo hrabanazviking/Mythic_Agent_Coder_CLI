@@ -1170,7 +1170,7 @@ slices:
   title: Session gallery
   summary: past sessions as browsable cards (task, outcome, cost, duration) with resume/fork/export —
     history as a library, not a log file.
-  status: queued
+  status: done
 - id: M-190
   part: 8
   title: The costs face
