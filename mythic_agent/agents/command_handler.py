@@ -427,6 +427,8 @@ class CommandHandler:
                 self._handle_accessverify(args)
             elif cmd == "/campaigns":
                 self._handle_campaigns(args)
+            elif cmd == "/intent":
+                self._handle_intent(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -9277,6 +9279,98 @@ class CommandHandler:
                 text = format_verdict(primary.campaigns_book())
             else:
                 text = primary.campaigns_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+
+    def _handle_intent(self, args: str):
+        """M-202: /intent - intent as data.
+
+        ``/intent`` shows the intent book held this
+        session - intent as data: one record per slice,
+        held whole with its title, the part it stands in,
+        its state, its evidence held honestly and the
+        acceptance checks it carries, and the notes held
+        as data beside them (the shipped example book -
+        six slices at the M-200 slice boundary, with its
+        two views, two stance records and its one pinned
+        panel - when none is held yet);
+        ``/intent slice <slice-id>`` shows one slice whole;
+        ``/intent checks <checks>`` shows the slice one
+        checks line reaches, or names the checks unheld;
+        ``/intent state <state>`` shows the book's slices
+        of one state; ``/intent view <view-id>`` shows
+        one held view record; ``/intent note
+        <note-id>`` shows one held stance record;
+        ``/intent index`` shows the index derived
+        from the whole book's held slices; ``/intent
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/intent
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: slices and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every slice held for the session is
+        journaled as a intent_slice session event,
+        every view as a intent_view session event,
+        every derived panel as a intent_panel
+        session event and every derived verdict as a
+        intent_verdict session event. This heading
+        executes no intent, runs nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.intent_capture import (
+            format_intent,
+            format_book,
+            format_citation,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_intent_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_intent_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "intent":
+                text = format_intent(primary.get_intent(target))
+            elif stance == "citation":
+                text = format_citation(
+                    primary.intent_book(), target)
+            elif stance == "project":
+                text = format_book(
+                    primary.intent_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_intent_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.intent_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.intent_book())
+            elif stance == "panel":
+                text = format_panel(primary.intent_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.intent_book())
+            else:
+                text = primary.intent_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
