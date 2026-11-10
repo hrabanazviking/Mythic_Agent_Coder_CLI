@@ -442,11 +442,11 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 203
-    assert citizen["next_slice"] == "M-204"
+    assert citizen["done"] == 204
+    assert citizen["next_slice"] == "M-205"
     assert citizen["m204_title"] == "The Juggernaut loop as runtime"
     assert citizen["m204_part"] == 9
-    assert citizen["m204_status"] == "queued"
+    assert citizen["m204_status"] == "done"
 
 def test_run_record_round_trips():
     run = _run()
@@ -919,8 +919,8 @@ class TestJuggernautAgentStatus:
         assert status["board"]["current_run"] == "run-asking-loop"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 203
-        assert status["roadmap"]["next_slice"] == "M-204"
+        assert status["roadmap"]["done"] == 204
+        assert status["roadmap"]["next_slice"] == "M-205"
         assert status["roadmap"]["m204_title"] == "The Juggernaut loop as runtime"
         assert "held as data alone" in status["rule"]
         assert "run-asking-loop" in status["plain_words"]
