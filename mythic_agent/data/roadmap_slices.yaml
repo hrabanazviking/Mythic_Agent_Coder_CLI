@@ -1164,7 +1164,7 @@ slices:
   part: 8
   title: Mouse manners
   summary: click, drag-select, scroll, and links that open files at line numbers in the user's editor.
-  status: queued
+  status: done
 - id: M-189
   part: 8
   title: Session gallery

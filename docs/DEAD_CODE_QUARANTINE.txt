@@ -685,3 +685,14 @@ mythic_agent/agents/llm.py:41174:view_keyboard:method
 mythic_agent/agents/llm.py:41242:register_keyboard_book:method
 mythic_agent/agents/llm.py:41287:record_keyboard_book:method
 mythic_agent/agents/llm.py:41360:report_keyboard_sovereignty:method
+mythic_agent/agents/llm.py:41646:get_mouse_link:method
+mythic_agent/agents/llm.py:41661:mouse_gestures_for_area:method
+mythic_agent/agents/llm.py:41667:mouse_gestures_passing:method
+mythic_agent/agents/llm.py:41673:mouse_manners_panel:method
+mythic_agent/agents/llm.py:41691:mouse_manners_verdict:method
+mythic_agent/agents/llm.py:41733:register_mouse_gesture:method
+mythic_agent/agents/llm.py:41764:register_mouse_view:method
+mythic_agent/agents/llm.py:41790:view_mouse:method
+mythic_agent/agents/llm.py:41857:register_mouse_book:method
+mythic_agent/agents/llm.py:41902:record_mouse_book:method
+mythic_agent/agents/llm.py:41975:report_mouse_manners:method
