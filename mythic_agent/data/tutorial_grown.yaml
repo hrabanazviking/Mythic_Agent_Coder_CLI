@@ -1,0 +1,231 @@
+schema: mythic.tutorial_grown/1
+slice: M-185
+part: 8
+part_title: The Beautiful Face
+canon_note: 'The tutorial grown - interactive lessons per feature family, runnable inside a scratch repo;
+  mythic tutorial becomes the manual you play. A lesson is held whole - under its title, its feature family
+  in the closed vocabulary (providers, code intelligence, the editor''s hand, sandboxing, parallel crews,
+  memory and context, plain language, bridges), its readiness, ready or blocked, and its detail. Readiness
+  is never faked: a lesson whose exercise does not stand ready stands blocked and named in its gaps (exercise).
+  Lessons run inside a scratch repo, never against the real workspace, and the rule stands as data in
+  the layer: a record claiming a run outside a scratch repo or against the real workspace refuses by name.
+  The play''s steps stand held in order - open, read, try, check, clean - and a play that cleans its scratch
+  repo away before its exercise stands tried refuses by name. This file is ONE EXAMPLE BOOK, in the shape
+  a real tutorial file takes - the M-184 slice boundary - six lessons and two views, five play steps and
+  one scratch repo, with its one pinned panel of the every-lesson view, whose shown lessons stand four
+  ready of six, so the book verdict under it stands strained; under the ready view, whose four shown lessons
+  all stand ready, the verdict stands open. A real book is a new file in this same shape - it is never
+  this file edited in place. This layer runs no lesson, opens no repo and writes nothing to any real workspace:
+  it holds the grown tutorial as data and tells it.'
+guide:
+  title: The tutorial grown at the M-184 slice boundary
+lessons:
+- lesson_id: les-providers-first
+  seq: 1
+  title: Meet your providers
+  family: providers
+  readiness: ready
+  detail: In the scratch repo, switch the provider for one tiny task and watch the same task run - the
+    Provider Ocean, keys in Kista and all, learned by playing, not by reading.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: tutorial grown
+  origin_session: session-m185
+- lesson_id: les-code-intelligence
+  seq: 2
+  title: Read code like a map
+  family: code intelligence
+  readiness: ready
+  detail: In the scratch repo, ask where one small function is used and follow the answer across the scratch
+    code - code intelligence learned on code that can be thrown away.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: tutorial grown
+  origin_session: session-m185
+- lesson_id: les-editors-hand
+  seq: 3
+  title: The editor's hand
+  family: the editor's hand
+  readiness: ready
+  detail: In the scratch repo, rename one small thing and undo it again - the Editor's Hand, its edits
+    and its undo, learned with nothing real at stake.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: tutorial grown
+  origin_session: session-m185
+- lesson_id: les-sandboxing
+  seq: 4
+  title: Play inside the sandbox
+  family: sandboxing
+  readiness: blocked
+  detail: This lesson's exercise names a command the sandbox has not approved on this machine, so it stands
+    blocked honestly - it is never run against the real workspace instead.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: tutorial grown
+  origin_session: session-m185
+- lesson_id: les-parallel-crews
+  seq: 5
+  title: Deal work to a crew
+  family: parallel crews
+  readiness: ready
+  detail: In the scratch repo, deal one tiny task to two crew hands and watch them work separate corners
+    of the scratch code - parallel crews learned where a clash costs nothing.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: tutorial grown
+  origin_session: session-m185
+- lesson_id: les-memory-context
+  seq: 6
+  title: Memory you can play with
+  family: memory and context
+  readiness: blocked
+  detail: This lesson's exercise waits on a memory book this machine does not hold yet, so it stands blocked
+    honestly, with no memory invented for it.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: tutorial grown
+  origin_session: session-m185
+views:
+- view_id: view-all
+  seq: 1
+  view_filter: all
+  detail: See the whole tutorial book, every lesson at once.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: tutorial grown
+  origin_session: session-m185
+- view_id: view-ready
+  seq: 2
+  view_filter: ready
+  detail: See only the lessons that stand ready to play.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: tutorial grown
+  origin_session: session-m185
+steps:
+- step_id: step-open
+  seq: 1
+  phase: open
+  title: Open the scratch repo
+  detail: The play opens a scratch repo first - a small throwaway repo made for lessons - so every exercise
+    that follows runs inside it and nothing real is ever touched.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: tutorial grown
+  origin_session: session-m185
+- step_id: step-read
+  seq: 2
+  phase: read
+  title: Read the lesson
+  detail: 'The lesson is read where it stands: what its family is, what its exercise asks, and what ready
+    or blocked honestly means for it.'
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: tutorial grown
+  origin_session: session-m185
+- step_id: step-try
+  seq: 3
+  phase: try
+  title: Try the exercise
+  detail: 'The exercise is tried inside the scratch repo alone: switch the provider, follow the reference,
+    rename and undo - the manual you play, played.'
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: tutorial grown
+  origin_session: session-m185
+- step_id: step-check
+  seq: 4
+  phase: check
+  title: Check what changed
+  detail: What the exercise changed is checked inside the scratch repo - the diff is the lesson's own
+    answer, read before anything is cleaned away.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: tutorial grown
+  origin_session: session-m185
+- step_id: step-clean
+  seq: 5
+  phase: clean
+  title: Clean the scratch repo away
+  detail: Only after the exercise stands tried and checked is the scratch repo cleaned away; the real
+    workspace was never written to at any step.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: tutorial grown
+  origin_session: session-m185
+scratches:
+- scratch_id: scratch-tutorial-playground
+  seq: 1
+  repo: tutorial-playground
+  state: open
+  detail: 'The scratch repo the example lessons play inside stands open: a throwaway repo named tutorial-playground,
+    opened for the play and cleaned away only after the check.'
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: tutorial grown
+  origin_session: session-m185
+panels:
+- panel_id: panel-m184-boundary
+  view_id: view-all
+  view_filter: all
+  rows:
+  - item_id: les-providers-first
+    readiness: ready
+    label: Meet your providers
+    segment: 'les-providers-first: Meet your providers in family ''providers'' - readiness: ''ready''
+      - detail: ''In the scratch repo, switch the provider for one tiny task and watch the same task run
+      - the Provider Ocean, keys in Kista and all, learned by playing, not by reading.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: les-code-intelligence
+    readiness: ready
+    label: Read code like a map
+    segment: 'les-code-intelligence: Read code like a map in family ''code intelligence'' - readiness:
+      ''ready'' - detail: ''In the scratch repo, ask where one small function is used and follow the answer
+      across the scratch code - code intelligence learned on code that can be thrown away.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: les-editors-hand
+    readiness: ready
+    label: The editor's hand
+    segment: 'les-editors-hand: The editor''s hand in family ''the editor''s hand'' - readiness: ''ready''
+      - detail: ''In the scratch repo, rename one small thing and undo it again - the Editor''s Hand,
+      its edits and its undo, learned with nothing real at stake.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: les-sandboxing
+    readiness: blocked
+    label: Play inside the sandbox
+    segment: 'les-sandboxing: Play inside the sandbox in family ''sandboxing'' - readiness: ''blocked''
+      - detail: ''This lesson''s exercise names a command the sandbox has not approved on this machine,
+      so it stands blocked honestly - it is never run against the real workspace instead.'' - gaps: exercise'
+    recorded_on: '2026-11-09'
+  - item_id: les-parallel-crews
+    readiness: ready
+    label: Deal work to a crew
+    segment: 'les-parallel-crews: Deal work to a crew in family ''parallel crews'' - readiness: ''ready''
+      - detail: ''In the scratch repo, deal one tiny task to two crew hands and watch them work separate
+      corners of the scratch code - parallel crews learned where a clash costs nothing.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: les-memory-context
+    readiness: blocked
+    label: Memory you can play with
+    segment: 'les-memory-context: Memory you can play with in family ''memory and context'' - readiness:
+      ''blocked'' - detail: ''This lesson''s exercise waits on a memory book this machine does not hold
+      yet, so it stands blocked honestly, with no memory invented for it.'' - gaps: exercise'
+    recorded_on: '2026-11-09'
+  total_items: 6
+  total_shown: 6
+  readiness_counts:
+  - readiness: ready
+    items: 4
+  - readiness: blocked
+    items: 2
+  as_of: '2026-11-09'
+  account:
+  - 'The tutorial book holds 6 lessons as of 2026-11-09: the view ''all'' shows 6 of them: ready 4, blocked
+    2; 4 of the shown lessons stand ready.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its lesson's own fields - the title, the feature family it belongs to
+    and the readiness its exercise honestly stands in - and no judgement is stored on any lesson.
+  - 'Readiness is never faked: a lesson whose exercise does not stand ready stands blocked, named in its
+    gaps, and every lesson runs inside a scratch repo, never against the real workspace.'
