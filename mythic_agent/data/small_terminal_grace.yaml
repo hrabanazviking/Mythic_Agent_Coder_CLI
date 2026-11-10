@@ -1,0 +1,223 @@
+schema: mythic.small_terminal_grace/1
+slice: M-194
+part: 8
+part_title: The Beautiful Face
+canon_note: 'Small-terminal grace - the TUI folds gracefully to 80x24 and to a phone-over-SSH width without
+  losing the work. The M-171 charter names this slice on NO row, so the book is built to the roadmap words
+  alone. A fold is held whole - under its surface, its kind in the closed vocabulary (full, folded, stacked,
+  hidden, summary), its width and its height held honestly (an unknown width or height stands empty, never
+  invented), the work it preserves, named as data, and its detail. A fold naming no preserved work is
+  held honestly with an empty preserves: it stands losable, named in its gaps, and no work is invented
+  for it. The fold index is DERIVED at call time from the held folds alone - never a second stored copy
+  that could drift - and a stored index or preservation verdict on any record refuses by name. The notes
+  are held as data: a note record naming its fold, its stance (note, concern, praise or question) and
+  what it feeds back toward; one record stands per fold stance, and holding a note posts none of it. A
+  record claiming a terminal was actually resized, a pane actually folded on a live terminal or work actually
+  rendered refuses by name. This file is ONE EXAMPLE BOOK, in the shape a real fold file takes - the M-193
+  slice boundary - six folds and two views, two note records, with its one pinned panel of the every-fold
+  view, whose shown folds stand five preserved of six, so the book verdict under it stands strained; under
+  the preserved view, whose five shown folds all stand preserved, the verdict stands open. A real book
+  is a new file in this same shape - it is never this file edited in place. This layer resizes no terminal,
+  folds no pane, renders no work and opens no network: it holds the folding as data and tells it.'
+small_terminal_grace:
+  title: Small-terminal grace at the M-193 slice boundary
+folds:
+- fold_id: fold-work-wide
+  seq: 1
+  surface: Work pane on the wide terminal
+  kind: full
+  width: 80 columns
+  height: 24 rows
+  preserves: the work in progress
+  detail: The work pane stands full at the full 80x24 terminal - the open file and its unsaved edits stand
+    whole on its card; holding the card resizes no terminal.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: small-terminal grace
+  origin_session: session-m194
+- fold_id: fold-board-wide
+  seq: 2
+  surface: Board pane on the wide terminal
+  kind: folded
+  width: ''
+  height: 24 rows
+  preserves: the board and its slice standings
+  detail: The board folds to a summary strip at 80 columns so the work keeps the room. At what width the
+    board begins to fold was never recorded anywhere honest, so the fold holds its width empty - unknown
+    stays unknown, and no figure is invented for it.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: small-terminal grace
+  origin_session: session-m194
+- fold_id: fold-crew-phone
+  seq: 3
+  surface: Crew pane at phone width
+  kind: stacked
+  width: 40 columns
+  height: ''
+  preserves: the crew roster and each worker's slice
+  detail: At a phone-over-SSH width the crew pane stacks under the work instead of standing beside it.
+    How many rows the stacked pane stands was never recorded anywhere honest, so the fold holds its height
+    empty - unknown stays unknown, and no figure is invented for it.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: small-terminal grace
+  origin_session: session-m194
+- fold_id: fold-files-phone
+  seq: 4
+  surface: Files pane at phone width
+  kind: summary
+  width: 40 columns
+  height: 12 rows
+  preserves: the file list, folded to names and standings
+  detail: At phone width the files pane folds to a summary - names and standings only - and the full list
+    returns with the width; the praise note on the board fold stands held beside the book as data.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: small-terminal grace
+  origin_session: session-m194
+- fold_id: fold-terminal-phone
+  seq: 5
+  surface: Terminal pane at phone width
+  kind: hidden
+  width: 40 columns
+  height: 6 rows
+  preserves: ''
+  detail: At phone width the terminal pane hides behind one keypress and names no preserved work in this
+    book - the shell waits behind the fold - so the fold stands losable honestly, named in the gaps until
+    preserved work is held for it, and no work is invented here.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: small-terminal grace
+  origin_session: session-m194
+- fold_id: fold-chat-wide
+  seq: 6
+  surface: Chat pane on the wide terminal
+  kind: full
+  width: 80 columns
+  height: 24 rows
+  preserves: the conversation and the question on the floor
+  detail: The chat stands full on the wide terminal and folds last - the conversation and the question
+    on the floor are the work itself, and the fold that would lose them is no grace at all.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: small-terminal grace
+  origin_session: session-m194
+views:
+- view_id: view-grace
+  seq: 1
+  view_filter: all
+  detail: 'Every fold at once - the wide terminal, the phone width, and the hidden panes between: see
+    every fold.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: small-terminal grace
+  origin_session: session-m194
+- view_id: view-preserved
+  seq: 2
+  view_filter: preserved
+  detail: Only the folds that name the work they preserve - everything the small terminal keeps, honestly
+    available at every width.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: small-terminal grace
+  origin_session: session-m194
+notes:
+- note_id: note-note-work
+  seq: 1
+  fold_id: fold-work-wide
+  stance: note
+  target: the user
+  title: Note the work fold
+  detail: The note on the work fold stands held as data - its fold, its stance and what it feeds back
+    toward. Holding the note posts nothing; the feedback is told, never sent, by this layer.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: small-terminal grace
+  origin_session: session-m194
+- note_id: note-praise-board
+  seq: 2
+  fold_id: fold-board-wide
+  stance: praise
+  target: the user
+  title: Praise the board fold
+  detail: The praise for the board fold stands held as data beside the first. One note record stands per
+    fold stance in this book, so a second record for one fold under one stance refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: small-terminal grace
+  origin_session: session-m194
+panels:
+- panel_id: panel-m193-boundary
+  view_id: view-grace
+  view_filter: all
+  rows:
+  - item_id: fold-work-wide
+    standing: preserved
+    label: Work pane on the wide terminal
+    segment: 'fold-work-wide: Work pane on the wide terminal - kind: ''full'' - width: ''80 columns''
+      - height: ''24 rows'' - preserves: ''the work in progress'' - detail: ''The work pane stands full
+      at the full 80x24 terminal - the open file and its unsaved edits stand whole on its card; holding
+      the card resizes no terminal.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: fold-board-wide
+    standing: preserved
+    label: Board pane on the wide terminal
+    segment: 'fold-board-wide: Board pane on the wide terminal - kind: ''folded'' - width: ''unknown''
+      - height: ''24 rows'' - preserves: ''the board and its slice standings'' - detail: ''The board folds
+      to a summary strip at 80 columns so the work keeps the room. At what width the board begins to fold
+      was never recorded anywhere honest, so the fold holds its width empty - unknown stays unknown, and
+      no figure is invented for it.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: fold-crew-phone
+    standing: preserved
+    label: Crew pane at phone width
+    segment: 'fold-crew-phone: Crew pane at phone width - kind: ''stacked'' - width: ''40 columns'' -
+      height: ''unknown'' - preserves: ''the crew roster and each worker''s slice'' - detail: ''At a phone-over-SSH
+      width the crew pane stacks under the work instead of standing beside it. How many rows the stacked
+      pane stands was never recorded anywhere honest, so the fold holds its height empty - unknown stays
+      unknown, and no figure is invented for it.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: fold-files-phone
+    standing: preserved
+    label: Files pane at phone width
+    segment: 'fold-files-phone: Files pane at phone width - kind: ''summary'' - width: ''40 columns''
+      - height: ''12 rows'' - preserves: ''the file list, folded to names and standings'' - detail: ''At
+      phone width the files pane folds to a summary - names and standings only - and the full list returns
+      with the width; the praise note on the board fold stands held beside the book as data.'' - gaps:
+      none'
+    recorded_on: '2026-11-10'
+  - item_id: fold-terminal-phone
+    standing: losable
+    label: Terminal pane at phone width
+    segment: 'fold-terminal-phone: Terminal pane at phone width - kind: ''hidden'' - width: ''40 columns''
+      - height: ''6 rows'' - preserves: ''none'' - detail: ''At phone width the terminal pane hides behind
+      one keypress and names no preserved work in this book - the shell waits behind the fold - so the
+      fold stands losable honestly, named in the gaps until preserved work is held for it, and no work
+      is invented here.'' - gaps: no preserved work'
+    recorded_on: '2026-11-10'
+  - item_id: fold-chat-wide
+    standing: preserved
+    label: Chat pane on the wide terminal
+    segment: 'fold-chat-wide: Chat pane on the wide terminal - kind: ''full'' - width: ''80 columns''
+      - height: ''24 rows'' - preserves: ''the conversation and the question on the floor'' - detail:
+      ''The chat stands full on the wide terminal and folds last - the conversation and the question on
+      the floor are the work itself, and the fold that would lose them is no grace at all.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  total_items: 6
+  total_shown: 6
+  target_counts:
+  - standing: preserved
+    items: 5
+  - standing: losable
+    items: 1
+  as_of: '2026-11-10'
+  account:
+  - 'The grace book holds 6 folds as of 2026-11-10: the view ''all'' shows 6 of them: preserved 5, losable
+    1; 5 of the shown folds stand preserved.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its fold's own fields - the surface, the kind, the width and height
+    honestly held and the preserved work it honestly carries - and no judgement is stored on any fold.
+  - 'Preservation is judged from the held records alone: a fold naming no preserved work stands losable,
+    and the grace index is derived from the held folds, never stored where it could drift.'
