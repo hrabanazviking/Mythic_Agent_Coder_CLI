@@ -47600,6 +47600,622 @@ class Agent:
             self._checkpoint(record)
 
 
+
+    def _ui_undo_registry(self):
+        """The held undo registry (M-198).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer pane and view records
+        one by one, beside the session settings-room
+        registry (M-197) and never in it: the book is one
+        undo book to look at. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named
+        ``_ui_undo_store``, never the
+        method's own name (the M-108 lesson).
+        """
+        registry = getattr(self, "_ui_undo_store", None)
+        if registry is None:
+            from ..core.ui_undo import UiUndoRegistry
+            registry = UiUndoRegistry()
+            self._ui_undo_store = registry
+        return registry
+
+    def ui_undo_book(self):
+        """The session's undo book, as data (M-198).
+
+        The held registry's book when the session
+        holds any item - the things the session can
+        actually be viewed for (items held one by one
+        stand under a session book composed here in
+        the agent layer, so a later whole book
+        recorded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book recorded whole through
+        :meth:`record_undo_book`, or the shipped
+        example book until one is recorded. Reading
+        registers and publishes nothing.
+        """
+        from ..core.ui_undo import (
+            UndoBook, load_ui_undo)
+        registry = self._ui_undo_registry()
+        if registry.list_items():
+            try:
+                book = registry.book()
+            except ValueError:
+                return UndoBook(
+                    title="Command Undo",
+                    panes=registry.list_panes(),
+                    views=registry.list_views(), notes=(), panels=())
+            held = getattr(self, "_ui_undo_held", None)
+            if held is not None and held.title == book.title \
+                    and held.pane_ids() == book.pane_ids() \
+                    and [v.view_id for v in held.views] == [
+                        v.view_id for v in book.views]:
+                return held
+            return book
+        book = getattr(self, "_ui_undo_held", None)
+        if book is None:
+            return load_ui_undo()
+        return book
+
+    def _ui_undo_default_view(self, book: Any):
+        """The view a book derives under by default (M-198).
+
+        The view its own stored panel stands under,
+        else its first held view, else None - a book
+        holding panes but no view yet derives no panel
+        and no verdict, and says so plainly.
+        """
+        for panel in book.panels:
+            if panel.view_id is not None:
+                try:
+                    return book.view_for(panel.view_id)
+                except KeyError:
+                    continue
+        if book.views:
+            return book.views[0]
+        return None
+
+    def _ui_undo_screen(self) -> str:
+        """The /uiundo screen for the session's state (M-198)."""
+        from ..core import ui_undo as undo_module
+        registry = self._ui_undo_registry()
+        if not registry.list_items():
+            return undo_module.format_undo_screen()
+        book = self.ui_undo_book()
+        if not book.views:
+            return undo_module.format_book(book)
+        return undo_module.format_undo_screen(book)
+
+    def ui_undo_status(self) -> dict[str, Any]:
+        """The undo account, in plain data (M-198).
+
+        The pane and view records held this session as
+        plain records, the held book's record (none
+        until an item stands held), the session book's
+        panes, views and notes as plain records (the
+        shipped example book - six panes at the M-197
+        slice boundary, with its two views, its two
+        stance records and its one pinned panel - until
+        items are held), its whole-book record, the
+        panel derived from the whole book under its
+        default view and every panel the book holds
+        as plain records, the verdict derived for
+        the whole book, the index derived from the
+        book's held panes, the note record the
+        book holds first, the undo rule as data, the
+        last pane told in plain words, the panel and
+        the verdict told in plain words, the one
+        screen - rendered from the held book, or from
+        the shipped example book when nothing is held
+        yet - and the plain explanation. A book
+        holding panes but no view yet derives no panel
+        and no verdict. Reading registers and
+        publishes nothing, executes no command, runs
+        no action and navigates nowhere: this
+        layer tells only.
+        """
+        from ..core import ui_undo as undo_module
+        registry = self._ui_undo_registry()
+        held_acts = registry.list_panes()
+        held_views = registry.list_views()
+        held_items = registry.list_items()
+        book = self.ui_undo_book()
+        default = self._ui_undo_default_view(book)
+        latest = book.panes[-1] if book.panes else None
+        latest_words = (undo_module.plain_words(latest)
+                        if latest is not None else "")
+        modal = undo_module.first_note(book)
+        return {
+            "panes": [item.to_record() for item in held_acts],
+            "views": [item.to_record() for item in held_views],
+            "book": (book.to_record() if held_items else None),
+            "ui_undo": {
+                "title": book.title,
+                "panes": [item.to_record() for item in book.panes],
+                "views": [item.to_record() for item in book.views],
+                "notes": [item.to_record() for item in book.notes],
+            },
+            "book_record": undo_module.book_record(book),
+            "panel": (undo_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (undo_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "index": undo_module.index_record(book),
+            "first_note": (undo_module.note_record(modal)
+                         if modal is not None else None),
+            "rule": undo_module.UNDO_RULE,
+            "plain_words": latest_words,
+            "panel_plain_words": (
+                undo_module.panel_plain_words(book, default)
+                if default is not None else ""),
+            "verdict_plain_words": (
+                undo_module.verdict_plain_words(book, default)
+                if default is not None else ""),
+            "screen": self._ui_undo_screen(),
+            "explanation": undo_module.PLAIN_EXPLANATION,
+        }
+
+    def get_undo_pane(self, pane_id: Any):
+        """The one pane an id names (M-198).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). A held item answers
+        for its own book alone: an id the held book
+        holds no pane for raises KeyError, with no
+        silent fall back to the example, exactly as
+        the pure layer answers. Reading registers
+        and publishes nothing.
+        """
+        registry = self._ui_undo_registry()
+        if registry.list_items():
+            return registry.get_pane(pane_id)
+        return self.ui_undo_book().pane_for(pane_id)
+
+    def get_undo_view(self, view_id: Any):
+        """The one view record an id names (M-198).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). Reading registers
+        and publishes nothing.
+        """
+        registry = self._ui_undo_registry()
+        if registry.list_items():
+            return registry.get_view(view_id)
+        return self.ui_undo_book().view_for(view_id)
+
+    def get_undo_note(self, note_id: Any):
+        """The one stance record an id names (M-198).
+
+        The session book answers - the shipped example
+        book until a book is recorded whole for the
+        session. Notes travel with whole books: a
+        session holding panes one by one holds no
+        notes, and an id it holds no record for
+        raises KeyError - the stance stands unheld,
+        honestly. Reading registers and publishes
+        nothing, and executes no command: the record is
+        data alone.
+        """
+        return self.ui_undo_book().note_for(note_id)
+
+    def undo_panes_for_kind(self, area: Any):
+        """The session book's panes of one kind (M-198)."""
+        from ..core.ui_undo import (
+            panes_for_kind as _for_area)
+        return _for_area(self.ui_undo_book(), area)
+
+    def undo_panes_passing(self):
+        """The session book's panes standing complete (M-198)."""
+        from ..core.ui_undo import (
+            passing_panes as _passing)
+        return _passing(self.ui_undo_book())
+
+    def ui_undo_panel(self, view: Any = None):
+        """The panel derived for the whole book (M-198).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a book
+        holding no view at all refuses plainly rather
+        than inventing one.
+        """
+        from ..core.ui_undo import (
+            derive_panel as _derive_panel)
+        book = self.ui_undo_book()
+        resolved = view if view is not None \
+            else self._ui_undo_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive a panel under")
+        return _derive_panel(book, resolved)
+
+    def ui_undo_verdict(self, view: Any = None):
+        """The verdict derived for the whole book (M-198).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a book
+        holding no view at all refuses plainly rather
+        than inventing one.
+        """
+        from ..core.ui_undo import (
+            derive_verdict as _derive_verdict)
+        book = self.ui_undo_book()
+        resolved = view if view is not None \
+            else self._ui_undo_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive a verdict under")
+        return _derive_verdict(book, resolved)
+
+    def undo_index(self) -> dict[str, Any]:
+        """Print the index derived from the held panes (M-198).
+
+        The printable index target: the index is
+        derived at call time from the session book's
+        held panes alone - one pane per complete
+        pane under its own preserved state, and the incomplete
+        panes named in its gaps. Printing registers
+        and publishes nothing, executes no command,
+        runs no action and navigates nowhere. Returns the derived index record, the
+        rendered index, the screen and the plain
+        explanation.
+        """
+        from ..core import ui_undo as undo_module
+        book = self.ui_undo_book()
+        index = undo_module.derive_index(book)
+        return {
+            "index": index.to_record(),
+            "index_record": undo_module.index_record(index),
+            "index_text": undo_module.format_index(book),
+            "screen": self._ui_undo_screen(),
+            "explanation": undo_module.PLAIN_EXPLANATION,
+        }
+
+    def register_undo_pane(self, pane: Any) -> dict[str, Any]:
+        """Hold one pane for the session (M-198).
+
+        The pane is held by the pure registry under
+        its pane id - an pane id or a sequence
+        already standing here refuses, and a refusal
+        holds nothing new and publishes nothing. The
+        pane is judged whole by the pure layer before
+        it is held: an pane naming no held kind, or
+        claiming a live undo execution, refuses by
+        name on this target too. A held pane is
+        published as its ``pane_record`` session-news
+        record through the checkpoint target. Returns
+        the held pane, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding an pane executes nothing:
+        the thing stands on this layer's book, as
+        data, provenance whole.
+        """
+        from ..core import ui_undo as undo_module
+        registry = self._ui_undo_registry()
+        held = registry.register_pane(pane)
+        news = undo_module.pane_record(held)
+        self._publish_undo_record(news)
+        return {
+            "pane": held.to_record(),
+            "record_news": news,
+            "screen": self._ui_undo_screen(),
+            "explanation": undo_module.PLAIN_EXPLANATION,
+        }
+
+    def register_undo_view(self, view: Any) -> dict[str, Any]:
+        """Hold one view record for the session (M-198).
+
+        The view is held by the pure registry under
+        its id - a view id or a sequence already
+        standing here refuses, and a refusal holds
+        nothing new and publishes nothing. A held
+        view is published as its ``view_record``
+        session-news record through the checkpoint
+        target. Returns the held view, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding a view only ever
+        looks: it executes nothing and saves nothing.
+        """
+        from ..core import ui_undo as undo_module
+        registry = self._ui_undo_registry()
+        held = registry.register_view(view)
+        news = undo_module.view_record(held)
+        self._publish_undo_record(news)
+        return {
+            "view": held.to_record(),
+            "record_news": news,
+            "screen": self._ui_undo_screen(),
+            "explanation": undo_module.PLAIN_EXPLANATION,
+        }
+
+    def view_undo(
+            self, view_filter: Any, *,
+            detail: Any = None,
+            recorded_on: Any = "2026-11-10",
+            actor: Any = "the jarl",
+            source: Any = "command undo",
+            origin_session: Any = "session-m197",
+            view_id: Any = None) -> dict[str, Any]:
+        """Stand one view on the session's held book (M-198).
+
+        This slice's own viewing target: the view record
+        is composed by the pure layer at the next
+        sequence of the session's held book, judged
+        whole, and held by the pure registry. The view
+        is published as its ``view_record`` session
+        news, the panel derived from the whole book as
+        its ``panel_record`` session news, and the
+        verdict derived for the whole book as its
+        ``verdict_record`` session news. Returns the
+        held view, its view filter, its news records,
+        the screen rendered after it landed and the
+        plain explanation. HONEST BOUNDARY: viewing
+        tells the book alone, as data - it executes no command and navigates nowhere.
+        """
+        from ..core import ui_undo as undo_module
+        registry = self._ui_undo_registry()
+        held_views = registry.list_views()
+        seq = (max(v.seq for v in held_views) + 1) \
+            if held_views else 1
+        fields: dict[str, Any] = {
+            "seq": seq, "view_filter": view_filter,
+            "detail": detail if detail is not None else (
+                f"View filter {view_filter!r} in the "
+                "session's held book, composed on the "
+                "viewing target."),
+            "recorded_on": recorded_on,
+            "actor": actor, "source": source,
+            "origin_session": origin_session}
+        if view_id is not None:
+            fields["view_id"] = view_id
+        else:
+            held_ids = {v.view_id for v in held_views}
+            fresh = 1
+            while f"view-{fresh}" in held_ids:
+                fresh += 1
+            fields["view_id"] = f"view-{fresh}"
+        view = undo_module.build_view(fields)
+        held = registry.register_view(view)
+        view_news = undo_module.view_record(held)
+        self._publish_undo_record(view_news)
+        book = self.ui_undo_book()
+        panel_news = undo_module.panel_record(
+            undo_module.derive_panel(book, held))
+        self._publish_undo_record(panel_news)
+        verdict_news = undo_module.verdict_record(
+            undo_module.derive_verdict(book, held))
+        self._publish_undo_record(verdict_news)
+        return {
+            "view": held.to_record(),
+            "view_filter": held.view_filter,
+            "record_news": view_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._ui_undo_screen(),
+            "explanation": undo_module.PLAIN_EXPLANATION,
+        }
+
+    def register_undo_book(self, book: Any) -> dict[str, Any]:
+        """Register a whole undo book (M-198).
+
+        Every pane and view record of the book is held
+        by the pure registry, in held and recorded
+        order - the book is judged whole, and against
+        the held book, before anything is held, so a
+        refusal holds nothing new. The first book held
+        sets the registry's title; a later book under
+        a different title refuses, as does a book
+        naming a held pane id, sequence or words, or a
+        view id or sequence. The book's panels are
+        derivations, not holdings, and are not held;
+        its notes travel with whole books and are
+        held on the record target, not this one. Every
+        pane is published as its session news and
+        every view as its ``view_record`` session
+        news, in order. Returns the held book, its
+        panes and views, their news records, the count
+        of panes held, the screen, and the explanation.
+        Registering executes no command, runs no
+        action and navigates nowhere.
+        """
+        from ..core import ui_undo as undo_module
+        validated = undo_module.build_book(book)
+        registry = self._ui_undo_registry()
+        registry.register_book(validated)
+        records = [
+            undo_module.pane_record(item)
+            for item in validated.panes]
+        records += [
+            undo_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_undo_record(news)
+        return {
+            "book": validated.to_record(),
+            "panes": [item.to_record() for item in validated.panes],
+            "views": [item.to_record() for item in validated.views],
+            "records_news": records,
+            "count": len(validated.panes),
+            "screen": self._ui_undo_screen(),
+            "explanation": undo_module.PLAIN_EXPLANATION,
+        }
+
+    def record_undo_book(self, book: Any = None) -> dict[str, Any]:
+        """Record a whole undo book (M-198).
+
+        With no book named, the shipped example book
+        is recorded through the pure layer - six panes
+        at the M-197 slice boundary, with its two
+        views, its two stance records and its one
+        pinned panel. A book loaded from a file (the
+        pure layer's ``load_ui_undo_file``
+        target) may be passed instead. The book is
+        judged whole before anything is held - a book
+        holding two panes under one set of words refuses here
+        by name, as does any record claiming a live
+        undo execution. Every pane and view is held and
+        published as its session news, in order, and
+        the panel derived under the book's default
+        view as its ``panel_record`` session news;
+        the book is remembered whole as the session's
+        - its held panel and notes and all - and the
+        same book recorded twice refuses -
+        fingerprinted on its pane ids, view ids and
+        title. Returns the held book, its panes and
+        views, their news records, the panel news
+        record, the index news record, the count,
+        the screen, and the explanation. Recording
+        executes no command, runs no action and
+        navigates nowhere.
+        """
+        from ..core import ui_undo as undo_module
+        book = book if book is not None \
+            else undo_module.load_ui_undo()
+        validated = undo_module.build_book(book)
+        fingerprint = (tuple(validated.pane_ids()),
+                       tuple(v.view_id for v in validated.views),
+                       validated.title)
+        recorded = getattr(self, "_ui_undo_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._ui_undo_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this undo book is already recorded for the "
+                "session; a book is recorded once")
+        registry = self._ui_undo_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._ui_undo_held = validated
+        records = [
+            undo_module.pane_record(item)
+            for item in validated.panes]
+        records += [
+            undo_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_undo_record(news)
+        panel_news = undo_module.panel_record(
+            undo_module.derive_panel(
+                validated,
+                self._ui_undo_default_view(validated)),
+            validated)
+        self._publish_undo_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "panes": [item.to_record() for item in validated.panes],
+            "views": [item.to_record() for item in validated.views],
+            "records_news": records,
+            "panel_record": panel_news,
+            "index_record": undo_module.index_record(validated),
+            "count": len(validated.panes),
+            "screen": undo_module.format_undo_screen(validated),
+            "explanation": undo_module.PLAIN_EXPLANATION,
+        }
+
+    def report_ui_undo(self) -> dict[str, Any]:
+        """Render the session undo book, as a report (M-198).
+
+        The book - the held registry's book when the
+        session holds any item, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - is rendered through the pure
+        formatters alone. Rendering registers and
+        publishes nothing, executes no command, runs
+        no action and writes nothing. Returns the
+        book, its panes, views, notes and panels as
+        plain records, the derived panel, verdict and
+        index (panel and verdict none while the book
+        holds no view), the first note record, the
+        rendered book, panel, verdict and index,
+        the screen, and the plain explanation.
+        """
+        from ..core import ui_undo as undo_module
+        book = self.ui_undo_book()
+        default = self._ui_undo_default_view(book)
+        modal = undo_module.first_note(book)
+        return {
+            "book": book.to_record(),
+            "panes": [item.to_record() for item in book.panes],
+            "views": [item.to_record() for item in book.views],
+            "notes": [item.to_record() for item in book.notes],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (undo_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "verdict": (undo_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "index": undo_module.index_record(book),
+            "first_note": (undo_module.note_record(modal)
+                         if modal is not None else None),
+            "book_text": undo_module.format_book(book),
+            "panel_text": (undo_module.format_panel(book, default)
+                           if default is not None else ""),
+            "verdict_text": (undo_module.format_verdict(
+                book, default)
+                if default is not None else ""),
+            "index_text": undo_module.format_index(book),
+            "screen": self._ui_undo_screen(),
+            "explanation": undo_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_undo_record(self, record: dict[str, Any]) -> None:
+        """Publish one undo record as session news (M-198).
+
+        The pure layer's ``pane_record``, ``view_record``,
+        ``panel_record`` and ``verdict_record`` are
+        journaled through the same checkpoint target
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once per shape: an pane under its own pane id
+        and segment, a view under its own view id,
+        sequence and view filter, a panel under its
+        whole derived shape, and a verdict under its
+        word and tallies, so a panel or verdict grown
+        by a newly held pane or view announces again
+        as the new figure it is. A foreign record
+        type is never published on this target.
+        """
+        if record.get("type") == "undo_pane":
+            target = ("undo_pane", record.get("pane_id"),
+                   record.get("segment"))
+        elif record.get("type") == "undo_view":
+            target = ("undo_view", record.get("view_id"),
+                   record.get("seq"), record.get("view_filter"))
+        elif record.get("type") == "undo_panel":
+            target = ("undo_panel", record.get("panel_id"),
+                   record.get("view_id"),
+                   tuple(row.get("item_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_shown"))
+        elif record.get("type") == "undo_verdict":
+            target = ("undo_verdict", record.get("verdict"),
+                   record.get("total_shown"),
+                   record.get("passing_shown"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(self, "_ui_undo_announced", None)
+        if announced is None:
+            announced = set()
+            self._ui_undo_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
