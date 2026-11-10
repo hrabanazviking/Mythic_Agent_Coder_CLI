@@ -1211,7 +1211,7 @@ slices:
   title: Settings as one room
   summary: every setting in one searchable screen, each with its plain-language meaning and its current
     source (default/project/user/session) shown.
-  status: queued
+  status: done
 - id: M-197
   part: 8
   title: Command palette
