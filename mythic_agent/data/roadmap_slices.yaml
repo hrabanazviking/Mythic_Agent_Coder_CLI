@@ -1129,7 +1129,7 @@ slices:
   title: The plain-language skin
   summary: a "Jarl mode" register — reports, approvals, and stand-ups in plain everyday words, technical
     detail folded behind a keypress. (Volmarr's standing law for his own Muse, built into his own coder.)
-  status: queued
+  status: done
 - id: M-183
   part: 8
   title: Error kindness

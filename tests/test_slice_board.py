@@ -355,10 +355,10 @@ def test_card_from_roadmap_slice_derives_its_column():
     assert banked.column == "banked"
     assert banked.title == "The TUI redesign charter"
     queued = card_from_roadmap_slice(
-        by_id["M-182"], position=3, column="queued")
+        by_id["M-183"], position=3, column="queued")
     assert queued.column == "queued"
     with pytest.raises(ValueError):
-        card_from_roadmap_slice(by_id["M-182"], position=3,
+        card_from_roadmap_slice(by_id["M-183"], position=3,
                                 column="banked")
     ghost = SimpleNamespace(
         id="M-190", part=8, title="A ghost slice",
@@ -852,12 +852,12 @@ class TestSliceBoardAgentHolding:
             self, agent):
         roadmap = load_roadmap()
         by_id = {item.id: item for item in roadmap.slices}
-        card = card_from_roadmap_slice(by_id["M-182"], position=1)
+        card = card_from_roadmap_slice(by_id["M-183"], position=1)
         assert card.column == "queued"
-        assert card.title == "The plain-language skin"
+        assert card.title == "Error kindness"
         with pytest.raises(ValueError):
             card_from_roadmap_slice(
-                by_id["M-182"], position=1, column="banked")
+                by_id["M-183"], position=1, column="banked")
         outcome = agent.register_slice_board_card(card)
         assert outcome["card"]["column"] == "queued"
         banked = card_from_roadmap_slice(by_id["M-171"], position=2)
@@ -1016,15 +1016,15 @@ class TestSliceBoardAgentHolding:
         before = {item.id: item.status
                   for item in load_roadmap().slices}
         agent.register_slice_board_card(_card(
-            slice_id="M-182", title="The plain-language skin"))
+            slice_id="M-183", title="Error kindness"))
         agent.apply_slice_board_action(
-            "strike", slice_id="M-182",
+            "strike", slice_id="M-183",
             detail="struck by hand for the tests.")
-        assert agent.get_slice_board_card("M-182").struck is True
+        assert agent.get_slice_board_card("M-183").struck is True
         after = {item.id: item.status
                  for item in load_roadmap().slices}
         assert after == before
-        assert after["M-182"] == "queued"
+        assert after["M-183"] == "queued"
 
 
 class TestSliceBoardTerminalSurface:
@@ -1312,12 +1312,12 @@ class TestSliceBoardAgentHolding:
             self, agent):
         roadmap = load_roadmap()
         by_id = {item.id: item for item in roadmap.slices}
-        card = card_from_roadmap_slice(by_id["M-182"], position=1)
+        card = card_from_roadmap_slice(by_id["M-183"], position=1)
         assert card.column == "queued"
-        assert card.title == "The plain-language skin"
+        assert card.title == "Error kindness"
         with pytest.raises(ValueError):
             card_from_roadmap_slice(
-                by_id["M-182"], position=1, column="banked")
+                by_id["M-183"], position=1, column="banked")
         outcome = agent.register_slice_board_card(card)
         assert outcome["card"]["column"] == "queued"
         banked = card_from_roadmap_slice(by_id["M-171"], position=2)
@@ -1476,15 +1476,15 @@ class TestSliceBoardAgentHolding:
         before = {item.id: item.status
                   for item in load_roadmap().slices}
         agent.register_slice_board_card(_card(
-            slice_id="M-182", title="The plain-language skin"))
+            slice_id="M-183", title="Error kindness"))
         agent.apply_slice_board_action(
-            "strike", slice_id="M-182",
+            "strike", slice_id="M-183",
             detail="struck by hand for the tests.")
-        assert agent.get_slice_board_card("M-182").struck is True
+        assert agent.get_slice_board_card("M-183").struck is True
         after = {item.id: item.status
                  for item in load_roadmap().slices}
         assert after == before
-        assert after["M-182"] == "queued"
+        assert after["M-183"] == "queued"
 
 
 class TestSliceBoardTerminalSurface:
