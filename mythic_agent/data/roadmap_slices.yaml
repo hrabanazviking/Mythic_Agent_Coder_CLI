@@ -1252,7 +1252,7 @@ slices:
   title: The slicing engine
   summary: from an approved intent, the Architect drafts slices sized to the house grain (one verifiable
     outcome each) with dependencies — the human approves the *shape*, not every step.
-  status: queued
+  status: done
 - id: M-204
   part: 9
   title: The Juggernaut loop as runtime
