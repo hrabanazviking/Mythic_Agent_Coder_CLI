@@ -393,6 +393,8 @@ class CommandHandler:
                 self._handle_manners(args)
             elif cmd == "/skin":
                 self._handle_skin(args)
+            elif cmd == "/errors":
+                self._handle_errors(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -7613,6 +7615,88 @@ class CommandHandler:
                     f"{primary.plain_language_skin_register()}")
             else:
                 text = primary.plain_language_skin_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_errors(self, args: str):
+        """M-183: /errors - error kindness.
+
+        ``/errors`` shows the error book held this
+        session - every error told in plain words,
+        what happened, what it means and the most
+        likely fix, its technical trace folded behind
+        the trace keypress, no raw stack ever landing
+        unaccompanied (the shipped example book - six
+        errors at the M-182 slice boundary, with its
+        two views and its one pinned panel - when none
+        is held yet); ``/errors error <error-id>``
+        shows one error whole, told plainly;
+        ``/errors trace <error-id>`` unfolds one
+        error's folded trace whole; ``/errors view
+        <view-id>`` shows one held view record;
+        ``/errors kind <kind>`` shows the book's
+        errors of one kind; ``/errors panel`` shows
+        the panel derived from the whole book under
+        its default view; ``/errors verdict`` shows
+        the verdict derived for the whole book.
+        Reading registers and publishes nothing as
+        session news: errors and views are held only
+        when they are given through the agent's
+        register roads, stood on the book on the
+        viewing road, or held on the book roads, and
+        every error held for the session is journaled
+        as an error_kindness_error session event,
+        every view as an error_kindness_view session
+        event, every derived panel as an
+        error_kindness_panel session event and every
+        derived verdict as an error_kindness_verdict
+        session event. This surface fixes nothing and
+        sends nothing - telling and unfolding are
+        words only.
+        """
+        from ..core.error_kindness import (
+            format_book,
+            format_error,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_error_kindness_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_error_kindness_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "error":
+                text = format_error(
+                    primary.get_kindness_error(target))
+            elif action == "trace":
+                text = primary.trace_error_kindness_error(
+                    target)["text"]
+            elif action == "view":
+                text = format_view(
+                    primary.get_kindness_view(target))
+            elif action == "kind":
+                text = format_book(
+                    primary.error_kindness_book(), target)
+            elif action == "panel":
+                text = format_panel(primary.error_kindness_book())
+            elif action == "verdict":
+                text = format_verdict(primary.error_kindness_book())
+            else:
+                text = primary.error_kindness_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
