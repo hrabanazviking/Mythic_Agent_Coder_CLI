@@ -421,6 +421,8 @@ class CommandHandler:
                 self._handle_settingsroom(args)
             elif cmd == "/commandpalette":
                 self._handle_commandpalette(args)
+            elif cmd == "/uiundo":
+                self._handle_uiundo(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -9002,6 +9004,99 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_uiundo(self, args: str):
+        """M-198: /uiundo - the command undo.
+
+        ``/uiundo`` shows the undo book held this
+        session - the command undo, held as data:
+        one record per pane with the words that reach
+        it and the notes held as
+        data beside them (the shipped example book -
+        six panes at the M-197 slice boundary, with
+        its two views, two stance records and its one
+        pinned panel - when none is held yet);
+        ``/uiundo pane <pane-id>`` shows one pane whole;
+        ``/uiundo state <state>`` shows the pane one set of words
+        reaches, or names the words unheld;
+        ``/uiundo kind <kind>`` shows the book's panes
+        of one kind; ``/uiundo view <view-id>`` shows
+        one held view record; ``/uiundo note
+        <note-id>`` shows one held stance record;
+        ``/uiundo index`` shows the index derived
+        from the whole book's held panes; ``/uiundo
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/uiundo
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: panes and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every pane held for the session is
+        journaled as a undo_pane session event,
+        every view as a undo_view session event,
+        every derived panel as a undo_panel
+        session event and every derived verdict as a
+        undo_verdict session event. This heading
+        executes no command, runs no action and
+        navigates nowhere - holding and telling
+        are words only.
+        """
+        from ..core.ui_undo import (
+            format_pane,
+            format_book,
+            format_state,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_undo_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_undo_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "pane":
+                text = format_pane(primary.get_undo_pane(target))
+            elif stance == "state":
+                text = format_state(
+                    primary.ui_undo_book(), target)
+            elif stance == "kind":
+                text = format_book(
+                    primary.ui_undo_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_undo_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.ui_undo_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.ui_undo_book())
+            elif stance == "panel":
+                text = format_panel(primary.ui_undo_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.ui_undo_book())
+            else:
+                text = primary.ui_undo_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
 
 
     def _handle_conflicts(self, args: str):
