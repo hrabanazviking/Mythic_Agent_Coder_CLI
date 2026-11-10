@@ -614,3 +614,16 @@ mythic_agent/agents/llm.py:37309:report_notifications_manners:method
 mythic_agent/agents/llm.py:37351:announce_notifications:method
 mythic_agent/core/notifications_manners.py:2118:row_for:method
 mythic_agent/core/notifications_manners.py:2949:latest_view:method
+mythic_agent/agents/llm.py:37728:plain_language_skin_with_kind:method
+mythic_agent/agents/llm.py:37734:plain_language_skin_passing:method
+mythic_agent/agents/llm.py:37740:plain_language_skin_panel:method
+mythic_agent/agents/llm.py:37758:plain_language_skin_verdict:method
+mythic_agent/agents/llm.py:37842:register_skin_report:method
+mythic_agent/agents/llm.py:37871:register_skin_approval:method
+mythic_agent/agents/llm.py:37903:register_skin_standup:method
+mythic_agent/agents/llm.py:37930:register_skin_term:method
+mythic_agent/agents/llm.py:37958:register_skin_view:method
+mythic_agent/agents/llm.py:37987:view_plain_language_skin:method
+mythic_agent/agents/llm.py:38055:register_plain_language_skin_book:method
+mythic_agent/agents/llm.py:38115:record_plain_language_skin_book:method
+mythic_agent/agents/llm.py:38204:report_plain_language_skin:method
