@@ -742,3 +742,413 @@ def test_parse_args_inspect_and_loader_roads():
         source="test source", origin_session="session-test")
     assert built.card_id == "session-kw"
     assert card_passes(built) is True
+
+
+# ---------------------------------------------------------------------
+# M-189 agent layer: the agent holds a gallery book
+# for the session, cards and views are published
+# as session news through the checkpoint road
+# (journal first, deduped per shape), the panel
+# and verdict are derived at call time from the
+# whole book under a view, never held, the index
+# is derived from the book's held cards, and the
+# action roads are held as data beside them -
+# holding one resumes no session. This layer
+# resumes nothing, renders no live UI, exports
+# nothing and persists nothing beyond the
+# session journal news.
+# ---------------------------------------------------------------------
+
+from mythic_agent.core.sessions import SessionStore as _SessionStore
+
+
+def _gallery_events(store, session_id, kind):
+    return [e for e in store.export(session_id)["events"]
+            if e["type"] == kind]
+
+
+def _write_gallery_book_file(tmp_path):
+    raw = (ROOT / "mythic_agent" / "data" / SESSION_GALLERY_RESOURCE
+           ).read_text(encoding="utf-8")
+    path = tmp_path / "session_gallery.yaml"
+    path.write_text(raw, encoding="utf-8")
+    return path
+
+
+class TestGalleryAgentStatus:
+    def test_status_starts_unheld_but_shows_the_example(self, agent):
+        status = agent.session_gallery_status()
+        assert status["cards"] == []
+        assert status["views"] == []
+        assert status["book"] is None
+        assert status["gallery"]["title"] == EXAMPLE_TITLE
+        assert len(status["gallery"]["cards"]) == 6
+        assert len(status["gallery"]["views"]) == 2
+        assert len(status["gallery"]["actions"]) == 2
+        assert status["panel"]["total_items"] == 6
+        assert status["panel"]["total_shown"] == 6
+        assert status["panels"][0]["panel_id"] == "panel-m188-boundary"
+        assert status["verdict"]["verdict"] == "strained"
+        assert status["verdict"]["passing_shown"] == 5
+        assert [e["road"] for e in status["index"]["entries"]] == [
+            "resume", "resume from checkpoint", "fork and resume",
+            "resume", "resume from checkpoint"]
+        assert status["index"]["gaps"] == ["session-abandoned-sweep"]
+        assert status["first_action"]["action_id"] == "action-resume-login"
+        assert "held as data alone" in status["rule"]
+        assert "Bank the M-188 wave" in status["plain_words"]
+        assert "Session Gallery (M-189)" in status["screen"]
+        assert status["explanation"] == PLAIN_EXPLANATION
+
+    def test_registry_is_one_per_agent(self, agent):
+        first = agent._session_gallery_registry()
+        assert agent._session_gallery_registry() is first
+        assert agent._session_gallery_store is first
+
+    def test_reads_register_and_publish_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.session_gallery_status()
+        assert agent.get_gallery_card(
+            "session-fix-login-redirect").task == (
+                "Fix the login redirect")
+        assert agent.get_gallery_view("view-all").view_filter == "all"
+        assert agent.get_gallery_action(
+            "action-resume-login").action_id == "action-resume-login"
+        assert [a.card_id for a in agent.gallery_cards_for_outcome(
+            "completed")] == [
+                "session-fix-login-redirect", "session-draft-costs-face",
+                "session-write-gallery-guide", "session-bank-m188-wave"]
+        assert [a.card_id for a in agent.gallery_cards_passing()] == [
+            "session-fix-login-redirect", "session-draft-costs-face",
+            "session-repair-flaky-gate", "session-write-gallery-guide",
+            "session-bank-m188-wave"]
+        agent.session_gallery_panel()
+        agent.session_gallery_verdict()
+        agent.gallery_index()
+        agent.report_session_gallery()
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("gallery")
+                or e["type"] == "session_card"] == []
+        with pytest.raises(KeyError):
+            agent.get_gallery_card("session-nope")
+        with pytest.raises(KeyError):
+            agent.get_gallery_view("view-nope")
+        with pytest.raises(KeyError):
+            agent.get_gallery_action("action-nope")
+        with pytest.raises(ValueError):
+            agent.gallery_cards_for_outcome("the void")
+        agent.close()
+
+    def test_status_after_register_shows_the_held_pieces(
+            self, agent):
+        agent.register_gallery_card(_card())
+        status = agent.session_gallery_status()
+        assert [a["card_id"] for a in status["cards"]] == ["session-test"]
+        assert status["book"]["title"] == "An unheld gallery book"
+        assert status["panel"] is None
+        assert status["verdict"] is None
+        assert [e["road"] for e in status["index"]["entries"]] == [
+            "resume"]
+        assert status["first_action"] is None
+        assert "session-test" in status["screen"]
+
+    def test_held_card_never_falls_back_to_the_example(
+            self, agent):
+        agent.register_gallery_card(_card())
+        with pytest.raises(KeyError):
+            agent.get_gallery_card("session-fix-login-redirect")
+        with pytest.raises(KeyError):
+            agent.get_gallery_view("view-all")
+        with pytest.raises(KeyError):
+            agent.get_gallery_action("modal")
+        card = agent.get_gallery_card("session-test")
+        assert card.task == "A test session"
+        assert agent.session_gallery_book().title == (
+            "An unheld gallery book")
+
+    def test_actions_and_index_stand_in_the_example(self, agent):
+        first = agent.get_gallery_action("action-resume-login")
+        assert first.action_id == "action-resume-login"
+        assert first.session_id == "session-fix-login-redirect"
+        status = agent.session_gallery_status()
+        assert status["index"]["gaps"] == ["session-abandoned-sweep"]
+        assert status["first_action"]["session_id"] == (
+            "session-fix-login-redirect")
+        assert status["first_action"]["action"] == "resume"
+
+
+class TestGalleryAgentHolding:
+    def test_register_card_holds_and_publishes_once(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_gallery_card(_card())
+        assert result["card"]["card_id"] == "session-test"
+        assert result["record_news"]["type"] == "session_card"
+        assert "session-test" in result["screen"]
+        events = _gallery_events(store, session_id, "session_card")
+        assert len(events) == 1
+        agent.close()
+
+    def test_duplicate_card_refuses_and_publishes_nothing_new(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_gallery_card(_card())
+        with pytest.raises(ValueError):
+            agent.register_gallery_card(_card(seq=9))
+        with pytest.raises(ValueError):
+            agent.register_gallery_card(_card(card_id="session-two"))
+        events = _gallery_events(store, session_id, "session_card")
+        assert len(events) == 1
+        agent.close()
+
+    def test_register_view_holds_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_gallery_view(_view())
+        assert result["view"]["view_id"] == "view-test"
+        assert len(_gallery_events(
+            store, session_id, "gallery_view")) == 1
+        agent.close()
+
+    def test_view_road_derives_sequence_and_publishes(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        agent.register_gallery_card(_card())
+        result = agent.view_gallery("resumable")
+        assert result["view"]["view_filter"] == "resumable"
+        assert result["view"]["seq"] == 1
+        assert result["panel_record"]["type"] == "gallery_panel"
+        assert result["panel_record"]["total_shown"] == 1
+        assert result["verdict_record"]["verdict"] == "open"
+        assert len(_gallery_events(
+            store, session_id, "gallery_view")) == 1
+        assert len(_gallery_events(
+            store, session_id, "gallery_panel")) == 1
+        assert len(_gallery_events(
+            store, session_id, "gallery_verdict")) == 1
+        agent.close()
+
+    def test_register_book_holds_and_publishes_in_order(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.register_gallery_book(_book(views=[_view()]))
+        assert result["count"] == 1
+        assert [r["type"] for r in result["records_news"]] == [
+            "session_card", "gallery_view"]
+        assert len(_gallery_events(
+            store, session_id, "session_card")) == 1
+        agent.close()
+
+    def test_record_book_holds_and_publishes_the_example(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.record_gallery_book()
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+        assert result["panel_record"]["type"] == "gallery_panel"
+        assert result["index_record"]["gaps"] == [
+            "session-abandoned-sweep"]
+        with pytest.raises(ValueError):
+            agent.record_gallery_book()
+        assert len(_gallery_events(
+            store, session_id, "session_card")) == 6
+        assert len(_gallery_events(
+            store, session_id, "gallery_view")) == 2
+        agent.close()
+
+    def test_book_from_a_file_is_recorded_at_the_agent_layer(
+            self, agent, tmp_path):
+        path = _write_gallery_book_file(tmp_path)
+        book = load_session_gallery_file(path)
+        result = agent.record_gallery_book(book)
+        assert result["count"] == 6
+        assert result["book"]["title"] == EXAMPLE_TITLE
+
+    def test_report_renders_example_then_held_book_only(self, agent):
+        report = agent.report_session_gallery()
+        assert report["book"]["title"] == EXAMPLE_TITLE
+        assert report["verdict"]["verdict"] == "strained"
+        assert report["index"]["gaps"] == ["session-abandoned-sweep"]
+        assert "session-fix-login-redirect" in report["book_text"]
+        assert "resume - Fix the login redirect" in report["index_text"]
+        agent.register_gallery_card(_card())
+        report = agent.report_session_gallery()
+        assert report["book"]["title"] == "An unheld gallery book"
+        assert report["panel"] is None
+        assert report["verdict"] is None
+
+
+class TestGalleryTerminalSurface:
+    def test_show_card_road_outcome_view_action_index_panel_verdict(
+            self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/gallery")
+        assert "Session Gallery (M-189)" in text
+        _, _, text = _slash(agent, "/gallery card session-fix-login-redirect")
+        assert "Card: Fix the login redirect" in text
+        _, _, text = _slash(agent, "/gallery road resume")
+        assert "Fix the login redirect" in text
+        _, _, text = _slash(agent, "/gallery road triple resume")
+        assert "reaches nothing in this book" in text
+        _, _, text = _slash(agent, "/gallery outcome completed")
+        assert "session-fix-login-redirect" in text
+        assert "session-abandoned-sweep" not in text
+        _, _, text = _slash(agent, "/gallery view view-all")
+        assert "filter all" in text
+        _, _, text = _slash(agent, "/gallery action action-resume-login")
+        assert "Session action resume session-fix-login-redirect" in text
+        _, _, text = _slash(agent, "/gallery index")
+        assert "Card index" in text
+        assert "session-write-gallery-guide" in text
+        _, _, text = _slash(agent, "/gallery panel")
+        assert "Gallery panel under view view-all" in text
+        _, _, text = _slash(agent, "/gallery verdict")
+        assert "strained" in text
+
+    def test_help_line_and_bad_grammar(self, agent):
+        from mythic_agent.terminal import _slash
+        _, _, text = _slash(agent, "/help")
+        assert ("/gallery [show|card <card-id>"
+                "|road <road>|outcome <outcome>|view <view-id>"
+                "|action <action-id>|index|panel|verdict]") in text
+        _, _, text = _slash(agent, "/gallery dance party")
+        assert text == USAGE
+        _, _, text = _slash(agent, "/gallery card session-nope")
+        assert "no card named" in text
+
+
+@pytest.fixture()
+def gallery_handler(agent, monkeypatch):
+    from mythic_agent.agents import command_handler as handler_module
+    from mythic_agent.agents.command_handler import CommandHandler
+    from mythic_agent.agents.llm import AGENT_REGISTRY
+    published = []
+    monkeypatch.setattr(
+        handler_module, "publish_sync",
+        lambda event, **kwargs: published.append((event, kwargs)))
+    AGENT_REGISTRY["Primary"] = agent
+    instance = CommandHandler.__new__(CommandHandler)
+    instance.published = published
+    yield instance
+    AGENT_REGISTRY.pop("Primary", None)
+
+
+def _gallery_published_text(handler):
+    return "\n".join(kwargs.get("text", "")
+                     for event, kwargs in handler.published
+                     if event == "agent_chat_chunk")
+
+
+class TestGalleryCommand:
+    def test_show_is_default(self, gallery_handler, agent):
+        gallery_handler._handle_gallery("")
+        assert "Session Gallery (M-189)" in (
+            _gallery_published_text(gallery_handler))
+
+    def test_card_road_outcome_view_action_index_panel_verdict(
+            self, gallery_handler, agent):
+        gallery_handler._handle_gallery("card session-fix-login-redirect")
+        assert "Card: Fix the login redirect" in _gallery_published_text(
+            gallery_handler)
+        gallery_handler._handle_gallery("road resume")
+        assert "Fix the login redirect" in _gallery_published_text(
+            gallery_handler)
+        gallery_handler._handle_gallery("outcome completed")
+        assert "session-fix-login-redirect" in _gallery_published_text(gallery_handler)
+        gallery_handler._handle_gallery("view view-all")
+        assert "filter all" in _gallery_published_text(gallery_handler)
+        gallery_handler._handle_gallery("action action-resume-login")
+        assert "Session action resume session-fix-login-redirect" in _gallery_published_text(gallery_handler)
+        gallery_handler._handle_gallery("index")
+        assert "Card index" in _gallery_published_text(gallery_handler)
+        gallery_handler._handle_gallery("panel")
+        assert "Gallery panel under view" in _gallery_published_text(
+            gallery_handler)
+        gallery_handler._handle_gallery("verdict")
+        assert "strained" in _gallery_published_text(gallery_handler)
+
+    def test_bad_grammar_is_published(
+            self, gallery_handler, agent):
+        gallery_handler._handle_gallery("dance party")
+        assert USAGE in _gallery_published_text(gallery_handler)
+        gallery_handler._handle_gallery("card session-nope")
+        assert "no card named" in _gallery_published_text(gallery_handler)
+
+
+class TestChatScreenRoutingGallery:
+    def test_onboard_routes_as_system_command(self, monkeypatch):
+        from mythic_agent.ui.screens import chat_screen
+        from mythic_agent.ui.screens.chat_screen import MainChatScreen
+
+        class _FakeLog:
+            def __init__(self):
+                self.lines = []
+
+            def write(self, *args, **kwargs):
+                self.lines.append(" ".join(str(a) for a in args))
+
+        calls = []
+        monkeypatch.setattr(
+            chat_screen.SecureAPI, "publish_system_command",
+            staticmethod(lambda cmd, args: calls.append((cmd, args))))
+        screen = MainChatScreen.__new__(MainChatScreen)
+        screen.handle_command("/gallery panel", _FakeLog())
+        assert calls == [("/gallery", "panel")]
+
+    def test_chat_screen_help_and_usage_name_the_book(self):
+        text = (ROOT / "mythic_agent" / "ui" / "screens"
+                / "chat_screen.py").read_text(encoding="utf-8")
+        assert "/gallery[/green] - show session gallery (M-189)" in (
+            text)
+        assert ('"/gallery": "Usage: /gallery | '
+                '/gallery card <card-id>') in text
+
+
+class TestGalleryDerivedRoads:
+    def test_panel_and_verdict_are_derived_at_call_time(self, agent):
+        panel = agent.session_gallery_panel()
+        assert panel.total_shown == 6
+        assert panel.panel_id == "panel-view-all"
+        verdict = agent.session_gallery_verdict()
+        assert verdict.verdict == "strained"
+        found = agent.session_gallery_verdict("view-resumable")
+        assert found.verdict == "open"
+        assert found.passing_shown == 5
+        agent.register_gallery_card(_card())
+        with pytest.raises(ValueError):
+            agent.session_gallery_panel()
+        with pytest.raises(ValueError):
+            agent.session_gallery_verdict()
+
+    def test_view_road_over_an_unshown_filter_is_shut(self, agent):
+        agent.register_gallery_card(_card(road=""))
+        result = agent.view_gallery("resumable")
+        assert result["verdict_record"]["verdict"] == "shut"
+        assert result["verdict_record"]["total_shown"] == 0
+
+    def test_index_road_derives_and_publishes_nothing(
+            self, agent, tmp_path):
+        store = _SessionStore(tmp_path, tmp_path / "state")
+        session_id = agent.attach_session(store)
+        result = agent.gallery_index()
+        assert [e["road"] for e in result["index"]["entries"]] == [
+            "resume", "resume from checkpoint", "fork and resume",
+            "resume", "resume from checkpoint"]
+        assert result["index"]["gaps"] == ["session-abandoned-sweep"]
+        assert "resume - Fix the login redirect (session-fix-login-redirect)" in (
+            result["index_text"])
+        card = agent.get_gallery_card("session-abandoned-sweep")
+        assert card_gaps(card) == ("no resume road",)
+        assert card_passes(card) is False
+        assert [e for e in store.export(session_id)["events"]
+                if e["type"].startswith("gallery")
+                or e["type"] == "session_card"] == []
+        agent.close()

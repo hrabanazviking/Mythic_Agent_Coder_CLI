@@ -405,6 +405,8 @@ class CommandHandler:
                 self._handle_keymap(args)
             elif cmd == "/mouse":
                 self._handle_mouse(args)
+            elif cmd == "/gallery":
+                self._handle_gallery(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -8161,6 +8163,96 @@ class CommandHandler:
                 text = format_verdict(primary.mouse_manners_book())
             else:
                 text = primary.mouse_manners_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_gallery(self, args: str):
+        """M-189: /gallery - session gallery.
+
+        ``/gallery`` shows the gallery book held this
+        session - session gallery, held as data:
+        one record per card with the road that reaches
+        it and the file actions held as
+        data beside them (the shipped example book -
+        six cards at the M-188 slice boundary, with
+        its two views, two action records and its one
+        pinned panel - when none is held yet);
+        ``/gallery card <card-id>`` shows one card whole;
+        ``/gallery road <road>`` shows the card one road
+        reaches, or names the road unheld;
+        ``/gallery outcome <outcome>`` shows the book's cards
+        of one outcome; ``/gallery view <view-id>`` shows
+        one held view record; ``/gallery action
+        <action-id>`` shows one held action record;
+        ``/gallery index`` shows the index derived
+        from the whole book's held cards; ``/gallery
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/gallery
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: cards and views are
+        held only when they are given through the
+        agent's register roads, stood on the book on
+        the viewing road, or held on the book roads,
+        and every card held for the session is
+        journaled as a gallery_card session event,
+        every view as a gallery_view session event,
+        every derived panel as a gallery_panel
+        session event and every derived verdict as a
+        gallery_verdict session event. This surface
+        moves no pointer, renders no live UI and
+        opens no file - holding and telling
+        are words only.
+        """
+        from ..core.session_gallery import (
+            format_card,
+            format_book,
+            format_road,
+            format_index,
+            format_action,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_gallery_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            action, target = parse_gallery_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if action == "card":
+                text = format_card(primary.get_gallery_card(target))
+            elif action == "road":
+                text = format_road(
+                    primary.session_gallery_book(), target)
+            elif action == "outcome":
+                text = format_book(
+                    primary.session_gallery_book(), target)
+            elif action == "view":
+                text = format_view(primary.get_gallery_view(target))
+            elif action == "action":
+                text = format_action(
+                    primary.session_gallery_book().action_for(target))
+            elif action == "index":
+                text = format_index(primary.session_gallery_book())
+            elif action == "panel":
+                text = format_panel(primary.session_gallery_book())
+            elif action == "verdict":
+                text = format_verdict(primary.session_gallery_book())
+            else:
+                text = primary.session_gallery_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
