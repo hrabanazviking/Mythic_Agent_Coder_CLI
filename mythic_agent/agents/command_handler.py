@@ -437,6 +437,8 @@ class CommandHandler:
                 self._handle_acceptance(args)
             elif cmd == "/banking":
                 self._handle_banking(args)
+            elif cmd == "/keepruntime":
+                self._handle_keeping(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -9761,6 +9763,101 @@ class CommandHandler:
                 text = format_verdict(primary.banking_book())
             else:
                 text = primary.banking_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_keeping(self, args: str):
+        """M-207: /keepruntime - the keeping engine as data.
+
+        ``/keepruntime`` shows the keeping book held this
+        session - keeping slices as data: one record per
+        keeping, held whole with the active slice it
+        was keepinged from, its one verifiable check
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five keepings at the M-203 slice
+        boundary, with its three slice references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/keepruntime keeping <keeping-id>``
+        shows one keeping whole; ``/keepruntime check
+        <check>`` shows the keeping one check line
+        reaches, or names the check unheld;
+        ``/keepruntime slice <slice-id>`` shows the book's
+        keepings of one slice; ``/keepruntime view <view-id>``
+        shows one held view record; ``/keepruntime note
+        <note-id>`` shows one held stance record;
+        ``/keepruntime index`` shows the index derived
+        from the whole book's held keepings; ``/keepruntime
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/keepruntime
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: keepings and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every keeping held for the session is
+        journaled as a keeping_keeping session event,
+        every view as a keeping_view session event,
+        every derived panel as a keeping_panel
+        session event and every derived verdict as a
+        keeping_verdict session event. This heading
+        builds no slice, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.keeper_runtime import (
+            format_keeping,
+            format_book,
+            format_check,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_keeping_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_keeping_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "keeping":
+                text = format_keeping(
+                    primary.get_keeping_keeping(target),
+                    primary.keeping_book())
+            elif stance == "check":
+                text = format_check(
+                    primary.keeping_book(), target)
+            elif stance == "slice":
+                text = format_book(
+                    primary.keeping_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_keeping_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.keeping_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.keeping_book())
+            elif stance == "panel":
+                text = format_panel(primary.keeping_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.keeping_book())
+            else:
+                text = primary.keeping_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
