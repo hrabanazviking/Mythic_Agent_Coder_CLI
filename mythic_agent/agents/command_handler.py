@@ -413,6 +413,8 @@ class CommandHandler:
                 self._handle_theatre(args)
             elif cmd == "/panes":
                 self._handle_pane(args)
+            elif cmd == "/ceremony":
+                self._handle_ceremony(args)
             elif cmd == "/conflicts":
                 self._handle_conflicts(args)
             elif cmd == "/commitcraft":
@@ -8530,6 +8532,97 @@ class CommandHandler:
                 text = format_verdict(primary.multi_pane_book())
             else:
                 text = primary.multi_pane_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_ceremony(self, args: str):
+        """M-193: /ceremony - session moment.
+
+        ``/ceremony`` shows the moment book held this
+        session - session moment, held as data:
+        one record per moment with the target that reaches
+        it and the file notes held as
+        data beside them (the shipped example book -
+        six moments at the M-192 slice boundary, with
+        its two views, two stance records and its one
+        pinned panel - when none is held yet);
+        ``/ceremony moment <moment-id>`` shows one moment whole;
+        ``/ceremony target <target>`` shows the moment one target
+        reaches, or names the target unheld;
+        ``/ceremony kind <kind>`` shows the book's moments
+        of one kind; ``/ceremony view <view-id>`` shows
+        one held view record; ``/ceremony stance
+        <stance-id>`` shows one held stance record;
+        ``/ceremony index`` shows the index derived
+        from the whole book's held moments; ``/ceremony
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/ceremony
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: moments and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every moment held for the session is
+        journaled as a ceremony_moment session event,
+        every view as a ceremony_view session event,
+        every derived panel as a ceremony_panel
+        session event and every derived verdict as a
+        ceremony_verdict session event. This surface
+        moves no pointer, renders no live UI and
+        opens no file - holding and telling
+        are words only.
+        """
+        from ..core.splash_ceremony import (
+            format_moment,
+            format_book,
+            format_alternative,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_ceremony_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_ceremony_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "moment":
+                text = format_moment(primary.get_ceremony_moment(target))
+            elif stance == "alternative":
+                text = format_alternative(
+                    primary.splash_ceremony_book(), target)
+            elif stance == "kind":
+                text = format_book(
+                    primary.splash_ceremony_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_ceremony_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.splash_ceremony_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.splash_ceremony_book())
+            elif stance == "panel":
+                text = format_panel(primary.splash_ceremony_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.splash_ceremony_book())
+            else:
+                text = primary.splash_ceremony_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
