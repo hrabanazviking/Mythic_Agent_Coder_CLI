@@ -1323,7 +1323,7 @@ slices:
   title: Estimate honesty
   summary: slice forecasts (time/tokens) recorded against outcomes; the app shows its own calibration,
     improving visibly or not at all.
-  status: queued
+  status: done
 - id: M-216
   part: 9
   title: Multi-campaign hall

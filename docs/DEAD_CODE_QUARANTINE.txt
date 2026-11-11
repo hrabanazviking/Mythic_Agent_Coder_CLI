@@ -943,3 +943,12 @@ mythic_agent/agents/llm.py:57388:view_pattern:method
 mythic_agent/agents/llm.py:57455:register_pattern_book:method
 mythic_agent/agents/llm.py:57504:record_pattern_book:method
 mythic_agent/agents/llm.py:57582:report_pattern:method
+mythic_agent/agents/llm.py:57879:get_estimate_note:method
+mythic_agent/agents/llm.py:57894:estimate_estimates_for_slice:method
+mythic_agent/agents/llm.py:57900:estimate_estimates_green:method
+mythic_agent/agents/llm.py:57966:register_estimate_estimate:method
+mythic_agent/agents/llm.py:57997:register_estimate_view:method
+mythic_agent/agents/llm.py:58023:view_estimate:method
+mythic_agent/agents/llm.py:58090:register_estimate_book:method
+mythic_agent/agents/llm.py:58139:record_estimate_book:method
+mythic_agent/agents/llm.py:58217:report_estimate:method
