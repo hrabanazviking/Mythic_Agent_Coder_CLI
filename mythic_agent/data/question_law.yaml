@@ -1,0 +1,227 @@
+schema: mythic.question_law/1
+slice: M-209
+question_law:
+  title: The question law at the M-208 slice boundary
+slices:
+- slice_id: slice-m208-pauselines
+  seq: 1
+  title: The pause-lines wired
+  state: active
+  detail: 'The slice the answerer deals with first: banked at M-208, standing active in the question law''s
+    hands.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the question law
+  origin_session: session-m209
+- slice_id: slice-m209-question
+  seq: 2
+  title: Question law
+  state: active
+  detail: 'This very slice, standing active: the question law holding its own questioning as data.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the question law
+  origin_session: session-m209
+- slice_id: slice-m210-scope
+  seq: 3
+  title: Scope sentry
+  state: queued
+  detail: A queued slice the answerer has not dealt with; a questioning naming it refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the question law
+  origin_session: session-m209
+questionings:
+- questioning_id: questioning-answered-question
+  seq: 1
+  slice_id: slice-m208-pauselines
+  title: The answered question questioning
+  checks: &id001
+  - raised
+  - paused
+  - drafted
+  - delivered
+  - resumed
+  claims:
+  - answer_record
+  detail: 'The opening questioning: a question raised mid-campaign, the campaign paused, and the answer
+    delivered plainly and fully - its first sentence the direct answer - before work resumed, with the
+    answer held as proof.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the question law
+  origin_session: session-m209
+- questioning_id: questioning-followed-question
+  seq: 2
+  slice_id: slice-m208-pauselines
+  title: The followed-up questioning
+  checks:
+  - raised
+  - paused
+  - drafted
+  - delivered
+  - raised
+  - paused
+  - drafted
+  - delivered
+  - resumed
+  claims: []
+  detail: 'The followed-up questioning: a first answer delivered, a follow-up question raised and paused
+    for in its turn, answered in the open before work resumed.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the question law
+  origin_session: session-m209
+- questioning_id: questioning-wired-question
+  seq: 3
+  slice_id: slice-m209-question
+  title: The wired questioning
+  checks: *id001
+  claims:
+  - ledger_row
+  detail: 'The wired questioning: this slice''s own questioning, carrying its ledger row as proof.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the question law
+  origin_session: session-m209
+- questioning_id: questioning-bare-question
+  seq: 4
+  slice_id: slice-m209-question
+  title: The bare claim questioning
+  checks: *id001
+  claims:
+  - feeling
+  detail: A questioning that carried a feeling in place of held proof, standing open.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the question law
+  origin_session: session-m209
+- questioning_id: questioning-leaping-question
+  seq: 5
+  slice_id: slice-m209-question
+  title: The leaping questioning
+  checks:
+  - raised
+  - paused
+  - resumed
+  claims: []
+  detail: A questioning that stepped from paused straight to resumed, outside the question sequence, standing
+    open.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the question law
+  origin_session: session-m209
+views:
+- view_id: view-questionings
+  seq: 1
+  view_filter: all
+  detail: Every held questioning, complete or not.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the question law
+  origin_session: session-m209
+- view_id: view-resumed
+  seq: 2
+  view_filter: complete
+  detail: Only the questionings standing complete.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the question law
+  origin_session: session-m209
+notes:
+- note_id: note-note-first
+  seq: 1
+  questioning_id: questioning-answered-question
+  stance: note
+  target: the opening questioning
+  title: Answers first
+  detail: The answerer opens by answering the question first, told honestly.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the question law
+  origin_session: session-m209
+- note_id: note-concern-bare
+  seq: 2
+  questioning_id: questioning-bare-question
+  stance: concern
+  target: the bare claim questioning
+  title: Claim named
+  detail: A questioning that carried a feeling claim is not the answerer's way, and stands named.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the question law
+  origin_session: session-m209
+traces:
+- trace_id: trace-first
+  seq: 1
+  questioning_id: questioning-answered-question
+  trace: raised > paused > drafted > delivered > resumed
+  detail: 'The opening questioning''s walk, held exactly as walked: the trace is the walk itself.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the question law
+  origin_session: session-m209
+panels:
+- panel_id: panel-m208-boundary
+  view_id: view-questionings
+  view_filter: all
+  rows:
+  - item_id: questioning-answered-question
+    standing: complete
+    label: The answered question questioning
+    segment: 'questioning-answered-question: The answered question questioning - slice: ''slice-m208-pauselines''
+      - check: ''resumed'' - checks: 5 - claims: ''answer_record'' - detail: ''The opening questioning:
+      a question raised mid-campaign, the campaign paused, and the answer delivered plainly and fully
+      - its first sentence the direct answer - before work resumed, with the answer held as proof.'' -
+      gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: questioning-followed-question
+    standing: complete
+    label: The followed-up questioning
+    segment: 'questioning-followed-question: The followed-up questioning - slice: ''slice-m208-pauselines''
+      - check: ''resumed'' - checks: 9 - claims: ''none'' - detail: ''The followed-up questioning: a first
+      answer delivered, a follow-up question raised and paused for in its turn, answered in the open before
+      work resumed.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: questioning-wired-question
+    standing: complete
+    label: The wired questioning
+    segment: 'questioning-wired-question: The wired questioning - slice: ''slice-m209-question'' - check:
+      ''resumed'' - checks: 5 - claims: ''ledger_row'' - detail: ''The wired questioning: this slice''s
+      own questioning, carrying its ledger row as proof.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: questioning-bare-question
+    standing: open
+    label: The bare claim questioning
+    segment: 'questioning-bare-question: The bare claim questioning - slice: ''slice-m209-question'' -
+      check: ''resumed'' - checks: 5 - claims: ''feeling'' - detail: ''A questioning that carried a feeling
+      in place of held proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held
+      proof: complete stands on held proof alone'
+    recorded_on: '2026-11-10'
+  - item_id: questioning-leaping-question
+    standing: open
+    label: The leaping questioning
+    segment: 'questioning-leaping-question: The leaping questioning - slice: ''slice-m209-question'' -
+      check: ''resumed'' - checks: 3 - claims: ''none'' - detail: ''A questioning that stepped from paused
+      straight to resumed, outside the question sequence, standing open.'' - gaps: steps from paused to
+      resumed, which the question sequence does not allow'
+    recorded_on: '2026-11-10'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-10'
+  account:
+  - 'The questioning book holds 5 questionings as of 2026-11-10: the view ''all'' shows 5 of them: complete
+    3, open 2; 3 of the shown questionings stand complete.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its questioning's own fields - the slice it answers for, the steps it
+    walked in the open and the evidence it honestly carries - and no judgement is stored on any questioning.
+  - 'Completeness is judged from the held records alone: a questioning that steps outside the question
+    sequence, carries a bare claim in place of held evidence, or has not reached resumed stands open,
+    named in its gaps, and the questioning index is derived from the held questionings, never stored where
+    it could drift.'
