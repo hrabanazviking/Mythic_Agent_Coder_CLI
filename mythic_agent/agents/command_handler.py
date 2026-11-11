@@ -447,6 +447,8 @@ class CommandHandler:
                 self._handle_sentry(args)
             elif cmd == "/mapupkeep":
                 self._handle_upkeep(args)
+            elif cmd == "/bugrule":
+                self._handle_bug(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -10246,6 +10248,101 @@ class CommandHandler:
                 text = format_verdict(primary.upkeep_book())
             else:
                 text = primary.upkeep_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_bug(self, args: str):
+        """M-212: /bugrule - the bug engine as data.
+
+        ``/bugrule`` shows the bug book held this
+        session - bug slices as data: one record per
+        bug, held whole with the active slice it
+        was buged from, its one verifiable check
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five bugs at the M-203 slice
+        boundary, with its three slice references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/bugrule bug <bug-id>``
+        shows one bug whole; ``/bugrule check
+        <check>`` shows the bug one check line
+        reaches, or names the check unheld;
+        ``/bugrule slice <slice-id>`` shows the book's
+        bugs of one slice; ``/bugrule view <view-id>``
+        shows one held view record; ``/bugrule note
+        <note-id>`` shows one held stance record;
+        ``/bugrule index`` shows the index derived
+        from the whole book's held bugs; ``/bugrule
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/bugrule
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: bugs and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every bug held for the session is
+        journaled as a bug_bug session event,
+        every view as a bug_view session event,
+        every derived panel as a bug_panel
+        session event and every derived verdict as a
+        bug_verdict session event. This heading
+        builds no slice, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.bug_rule import (
+            format_bug,
+            format_book,
+            format_check,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_bug_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_bug_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "bug":
+                text = format_bug(
+                    primary.get_bug_bug(target),
+                    primary.bug_book())
+            elif stance == "check":
+                text = format_check(
+                    primary.bug_book(), target)
+            elif stance == "slice":
+                text = format_book(
+                    primary.bug_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_bug_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.bug_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.bug_book())
+            elif stance == "panel":
+                text = format_panel(primary.bug_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.bug_book())
+            else:
+                text = primary.bug_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
