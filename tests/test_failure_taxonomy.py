@@ -434,11 +434,11 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 222
-    assert citizen["next_slice"] == "M-223"
+    assert citizen["done"] == 223
+    assert citizen["next_slice"] == "M-224"
     assert citizen["m223_title"] == "Failure taxonomy"
     assert citizen["m223_part"] == 9
-    assert citizen["m223_status"] == "queued"
+    assert citizen["m223_status"] == "done"
 
 def test_failure_record_round_trips():
     failure = _failure()
@@ -910,8 +910,8 @@ class TestFailureAgentStatus:
         assert status["ledger"]["current_failure"] == "failure-bare-failure"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 222
-        assert status["roadmap"]["next_slice"] == "M-223"
+        assert status["roadmap"]["done"] == 223
+        assert status["roadmap"]["next_slice"] == "M-224"
         assert status["roadmap"]["m223_title"] == "Failure taxonomy"
         assert "held as data alone" in status["rule"]
         assert "failure-bare-failure" in status["plain_words"]
