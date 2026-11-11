@@ -1431,7 +1431,7 @@ slices:
   title: MCP client
   summary: Mythic *consumes* MCP servers (tools, resources, prompts) with per-server permissions under
     the same policy system — the missing half of its MCP face.
-  status: queued
+  status: done
 - id: M-234
   part: 10
   title: MCP server v2
