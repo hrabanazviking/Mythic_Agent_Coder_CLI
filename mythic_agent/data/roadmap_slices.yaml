@@ -1306,7 +1306,7 @@ slices:
   title: The never-leave-a-bug rule
   summary: a bug discovered mid-slice is fixed in scope or commissioned as a new slice on the spot — the
     loop has no "note it and move on" state.
-  status: queued
+  status: done
 - id: M-213
   part: 9
   title: Retrospectives
