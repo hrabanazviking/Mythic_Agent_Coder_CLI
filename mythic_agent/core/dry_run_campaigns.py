@@ -50,9 +50,9 @@ What already ships, and what this campaign adds:
   evidence, or has not yet planned proven stands
   open, named in its gaps.
 * The evidence is a closed vocabulary in two
-  halves: the held evidence - run_ref,
-  class_ref, keeper_record, rehearsal_ref, evidence
-  a taxonomist can point to - and the bare claims -
+  halves: the held evidence - plan_ref,
+  dealing_ref, gate_ref, mock_ref, proof_ref, evidence
+  a rehearser can point to - and the bare claims -
   feeling, memory, assertion, summary, which
   stand as no evidence at all. A rehearsal is
   mocked from held evidence alone, never
