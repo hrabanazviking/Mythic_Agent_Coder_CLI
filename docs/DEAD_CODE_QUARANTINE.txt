@@ -1074,3 +1074,12 @@ mythic_agent/agents/llm.py:66287:view_scaling:method
 mythic_agent/agents/llm.py:66354:register_scaling_book:method
 mythic_agent/agents/llm.py:66403:record_scaling_book:method
 mythic_agent/agents/llm.py:66481:report_scaling:method
+mythic_agent/agents/llm.py:66779:get_course_note:method
+mythic_agent/agents/llm.py:66800:course_green:method
+mythic_agent/agents/llm.py:66842:course_index:method
+mythic_agent/agents/llm.py:66866:register_course_lesson:method
+mythic_agent/agents/llm.py:66897:register_course_view:method
+mythic_agent/agents/llm.py:66923:view_course:method
+mythic_agent/agents/llm.py:66990:register_course_book:method
+mythic_agent/agents/llm.py:67039:record_course_book:method
+mythic_agent/agents/llm.py:67117:report_course:method
