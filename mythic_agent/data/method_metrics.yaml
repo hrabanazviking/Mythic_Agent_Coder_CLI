@@ -1,0 +1,224 @@
+schema: mythic.method_metrics/1
+campaign: M-230
+method_metrics:
+  title: Method metrics at the M-230 slice run
+campaigns:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-reading book
+  origin_session: session-m230
+  campaign_id: campaign-m229-teachable
+  seq: 1
+  title: The method, teachable
+  state: live
+  detail: 'The slice the watcher looks back on first: banked at M-229, standing active in the method metrics
+    honesty''s hands.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-reading book
+  origin_session: session-m230
+  campaign_id: campaign-m230-metrics
+  seq: 2
+  title: Method metrics
+  state: live
+  detail: 'This very slice, standing active: the metrics book holding its own campaign as data.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-reading book
+  origin_session: session-m230
+  campaign_id: campaign-m231-crossapp
+  seq: 3
+  title: Cross-app method
+  state: dormant
+  detail: A queued slice the watcher has not taken yet; a reading naming it refuses by name.
+reading_records:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-reading book
+  origin_session: session-m230
+  reading_id: reading-held-reading
+  seq: 1
+  campaign_id: campaign-m229-teachable
+  title: The held reading
+  stages: &id001
+  - taken
+  - checked
+  - weighed
+  - calibrated
+  - posted
+  claims:
+  - metrics_ref
+  detail: 'The opening reading: work taken for the campaign, its tally checked before the rounds were
+    weighed, calibrated to the watcher at hand and posted honestly, posted with the metrics held as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-reading book
+  origin_session: session-m230
+  reading_id: reading-retried-reading
+  seq: 2
+  campaign_id: campaign-m229-teachable
+  title: The retried reading
+  stages:
+  - taken
+  - checked
+  - weighed
+  - calibrated
+  - taken
+  - checked
+  - weighed
+  - calibrated
+  - posted
+  claims: []
+  detail: 'The retried reading: a first calibrated step sent the standing back, the work was taken and
+    checked again and the calibrating held a second time before the posting stood.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-reading book
+  origin_session: session-m230
+  reading_id: reading-own-reading
+  seq: 3
+  campaign_id: campaign-m230-metrics
+  title: The watcher's own reading
+  stages: *id001
+  claims:
+  - reading_ref
+  detail: 'The watcher''s own reading: this slice''s own reading, posting its reading ref as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-reading book
+  origin_session: session-m230
+  reading_id: reading-bare-reading
+  seq: 4
+  campaign_id: campaign-m230-metrics
+  title: The bare claim reading
+  stages: *id001
+  claims:
+  - feeling
+  detail: A reading that posted a feeling in place of held proof, standing open.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-reading book
+  origin_session: session-m230
+  reading_id: reading-leaping-reading
+  seq: 5
+  campaign_id: campaign-m230-metrics
+  title: The leaping reading
+  stages:
+  - taken
+  - checked
+  - posted
+  claims: []
+  detail: A reading that stepped from checked straight to posted, outside the reading sequence, standing
+    open.
+views:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-reading book
+  origin_session: session-m230
+  view_id: view-readings
+  seq: 1
+  view_filter: all
+  detail: Every held reading, complete or not.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-reading book
+  origin_session: session-m230
+  view_id: view-posted
+  seq: 2
+  view_filter: complete
+  detail: Only the readings standing complete.
+notes:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-reading book
+  origin_session: session-m230
+  note_id: note-note-first
+  seq: 1
+  reading_id: reading-held-reading
+  stance: note
+  target: the opening reading
+  title: Readings first
+  detail: The watcher opens by taking the work first, told honestly.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-reading book
+  origin_session: session-m230
+  note_id: note-concern-bare
+  seq: 2
+  reading_id: reading-bare-reading
+  stance: concern
+  target: the bare claim reading
+  title: Claim named
+  detail: A reading that posted a feeling claim is not the watcher's way, and stands named.
+traces:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-reading book
+  origin_session: session-m230
+  trace_id: trace-first
+  seq: 1
+  reading_id: reading-held-reading
+  trace: taken > checked > weighed > calibrated > posted
+  detail: 'The opening reading''s walk, held exactly as walked: the trace is the walk itself.'
+panels:
+- panel_id: panel-m229-campaign
+  view_id: view-readings
+  view_filter: all
+  rows:
+  - item_id: reading-held-reading
+    standing: complete
+    label: The held reading
+    segment: 'reading-held-reading: The held reading - campaign: ''campaign-m229-teachable'' - stage:
+      ''posted'' - stages: 5 - claims: ''metrics_ref'' - detail: ''The opening reading: work taken for
+      the campaign, its tally checked before the rounds were weighed, calibrated to the watcher at hand
+      and posted honestly, posted with the metrics held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: reading-retried-reading
+    standing: complete
+    label: The retried reading
+    segment: 'reading-retried-reading: The retried reading - campaign: ''campaign-m229-teachable'' - stage:
+      ''posted'' - stages: 9 - claims: ''none'' - detail: ''The retried reading: a first calibrated step
+      sent the standing back, the work was taken and checked again and the calibrating held a second time
+      before the posting stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: reading-own-reading
+    standing: complete
+    label: The watcher's own reading
+    segment: 'reading-own-reading: The watcher''s own reading - campaign: ''campaign-m230-metrics'' -
+      stage: ''posted'' - stages: 5 - claims: ''reading_ref'' - detail: ''The watcher''s own reading:
+      this slice''s own reading, posting its reading ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: reading-bare-reading
+    standing: open
+    label: The bare claim reading
+    segment: 'reading-bare-reading: The bare claim reading - campaign: ''campaign-m230-metrics'' - stage:
+      ''posted'' - stages: 5 - claims: ''feeling'' - detail: ''A reading that posted a feeling in place
+      of held proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof:
+      complete stands on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: reading-leaping-reading
+    standing: open
+    label: The leaping reading
+    segment: 'reading-leaping-reading: The leaping reading - campaign: ''campaign-m230-metrics'' - stage:
+      ''posted'' - stages: 3 - claims: ''none'' - detail: ''A reading that stepped from checked straight
+      to posted, outside the reading sequence, standing open.'' - gaps: steps from checked to posted,
+      which the reading sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The reading book holds 5 readings as of 2026-11-11: the view ''all'' shows 5 of them: complete 3,
+    open 2; 3 of the shown readings stand complete.'
+  - Rows stand in held reading, the reading the book itself stands in, so two panels of one view diff
+    cleanly, segment by segment.
+  - Every segment is derived from its reading's own fields - the campaign it answers for, the steps it
+    walked in the open and the evidence it honestly carries - and no judgement is stored on any reading.
+  - 'Completeness is weighed from the held records alone: a reading that steps outside the reading sequence,
+    carries a bare claim in place of held evidence, or has not taken posted stands open, named in its
+    gaps, and the reading index is derived from the held readings, never stored where it could drift.'
