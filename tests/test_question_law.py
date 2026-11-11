@@ -152,7 +152,7 @@ from mythic_agent.core.tui_redesign_charter import load_charter
 ROOT = Path(__file__).resolve().parents[1]
 ON = "2026-11-10"
 BY = "the coordinator"
-EXAMPLE_TITLE = "The question law at the M-209 slice boundary"
+EXAMPLE_TITLE = "The question law at the M-208 slice boundary"
 EXAMPLE_CHECKS = ["resumed", "resumed", "resumed"]
 EXAMPLE_RUN_IDS = (
     "questioning-answered-question", "questioning-followed-question",
@@ -354,7 +354,7 @@ def test_closed_vocabularies():
     assert normalize_stance("PRAISE") == "praise"
     assert normalize_view_filter("ALL") == "all"
     assert normalize_slice_state("ACTIVE") == "active"
-    assert normalize_check("PAUSED") == "drafted"
+    assert normalize_check("DRAFTED") == "drafted"
     assert normalize_claim_kind("FEELING") == "feeling"
     with pytest.raises(ValueError):
         normalize_stance("pinch")
@@ -395,7 +395,7 @@ def test_shipped_book_judged_honestly_as_data():
     assert questioning_green(asking, book) is False
     skipping = book.questioning_for("questioning-leaping-question")
     assert questioning_gaps(skipping, book) == (
-        "steps from checked to resumed, which the question sequence "
+        "steps from paused to resumed, which the question sequence "
         "does not allow",)
     assert [g.questioning_id for g in green_questionings(book)] == [
         "questioning-answered-question", "questioning-followed-question", "questioning-wired-question"]
@@ -406,7 +406,7 @@ def test_shipped_book_judged_honestly_as_data():
         "questioning-answered-question")
     assert questioning_for_check(book, "triple resume") is None
     assert transition_breaks(book) == (
-        "questioning-leaping-question: checked > resumed",)
+        "questioning-leaping-question: paused > resumed",)
     assert [g.questioning_id for g in questioning_order(book)] == list(
         EXAMPLE_RUN_IDS)
     assert trace_of(book, "questioning-answered-question") == EXAMPLE_TRACE
@@ -432,7 +432,7 @@ def test_shipped_book_judged_honestly_as_data():
         {"questioning_id": "questioning-wired-question", "trace": "unheld"},
         {"questioning_id": "questioning-bare-question", "trace": "unheld"},
         {"questioning_id": "questioning-leaping-question", "trace": "unheld"}]
-    assert board["breaks"] == ["questioning-leaping-question: checked > resumed"]
+    assert board["breaks"] == ["questioning-leaping-question: paused > resumed"]
     citizen = roadmap_record()
     assert citizen["roadmap_file"] == "roadmap_slices.yaml"
     assert citizen["parts"] == 11
@@ -551,7 +551,7 @@ def test_red_questionings_stand_named_in_their_gaps():
     assert questioning_green(asking) is False
     skipping = _questioning(checks=["raised", "paused", "resumed"])
     assert questioning_gaps(skipping) == (
-        "steps from checked to resumed, which the question sequence "
+        "steps from paused to resumed, which the question sequence "
         "does not allow",)
     book = _book(questionings=[
         _questioning(),
@@ -559,7 +559,7 @@ def test_red_questionings_stand_named_in_their_gaps():
              checks=["raised", "paused", "resumed"]),
     ])
     assert transition_breaks(book) == (
-        "questioning-skipping: checked > resumed",)
+        "questioning-skipping: paused > resumed",)
     assert current_questioning(book).questioning_id == "questioning-skipping"
     assert [g.questioning_id for g in questioning_order(book)] == [
         "questioning-test", "questioning-skipping"]
@@ -1277,7 +1277,7 @@ class TestQuestioningDerivedTargets:
             result["index_text"])
         questioning = agent.get_questioning_questioning("questioning-leaping-question")
         assert questioning_gaps(questioning, agent.questioning_book()) == (
-            "steps from checked to resumed, which the question sequence "
+            "steps from paused to resumed, which the question sequence "
             "does not allow",)
         assert questioning_green(questioning, agent.questioning_book()) is False
         assert [e for e in store.export(session_id)["events"]
