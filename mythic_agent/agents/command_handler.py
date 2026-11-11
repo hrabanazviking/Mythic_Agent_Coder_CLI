@@ -445,6 +445,8 @@ class CommandHandler:
                 self._handle_questioning(args)
             elif cmd == "/scopesentry":
                 self._handle_sentry(args)
+            elif cmd == "/mapupkeep":
+                self._handle_upkeep(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -10149,6 +10151,101 @@ class CommandHandler:
                 text = format_verdict(primary.sentry_book())
             else:
                 text = primary.sentry_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_upkeep(self, args: str):
+        """M-211: /mapupkeep - the upkeep engine as data.
+
+        ``/mapupkeep`` shows the upkeep book held this
+        session - upkeep slices as data: one record per
+        upkeep, held whole with the active slice it
+        was upkeeped from, its one verifiable check
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five upkeeps at the M-203 slice
+        boundary, with its three slice references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/mapupkeep upkeep <upkeep-id>``
+        shows one upkeep whole; ``/mapupkeep check
+        <check>`` shows the upkeep one check line
+        reaches, or names the check unheld;
+        ``/mapupkeep slice <slice-id>`` shows the book's
+        upkeeps of one slice; ``/mapupkeep view <view-id>``
+        shows one held view record; ``/mapupkeep note
+        <note-id>`` shows one held stance record;
+        ``/mapupkeep index`` shows the index derived
+        from the whole book's held upkeeps; ``/mapupkeep
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/mapupkeep
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: upkeeps and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every upkeep held for the session is
+        journaled as a upkeep_upkeep session event,
+        every view as a upkeep_view session event,
+        every derived panel as a upkeep_panel
+        session event and every derived verdict as a
+        upkeep_verdict session event. This heading
+        builds no slice, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.memory_map_upkeep import (
+            format_upkeep,
+            format_book,
+            format_check,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_upkeep_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_upkeep_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "upkeep":
+                text = format_upkeep(
+                    primary.get_upkeep_upkeep(target),
+                    primary.upkeep_book())
+            elif stance == "check":
+                text = format_check(
+                    primary.upkeep_book(), target)
+            elif stance == "slice":
+                text = format_book(
+                    primary.upkeep_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_upkeep_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.upkeep_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.upkeep_book())
+            elif stance == "panel":
+                text = format_panel(primary.upkeep_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.upkeep_book())
+            else:
+                text = primary.upkeep_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
