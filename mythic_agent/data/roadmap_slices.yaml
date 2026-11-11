@@ -1334,7 +1334,7 @@ slices:
   part: 9
   title: Campaign templates
   summary: house shapes (feature build, bug hunt, migration, hardening, docs) as starting campaign files.
-  status: queued
+  status: done
 - id: M-218
   part: 9
   title: The 500-slice road as a campaign
