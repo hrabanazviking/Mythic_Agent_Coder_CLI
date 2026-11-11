@@ -1047,3 +1047,12 @@ mythic_agent/agents/llm.py:64379:view_export:method
 mythic_agent/agents/llm.py:64446:register_export_book:method
 mythic_agent/agents/llm.py:64495:record_export_book:method
 mythic_agent/agents/llm.py:64573:report_export:method
+mythic_agent/agents/llm.py:64871:get_orders_note:method
+mythic_agent/agents/llm.py:64892:orders_green:method
+mythic_agent/agents/llm.py:64934:orders_index:method
+mythic_agent/agents/llm.py:64958:register_orders_order:method
+mythic_agent/agents/llm.py:64989:register_orders_view:method
+mythic_agent/agents/llm.py:65015:view_orders:method
+mythic_agent/agents/llm.py:65082:register_orders_book:method
+mythic_agent/agents/llm.py:65131:record_orders_book:method
+mythic_agent/agents/llm.py:65209:report_orders:method

@@ -438,8 +438,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 225
-    assert citizen["next_slice"] == "M-226"
+    assert citizen["done"] == 226
+    assert citizen["next_slice"] == "M-227"
     assert citizen["m208_title"] == "The pause-lines wired"
     assert citizen["m208_part"] == 9
     assert citizen["m208_status"] == "done"
@@ -915,8 +915,8 @@ class TestPausingAgentStatus:
         assert status["board"]["current_pausing"] == "pausing-bare-crossing"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 225
-        assert status["roadmap"]["next_slice"] == "M-226"
+        assert status["roadmap"]["done"] == 226
+        assert status["roadmap"]["next_slice"] == "M-227"
         assert status["roadmap"]["m208_title"] == "The pause-lines wired"
         assert "held as data alone" in status["rule"]
         assert "pausing-bare-crossing" in status["plain_words"]
