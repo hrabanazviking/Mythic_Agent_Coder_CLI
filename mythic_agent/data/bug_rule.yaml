@@ -1,0 +1,224 @@
+schema: mythic.bug_rule/1
+slice: M-212
+bug_rule:
+  title: The never-leave-a-bug rule at the M-211 slice boundary
+slices:
+- slice_id: slice-m211-upkeep
+  seq: 1
+  title: Memory-map upkeep
+  state: active
+  detail: 'The slice the scribe deals with first: discovered at M-211, standing active in the never-leave-a-bug rule''s
+    hands.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the never-leave-a-bug rule
+  origin_session: session-m212
+- slice_id: slice-m212-bugrule
+  seq: 2
+  title: The never-leave-a-bug rule
+  state: active
+  detail: 'This very slice, standing active: the never-leave-a-bug rule holding its own fix as data.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the never-leave-a-bug rule
+  origin_session: session-m212
+- slice_id: slice-m213-retro
+  seq: 3
+  title: Retrospectives
+  state: queued
+  detail: A queued slice the scribe has not dealt with; an bug naming it refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the never-leave-a-bug rule
+  origin_session: session-m212
+bugs:
+- bug_id: bug-held-fix
+  seq: 1
+  slice_id: slice-m211-upkeep
+  title: The held fix
+  checks: &id001
+  - discovered
+  - triaged
+  - fixed
+  - verified
+  - closed
+  claims:
+  - slice_ref
+  detail: 'The opening fix: the slice discovered, its entry triaged in the map, fixed against the map''s
+    own sections, verified whole and closed in the same session, with the discovered slice held as proof.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the never-leave-a-bug rule
+  origin_session: session-m212
+- bug_id: bug-rechecked-fix
+  seq: 2
+  slice_id: slice-m211-upkeep
+  title: The rechecked fix
+  checks:
+  - discovered
+  - triaged
+  - fixed
+  - verified
+  - discovered
+  - triaged
+  - fixed
+  - verified
+  - closed
+  claims: []
+  detail: 'The rechecked fix: a first checking found the entry short, the next banking was triaged and
+    the entry was fixed and verified a second time before the seal stood.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the never-leave-a-bug rule
+  origin_session: session-m212
+- bug_id: bug-own-fix
+  seq: 3
+  slice_id: slice-m212-bugrule
+  title: The bug's own fix
+  checks: *id001
+  claims:
+  - commission_ref
+  detail: 'The bug''s own fix: this slice''s own map entry, carrying its ledger row as proof.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the never-leave-a-bug rule
+  origin_session: session-m212
+- bug_id: bug-bare-fix
+  seq: 4
+  slice_id: slice-m212-bugrule
+  title: The bare claim fix
+  checks: *id001
+  claims:
+  - feeling
+  detail: An fix that carried a feeling in place of held proof, standing open.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the never-leave-a-bug rule
+  origin_session: session-m212
+- bug_id: bug-leaping-fix
+  seq: 5
+  slice_id: slice-m212-bugrule
+  title: The leaping fix
+  checks:
+  - discovered
+  - triaged
+  - closed
+  claims: []
+  detail: An fix that stepped from triaged straight to closed, outside the bug sequence, standing
+    open.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the never-leave-a-bug rule
+  origin_session: session-m212
+views:
+- view_id: view-bugs
+  seq: 1
+  view_filter: all
+  detail: Every held fix, complete or not.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the never-leave-a-bug rule
+  origin_session: session-m212
+- view_id: view-closed
+  seq: 2
+  view_filter: complete
+  detail: Only the fixes standing complete.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the never-leave-a-bug rule
+  origin_session: session-m212
+notes:
+- note_id: note-note-first
+  seq: 1
+  bug_id: bug-held-fix
+  stance: note
+  target: the opening fix
+  title: Entries first
+  detail: The scribe opens with the discovered slice's entry first, told honestly.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the never-leave-a-bug rule
+  origin_session: session-m212
+- note_id: note-concern-bare
+  seq: 2
+  bug_id: bug-bare-fix
+  stance: concern
+  target: the bare claim fix
+  title: Claim named
+  detail: An fix that carried a feeling claim is not the scribe's way, and stands named.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the never-leave-a-bug rule
+  origin_session: session-m212
+traces:
+- trace_id: trace-first
+  seq: 1
+  bug_id: bug-held-fix
+  trace: discovered > triaged > fixed > verified > closed
+  detail: 'The opening fix''s walk, held exactly as walked: the trace is the walk itself.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the never-leave-a-bug rule
+  origin_session: session-m212
+panels:
+- panel_id: panel-m211-boundary
+  view_id: view-bugs
+  view_filter: all
+  rows:
+  - item_id: bug-held-fix
+    standing: complete
+    label: The held fix
+    segment: 'bug-held-fix: The held fix - slice: ''slice-m211-upkeep'' - check: ''closed'' -
+      checks: 5 - claims: ''slice_ref'' - detail: ''The opening fix: the slice discovered, its entry triaged
+      in the map, fixed against the map''s own sections, verified whole and closed in the same session,
+      with the discovered slice held as proof.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: bug-rechecked-fix
+    standing: complete
+    label: The rechecked fix
+    segment: 'bug-rechecked-fix: The rechecked fix - slice: ''slice-m211-upkeep'' - check: ''closed''
+      - checks: 9 - claims: ''none'' - detail: ''The rechecked fix: a first checking found the entry
+      short, the next banking was triaged and the entry was fixed and verified a second time before the
+      seal stood.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: bug-own-fix
+    standing: complete
+    label: The bug's own fix
+    segment: 'bug-own-fix: The bug''s own fix - slice: ''slice-m212-bugrule'' - check: ''closed''
+      - checks: 5 - claims: ''commission_ref'' - detail: ''The bug''s own fix: this slice''s own map
+      entry, carrying its ledger row as proof.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: bug-bare-fix
+    standing: open
+    label: The bare claim fix
+    segment: 'bug-bare-fix: The bare claim fix - slice: ''slice-m212-bugrule'' - check: ''closed''
+      - checks: 5 - claims: ''feeling'' - detail: ''An fix that carried a feeling in place of held
+      proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof: complete
+      stands on held proof alone'
+    recorded_on: '2026-11-10'
+  - item_id: bug-leaping-fix
+    standing: open
+    label: The leaping fix
+    segment: 'bug-leaping-fix: The leaping fix - slice: ''slice-m212-bugrule'' - check: ''closed''
+      - checks: 3 - claims: ''none'' - detail: ''An fix that stepped from triaged straight to closed,
+      outside the bug sequence, standing open.'' - gaps: steps from triaged to closed, which the bug
+      sequence does not allow'
+    recorded_on: '2026-11-10'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-10'
+  account:
+  - 'The bug book holds 5 bugs as of 2026-11-10: the view ''all'' shows 5 of them: complete 3, open
+    2; 3 of the shown bugs stand complete.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its bug's own fields - the slice it answers for, the steps it walked
+    in the open and the evidence it honestly carries - and no judgement is stored on any bug.
+  - 'Completeness is fixed from the held records alone: a bug that steps outside the bug sequence,
+    carries a bare claim in place of held evidence, or has not reached closed stands open, named in its
+    gaps, and the bug index is derived from the held bugs, never stored where it could drift.'
