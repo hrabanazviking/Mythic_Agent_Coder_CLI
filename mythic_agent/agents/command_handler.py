@@ -471,6 +471,8 @@ class CommandHandler:
                 self._handle_selfmod(args)
             elif cmd == "/failures":
                 self._handle_failtax(args)
+            elif cmd == "/dryrun":
+                self._handle_dryrun(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -11410,6 +11412,101 @@ class CommandHandler:
                 text = format_verdict(primary.failtax_book())
             else:
                 text = primary.failtax_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_dryrun(self, args: str):
+        """M-224: /dryrun - the rehearsal engine as data.
+
+        ``/dryrun`` shows the rehearsal book held this
+        session - rehearsal campaigns as data: one record per
+        rehearsal, held whole with the active campaign it
+        was held from, its one verifiable stage
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five rehearsals at the M-203 campaign
+        campaign, with its three campaign references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/dryrun rehearsal <rehearsal-id>``
+        shows one rehearsal whole; ``/dryrun stage
+        <stage>`` shows the rehearsal one stage line
+        reaches, or names the stage unheld;
+        ``/dryrun campaign <campaign-id>`` shows the book's
+        rehearsals of one campaign; ``/dryrun view <view-id>``
+        shows one held view record; ``/dryrun note
+        <note-id>`` shows one held stance record;
+        ``/dryrun index`` shows the index derived
+        from the whole book's held rehearsals; ``/dryrun
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/dryrun
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: rehearsals and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every rehearsal held for the session is
+        journaled as a rehearsal_rehearsal session event,
+        every view as a rehearsal_view session event,
+        every derived panel as a dryrun_panel
+        session event and every derived verdict as a
+        dryrun_verdict session event. This heading
+        builds no campaign, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.dry_run_campaigns import (
+            format_rehearsal,
+            format_book,
+            format_stage,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_rehearsal_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_rehearsal_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "rehearsal":
+                text = format_rehearsal(
+                    primary.get_dryrun_rehearsal(target),
+                    primary.dryrun_book())
+            elif stance == "stage":
+                text = format_stage(
+                    primary.dryrun_book(), target)
+            elif stance == "campaign":
+                text = format_book(
+                    primary.dryrun_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_dryrun_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.dryrun_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.dryrun_book())
+            elif stance == "panel":
+                text = format_panel(primary.dryrun_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.dryrun_book())
+            else:
+                text = primary.dryrun_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
