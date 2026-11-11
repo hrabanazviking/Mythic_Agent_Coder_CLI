@@ -1,0 +1,212 @@
+schema: mythic.campaign_templates/1
+slice: M-217
+campaign_templates:
+  title: Campaign templates at the M-217 slice boundary
+kinds:
+- kind_id: kind-m216-hall
+  seq: 1
+  title: Estimate honesty
+  state: live
+  detail: 'The slice the shapekeeper looks back on first: banked at M-217, standing active in the template
+    honesty''s hands.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template shape
+  origin_session: session-m217
+- kind_id: slice-m217-template
+  seq: 2
+  title: Campaign templates
+  state: live
+  detail: 'This very slice, standing active: the multi-template shape holding its own template as data.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template shape
+  origin_session: session-m217
+- kind_id: kind-m217-templates
+  seq: 3
+  title: Template templates
+  state: dormant
+  detail: A queued slice the shapekeeper has not dealt with; an template naming it refuses by name.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template shape
+  origin_session: session-m217
+template_records:
+- template_id: template-held-template
+  seq: 1
+  kind_id: kind-m216-hall
+  title: The held template
+  checks: &id001
+  - drafted
+  - shaped
+  - checked
+  - approved
+  - issued
+  claims:
+  - kind_ref
+  detail: 'The opening template: a template drafted for the work, shaped before it ran, checked against
+    the outcome and approved honestly, issued with the slice held as proof.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template shape
+  origin_session: session-m217
+- template_id: template-remeasured-template
+  seq: 2
+  kind_id: kind-m216-hall
+  title: The remeasured template
+  checks:
+  - drafted
+  - shaped
+  - checked
+  - approved
+  - drafted
+  - shaped
+  - checked
+  - approved
+  - issued
+  claims: []
+  detail: 'The remeasured template: a first comparison sent the standing back, the template was drafted
+    and shaped again and the outcome checked a second time before the issue stood.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template shape
+  origin_session: session-m217
+- template_id: template-own-template
+  seq: 3
+  kind_id: slice-m217-template
+  title: The shapekeeper's own template
+  checks: *id001
+  claims:
+  - issue_ref
+  detail: 'The shapekeeper''s own template: this slice''s own template, carrying its issue ref as
+    proof.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template shape
+  origin_session: session-m217
+- template_id: template-bare-template
+  seq: 4
+  kind_id: slice-m217-template
+  title: The bare claim template
+  checks: *id001
+  claims:
+  - feeling
+  detail: A template that carried a feeling in place of held proof, standing open.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template shape
+  origin_session: session-m217
+- template_id: template-leaping-template
+  seq: 5
+  kind_id: slice-m217-template
+  title: The leaping template
+  checks:
+  - drafted
+  - shaped
+  - issued
+  claims: []
+  detail: A template that stepped from shaped straight to issued, outside the template sequence,
+    standing open.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template shape
+  origin_session: session-m217
+views:
+- view_id: view-templates
+  seq: 1
+  view_filter: all
+  detail: Every held template, complete or not.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template shape
+  origin_session: session-m217
+- view_id: view-issued
+  seq: 2
+  view_filter: complete
+  detail: Only the templates standing complete.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template shape
+  origin_session: session-m217
+notes:
+- note_id: note-note-first
+  seq: 1
+  template_id: template-held-template
+  stance: note
+  target: the opening template
+  title: Templates first
+  detail: The shapekeeper opens by predicting the template first, told honestly.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template shape
+  origin_session: session-m217
+- note_id: note-concern-bare
+  seq: 2
+  template_id: template-bare-template
+  stance: concern
+  target: the bare claim template
+  title: Claim named
+  detail: A template that carried a feeling claim is not the shapekeeper's way, and stands named.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template shape
+  origin_session: session-m217
+traces:
+- trace_id: trace-first
+  seq: 1
+  template_id: template-held-template
+  trace: drafted > shaped > checked > approved > issued
+  detail: 'The opening template''s walk, held exactly as walked: the trace is the walk itself.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template shape
+  origin_session: session-m217
+panels:
+- panel_id: panel-m216-boundary
+  view_id: view-templates
+  view_filter: all
+  rows:
+  - item_id: template-held-template
+    standing: complete
+    label: The held template
+    segment: 'template-held-template: The held template - slice: ''kind-m216-hall'' - check: ''issued'' - checks: 5 - claims: ''kind_ref'' - detail: ''The opening template: a template drafted for
+      the work, shaped before it ran, checked against the outcome and approved honestly, issued with the slice held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: template-remeasured-template
+    standing: complete
+    label: The remeasured template
+    segment: 'template-remeasured-template: The remeasured template - slice: ''kind-m216-hall'' - check: ''issued'' - checks: 9 - claims: ''none'' - detail: ''The remeasured template: a first comparison
+      sent the standing back, the template was drafted and shaped again and the outcome checked a second time before the issue stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: template-own-template
+    standing: complete
+    label: The shapekeeper's own template
+    segment: 'template-own-template: The shapekeeper''s own template - slice: ''slice-m217-template'' - check: ''issued'' - checks: 5 - claims: ''issue_ref'' - detail: ''The shapekeeper''s own template:
+      this slice''s own template, carrying its issue ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: template-bare-template
+    standing: open
+    label: The bare claim template
+    segment: 'template-bare-template: The bare claim template - slice: ''slice-m217-template'' - check: ''issued'' - checks: 5 - claims: ''feeling'' - detail: ''A template that carried a feeling in place
+      of held proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof: complete stands on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: template-leaping-template
+    standing: open
+    label: The leaping template
+    segment: 'template-leaping-template: The leaping template - slice: ''slice-m217-template'' - check: ''issued'' - checks: 3 - claims: ''none'' - detail: ''A template that stepped from shaped straight
+      to issued, outside the template sequence, standing open.'' - gaps: steps from shaped to issued, which the template sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The template book holds 5 templates as of 2026-11-11: the view ''all'' shows 5 of them: complete 3, open 2; 3 of the shown templates stand complete.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly, segment by segment.
+  - Every segment is derived from its template's own fields - the slice it answers for, the steps it walked in the open and the evidence it honestly carries - and no judgement is stored on any template.
+  - 'Completeness is checked from the held records alone: a template that steps outside the template sequence, carries a bare claim in place of held evidence, or has not reached issued stands open, named
+    in its gaps, and the template index is derived from the held templates, never stored where it could drift.'
