@@ -1413,7 +1413,7 @@ slices:
   title: Method metrics
   summary: slices banked, gate pass rate, repair rounds, calibration — the method's own health on the
     metrics board.
-  status: queued
+  status: done
 - id: M-231
   part: 9
   title: Cross-app method

@@ -1083,3 +1083,12 @@ mythic_agent/agents/llm.py:66923:view_course:method
 mythic_agent/agents/llm.py:66990:register_course_book:method
 mythic_agent/agents/llm.py:67039:record_course_book:method
 mythic_agent/agents/llm.py:67117:report_course:method
+mythic_agent/agents/llm.py:67415:get_metrics_note:method
+mythic_agent/agents/llm.py:67436:metrics_green:method
+mythic_agent/agents/llm.py:67478:metrics_index:method
+mythic_agent/agents/llm.py:67502:register_metrics_reading:method
+mythic_agent/agents/llm.py:67533:register_metrics_view:method
+mythic_agent/agents/llm.py:67559:view_metrics:method
+mythic_agent/agents/llm.py:67626:register_metrics_book:method
+mythic_agent/agents/llm.py:67675:record_metrics_book:method
+mythic_agent/agents/llm.py:67753:report_metrics:method
