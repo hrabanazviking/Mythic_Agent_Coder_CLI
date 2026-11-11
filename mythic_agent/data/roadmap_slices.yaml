@@ -1407,7 +1407,7 @@ slices:
   title: The method, teachable
   summary: '`mythic tutorial` gains the Method course — a newcomer learns campaigns by running a tiny
     one.'
-  status: queued
+  status: done
 - id: M-230
   part: 9
   title: Method metrics
