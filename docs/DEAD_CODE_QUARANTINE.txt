@@ -889,3 +889,12 @@ mythic_agent/agents/llm.py:53581:view_pausing:method
 mythic_agent/agents/llm.py:53648:register_pausing_book:method
 mythic_agent/agents/llm.py:53697:record_pausing_book:method
 mythic_agent/agents/llm.py:53775:report_pausing:method
+mythic_agent/agents/llm.py:54071:get_questioning_note:method
+mythic_agent/agents/llm.py:54086:questioning_questionings_for_slice:method
+mythic_agent/agents/llm.py:54092:questioning_questionings_green:method
+mythic_agent/agents/llm.py:54158:register_questioning_questioning:method
+mythic_agent/agents/llm.py:54189:register_questioning_view:method
+mythic_agent/agents/llm.py:54215:view_questioning:method
+mythic_agent/agents/llm.py:54282:register_questioning_book:method
+mythic_agent/agents/llm.py:54331:record_questioning_book:method
+mythic_agent/agents/llm.py:54409:report_questioning:method
