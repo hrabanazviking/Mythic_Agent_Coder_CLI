@@ -434,8 +434,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 230
-    assert citizen["next_slice"] == "M-231"
+    assert citizen["done"] == 231
+    assert citizen["next_slice"] == "M-232"
     assert citizen["m222_title"] == "Guarded self-modification"
     assert citizen["m222_part"] == 9
     assert citizen["m222_status"] == "done"
@@ -910,8 +910,8 @@ class TestChangeAgentStatus:
         assert status["ledger"]["current_change"] == "change-bare-change"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 230
-        assert status["roadmap"]["next_slice"] == "M-231"
+        assert status["roadmap"]["done"] == 231
+        assert status["roadmap"]["next_slice"] == "M-232"
         assert status["roadmap"]["m222_title"] == "Guarded self-modification"
         assert "held as data alone" in status["rule"]
         assert "change-bare-change" in status["plain_words"]

@@ -1092,3 +1092,12 @@ mythic_agent/agents/llm.py:67559:view_metrics:method
 mythic_agent/agents/llm.py:67626:register_metrics_book:method
 mythic_agent/agents/llm.py:67675:record_metrics_book:method
 mythic_agent/agents/llm.py:67753:report_metrics:method
+mythic_agent/agents/llm.py:68051:get_crossapp_note:method
+mythic_agent/agents/llm.py:68072:crossapp_green:method
+mythic_agent/agents/llm.py:68114:crossapp_index:method
+mythic_agent/agents/llm.py:68138:register_crossapp_external:method
+mythic_agent/agents/llm.py:68169:register_crossapp_view:method
+mythic_agent/agents/llm.py:68195:view_crossapp:method
+mythic_agent/agents/llm.py:68262:register_crossapp_book:method
+mythic_agent/agents/llm.py:68311:record_crossapp_book:method
+mythic_agent/agents/llm.py:68389:report_crossapp:method

@@ -1419,7 +1419,7 @@ slices:
   title: Cross-app method
   summary: campaigns can name slices that live in other tools (a Samtal slice, a Sagnaskemma slice) as
     tracked externals — the forge sees Volmarr's whole workshop.
-  status: queued
+  status: done
 - id: M-232
   part: 9
   title: Part IX gate
