@@ -1312,7 +1312,7 @@ slices:
   title: Retrospectives
   summary: at part and campaign close, the crew writes what was learned; lessons flow to the Self-Improving
     ledger (M-155).
-  status: queued
+  status: done
 - id: M-214
   part: 9
   title: Pattern extraction

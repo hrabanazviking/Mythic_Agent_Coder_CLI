@@ -424,8 +424,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 212
-    assert citizen["next_slice"] == "M-213"
+    assert citizen["done"] == 213
+    assert citizen["next_slice"] == "M-214"
     assert citizen["m203_title"] == "The slicing engine"
     assert citizen["m203_part"] == 9
     assert citizen["m203_status"] == "done"
@@ -913,8 +913,8 @@ class TestSlicingAgentStatus:
         assert status["board"]["current_draft"] == "draft-two-outcomes"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 212
-        assert status["roadmap"]["next_slice"] == "M-213"
+        assert status["roadmap"]["done"] == 213
+        assert status["roadmap"]["next_slice"] == "M-214"
         assert status["roadmap"]["m203_title"] == "The slicing engine"
         assert "held as data alone" in status["rule"]
         assert "draft-two-outcomes" in status["plain_words"]
