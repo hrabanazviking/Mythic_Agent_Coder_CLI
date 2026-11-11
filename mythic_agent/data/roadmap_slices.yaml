@@ -1282,7 +1282,7 @@ slices:
   title: The pause-lines wired
   summary: destruction, irreversible infra, cost, publishing, sending-as-user, secrets, security — the
     loop *cannot* cross them unapproved; the lines are data with the user's own wording preserved.
-  status: queued
+  status: done
 - id: M-209
   part: 9
   title: Question law
