@@ -1,0 +1,257 @@
+schema: mythic.part9_gate/1
+gate_slice: M-232
+part: 9
+part_title: The Mythic Method Engine
+verdict: PASS
+gate_note: |
+  The Part IX gate: this roadmap's own Part II executed by the
+  Method Engine itself from campaign file to banked slices - the
+  method proves itself on its own birth. The exercise is the
+  replay itself: Part II - The Provider Ocean - stands in the
+  roadmap's own record as a campaign of twenty-four slices
+  (M-019..M-042), every one of them banked, and the gate
+  re-proves that standing live on every run through the shipped
+  pure roads the method itself ships - the campaign read as
+  data through M-201's first citizen, and the slicing,
+  juggernaut, acceptance and banking standings each re-derived
+  through their own shipped roadmap roads (M-203, M-204, M-205,
+  M-206) - in the method's own held order: campaign, slice,
+  build, gate, bank. No step is faked or stubbed: no live
+  campaign is executed, no slice is built, banked or pushed,
+  no model is called and no token is spent by the gate itself;
+  the replay is a data-level re-proof over records that
+  already stand banked, and every method layer M-201 to
+  M-231 stands in its own shipped module under its own slice
+  constant.
+baseline:
+  resource: m231_confirmation_suite
+  collected: 11480
+  passed: 11477
+  failed: 2
+  skipped: 1
+slices:
+  - slice: M-201
+    title: Campaigns as data
+  - slice: M-202
+    title: Intent capture (PROJECT_FORGE form)
+  - slice: M-203
+    title: The slicing engine
+  - slice: M-204
+    title: The Juggernaut loop as runtime
+  - slice: M-205
+    title: Acceptance gates per slice
+  - slice: M-206
+    title: Banking discipline
+  - slice: M-207
+    title: Keeper runtime
+  - slice: M-208
+    title: The pause-lines wired
+  - slice: M-209
+    title: Question law
+  - slice: M-210
+    title: Scope sentry
+  - slice: M-211
+    title: Memory-map upkeep
+  - slice: M-212
+    title: The never-leave-a-bug rule
+  - slice: M-213
+    title: Retrospectives
+  - slice: M-214
+    title: Pattern extraction
+  - slice: M-215
+    title: Estimate honesty
+  - slice: M-216
+    title: Multi-campaign hall
+  - slice: M-217
+    title: Campaign templates
+  - slice: M-218
+    title: The 500-slice road as a campaign
+  - slice: M-219
+    title: Interrupts and resumes across days
+  - slice: M-220
+    title: Milestone reports
+  - slice: M-221
+    title: The plain-language build log
+  - slice: M-222
+    title: Guarded self-modification
+  - slice: M-223
+    title: Failure taxonomy
+  - slice: M-224
+    title: Dry-run campaigns
+  - slice: M-225
+    title: Campaign export
+  - slice: M-226
+    title: Standing orders
+  - slice: M-227
+    title: Workflow default honoured
+  - slice: M-228
+    title: Team-of-one scaling
+  - slice: M-229
+    title: The method, teachable
+  - slice: M-230
+    title: Method metrics
+  - slice: M-231
+    title: Cross-app method
+layers:
+  - slice: M-201
+    module: campaigns
+    constant: CAMPAIGNS_SLICE
+  - slice: M-202
+    module: intent_capture
+    constant: INTENT_SLICE
+  - slice: M-203
+    module: slicing_engine
+    constant: SLICING_SLICE
+  - slice: M-204
+    module: juggernaut_loop
+    constant: JUGGERNAUT_SLICE
+  - slice: M-205
+    module: acceptance_gates
+    constant: ACCEPTANCE_SLICE
+  - slice: M-206
+    module: banking_discipline
+    constant: BANKING_SLICE
+  - slice: M-207
+    module: keeper_runtime
+    constant: KEEPING_SLICE
+  - slice: M-208
+    module: pause_lines
+    constant: PAUSING_SLICE
+  - slice: M-209
+    module: question_law
+    constant: QUESTIONING_SLICE
+  - slice: M-210
+    module: scope_sentry
+    constant: SENTRY_SLICE
+  - slice: M-211
+    module: memory_map_upkeep
+    constant: UPKEEP_SLICE
+  - slice: M-212
+    module: bug_rule
+    constant: BUG_SLICE
+  - slice: M-213
+    module: retrospectives
+    constant: RETRO_SLICE
+  - slice: M-214
+    module: pattern_extraction
+    constant: PATTERN_SLICE
+  - slice: M-215
+    module: estimate_honesty
+    constant: ESTIMATE_SLICE
+  - slice: M-216
+    module: multi_campaign_hall
+    constant: CAMPAIGN_SLICE
+  - slice: M-217
+    module: campaign_templates
+    constant: TEMPLATE_SLICE
+  - slice: M-218
+    module: mimisbrunnr_road
+    constant: ROAD_SLICE
+  - slice: M-219
+    module: interrupts_resumes
+    constant: RESUME_SLICE
+  - slice: M-220
+    module: milestone_reports
+    constant: REPORT_SLICE
+  - slice: M-221
+    module: build_log
+    constant: ENTRY_SLICE
+  - slice: M-222
+    module: self_modification
+    constant: CHANGE_SLICE
+  - slice: M-223
+    module: failure_taxonomy
+    constant: FAILURE_SLICE
+  - slice: M-224
+    module: dry_run_campaigns
+    constant: REHEARSAL_SLICE
+  - slice: M-225
+    module: campaign_export
+    constant: BUNDLE_SLICE
+  - slice: M-226
+    module: standing_orders
+    constant: ORDER_SLICE
+  - slice: M-227
+    module: workflow_default
+    constant: PROPOSAL_SLICE
+  - slice: M-228
+    module: team_scaling
+    constant: ENDEAVOUR_SLICE
+  - slice: M-229
+    module: method_course
+    constant: LESSON_SLICE
+  - slice: M-230
+    module: method_metrics
+    constant: READING_SLICE
+  - slice: M-231
+    module: cross_app_method
+    constant: EXTERNAL_SLICE
+exercises:
+  - id: method_replay
+    title: Part II executed by the Method Engine itself
+    owning_slices:
+      - M-201
+      - M-203
+      - M-204
+      - M-205
+      - M-206
+    status: completed
+    evidence_kind: pure-roads-measured
+    evidence: >
+      The replay as recorded: Part II stands in the roadmap's
+      own record as twenty-four banked slices, the campaign is
+      read as data through the shipped M-201 first citizen, and
+      the slicing, juggernaut, acceptance and banking standings
+      are each re-derived through their own shipped roadmap
+      roads - all re-proven live by the gate tests on every run.
+    executed_on: "2026-11-11"
+    campaign_part: 2
+    campaign_title: The Provider Ocean
+    campaign_file: roadmap_slices.yaml
+    campaign_slice_ids:
+      - M-019
+      - M-020
+      - M-021
+      - M-022
+      - M-023
+      - M-024
+      - M-025
+      - M-026
+      - M-027
+      - M-028
+      - M-029
+      - M-030
+      - M-031
+      - M-032
+      - M-033
+      - M-034
+      - M-035
+      - M-036
+      - M-037
+      - M-038
+      - M-039
+      - M-040
+      - M-041
+      - M-042
+    steps:
+      - step_id: step-campaign
+        slice: M-201
+        module: campaigns
+        anchor: first_citizen_record
+      - step_id: step-slice
+        slice: M-203
+        module: slicing_engine
+        anchor: roadmap_record
+      - step_id: step-build
+        slice: M-204
+        module: juggernaut_loop
+        anchor: roadmap_record
+      - step_id: step-gate
+        slice: M-205
+        module: acceptance_gates
+        anchor: roadmap_record
+      - step_id: step-bank
+        slice: M-206
+        module: banking_discipline
+        anchor: roadmap_record
+    banked_count: 24
