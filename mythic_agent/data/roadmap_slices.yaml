@@ -1389,7 +1389,7 @@ slices:
   summary: user-level laws (no-Docker, README guardian, manual-only workflows, keeper law) stored once
     and binding every campaign — the app keeps the user's laws so the user needn't repeat them. **Never
     make the user say it twice** is a feature.
-  status: queued
+  status: done
 - id: M-227
   part: 9
   title: Workflow default honoured
