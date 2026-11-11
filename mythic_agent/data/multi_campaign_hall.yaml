@@ -1,0 +1,212 @@
+schema: mythic.multi_campaign_hall/1
+slice: M-216
+multi_campaign_hall:
+  title: Multi-campaign hall at the M-215 slice boundary
+repos:
+- repo_id: repo-m215-estimate
+  seq: 1
+  title: Estimate honesty
+  state: live
+  detail: 'The slice the hallkeeper looks back on first: banked at M-215, standing active in the campaign
+    honesty''s hands.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-campaign hall
+  origin_session: session-m216
+- repo_id: slice-m216-campaign
+  seq: 2
+  title: Multi-campaign hall
+  state: live
+  detail: 'This very slice, standing active: the multi-campaign hall holding its own campaign as data.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-campaign hall
+  origin_session: session-m216
+- repo_id: repo-m217-templates
+  seq: 3
+  title: Campaign templates
+  state: dormant
+  detail: A queued slice the hallkeeper has not dealt with; an campaign naming it refuses by name.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-campaign hall
+  origin_session: session-m216
+campaign_records:
+- campaign_id: campaign-held-campaign
+  seq: 1
+  repo_id: repo-m215-estimate
+  title: The held campaign
+  checks: &id001
+  - gathered
+  - boarded
+  - kept
+  - reported
+  - glanced
+  claims:
+  - repo_ref
+  detail: 'The opening campaign: a campaign gathered for the work, boarded before it ran, kept against
+    the outcome and reported honestly, glanced with the slice held as proof.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-campaign hall
+  origin_session: session-m216
+- campaign_id: campaign-remeasured-campaign
+  seq: 2
+  repo_id: repo-m215-estimate
+  title: The remeasured campaign
+  checks:
+  - gathered
+  - boarded
+  - kept
+  - reported
+  - gathered
+  - boarded
+  - kept
+  - reported
+  - glanced
+  claims: []
+  detail: 'The remeasured campaign: a first comparison sent the standing back, the campaign was gathered
+    and boarded again and the outcome kept a second time before the glance stood.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-campaign hall
+  origin_session: session-m216
+- campaign_id: campaign-own-campaign
+  seq: 3
+  repo_id: slice-m216-campaign
+  title: The hallkeeper's own campaign
+  checks: *id001
+  claims:
+  - glance_ref
+  detail: 'The hallkeeper''s own campaign: this slice''s own campaign, carrying its glance ref as
+    proof.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-campaign hall
+  origin_session: session-m216
+- campaign_id: campaign-bare-campaign
+  seq: 4
+  repo_id: slice-m216-campaign
+  title: The bare claim campaign
+  checks: *id001
+  claims:
+  - feeling
+  detail: A campaign that carried a feeling in place of held proof, standing open.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-campaign hall
+  origin_session: session-m216
+- campaign_id: campaign-leaping-campaign
+  seq: 5
+  repo_id: slice-m216-campaign
+  title: The leaping campaign
+  checks:
+  - gathered
+  - boarded
+  - glanced
+  claims: []
+  detail: A campaign that stepped from boarded straight to glanced, outside the campaign sequence,
+    standing open.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-campaign hall
+  origin_session: session-m216
+views:
+- view_id: view-campaigns
+  seq: 1
+  view_filter: all
+  detail: Every held campaign, complete or not.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-campaign hall
+  origin_session: session-m216
+- view_id: view-glanced
+  seq: 2
+  view_filter: complete
+  detail: Only the campaigns standing complete.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-campaign hall
+  origin_session: session-m216
+notes:
+- note_id: note-note-first
+  seq: 1
+  campaign_id: campaign-held-campaign
+  stance: note
+  target: the opening campaign
+  title: Campaigns first
+  detail: The hallkeeper opens by predicting the campaign first, told honestly.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-campaign hall
+  origin_session: session-m216
+- note_id: note-concern-bare
+  seq: 2
+  campaign_id: campaign-bare-campaign
+  stance: concern
+  target: the bare claim campaign
+  title: Claim named
+  detail: A campaign that carried a feeling claim is not the hallkeeper's way, and stands named.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-campaign hall
+  origin_session: session-m216
+traces:
+- trace_id: trace-first
+  seq: 1
+  campaign_id: campaign-held-campaign
+  trace: gathered > boarded > kept > reported > glanced
+  detail: 'The opening campaign''s walk, held exactly as walked: the trace is the walk itself.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-campaign hall
+  origin_session: session-m216
+panels:
+- panel_id: panel-m215-boundary
+  view_id: view-campaigns
+  view_filter: all
+  rows:
+  - item_id: campaign-held-campaign
+    standing: complete
+    label: The held campaign
+    segment: 'campaign-held-campaign: The held campaign - slice: ''repo-m215-estimate'' - check: ''glanced'' - checks: 5 - claims: ''repo_ref'' - detail: ''The opening campaign: a campaign gathered for
+      the work, boarded before it ran, kept against the outcome and reported honestly, glanced with the slice held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: campaign-remeasured-campaign
+    standing: complete
+    label: The remeasured campaign
+    segment: 'campaign-remeasured-campaign: The remeasured campaign - slice: ''repo-m215-estimate'' - check: ''glanced'' - checks: 9 - claims: ''none'' - detail: ''The remeasured campaign: a first comparison
+      sent the standing back, the campaign was gathered and boarded again and the outcome kept a second time before the glance stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: campaign-own-campaign
+    standing: complete
+    label: The hallkeeper's own campaign
+    segment: 'campaign-own-campaign: The hallkeeper''s own campaign - slice: ''slice-m216-campaign'' - check: ''glanced'' - checks: 5 - claims: ''glance_ref'' - detail: ''The hallkeeper''s own campaign:
+      this slice''s own campaign, carrying its glance ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: campaign-bare-campaign
+    standing: open
+    label: The bare claim campaign
+    segment: 'campaign-bare-campaign: The bare claim campaign - slice: ''slice-m216-campaign'' - check: ''glanced'' - checks: 5 - claims: ''feeling'' - detail: ''A campaign that carried a feeling in place
+      of held proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof: complete stands on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: campaign-leaping-campaign
+    standing: open
+    label: The leaping campaign
+    segment: 'campaign-leaping-campaign: The leaping campaign - slice: ''slice-m216-campaign'' - check: ''glanced'' - checks: 3 - claims: ''none'' - detail: ''A campaign that stepped from boarded straight
+      to glanced, outside the campaign sequence, standing open.'' - gaps: steps from boarded to glanced, which the campaign sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The campaign book holds 5 campaigns as of 2026-11-11: the view ''all'' shows 5 of them: complete 3, open 2; 3 of the shown campaigns stand complete.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly, segment by segment.
+  - Every segment is derived from its campaign's own fields - the slice it answers for, the steps it walked in the open and the evidence it honestly carries - and no judgement is stored on any campaign.
+  - 'Completeness is kept from the held records alone: a campaign that steps outside the campaign sequence, carries a bare claim in place of held evidence, or has not reached glanced stands open, named
+    in its gaps, and the campaign index is derived from the held campaigns, never stored where it could drift.'
