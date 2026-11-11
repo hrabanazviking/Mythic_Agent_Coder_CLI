@@ -463,6 +463,8 @@ class CommandHandler:
                 self._handle_mimis(args)
             elif cmd == "/resumes":
                 self._handle_daybook(args)
+            elif cmd == "/milestones":
+                self._handle_milestone(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -11022,6 +11024,101 @@ class CommandHandler:
                 text = format_verdict(primary.daybook_book())
             else:
                 text = primary.daybook_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_milestone(self, args: str):
+        """M-220: /milestones - the report engine as data.
+
+        ``/milestones`` shows the report book held this
+        session - report slices as data: one record per
+        report, held whole with the active slice it
+        was held from, its one verifiable check
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five reports at the M-203 slice
+        boundary, with its three slice references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/milestones report <report-id>``
+        shows one report whole; ``/milestones check
+        <check>`` shows the report one check line
+        reaches, or names the check unheld;
+        ``/milestones slice <slice-id>`` shows the book's
+        reports of one slice; ``/milestones view <view-id>``
+        shows one held view record; ``/milestones note
+        <note-id>`` shows one held stance record;
+        ``/milestones index`` shows the index derived
+        from the whole book's held reports; ``/milestones
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/milestones
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: reports and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every report held for the session is
+        journaled as a report_report session event,
+        every view as a report_view session event,
+        every derived panel as a milestone_panel
+        session event and every derived verdict as a
+        milestone_verdict session event. This heading
+        builds no slice, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.milestone_reports import (
+            format_report,
+            format_book,
+            format_check,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_report_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_report_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "report":
+                text = format_report(
+                    primary.get_milestone_report(target),
+                    primary.milestone_book())
+            elif stance == "check":
+                text = format_check(
+                    primary.milestone_book(), target)
+            elif stance == "boundary":
+                text = format_book(
+                    primary.milestone_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_milestone_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.milestone_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.milestone_book())
+            elif stance == "panel":
+                text = format_panel(primary.milestone_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.milestone_book())
+            else:
+                text = primary.milestone_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
