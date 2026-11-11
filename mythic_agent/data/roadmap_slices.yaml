@@ -1317,7 +1317,7 @@ slices:
   part: 9
   title: Pattern extraction
   summary: repeated successful manoeuvres become candidate skills (Part X) drafted by the Scribe for approval.
-  status: queued
+  status: done
 - id: M-215
   part: 9
   title: Estimate honesty
