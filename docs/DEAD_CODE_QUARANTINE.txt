@@ -1038,3 +1038,12 @@ mythic_agent/agents/llm.py:63743:view_dryrun:method
 mythic_agent/agents/llm.py:63810:register_dryrun_book:method
 mythic_agent/agents/llm.py:63859:record_dryrun_book:method
 mythic_agent/agents/llm.py:63937:report_dryrun:method
+mythic_agent/agents/llm.py:64235:get_export_note:method
+mythic_agent/agents/llm.py:64256:bundles_green:method
+mythic_agent/agents/llm.py:64298:export_index:method
+mythic_agent/agents/llm.py:64322:register_export_bundle:method
+mythic_agent/agents/llm.py:64353:register_export_view:method
+mythic_agent/agents/llm.py:64379:view_export:method
+mythic_agent/agents/llm.py:64446:register_export_book:method
+mythic_agent/agents/llm.py:64495:record_export_book:method
+mythic_agent/agents/llm.py:64573:report_export:method

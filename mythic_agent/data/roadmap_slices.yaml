@@ -1382,7 +1382,7 @@ slices:
   title: Campaign export
   summary: the whole campaign (file, journal, map, evidence) as a portable bundle — a project's memory,
     ownable.
-  status: queued
+  status: done
 - id: M-226
   part: 9
   title: Standing orders
