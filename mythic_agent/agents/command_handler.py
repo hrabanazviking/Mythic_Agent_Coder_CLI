@@ -485,6 +485,8 @@ class CommandHandler:
                 self._handle_course(args)
             elif cmd == "/metrics":
                 self._handle_metrics(args)
+            elif cmd == "/crossapp":
+                self._handle_crossapp(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -12089,6 +12091,101 @@ class CommandHandler:
                 text = format_verdict(primary.metrics_book())
             else:
                 text = primary.metrics_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_crossapp(self, args: str):
+        """M-231: /crossapp - the external engine as data.
+
+        ``/crossapp`` shows the external book held this
+        session - external campaigns as data: one record per
+        external, held whole with the active campaign it
+        was held from, its one verifiable stage
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five externals at the M-203 campaign
+        campaign, with its three campaign references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/crossapp external <external-id>``
+        shows one external whole; ``/crossapp stage
+        <stage>`` shows the external one stage line
+        reaches, or names the stage unheld;
+        ``/crossapp campaign <campaign-id>`` shows the book's
+        externals of one campaign; ``/crossapp view <view-id>``
+        shows one held view record; ``/crossapp note
+        <note-id>`` shows one held stance record;
+        ``/crossapp index`` shows the index derived
+        from the whole book's held externals; ``/crossapp
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/crossapp
+        verdict`` shows the verdict derived for the
+        whole book. External registers and publishes
+        nothing as session news: externals and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every external held for the session is
+        journaled as a external_external session event,
+        every view as a external_view session event,
+        every derived panel as a crossapp_panel
+        session event and every derived verdict as a
+        crossapp_verdict session event. This heading
+        builds no campaign, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.cross_app_method import (
+            format_external,
+            format_book,
+            format_stage,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_external_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_external_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "external":
+                text = format_external(
+                    primary.get_crossapp_external(target),
+                    primary.crossapp_book())
+            elif stance == "stage":
+                text = format_stage(
+                    primary.crossapp_book(), target)
+            elif stance == "campaign":
+                text = format_book(
+                    primary.crossapp_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_crossapp_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.crossapp_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.crossapp_book())
+            elif stance == "panel":
+                text = format_panel(primary.crossapp_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.crossapp_book())
+            else:
+                text = primary.crossapp_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
