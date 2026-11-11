@@ -435,8 +435,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 223
-    assert citizen["next_slice"] == "M-224"
+    assert citizen["done"] == 224
+    assert citizen["next_slice"] == "M-225"
     assert citizen["m212_title"] == "The never-leave-a-bug rule"
     assert citizen["m212_part"] == 9
     assert citizen["m212_status"] == "done"
@@ -911,8 +911,8 @@ class TestBugAgentStatus:
         assert status["board"]["current_bug"] == "bug-bare-fix"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 223
-        assert status["roadmap"]["next_slice"] == "M-224"
+        assert status["roadmap"]["done"] == 224
+        assert status["roadmap"]["next_slice"] == "M-225"
         assert status["roadmap"]["m212_title"] == "The never-leave-a-bug rule"
         assert "held as data alone" in status["rule"]
         assert "bug-bare-fix" in status["plain_words"]

@@ -434,11 +434,11 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 223
-    assert citizen["next_slice"] == "M-224"
+    assert citizen["done"] == 224
+    assert citizen["next_slice"] == "M-225"
     assert citizen["m224_title"] == "Dry-run campaigns"
     assert citizen["m224_part"] == 9
-    assert citizen["m224_status"] == "queued"
+    assert citizen["m224_status"] == "done"
 
 def test_rehearsal_record_round_trips():
     rehearsal = _rehearsal()
@@ -910,8 +910,8 @@ class TestRehearsalAgentStatus:
         assert status["ledger"]["current_rehearsal"] == "rehearsal-bare-rehearsal"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 223
-        assert status["roadmap"]["next_slice"] == "M-224"
+        assert status["roadmap"]["done"] == 224
+        assert status["roadmap"]["next_slice"] == "M-225"
         assert status["roadmap"]["m224_title"] == "Dry-run campaigns"
         assert "held as data alone" in status["rule"]
         assert "rehearsal-bare-rehearsal" in status["plain_words"]

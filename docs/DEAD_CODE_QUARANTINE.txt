@@ -1029,3 +1029,12 @@ mythic_agent/agents/llm.py:63107:view_failtax:method
 mythic_agent/agents/llm.py:63174:register_failtax_book:method
 mythic_agent/agents/llm.py:63223:record_failtax_book:method
 mythic_agent/agents/llm.py:63301:report_failtax:method
+mythic_agent/agents/llm.py:63599:get_dryrun_note:method
+mythic_agent/agents/llm.py:63620:rehearsals_green:method
+mythic_agent/agents/llm.py:63662:dryrun_index:method
+mythic_agent/agents/llm.py:63686:register_dryrun_rehearsal:method
+mythic_agent/agents/llm.py:63717:register_dryrun_view:method
+mythic_agent/agents/llm.py:63743:view_dryrun:method
+mythic_agent/agents/llm.py:63810:register_dryrun_book:method
+mythic_agent/agents/llm.py:63859:record_dryrun_book:method
+mythic_agent/agents/llm.py:63937:report_dryrun:method
