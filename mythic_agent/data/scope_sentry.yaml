@@ -1,0 +1,225 @@
+schema: mythic.scope_sentry/1
+slice: M-210
+scope_sentry:
+  title: The scope sentry at the M-209 slice boundary
+slices:
+- slice_id: slice-m209-question
+  seq: 1
+  title: Question law
+  state: active
+  detail: 'The slice the watcher deals with first: banked at M-209, standing active in the scope sentry''s
+    hands.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the scope sentry
+  origin_session: session-m210
+- slice_id: slice-m210-scope
+  seq: 2
+  title: Scope sentry
+  state: active
+  detail: 'This very slice, standing active: the scope sentry holding its own watch as data.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the scope sentry
+  origin_session: session-m210
+- slice_id: slice-m211-memory
+  seq: 3
+  title: Memory-map upkeep
+  state: queued
+  detail: A queued slice the watcher has not dealt with; a sentry naming it refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the scope sentry
+  origin_session: session-m210
+sentries:
+- sentry_id: sentry-held-watch
+  seq: 1
+  slice_id: slice-m209-question
+  title: The held watch
+  checks: &id001
+  - named
+  - observed
+  - judged
+  - halted
+  - reported
+  claims:
+  - campaign_ref
+  detail: 'The opening watch: work named against the campaign file, observed in the repo and on the branch
+    it was named for, judged inside the named target, halted nowhere and reported held, with the campaign
+    file held as proof.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the scope sentry
+  origin_session: session-m210
+- sentry_id: sentry-rechecked-watch
+  seq: 2
+  slice_id: slice-m209-question
+  title: The rechecked watch
+  checks:
+  - named
+  - observed
+  - judged
+  - halted
+  - named
+  - observed
+  - judged
+  - halted
+  - reported
+  claims: []
+  detail: 'The rechecked watch: a first judging halted the work, the target was named again and the work
+    observed and judged a second time before the report stood.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the scope sentry
+  origin_session: session-m210
+- sentry_id: sentry-own-watch
+  seq: 3
+  slice_id: slice-m210-scope
+  title: The sentry's own watch
+  checks: *id001
+  claims:
+  - ledger_row
+  detail: 'The sentry''s own watch: this slice''s own watch, carrying its ledger row as proof.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the scope sentry
+  origin_session: session-m210
+- sentry_id: sentry-bare-watch
+  seq: 4
+  slice_id: slice-m210-scope
+  title: The bare claim watch
+  checks: *id001
+  claims:
+  - feeling
+  detail: A watch that carried a feeling in place of held proof, standing open.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the scope sentry
+  origin_session: session-m210
+- sentry_id: sentry-leaping-watch
+  seq: 5
+  slice_id: slice-m210-scope
+  title: The leaping watch
+  checks:
+  - named
+  - observed
+  - reported
+  claims: []
+  detail: A watch that stepped from observed straight to reported, outside the sentry sequence, standing
+    open.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the scope sentry
+  origin_session: session-m210
+views:
+- view_id: view-sentries
+  seq: 1
+  view_filter: all
+  detail: Every held watch, complete or not.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the scope sentry
+  origin_session: session-m210
+- view_id: view-reported
+  seq: 2
+  view_filter: complete
+  detail: Only the watches standing complete.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the scope sentry
+  origin_session: session-m210
+notes:
+- note_id: note-note-first
+  seq: 1
+  sentry_id: sentry-held-watch
+  stance: note
+  target: the opening watch
+  title: Targets first
+  detail: The watcher opens by naming the target first, told honestly.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the scope sentry
+  origin_session: session-m210
+- note_id: note-concern-bare
+  seq: 2
+  sentry_id: sentry-bare-watch
+  stance: concern
+  target: the bare claim watch
+  title: Claim named
+  detail: A watch that carried a feeling claim is not the watcher's way, and stands named.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the scope sentry
+  origin_session: session-m210
+traces:
+- trace_id: trace-first
+  seq: 1
+  sentry_id: sentry-held-watch
+  trace: named > observed > judged > halted > reported
+  detail: 'The opening watch''s walk, held exactly as walked: the trace is the walk itself.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the scope sentry
+  origin_session: session-m210
+panels:
+- panel_id: panel-m209-boundary
+  view_id: view-sentries
+  view_filter: all
+  rows:
+  - item_id: sentry-held-watch
+    standing: complete
+    label: The held watch
+    segment: 'sentry-held-watch: The held watch - slice: ''slice-m209-question'' - check: ''reported''
+      - checks: 5 - claims: ''campaign_ref'' - detail: ''The opening watch: work named against the campaign
+      file, observed in the repo and on the branch it was named for, judged inside the named target, halted
+      nowhere and reported held, with the campaign file held as proof.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: sentry-rechecked-watch
+    standing: complete
+    label: The rechecked watch
+    segment: 'sentry-rechecked-watch: The rechecked watch - slice: ''slice-m209-question'' - check: ''reported''
+      - checks: 9 - claims: ''none'' - detail: ''The rechecked watch: a first judging halted the work,
+      the target was named again and the work observed and judged a second time before the report stood.''
+      - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: sentry-own-watch
+    standing: complete
+    label: The sentry's own watch
+    segment: 'sentry-own-watch: The sentry''s own watch - slice: ''slice-m210-scope'' - check: ''reported''
+      - checks: 5 - claims: ''ledger_row'' - detail: ''The sentry''s own watch: this slice''s own watch,
+      carrying its ledger row as proof.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: sentry-bare-watch
+    standing: open
+    label: The bare claim watch
+    segment: 'sentry-bare-watch: The bare claim watch - slice: ''slice-m210-scope'' - check: ''reported''
+      - checks: 5 - claims: ''feeling'' - detail: ''A watch that carried a feeling in place of held proof,
+      standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof: complete stands
+      on held proof alone'
+    recorded_on: '2026-11-10'
+  - item_id: sentry-leaping-watch
+    standing: open
+    label: The leaping watch
+    segment: 'sentry-leaping-watch: The leaping watch - slice: ''slice-m210-scope'' - check: ''reported''
+      - checks: 3 - claims: ''none'' - detail: ''A watch that stepped from observed straight to reported,
+      outside the sentry sequence, standing open.'' - gaps: steps from observed to reported, which the
+      sentry sequence does not allow'
+    recorded_on: '2026-11-10'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-10'
+  account:
+  - 'The sentry book holds 5 sentries as of 2026-11-10: the view ''all'' shows 5 of them: complete 3,
+    open 2; 3 of the shown sentries stand complete.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its sentry's own fields - the slice it answers for, the steps it walked
+    in the open and the evidence it honestly carries - and no judgement is stored on any sentry.
+  - 'Completeness is judged from the held records alone: a sentry that steps outside the sentry sequence,
+    carries a bare claim in place of held evidence, or has not reached reported stands open, named in
+    its gaps, and the sentry index is derived from the held sentries, never stored where it could drift.'
