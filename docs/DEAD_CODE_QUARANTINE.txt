@@ -1011,3 +1011,12 @@ mythic_agent/agents/llm.py:61835:view_log:method
 mythic_agent/agents/llm.py:61902:register_log_book:method
 mythic_agent/agents/llm.py:61951:record_log_book:method
 mythic_agent/agents/llm.py:62029:report_log:method
+mythic_agent/agents/llm.py:62327:get_selfmod_note:method
+mythic_agent/agents/llm.py:62348:changes_green:method
+mythic_agent/agents/llm.py:62390:selfmod_index:method
+mythic_agent/agents/llm.py:62414:register_selfmod_change:method
+mythic_agent/agents/llm.py:62445:register_selfmod_view:method
+mythic_agent/agents/llm.py:62471:view_selfmod:method
+mythic_agent/agents/llm.py:62538:register_selfmod_book:method
+mythic_agent/agents/llm.py:62587:record_selfmod_book:method
+mythic_agent/agents/llm.py:62665:report_selfmod:method

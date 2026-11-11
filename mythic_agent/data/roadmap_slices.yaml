@@ -1364,7 +1364,7 @@ slices:
   title: Guarded self-modification
   summary: Mythic improving *itself* under campaign rules (M-141) with the Auditor doubled — the forge
     may sharpen its own hammer only on the record.
-  status: queued
+  status: done
 - id: M-223
   part: 9
   title: Failure taxonomy
