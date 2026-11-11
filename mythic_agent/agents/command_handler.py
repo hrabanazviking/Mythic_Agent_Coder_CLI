@@ -469,6 +469,8 @@ class CommandHandler:
                 self._handle_log(args)
             elif cmd == "/selfmod":
                 self._handle_selfmod(args)
+            elif cmd == "/failures":
+                self._handle_failtax(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -11313,6 +11315,101 @@ class CommandHandler:
                 text = format_verdict(primary.selfmod_book())
             else:
                 text = primary.selfmod_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_failtax(self, args: str):
+        """M-223: /failures - the failure engine as data.
+
+        ``/failures`` shows the failure book held this
+        session - failure runs as data: one record per
+        failure, held whole with the active run it
+        was held from, its one verifiable stage
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five failures at the M-203 run
+        run, with its three run references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/failures failure <failure-id>``
+        shows one failure whole; ``/failures stage
+        <stage>`` shows the failure one stage line
+        reaches, or names the stage unheld;
+        ``/failures run <run-id>`` shows the book's
+        failures of one run; ``/failures view <view-id>``
+        shows one held view record; ``/failures note
+        <note-id>`` shows one held stance record;
+        ``/failures index`` shows the index derived
+        from the whole book's held failures; ``/failures
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/failures
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: failures and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every failure held for the session is
+        journaled as a failure_failure session event,
+        every view as a failure_view session event,
+        every derived panel as a failtax_panel
+        session event and every derived verdict as a
+        failtax_verdict session event. This heading
+        builds no run, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.failure_taxonomy import (
+            format_failure,
+            format_book,
+            format_stage,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_failure_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_failure_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "failure":
+                text = format_failure(
+                    primary.get_failtax_failure(target),
+                    primary.failtax_book())
+            elif stance == "stage":
+                text = format_stage(
+                    primary.failtax_book(), target)
+            elif stance == "run":
+                text = format_book(
+                    primary.failtax_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_failtax_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.failtax_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.failtax_book())
+            elif stance == "panel":
+                text = format_panel(primary.failtax_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.failtax_book())
+            else:
+                text = primary.failtax_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
