@@ -57677,6 +57677,641 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _estimate_registry(self):
+        """The held slice registry (M-215).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer slice and view records
+        one by one, beside the session keyboard registry
+        (M-200) and never in it: the book is one
+        slice book to look at. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is named
+        ``_estimate_store``, never the
+        method's own name (the M-108 forecast).
+        """
+        registry = getattr(self, "_estimate_store", None)
+        if registry is None:
+            from ..core.estimate_honesty import EstimateRegistry
+            registry = EstimateRegistry()
+            self._estimate_store = registry
+        return registry
+
+    def estimate_book(self):
+        """The session's slice book, as data (M-215).
+
+        The held registry's book when the session
+        holds any item - the things the session can
+        actually be viewed for (items held one by one
+        stand under a session book composed here in
+        the agent layer, so a later whole book
+        recorded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book recorded whole through
+        :meth:`record_estimate_book`, or the shipped
+        example book until one is recorded. Reading
+        registers and publishes nothing.
+        """
+        from ..core.estimate_honesty import (
+            EstimateBook, load_estimate)
+        registry = self._estimate_registry()
+        if registry.list_items():
+            try:
+                book = registry.book()
+            except ValueError:
+                return EstimateBook(
+                    title=registry.title() or "The Estimate Gate",
+                    slices=(), estimates=registry.list_estimates(),
+                    views=registry.list_views(), notes=(),
+                    traces=(), panels=())
+            held = getattr(self, "_estimate_held", None)
+            if held is not None and held.title == book.title \
+                    and held.slice_ids() == book.slice_ids() \
+                    and held.estimate_ids() == book.estimate_ids() \
+                    and [v.view_id for v in held.views] == [
+                        v.view_id for v in book.views]:
+                return held
+            return book
+        book = getattr(self, "_estimate_held", None)
+        if book is None:
+            return load_estimate()
+        return book
+
+    def _estimate_default_view(self, book: Any):
+        """The view a book derives under by default (M-215).
+
+        The view its own stored panel stands under,
+        else its first held view, else None - a book
+        holding slices but no view yet derives no panel
+        and no verdict, and says so plainly.
+        """
+        for panel in book.panels:
+            if panel.view_id is not None:
+                try:
+                    return book.view_for(panel.view_id)
+                except KeyError:
+                    continue
+        if book.views:
+            return book.views[0]
+        return None
+
+    def _estimate_screen(self) -> str:
+        """The /estimates screen for the session's state (M-215)."""
+        from ..core import estimate_honesty as camp_module
+        registry = self._estimate_registry()
+        if not registry.list_items():
+            return camp_module.format_estimate_screen()
+        book = self.estimate_book()
+        if not book.views:
+            return camp_module.format_book(book)
+        return camp_module.format_estimate_screen(book)
+
+    def estimate_status(self) -> dict[str, Any]:
+        """The slice account, in plain data (M-215).
+
+        The slice and view records held this session as
+        plain records, the held book's record (none
+        until an item stands held), the session book's
+        slices, views and notes as plain records (the
+        shipped example book - six slices at the M-200
+        slice boundary, with its two views, its two
+        stance records and its one pinned panel - until
+        items are held), its whole-book record, the
+        panel derived from the whole book under its
+        default view and every panel the book holds
+        as plain records, the verdict derived for
+        the whole book, the index derived from the
+        book's held slices, the first stance record the
+        book holds, the slice rule as data, the
+        last slice told in plain words, the panel and
+        the verdict told in plain words, the one
+        screen - rendered from the held book, or from
+        the shipped example book when nothing is held
+        yet - and the plain explanation. A book
+        holding slices but no view yet derives no panel
+        and no verdict. Reading registers and
+        publishes nothing, moves no pointer, renders
+        no live UI and opens no file: this
+        layer tells only.
+        """
+        from ..core import estimate_honesty as camp_module
+        registry = self._estimate_registry()
+        held_acts = registry.list_slices()
+        held_estimates = registry.list_estimates()
+        held_views = registry.list_views()
+        held_items = registry.list_items()
+        book = self.estimate_book()
+        default = self._estimate_default_view(book)
+        latest_words = camp_module.index_plain_words(book)
+        modal = camp_module.first_note(book)
+        return {
+            "slices": [item.to_record() for item in held_acts],
+            "estimate_records": [item.to_record() for item in held_estimates],
+            "views": [item.to_record() for item in held_views],
+            "book": (book.to_record() if held_items else None),
+            "estimate_book": {
+                "title": book.title,
+                "slices": [item.to_record() for item in book.slices],
+                "estimate_records": [item.to_record() for item in book.estimates],
+                "views": [item.to_record() for item in book.views],
+                "notes": [item.to_record() for item in book.notes],
+                "traces": [item.to_record() for item in book.traces],
+            },
+            "book_record": camp_module.book_record(book),
+            "panel": (camp_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (camp_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "index": camp_module.index_record(book),
+            "board": camp_module.board_record(book),
+            "roadmap": camp_module.roadmap_record(),
+            "first_note": (camp_module.note_record(modal)
+                         if modal is not None else None),
+            "rule": camp_module.ESTIMATE_RULE,
+            "plain_words": latest_words,
+            "panel_plain_words": (
+                camp_module.panel_plain_words(book, default)
+                if default is not None else ""),
+            "verdict_plain_words": (
+                camp_module.verdict_plain_words(book, default)
+                if default is not None else ""),
+            "screen": self._estimate_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def get_estimate_estimate(self, estimate_id: Any):
+        """The one slice an id names (M-215).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). A held item answers
+        for its own book alone: an id the held book
+        holds no slice for raises KeyError, with no
+        silent fall back to the example, exactly as
+        the pure layer answers. Reading registers
+        and publishes nothing.
+        """
+        registry = self._estimate_registry()
+        if registry.list_items():
+            return registry.get_estimate(estimate_id)
+        return self.estimate_book().estimate_for(estimate_id)
+
+    def get_estimate_view(self, view_id: Any):
+        """The one view record an id names (M-215).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the shipped
+        example book answers (or the book recorded
+        whole for the session). Reading registers
+        and publishes nothing.
+        """
+        registry = self._estimate_registry()
+        if registry.list_items():
+            return registry.get_view(view_id)
+        return self.estimate_book().view_for(view_id)
+
+    def get_estimate_note(self, note_id: Any):
+        """The one stance record an id names (M-215).
+
+        The session book answers - the shipped example
+        book until a book is recorded whole for the
+        session. Notes travel with whole books: a
+        session holding slices one by one holds no
+        notes, and an id it holds no record for
+        raises KeyError - the stance stands unheld,
+        honestly. Reading registers and publishes
+        nothing, and opens no file: the record is
+        data alone.
+        """
+        return self.estimate_book().note_for(note_id)
+
+    def estimate_estimates_for_slice(self, slice_id: Any):
+        """The session book's slices of one state (M-215)."""
+        from ..core.estimate_honesty import (
+            estimates_for_slice as _for_slice)
+        return _for_slice(self.estimate_book(), slice_id)
+
+    def estimate_estimates_green(self):
+        """The session book's slices standing ready (M-215)."""
+        from ..core.estimate_honesty import (
+            green_estimates as _green)
+        return _green(self.estimate_book())
+
+    def estimate_panel(self, view: Any = None):
+        """The panel derived for the whole book (M-215).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a book
+        holding no view at all refuses plainly rather
+        than inventing one.
+        """
+        from ..core.estimate_honesty import (
+            derive_panel as _derive_panel)
+        book = self.estimate_book()
+        resolved = view if view is not None \
+            else self._estimate_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive a panel under")
+        return _derive_panel(book, resolved)
+
+    def estimate_verdict(self, view: Any = None):
+        """The verdict derived for the whole book (M-215).
+
+        Derived under the named view, or under the
+        book's default view when none is named; a book
+        holding no view at all refuses plainly rather
+        than inventing one.
+        """
+        from ..core.estimate_honesty import (
+            derive_verdict as _derive_verdict)
+        book = self.estimate_book()
+        resolved = view if view is not None \
+            else self._estimate_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive a verdict under")
+        return _derive_verdict(book, resolved)
+
+    def estimate_index(self) -> dict[str, Any]:
+        """Print the index derived from the held slices (M-215).
+
+        The printable index target: the index is
+        derived at call time from the session book's
+        held slices alone - one entry per ready
+        slice under its own checks, and the unready
+        slices named in its gaps. Printing registers
+        and publishes nothing, moves no pointer,
+        renders no live UI and opens no file. Returns the derived index record, the
+        rendered index, the screen and the plain
+        explanation.
+        """
+        from ..core import estimate_honesty as camp_module
+        book = self.estimate_book()
+        index = camp_module.derive_index(book)
+        return {
+            "index": index.to_record(),
+            "index_record": camp_module.index_record(index),
+            "index_text": camp_module.format_index(book),
+            "screen": self._estimate_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_estimate_estimate(self, estimate: Any) -> dict[str, Any]:
+        """Hold one slice for the session (M-215).
+
+        The slice is held by the pure registry under
+        its slice id - a slice id or a sequence
+        already standing here refuses, and a refusal
+        holds nothing new and publishes nothing. The
+        slice is measured whole by the pure layer before
+        it is held: a slice claiming a live
+        execution, estimate, estimate or push refuses by
+        name on this target too. A held slice is
+        published as its ``slice_record`` session-news
+        record through the checkpoint target. Returns
+        the held slice, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a slice executes nothing:
+        the thing stands on this layer's book, as
+        data, provenance whole.
+        """
+        from ..core import estimate_honesty as camp_module
+        registry = self._estimate_registry()
+        held = registry.register_estimate(estimate)
+        news = camp_module.estimate_record(held)
+        self._publish_estimate_record(news)
+        return {
+            "estimate": held.to_record(),
+            "record_news": news,
+            "screen": self._estimate_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_estimate_view(self, view: Any) -> dict[str, Any]:
+        """Hold one view record for the session (M-215).
+
+        The view is held by the pure registry under
+        its id - a view id or a sequence already
+        standing here refuses, and a refusal holds
+        nothing new and publishes nothing. A held
+        view is published as its ``view_record``
+        session-news record through the checkpoint
+        target. Returns the held view, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding a view only ever
+        looks: it executes nothing and sends nothing.
+        """
+        from ..core import estimate_honesty as camp_module
+        registry = self._estimate_registry()
+        held = registry.register_view(view)
+        news = camp_module.view_record(held)
+        self._publish_estimate_record(news)
+        return {
+            "view": held.to_record(),
+            "record_news": news,
+            "screen": self._estimate_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_estimate(
+            self, view_filter: Any, *,
+            detail: Any = None,
+            recorded_on: Any = "2026-11-10",
+            actor: Any = "the jarl",
+            source: Any = "estimate gate",
+            origin_session: Any = "session-m214",
+            view_id: Any = None) -> dict[str, Any]:
+        """Stand one view on the session's held book (M-215).
+
+        This slice's own viewing target: the view record
+        is composed by the pure layer at the next
+        sequence of the session's held book, measured
+        whole, and held by the pure registry. The view
+        is published as its ``view_record`` session
+        news, the panel derived from the whole book as
+        its ``panel_record`` session news, and the
+        verdict derived for the whole book as its
+        ``verdict_record`` session news. Returns the
+        held view, its view filter, its news records,
+        the screen rendered after it landed and the
+        plain explanation. HONEST BOUNDARY: viewing
+        tells the book alone, as data - it moves no pointer and renders no live UI.
+        """
+        from ..core import estimate_honesty as camp_module
+        registry = self._estimate_registry()
+        held_views = registry.list_views()
+        seq = (max(v.seq for v in held_views) + 1) \
+            if held_views else 1
+        fields: dict[str, Any] = {
+            "seq": seq, "view_filter": view_filter,
+            "detail": detail if detail is not None else (
+                f"View filter {view_filter!r} in the "
+                "session's held book, composed on the "
+                "viewing target."),
+            "recorded_on": recorded_on,
+            "actor": actor, "source": source,
+            "origin_session": origin_session}
+        if view_id is not None:
+            fields["view_id"] = view_id
+        else:
+            held_ids = {v.view_id for v in held_views}
+            fresh = 1
+            while f"view-{fresh}" in held_ids:
+                fresh += 1
+            fields["view_id"] = f"view-{fresh}"
+        view = camp_module.build_view(fields)
+        held = registry.register_view(view)
+        view_news = camp_module.view_record(held)
+        self._publish_estimate_record(view_news)
+        book = self.estimate_book()
+        panel_news = camp_module.panel_record(
+            camp_module.derive_panel(book, held))
+        self._publish_estimate_record(panel_news)
+        verdict_news = camp_module.verdict_record(
+            camp_module.derive_verdict(book, held))
+        self._publish_estimate_record(verdict_news)
+        return {
+            "view": held.to_record(),
+            "view_filter": held.view_filter,
+            "record_news": view_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._estimate_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_estimate_book(self, book: Any) -> dict[str, Any]:
+        """Register a whole slice book (M-215).
+
+        Every slice and view record of the book is held
+        by the pure registry, in held and recorded
+        order - the book is measured whole, and against
+        the held book, before anything is held, so a
+        refusal holds nothing new. The first book held
+        sets the registry's title; a later book under
+        a different title refuses, as does a book
+        naming a held slice id, sequence or target, or a
+        view id or sequence. The book's panels are
+        derivations, not holdings, and are not held;
+        its notes travel with whole books and are
+        held on the record target, not this one. Every
+        slice is published as its session news and
+        every view as its ``view_record`` session
+        news, in order. Returns the held book, its
+        slices and views, their news records, the count
+        of slices held, the screen, and the explanation.
+        Registering executes nothing, renders no live
+        UI and opens no file.
+        """
+        from ..core import estimate_honesty as camp_module
+        validated = camp_module.build_book(book)
+        registry = self._estimate_registry()
+        registry.register_book(validated)
+        records = [
+            camp_module.slice_record(item)
+            for item in validated.slices]
+        records += [
+            camp_module.estimate_record(item)
+            for item in validated.estimates]
+        records += [
+            camp_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_estimate_record(news)
+        return {
+            "book": validated.to_record(),
+            "slices": [item.to_record() for item in validated.slices],
+            "estimate_records": [item.to_record() for item in validated.estimates],
+            "views": [item.to_record() for item in validated.views],
+            "records_news": records,
+            "count": len(validated.estimates),
+            "screen": self._estimate_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_estimate_book(self, book: Any = None) -> dict[str, Any]:
+        """Record a whole slice book (M-215).
+
+        With no book named, the shipped example book
+        is recorded through the pure layer - four slices
+        at the M-215 slice boundary, with its two
+        views, its two stance records and its one
+        pinned panel. A book loaded from a file (the
+        pure layer's ``load_estimate_file``
+        target) may be passed instead. The book is
+        measured whole before anything is held - a book
+        holding two slices under one map refuses here
+        by name, as does any record claiming a live
+        slice target. Every slice and view is held and
+        published as its session news, in order, and
+        the panel derived under the book's default
+        view as its ``panel_record`` session news;
+        the book is remembered whole as the session's
+        - its held panel and notes and all - and the
+        same book recorded twice refuses -
+        fingerprinted on its slice ids, view ids and
+        title. Returns the held book, its slices and
+        views, their news records, the panel news
+        record, the index news record, the count,
+        the screen, and the explanation. Recording
+        executes nothing, renders no live UI and
+        opens no file.
+        """
+        from ..core import estimate_honesty as camp_module
+        book = book if book is not None \
+            else camp_module.load_estimate()
+        validated = camp_module.build_book(book)
+        fingerprint = (tuple(validated.estimate_ids()),
+                       tuple(validated.slice_ids()),
+                       tuple(v.view_id for v in validated.views),
+                       validated.title)
+        recorded = getattr(self, "_estimate_recorded", None)
+        if recorded is None:
+            recorded = set()
+            self._estimate_recorded = recorded
+        if fingerprint in recorded:
+            raise ValueError(
+                "this slice book is already recorded for the "
+                "session; a book is recorded once")
+        registry = self._estimate_registry()
+        registry.register_book(validated)
+        recorded.add(fingerprint)
+        self._estimate_held = validated
+        records = [
+            camp_module.slice_record(item)
+            for item in validated.slices]
+        records += [
+            camp_module.estimate_record(item)
+            for item in validated.estimates]
+        records += [
+            camp_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_estimate_record(news)
+        panel_news = camp_module.panel_record(
+            camp_module.derive_panel(
+                validated,
+                self._estimate_default_view(validated)),
+            validated)
+        self._publish_estimate_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "slices": [item.to_record() for item in validated.slices],
+            "estimate_records": [item.to_record() for item in validated.estimates],
+            "views": [item.to_record() for item in validated.views],
+            "records_news": records,
+            "panel_record": panel_news,
+            "index_record": camp_module.index_record(validated),
+            "count": len(validated.estimates),
+            "screen": camp_module.format_estimate_screen(validated),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def report_estimate(self) -> dict[str, Any]:
+        """Render the session slice book, as a report (M-215).
+
+        The book - the held registry's book when the
+        session holds any item, otherwise the shipped
+        example book (or the book recorded whole for
+        the session) - is rendered through the pure
+        formatters alone. Rendering registers and
+        publishes nothing, executes nothing, renders
+        no live UI and writes nothing. Returns the
+        book, its slices, views, notes and panels as
+        plain records, the derived panel, verdict and
+        index (panel and verdict none while the book
+        holds no view), the first stance record, the
+        rendered book, panel, verdict and index,
+        the screen, and the plain explanation.
+        """
+        from ..core import estimate_honesty as camp_module
+        book = self.estimate_book()
+        default = self._estimate_default_view(book)
+        modal = camp_module.first_note(book)
+        return {
+            "book": book.to_record(),
+            "slices": [item.to_record() for item in book.slices],
+            "estimate_records": [item.to_record() for item in book.estimates],
+            "views": [item.to_record() for item in book.views],
+            "notes": [item.to_record() for item in book.notes],
+            "traces": [item.to_record() for item in book.traces],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (camp_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "verdict": (camp_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "index": camp_module.index_record(book),
+            "first_note": (camp_module.note_record(modal)
+                         if modal is not None else None),
+            "book_text": camp_module.format_book(book),
+            "panel_text": (camp_module.format_panel(book, default)
+                           if default is not None else ""),
+            "verdict_text": (camp_module.format_verdict(
+                book, default)
+                if default is not None else ""),
+            "index_text": camp_module.format_index(book),
+            "screen": self._estimate_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_estimate_record(self, record: dict[str, Any]) -> None:
+        """Publish one slice record as session news (M-215).
+
+        The pure layer's ``slice_record``, ``view_record``,
+        ``panel_record`` and ``verdict_record`` are
+        journaled through the same checkpoint target
+        every sibling slice uses, when a session is
+        attached. Each record is announced at most
+        once per trace: a slice under its own slice id
+        and segment, a view under its own view id,
+        sequence and view filter, a panel under its
+        whole derived trace, and a verdict under its
+        word and tallies, so a panel or verdict grown
+        by a newly held slice or view announces again
+        as the new figure it is. A foreign record
+        type is never published on this target.
+        """
+        if record.get("type") == "estimate_estimate":
+            target = ("estimate_estimate", record.get("estimate_id"),
+                   record.get("segment"))
+        elif record.get("type") == "estimate_slice":
+            target = ("estimate_slice", record.get("slice_id"),
+                   record.get("state"))
+        elif record.get("type") == "estimate_view":
+            target = ("estimate_view", record.get("view_id"),
+                   record.get("seq"), record.get("view_filter"))
+        elif record.get("type") == "estimate_panel":
+            target = ("estimate_panel", record.get("panel_id"),
+                   record.get("view_id"),
+                   tuple(row.get("item_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_shown"))
+        elif record.get("type") == "estimate_verdict":
+            target = ("estimate_verdict", record.get("verdict"),
+                   record.get("total_shown"),
+                   record.get("green_shown"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(self, "_estimate_announced", None)
+        if announced is None:
+            announced = set()
+            self._estimate_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
 class AgentManager:
     """Central orchestrator for all agents, routing and dynamically instantiating subagents."""
     def __init__(self):
