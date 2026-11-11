@@ -483,6 +483,8 @@ class CommandHandler:
                 self._handle_scaling(args)
             elif cmd == "/course":
                 self._handle_course(args)
+            elif cmd == "/metrics":
+                self._handle_metrics(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -11992,6 +11994,101 @@ class CommandHandler:
                 text = format_verdict(primary.course_book())
             else:
                 text = primary.course_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_metrics(self, args: str):
+        """M-230: /metrics - the reading engine as data.
+
+        ``/metrics`` shows the reading book held this
+        session - reading campaigns as data: one record per
+        reading, held whole with the active campaign it
+        was held from, its one verifiable stage
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five readings at the M-203 campaign
+        campaign, with its three campaign references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/metrics reading <reading-id>``
+        shows one reading whole; ``/metrics stage
+        <stage>`` shows the reading one stage line
+        reaches, or names the stage unheld;
+        ``/metrics campaign <campaign-id>`` shows the book's
+        readings of one campaign; ``/metrics view <view-id>``
+        shows one held view record; ``/metrics note
+        <note-id>`` shows one held stance record;
+        ``/metrics index`` shows the index derived
+        from the whole book's held readings; ``/metrics
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/metrics
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: readings and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every reading held for the session is
+        journaled as a reading_reading session event,
+        every view as a reading_view session event,
+        every derived panel as a metrics_panel
+        session event and every derived verdict as a
+        metrics_verdict session event. This heading
+        builds no campaign, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.method_metrics import (
+            format_reading,
+            format_book,
+            format_stage,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_reading_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_reading_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "reading":
+                text = format_reading(
+                    primary.get_metrics_reading(target),
+                    primary.metrics_book())
+            elif stance == "stage":
+                text = format_stage(
+                    primary.metrics_book(), target)
+            elif stance == "campaign":
+                text = format_book(
+                    primary.metrics_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_metrics_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.metrics_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.metrics_book())
+            elif stance == "panel":
+                text = format_panel(primary.metrics_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.metrics_book())
+            else:
+                text = primary.metrics_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
