@@ -1395,7 +1395,7 @@ slices:
   title: Workflow default honoured
   summary: repositories' CI is proposed as manual-dispatch by default on Volmarr's projects (his standing
     ruling), and the coder says so when it writes a workflow.
-  status: queued
+  status: done
 - id: M-228
   part: 9
   title: Team-of-one scaling
