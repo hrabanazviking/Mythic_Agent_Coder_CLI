@@ -475,6 +475,8 @@ class CommandHandler:
                 self._handle_dryrun(args)
             elif cmd == "/export":
                 self._handle_export(args)
+            elif cmd == "/orders":
+                self._handle_orders(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -11604,6 +11606,101 @@ class CommandHandler:
                 text = format_verdict(primary.export_book())
             else:
                 text = primary.export_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_orders(self, args: str):
+        """M-226: /orders - the order engine as data.
+
+        ``/orders`` shows the order book held this
+        session - order campaigns as data: one record per
+        order, held whole with the active campaign it
+        was held from, its one verifiable stage
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five orders at the M-203 campaign
+        campaign, with its three campaign references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/orders order <order-id>``
+        shows one order whole; ``/orders stage
+        <stage>`` shows the order one stage line
+        reaches, or names the stage unheld;
+        ``/orders campaign <campaign-id>`` shows the book's
+        orders of one campaign; ``/orders view <view-id>``
+        shows one held view record; ``/orders note
+        <note-id>`` shows one held stance record;
+        ``/orders index`` shows the index derived
+        from the whole book's held orders; ``/orders
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/orders
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: orders and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every order held for the session is
+        journaled as a order_order session event,
+        every view as a order_view session event,
+        every derived panel as a orders_panel
+        session event and every derived verdict as a
+        orders_verdict session event. This heading
+        builds no campaign, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.standing_orders import (
+            format_order,
+            format_book,
+            format_stage,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_order_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_order_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "order":
+                text = format_order(
+                    primary.get_orders_order(target),
+                    primary.orders_book())
+            elif stance == "stage":
+                text = format_stage(
+                    primary.orders_book(), target)
+            elif stance == "campaign":
+                text = format_book(
+                    primary.orders_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_orders_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.orders_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.orders_book())
+            elif stance == "panel":
+                text = format_panel(primary.orders_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.orders_book())
+            else:
+                text = primary.orders_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
