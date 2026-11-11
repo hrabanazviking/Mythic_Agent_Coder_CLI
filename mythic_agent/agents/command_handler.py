@@ -487,6 +487,8 @@ class CommandHandler:
                 self._handle_metrics(args)
             elif cmd == "/crossapp":
                 self._handle_crossapp(args)
+            elif cmd == "/mcpclient":
+                self._handle_mcpclient(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -12186,6 +12188,101 @@ class CommandHandler:
                 text = format_verdict(primary.crossapp_book())
             else:
                 text = primary.crossapp_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_mcpclient(self, args: str):
+        """M-233: /mcpclient - the connection engine as data.
+
+        ``/mcpclient`` shows the connection book held this
+        session - connection servers as data: one record per
+        connection, held whole with the active server it
+        was held from, its one verifiable stage
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five connections at the M-203 server
+        server, with its three server references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/mcpclient connection <connection-id>``
+        shows one connection whole; ``/mcpclient stage
+        <stage>`` shows the connection one stage line
+        reaches, or names the stage unheld;
+        ``/mcpclient server <server-id>`` shows the book's
+        connections of one server; ``/mcpclient view <view-id>``
+        shows one held view record; ``/mcpclient note
+        <note-id>`` shows one held stance record;
+        ``/mcpclient index`` shows the index derived
+        from the whole book's held connections; ``/mcpclient
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/mcpclient
+        verdict`` shows the verdict derived for the
+        whole book. Connection registers and publishes
+        nothing as session news: connections and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every connection held for the session is
+        journaled as a connection_connection session event,
+        every view as a connection_view session event,
+        every derived panel as a mcpclient_panel
+        session event and every derived verdict as a
+        mcpclient_verdict session event. This heading
+        builds no server, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.mcp_client import (
+            format_connection,
+            format_book,
+            format_stage,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_connection_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_connection_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "connection":
+                text = format_connection(
+                    primary.get_mcpclient_connection(target),
+                    primary.mcpclient_book())
+            elif stance == "stage":
+                text = format_stage(
+                    primary.mcpclient_book(), target)
+            elif stance == "server":
+                text = format_book(
+                    primary.mcpclient_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_mcpclient_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.mcpclient_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.mcpclient_book())
+            elif stance == "panel":
+                text = format_panel(primary.mcpclient_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.mcpclient_book())
+            else:
+                text = primary.mcpclient_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
