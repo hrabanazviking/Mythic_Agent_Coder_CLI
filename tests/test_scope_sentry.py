@@ -437,11 +437,11 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 209
-    assert citizen["next_slice"] == "M-210"
+    assert citizen["done"] == 210
+    assert citizen["next_slice"] == "M-211"
     assert citizen["m210_title"] == "Scope sentry"
     assert citizen["m210_part"] == 9
-    assert citizen["m210_status"] == "queued"
+    assert citizen["m210_status"] == "done"
 
 def test_sentry_record_round_trips():
     sentry = _sentry()
@@ -913,8 +913,8 @@ class TestSentryAgentStatus:
         assert status["board"]["current_sentry"] == "sentry-bare-watch"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 209
-        assert status["roadmap"]["next_slice"] == "M-210"
+        assert status["roadmap"]["done"] == 210
+        assert status["roadmap"]["next_slice"] == "M-211"
         assert status["roadmap"]["m210_title"] == "Scope sentry"
         assert "held as data alone" in status["rule"]
         assert "sentry-bare-watch" in status["plain_words"]

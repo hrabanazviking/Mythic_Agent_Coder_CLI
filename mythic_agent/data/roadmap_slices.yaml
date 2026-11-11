@@ -1294,7 +1294,7 @@ slices:
   title: Scope sentry
   summary: work drifting beyond the named target (wrong repo, wrong branch, extra features unasked) is
     caught against the campaign file and stopped with a report.
-  status: queued
+  status: done
 - id: M-211
   part: 9
   title: Memory-map upkeep

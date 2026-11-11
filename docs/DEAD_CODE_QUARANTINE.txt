@@ -898,3 +898,12 @@ mythic_agent/agents/llm.py:54215:view_questioning:method
 mythic_agent/agents/llm.py:54282:register_questioning_book:method
 mythic_agent/agents/llm.py:54331:record_questioning_book:method
 mythic_agent/agents/llm.py:54409:report_questioning:method
+mythic_agent/agents/llm.py:54705:get_sentry_note:method
+mythic_agent/agents/llm.py:54720:sentry_sentries_for_slice:method
+mythic_agent/agents/llm.py:54726:sentry_sentries_green:method
+mythic_agent/agents/llm.py:54792:register_sentry_sentry:method
+mythic_agent/agents/llm.py:54823:register_sentry_view:method
+mythic_agent/agents/llm.py:54849:view_sentry:method
+mythic_agent/agents/llm.py:54916:register_sentry_book:method
+mythic_agent/agents/llm.py:54965:record_sentry_book:method
+mythic_agent/agents/llm.py:55043:report_sentry:method
