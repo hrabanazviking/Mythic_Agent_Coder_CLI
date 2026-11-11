@@ -925,3 +925,12 @@ mythic_agent/agents/llm.py:56117:view_bug:method
 mythic_agent/agents/llm.py:56184:register_bug_book:method
 mythic_agent/agents/llm.py:56233:record_bug_book:method
 mythic_agent/agents/llm.py:56311:report_bug:method
+mythic_agent/agents/llm.py:56609:get_retro_note:method
+mythic_agent/agents/llm.py:56624:retro_retros_for_slice:method
+mythic_agent/agents/llm.py:56630:retro_retros_green:method
+mythic_agent/agents/llm.py:56696:register_retro_retro:method
+mythic_agent/agents/llm.py:56727:register_retro_view:method
+mythic_agent/agents/llm.py:56753:view_retro:method
+mythic_agent/agents/llm.py:56820:register_retro_book:method
+mythic_agent/agents/llm.py:56869:record_retro_book:method
+mythic_agent/agents/llm.py:56947:report_retro:method
