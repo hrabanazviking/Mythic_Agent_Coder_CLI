@@ -455,6 +455,8 @@ class CommandHandler:
                 self._handle_pattern(args)
             elif cmd == "/estimates":
                 self._handle_estimate(args)
+            elif cmd == "/hall":
+                self._handle_campaign(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -10634,6 +10636,102 @@ class CommandHandler:
                 text = format_verdict(primary.estimate_book())
             else:
                 text = primary.estimate_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+
+    def _handle_campaign(self, args: str):
+        """M-216: /hall - the campaign engine as data.
+
+        ``/hall`` shows the campaign book held this
+        session - campaign slices as data: one record per
+        campaign, held whole with the active slice it
+        was held from, its one verifiable check
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five campaigns at the M-203 slice
+        boundary, with its three slice references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/hall campaign <campaign-id>``
+        shows one campaign whole; ``/hall check
+        <check>`` shows the campaign one check line
+        reaches, or names the check unheld;
+        ``/hall slice <slice-id>`` shows the book's
+        campaigns of one slice; ``/hall view <view-id>``
+        shows one held view record; ``/hall note
+        <note-id>`` shows one held stance record;
+        ``/hall index`` shows the index derived
+        from the whole book's held campaigns; ``/hall
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/hall
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: campaigns and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every campaign held for the session is
+        journaled as a campaign_campaign session event,
+        every view as a campaign_view session event,
+        every derived panel as a hall_panel
+        session event and every derived verdict as a
+        hall_verdict session event. This heading
+        builds no slice, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.multi_campaign_hall import (
+            format_campaign,
+            format_book,
+            format_check,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_campaign_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_campaign_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "campaign":
+                text = format_campaign(
+                    primary.get_hall_campaign(target),
+                    primary.hall_book())
+            elif stance == "check":
+                text = format_check(
+                    primary.hall_book(), target)
+            elif stance == "repo":
+                text = format_book(
+                    primary.hall_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_hall_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.hall_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.hall_book())
+            elif stance == "panel":
+                text = format_panel(primary.hall_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.hall_book())
+            else:
+                text = primary.hall_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
