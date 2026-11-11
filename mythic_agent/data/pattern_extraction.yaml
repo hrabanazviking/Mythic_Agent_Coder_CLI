@@ -1,0 +1,224 @@
+schema: mythic.pattern_extraction/1
+slice: M-214
+pattern_extraction:
+  title: Pattern extraction at the M-213 slice boundary
+slices:
+- slice_id: slice-m213-retro
+  seq: 1
+  title: Retrospectives
+  state: active
+  detail: 'The slice the scribe looks back on first: banked at M-213, standing active in the pattern extraction''s
+    hands.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: pattern extraction
+  origin_session: session-m214
+- slice_id: slice-m214-pattern
+  seq: 2
+  title: Pattern extraction
+  state: active
+  detail: 'This very slice, standing active: the pattern extraction holding its own manoeuvre as data.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: pattern extraction
+  origin_session: session-m214
+- slice_id: slice-m215-estimate
+  seq: 3
+  title: Estimate honesty
+  state: queued
+  detail: A queued slice the scribe has not dealt with; a pattern naming it refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: pattern extraction
+  origin_session: session-m214
+pattern_records:
+- pattern_id: pattern-held-manoeuvre
+  seq: 1
+  slice_id: slice-m213-retro
+  title: The held manoeuvre
+  checks: &id001
+  - spotted
+  - repeated
+  - drafted
+  - judged
+  - approved
+  claims:
+  - slice_ref
+  detail: 'The opening manoeuvre: a manoeuvre spotted in the work, repeated until it held, drafted as
+    a candidate skill and judged on held evidence, approved with the slice held as proof.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: pattern extraction
+  origin_session: session-m214
+- pattern_id: pattern-redrafted-manoeuvre
+  seq: 2
+  slice_id: slice-m213-retro
+  title: The redrafted manoeuvre
+  checks:
+  - spotted
+  - repeated
+  - drafted
+  - judged
+  - spotted
+  - repeated
+  - drafted
+  - judged
+  - approved
+  claims: []
+  detail: 'The redrafted manoeuvre: a first judging sent the draft back, the manoeuvre was spotted and
+    repeated again and the draft judged a second time before the approval stood.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: pattern extraction
+  origin_session: session-m214
+- pattern_id: pattern-own-manoeuvre
+  seq: 3
+  slice_id: slice-m214-pattern
+  title: The scribe's own manoeuvre
+  checks: *id001
+  claims:
+  - skill_ref
+  detail: 'The scribe''s own manoeuvre: this slice''s own manoeuvre, carrying its skill ref as proof.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: pattern extraction
+  origin_session: session-m214
+- pattern_id: pattern-bare-manoeuvre
+  seq: 4
+  slice_id: slice-m214-pattern
+  title: The bare claim manoeuvre
+  checks: *id001
+  claims:
+  - feeling
+  detail: A manoeuvre that carried a feeling in place of held proof, standing open.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: pattern extraction
+  origin_session: session-m214
+- pattern_id: pattern-leaping-manoeuvre
+  seq: 5
+  slice_id: slice-m214-pattern
+  title: The leaping manoeuvre
+  checks:
+  - spotted
+  - repeated
+  - approved
+  claims: []
+  detail: A manoeuvre that stepped from repeated straight to approved, outside the pattern sequence, standing
+    open.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: pattern extraction
+  origin_session: session-m214
+views:
+- view_id: view-patterns
+  seq: 1
+  view_filter: all
+  detail: Every held manoeuvre, complete or not.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: pattern extraction
+  origin_session: session-m214
+- view_id: view-approved
+  seq: 2
+  view_filter: complete
+  detail: Only the manoeuvres standing complete.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: pattern extraction
+  origin_session: session-m214
+notes:
+- note_id: note-note-first
+  seq: 1
+  pattern_id: pattern-held-manoeuvre
+  stance: note
+  target: the opening manoeuvre
+  title: Manoeuvres first
+  detail: The scribe opens by spotting the manoeuvre first, told honestly.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: pattern extraction
+  origin_session: session-m214
+- note_id: note-concern-bare
+  seq: 2
+  pattern_id: pattern-bare-manoeuvre
+  stance: concern
+  target: the bare claim manoeuvre
+  title: Claim named
+  detail: A manoeuvre that carried a feeling claim is not the scribe's way, and stands named.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: pattern extraction
+  origin_session: session-m214
+traces:
+- trace_id: trace-first
+  seq: 1
+  pattern_id: pattern-held-manoeuvre
+  trace: spotted > repeated > drafted > judged > approved
+  detail: 'The opening manoeuvre''s walk, held exactly as walked: the trace is the walk itself.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: pattern extraction
+  origin_session: session-m214
+panels:
+- panel_id: panel-m213-boundary
+  view_id: view-patterns
+  view_filter: all
+  rows:
+  - item_id: pattern-held-manoeuvre
+    standing: complete
+    label: The held manoeuvre
+    segment: 'pattern-held-manoeuvre: The held manoeuvre - slice: ''slice-m213-retro'' - check: ''approved''
+      - checks: 5 - claims: ''slice_ref'' - detail: ''The opening manoeuvre: a manoeuvre spotted in the
+      work, repeated until it held, drafted as a candidate skill and judged on held evidence, approved
+      with the slice held as proof.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: pattern-redrafted-manoeuvre
+    standing: complete
+    label: The redrafted manoeuvre
+    segment: 'pattern-redrafted-manoeuvre: The redrafted manoeuvre - slice: ''slice-m213-retro'' - check:
+      ''approved'' - checks: 9 - claims: ''none'' - detail: ''The redrafted manoeuvre: a first judging
+      sent the draft back, the manoeuvre was spotted and repeated again and the draft judged a second
+      time before the approval stood.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: pattern-own-manoeuvre
+    standing: complete
+    label: The scribe's own manoeuvre
+    segment: 'pattern-own-manoeuvre: The scribe''s own manoeuvre - slice: ''slice-m214-pattern'' - check:
+      ''approved'' - checks: 5 - claims: ''skill_ref'' - detail: ''The scribe''s own manoeuvre: this slice''s
+      own manoeuvre, carrying its skill ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: pattern-bare-manoeuvre
+    standing: open
+    label: The bare claim manoeuvre
+    segment: 'pattern-bare-manoeuvre: The bare claim manoeuvre - slice: ''slice-m214-pattern'' - check:
+      ''approved'' - checks: 5 - claims: ''feeling'' - detail: ''A manoeuvre that carried a feeling in
+      place of held proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held
+      proof: complete stands on held proof alone'
+    recorded_on: '2026-11-10'
+  - item_id: pattern-leaping-manoeuvre
+    standing: open
+    label: The leaping manoeuvre
+    segment: 'pattern-leaping-manoeuvre: The leaping manoeuvre - slice: ''slice-m214-pattern'' - check:
+      ''approved'' - checks: 3 - claims: ''none'' - detail: ''A manoeuvre that stepped from repeated straight
+      to approved, outside the pattern sequence, standing open.'' - gaps: steps from repeated to approved,
+      which the pattern sequence does not allow'
+    recorded_on: '2026-11-10'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-10'
+  account:
+  - 'The pattern book holds 5 patterns as of 2026-11-10: the view ''all'' shows 5 of them: complete 3,
+    open 2; 3 of the shown patterns stand complete.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its pattern's own fields - the slice it answers for, the steps it walked
+    in the open and the evidence it honestly carries - and no judgement is stored on any pattern.
+  - 'Completeness is drafted from the held records alone: a pattern that steps outside the pattern sequence,
+    carries a bare claim in place of held evidence, or has not reached approved stands open, named in
+    its gaps, and the pattern index is derived from the held patterns, never stored where it could drift.'
