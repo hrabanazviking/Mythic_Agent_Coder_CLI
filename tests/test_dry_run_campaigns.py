@@ -350,7 +350,7 @@ def test_closed_vocabularies():
     assert normalize_stance("PRAISE") == "praise"
     assert normalize_view_filter("ALL") == "all"
     assert normalize_campaign_state("LIVE") == "live"
-    assert normalize_stage("CLASSED") == "gated"
+    assert normalize_stage("GATED") == "gated"
     assert normalize_claim_kind("FEELING") == "feeling"
     with pytest.raises(ValueError):
         normalize_stance("pinch")
@@ -384,7 +384,7 @@ def test_shipped_book_judged_honestly_as_data():
         "Rehearsal: The held rehearsal",
         "Campaign: campaign-m223-failtax",
         "Stage: proven",
-        "Claims: run_ref")
+        "Claims: plan_ref")
     asking = book.rehearsal_for("rehearsal-bare-rehearsal")
     assert rehearsal_gaps(asking, book) == (
         "carries a feeling claim, a bare claim with no held proof: complete stands on held proof alone",)
@@ -436,7 +436,7 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["done"] == len(load_roadmap().done())
     assert citizen["done"] == 223
     assert citizen["next_slice"] == "M-224"
-    assert citizen["m224_title"] == "Rehearsal taxonomy"
+    assert citizen["m224_title"] == "Dry-run campaigns"
     assert citizen["m224_part"] == 9
     assert citizen["m224_status"] == "queued"
 
@@ -531,7 +531,7 @@ def test_plain_telling_derives_from_the_rehearsals_own_fields():
         "Rehearsal: A test rehearsal",
         "Campaign: campaign-test",
         "Stage: proven",
-        "Claims: run_ref")
+        "Claims: plan_ref")
     segment = segment_of(rehearsal)
     assert segment.startswith("rehearsal-test: A test rehearsal")
     assert "stage: 'proven'" in segment
@@ -912,7 +912,7 @@ class TestRehearsalAgentStatus:
         assert status["roadmap"]["parts"] == 11
         assert status["roadmap"]["done"] == 223
         assert status["roadmap"]["next_slice"] == "M-224"
-        assert status["roadmap"]["m224_title"] == "Rehearsal taxonomy"
+        assert status["roadmap"]["m224_title"] == "Dry-run campaigns"
         assert "held as data alone" in status["rule"]
         assert "rehearsal-bare-rehearsal" in status["plain_words"]
         assert "The Rehearsal Gate (M-224)" in status["screen"]
@@ -932,7 +932,7 @@ class TestRehearsalAgentStatus:
             "register_dryrun_rehearsal", "register_dryrun_view",
             "view_dryrun", "register_dryrun_book",
             "record_dryrun_book", "report_dryrun",
-            "_publish_drycampaign_record", "_dryrun_screen",
+            "_publish_dryrun_record", "_dryrun_screen",
             "_dryrun_default_view"})
 
     def test_reads_register_and_publish_nothing(
