@@ -1288,7 +1288,7 @@ slices:
   title: Question law
   summary: when the human asks a question mid-campaign, the campaign pauses and the question is answered
     first, plainly and fully — then work resumes (Volmarr's supreme law, as a feature).
-  status: queued
+  status: done
 - id: M-210
   part: 9
   title: Scope sentry
