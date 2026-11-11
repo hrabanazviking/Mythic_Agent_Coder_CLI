@@ -443,6 +443,8 @@ class CommandHandler:
                 self._handle_pausing(args)
             elif cmd == "/questionlaw":
                 self._handle_questioning(args)
+            elif cmd == "/scopesentry":
+                self._handle_sentry(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -10052,6 +10054,101 @@ class CommandHandler:
                 text = format_verdict(primary.questioning_book())
             else:
                 text = primary.questioning_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_sentry(self, args: str):
+        """M-210: /scopesentry - the sentry engine as data.
+
+        ``/scopesentry`` shows the sentry book held this
+        session - sentry slices as data: one record per
+        sentry, held whole with the active slice it
+        was sentryed from, its one verifiable check
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five sentries at the M-203 slice
+        boundary, with its three slice references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/scopesentry sentry <sentry-id>``
+        shows one sentry whole; ``/scopesentry check
+        <check>`` shows the sentry one check line
+        reaches, or names the check unheld;
+        ``/scopesentry slice <slice-id>`` shows the book's
+        sentries of one slice; ``/scopesentry view <view-id>``
+        shows one held view record; ``/scopesentry note
+        <note-id>`` shows one held stance record;
+        ``/scopesentry index`` shows the index derived
+        from the whole book's held sentries; ``/scopesentry
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/scopesentry
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: sentries and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every sentry held for the session is
+        journaled as a sentry_sentry session event,
+        every view as a sentry_view session event,
+        every derived panel as a sentry_panel
+        session event and every derived verdict as a
+        sentry_verdict session event. This heading
+        builds no slice, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.scope_sentry import (
+            format_sentry,
+            format_book,
+            format_check,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_sentry_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_sentry_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "sentry":
+                text = format_sentry(
+                    primary.get_sentry_sentry(target),
+                    primary.sentry_book())
+            elif stance == "check":
+                text = format_check(
+                    primary.sentry_book(), target)
+            elif stance == "slice":
+                text = format_book(
+                    primary.sentry_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_sentry_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.sentry_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.sentry_book())
+            elif stance == "panel":
+                text = format_panel(primary.sentry_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.sentry_book())
+            else:
+                text = primary.sentry_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
