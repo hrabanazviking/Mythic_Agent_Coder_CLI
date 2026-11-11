@@ -479,6 +479,8 @@ class CommandHandler:
                 self._handle_orders(args)
             elif cmd == "/workflow":
                 self._handle_workflow(args)
+            elif cmd == "/scaling":
+                self._handle_scaling(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -11798,6 +11800,101 @@ class CommandHandler:
                 text = format_verdict(primary.workflow_book())
             else:
                 text = primary.workflow_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_scaling(self, args: str):
+        """M-228: /scaling - the endeavour engine as data.
+
+        ``/scaling`` shows the endeavour book held this
+        session - endeavour campaigns as data: one record per
+        endeavour, held whole with the active campaign it
+        was held from, its one verifiable stage
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five endeavours at the M-203 campaign
+        campaign, with its three campaign references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/scaling endeavour <endeavour-id>``
+        shows one endeavour whole; ``/scaling stage
+        <stage>`` shows the endeavour one stage line
+        reaches, or names the stage unheld;
+        ``/scaling campaign <campaign-id>`` shows the book's
+        endeavours of one campaign; ``/scaling view <view-id>``
+        shows one held view record; ``/scaling note
+        <note-id>`` shows one held stance record;
+        ``/scaling index`` shows the index derived
+        from the whole book's held endeavours; ``/scaling
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/scaling
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: endeavours and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every endeavour held for the session is
+        journaled as a endeavour_endeavour session event,
+        every view as a endeavour_view session event,
+        every derived panel as a scaling_panel
+        session event and every derived verdict as a
+        scaling_verdict session event. This heading
+        builds no campaign, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.team_scaling import (
+            format_endeavour,
+            format_book,
+            format_stage,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_endeavour_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_endeavour_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "endeavour":
+                text = format_endeavour(
+                    primary.get_scaling_endeavour(target),
+                    primary.scaling_book())
+            elif stance == "stage":
+                text = format_stage(
+                    primary.scaling_book(), target)
+            elif stance == "campaign":
+                text = format_book(
+                    primary.scaling_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_scaling_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.scaling_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.scaling_book())
+            elif stance == "panel":
+                text = format_panel(primary.scaling_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.scaling_book())
+            else:
+                text = primary.scaling_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
