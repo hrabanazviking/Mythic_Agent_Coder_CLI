@@ -1300,7 +1300,7 @@ slices:
   title: Memory-map upkeep
   summary: the Scribe updates the Project Memory Map in the same session as each banked slice (Mythic
     law) — the map is never a later chore.
-  status: queued
+  status: done
 - id: M-212
   part: 9
   title: The never-leave-a-bug rule
