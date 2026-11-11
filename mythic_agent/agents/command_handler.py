@@ -459,6 +459,8 @@ class CommandHandler:
                 self._handle_campaign(args)
             elif cmd == "/shapes":
                 self._handle_shape(args)
+            elif cmd == "/mimis":
+                self._handle_mimis(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -10829,6 +10831,100 @@ class CommandHandler:
                 text = format_verdict(primary.shape_book())
             else:
                 text = primary.shape_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+    def _handle_mimis(self, args: str):
+        """M-218: /mimis - the road engine as data.
+
+        ``/mimis`` shows the road book held this
+        session - road slices as data: one record per
+        road, held whole with the active slice it
+        was held from, its one verifiable check
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five roads at the M-203 slice
+        boundary, with its three slice references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/mimis road <road-id>``
+        shows one road whole; ``/mimis check
+        <check>`` shows the road one check line
+        reaches, or names the check unheld;
+        ``/mimis slice <slice-id>`` shows the book's
+        roads of one slice; ``/mimis view <view-id>``
+        shows one held view record; ``/mimis note
+        <note-id>`` shows one held stance record;
+        ``/mimis index`` shows the index derived
+        from the whole book's held roads; ``/mimis
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/mimis
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: roads and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every road held for the session is
+        journaled as a road_road session event,
+        every view as a road_view session event,
+        every derived panel as a mimis_panel
+        session event and every derived verdict as a
+        mimis_verdict session event. This heading
+        builds no slice, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.mimisbrunnr_road import (
+            format_road,
+            format_book,
+            format_check,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_road_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_road_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "road":
+                text = format_road(
+                    primary.get_mimis_road(target),
+                    primary.mimis_book())
+            elif stance == "check":
+                text = format_check(
+                    primary.mimis_book(), target)
+            elif stance == "concordance":
+                text = format_book(
+                    primary.mimis_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_mimis_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.mimis_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.mimis_book())
+            elif stance == "panel":
+                text = format_panel(primary.mimis_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.mimis_book())
+            else:
+                text = primary.mimis_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
