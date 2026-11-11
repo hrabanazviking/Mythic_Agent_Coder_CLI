@@ -477,6 +477,8 @@ class CommandHandler:
                 self._handle_export(args)
             elif cmd == "/orders":
                 self._handle_orders(args)
+            elif cmd == "/workflow":
+                self._handle_workflow(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -11701,6 +11703,101 @@ class CommandHandler:
                 text = format_verdict(primary.orders_book())
             else:
                 text = primary.orders_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_workflow(self, args: str):
+        """M-227: /workflow - the proposal engine as data.
+
+        ``/workflow`` shows the proposal book held this
+        session - proposal campaigns as data: one record per
+        proposal, held whole with the active campaign it
+        was held from, its one verifiable stage
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five proposals at the M-203 campaign
+        campaign, with its three campaign references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/workflow proposal <proposal-id>``
+        shows one proposal whole; ``/workflow stage
+        <stage>`` shows the proposal one stage line
+        reaches, or names the stage unheld;
+        ``/workflow campaign <campaign-id>`` shows the book's
+        proposals of one campaign; ``/workflow view <view-id>``
+        shows one held view record; ``/workflow note
+        <note-id>`` shows one held stance record;
+        ``/workflow index`` shows the index derived
+        from the whole book's held proposals; ``/workflow
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/workflow
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: proposals and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every proposal held for the session is
+        journaled as a proposal_proposal session event,
+        every view as a proposal_view session event,
+        every derived panel as a workflow_panel
+        session event and every derived verdict as a
+        workflow_verdict session event. This heading
+        builds no campaign, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.workflow_default import (
+            format_proposal,
+            format_book,
+            format_stage,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_proposal_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_proposal_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "proposal":
+                text = format_proposal(
+                    primary.get_workflow_proposal(target),
+                    primary.workflow_book())
+            elif stance == "stage":
+                text = format_stage(
+                    primary.workflow_book(), target)
+            elif stance == "campaign":
+                text = format_book(
+                    primary.workflow_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_workflow_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.workflow_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.workflow_book())
+            elif stance == "panel":
+                text = format_panel(primary.workflow_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.workflow_book())
+            else:
+                text = primary.workflow_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
