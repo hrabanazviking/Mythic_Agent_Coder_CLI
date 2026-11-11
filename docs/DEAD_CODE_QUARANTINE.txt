@@ -1020,3 +1020,12 @@ mythic_agent/agents/llm.py:62471:view_selfmod:method
 mythic_agent/agents/llm.py:62538:register_selfmod_book:method
 mythic_agent/agents/llm.py:62587:record_selfmod_book:method
 mythic_agent/agents/llm.py:62665:report_selfmod:method
+mythic_agent/agents/llm.py:62963:get_failtax_note:method
+mythic_agent/agents/llm.py:62984:failures_green:method
+mythic_agent/agents/llm.py:63026:failtax_index:method
+mythic_agent/agents/llm.py:63050:register_failtax_failure:method
+mythic_agent/agents/llm.py:63081:register_failtax_view:method
+mythic_agent/agents/llm.py:63107:view_failtax:method
+mythic_agent/agents/llm.py:63174:register_failtax_book:method
+mythic_agent/agents/llm.py:63223:record_failtax_book:method
+mythic_agent/agents/llm.py:63301:report_failtax:method
