@@ -1065,3 +1065,12 @@ mythic_agent/agents/llm.py:65651:view_workflow:method
 mythic_agent/agents/llm.py:65718:register_workflow_book:method
 mythic_agent/agents/llm.py:65767:record_workflow_book:method
 mythic_agent/agents/llm.py:65845:report_workflow:method
+mythic_agent/agents/llm.py:66143:get_scaling_note:method
+mythic_agent/agents/llm.py:66164:scaling_green:method
+mythic_agent/agents/llm.py:66206:scaling_index:method
+mythic_agent/agents/llm.py:66230:register_scaling_endeavour:method
+mythic_agent/agents/llm.py:66261:register_scaling_view:method
+mythic_agent/agents/llm.py:66287:view_scaling:method
+mythic_agent/agents/llm.py:66354:register_scaling_book:method
+mythic_agent/agents/llm.py:66403:record_scaling_book:method
+mythic_agent/agents/llm.py:66481:report_scaling:method

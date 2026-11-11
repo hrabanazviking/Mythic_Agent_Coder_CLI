@@ -1401,7 +1401,7 @@ slices:
   title: Team-of-one scaling
   summary: the same machinery serves a hobby repo and a 500-slice epic without ceremony change — grain
     follows the work, not the tool's ego.
-  status: queued
+  status: done
 - id: M-229
   part: 9
   title: The method, teachable

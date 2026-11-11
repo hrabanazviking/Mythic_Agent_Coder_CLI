@@ -434,11 +434,11 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 227
-    assert citizen["next_slice"] == "M-228"
+    assert citizen["done"] == 228
+    assert citizen["next_slice"] == "M-229"
     assert citizen["m228_title"] == "Team-of-one scaling"
     assert citizen["m228_part"] == 9
-    assert citizen["m228_status"] == "queued"
+    assert citizen["m228_status"] == "done"
 
 def test_endeavour_record_round_trips():
     endeavour = _endeavour()
@@ -910,8 +910,8 @@ class TestEndeavourAgentStatus:
         assert status["ledger"]["current_endeavour"] == "endeavour-bare-endeavour"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 227
-        assert status["roadmap"]["next_slice"] == "M-228"
+        assert status["roadmap"]["done"] == 228
+        assert status["roadmap"]["next_slice"] == "M-229"
         assert status["roadmap"]["m228_title"] == "Team-of-one scaling"
         assert "held as data alone" in status["rule"]
         assert "endeavour-bare-endeavour" in status["plain_words"]
