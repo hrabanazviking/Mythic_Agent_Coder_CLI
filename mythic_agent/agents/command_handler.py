@@ -465,6 +465,8 @@ class CommandHandler:
                 self._handle_daybook(args)
             elif cmd == "/milestones":
                 self._handle_milestone(args)
+            elif cmd == "/log":
+                self._handle_log(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -11119,6 +11121,101 @@ class CommandHandler:
                 text = format_verdict(primary.milestone_book())
             else:
                 text = primary.milestone_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_log(self, args: str):
+        """M-221: /log - the entry engine as data.
+
+        ``/log`` shows the entry book held this
+        session - entry slices as data: one record per
+        entry, held whole with the active slice it
+        was held from, its one verifiable check
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five entries at the M-203 slice
+        day, with its three slice references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/log entry <entry-id>``
+        shows one entry whole; ``/log check
+        <check>`` shows the entry one check line
+        reaches, or names the check unheld;
+        ``/log slice <slice-id>`` shows the book's
+        entries of one slice; ``/log view <view-id>``
+        shows one held view record; ``/log note
+        <note-id>`` shows one held stance record;
+        ``/log index`` shows the index derived
+        from the whole book's held entries; ``/log
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/log
+        verdict`` shows the verdict derived for the
+        whole book. Reading registers and publishes
+        nothing as session news: entries and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every entry held for the session is
+        journaled as a entry_entry session event,
+        every view as a entry_view session event,
+        every derived panel as a log_panel
+        session event and every derived verdict as a
+        log_verdict session event. This heading
+        builds no slice, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.build_log import (
+            format_entry,
+            format_book,
+            format_check,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_entry_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_entry_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "entry":
+                text = format_entry(
+                    primary.get_log_entry(target),
+                    primary.log_book())
+            elif stance == "check":
+                text = format_check(
+                    primary.log_book(), target)
+            elif stance == "day":
+                text = format_book(
+                    primary.log_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_log_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.log_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.log_book())
+            elif stance == "panel":
+                text = format_panel(primary.log_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.log_book())
+            else:
+                text = primary.log_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
