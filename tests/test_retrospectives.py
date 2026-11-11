@@ -436,8 +436,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 218
-    assert citizen["next_slice"] == "M-219"
+    assert citizen["done"] == 219
+    assert citizen["next_slice"] == "M-220"
     assert citizen["m213_title"] == "Retrospectives"
     assert citizen["m213_part"] == 9
     assert citizen["m213_status"] == "done"
@@ -912,8 +912,8 @@ class TestRetroAgentStatus:
         assert status["board"]["current_retro"] == "retro-bare-lesson"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 218
-        assert status["roadmap"]["next_slice"] == "M-219"
+        assert status["roadmap"]["done"] == 219
+        assert status["roadmap"]["next_slice"] == "M-220"
         assert status["roadmap"]["m213_title"] == "Retrospectives"
         assert "held as data alone" in status["rule"]
         assert "retro-bare-lesson" in status["plain_words"]

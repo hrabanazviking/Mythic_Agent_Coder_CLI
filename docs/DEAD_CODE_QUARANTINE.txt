@@ -982,3 +982,13 @@ mythic_agent/agents/llm.py:59927:view_mimis:method
 mythic_agent/agents/llm.py:59994:register_mimis_book:method
 mythic_agent/agents/llm.py:60043:record_mimis_book:method
 mythic_agent/agents/llm.py:60121:report_mimis:method
+mythic_agent/agents/llm.py:60419:get_daybook_note:method
+mythic_agent/agents/llm.py:60434:daybook_resumes_for_pause:method
+mythic_agent/agents/llm.py:60440:daybook_resumes_green:method
+mythic_agent/agents/llm.py:60482:daybook_index:method
+mythic_agent/agents/llm.py:60506:register_daybook_resume:method
+mythic_agent/agents/llm.py:60537:register_daybook_view:method
+mythic_agent/agents/llm.py:60563:view_daybook:method
+mythic_agent/agents/llm.py:60630:register_daybook_book:method
+mythic_agent/agents/llm.py:60679:record_daybook_book:method
+mythic_agent/agents/llm.py:60757:report_daybook:method

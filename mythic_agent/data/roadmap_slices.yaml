@@ -1346,7 +1346,7 @@ slices:
   title: Interrupts and resumes across days
   summary: a campaign paused mid-slice resumes from journal + map with the situation restated in plain
     words before work continues.
-  status: queued
+  status: done
 - id: M-220
   part: 9
   title: Milestone reports
