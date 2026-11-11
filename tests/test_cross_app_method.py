@@ -434,11 +434,11 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 230
-    assert citizen["next_slice"] == "M-231"
+    assert citizen["done"] == 231
+    assert citizen["next_slice"] == "M-232"
     assert citizen["m231_title"] == "Cross-app method"
     assert citizen["m231_part"] == 9
-    assert citizen["m231_status"] == "queued"
+    assert citizen["m231_status"] == "done"
 
 def test_external_record_round_trips():
     external = _external()
@@ -910,8 +910,8 @@ class TestExternalAgentStatus:
         assert status["ledger"]["current_external"] == "external-bare-external"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 230
-        assert status["roadmap"]["next_slice"] == "M-231"
+        assert status["roadmap"]["done"] == 231
+        assert status["roadmap"]["next_slice"] == "M-232"
         assert status["roadmap"]["m231_title"] == "Cross-app method"
         assert "held as data alone" in status["rule"]
         assert "external-bare-external" in status["plain_words"]
