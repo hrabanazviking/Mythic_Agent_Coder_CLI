@@ -1,0 +1,212 @@
+schema: mythic.mimisbrunnr_road/1
+slice: M-218
+mimisbrunnr_road:
+  title: The 500-slice road as a campaign at the M-218 slice boundary
+concordances:
+- concordance_id: concordance-m217-templates
+  seq: 1
+  title: Campaign templates
+  state: live
+  detail: 'The slice the roadkeeper looks back on first: banked at M-218, standing active in the road
+    honesty''s hands.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-road mimis
+  origin_session: session-m218
+- concordance_id: concordance-m218-road
+  seq: 2
+  title: The 500-slice road as a campaign
+  state: live
+  detail: 'This very slice, standing active: the multi-road mimis holding its own road as data.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-road mimis
+  origin_session: session-m218
+- concordance_id: concordance-m219-interrupts
+  seq: 3
+  title: Interrupts and resumes across days
+  state: dormant
+  detail: A queued slice the roadkeeper has not dealt with; an road naming it refuses by name.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-road mimis
+  origin_session: session-m218
+road_records:
+- road_id: road-held-road
+  seq: 1
+  concordance_id: concordance-m217-templates
+  title: The held road
+  checks: &id001
+  - charted
+  - loaded
+  - mapped
+  - verified
+  - runnable
+  claims:
+  - concordance_ref
+  detail: 'The opening road: a road charted for the work, loaded before it ran, mapped against
+    the outcome and verified honestly, runnable with the slice held as proof.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-road mimis
+  origin_session: session-m218
+- road_id: road-remeasured-road
+  seq: 2
+  concordance_id: concordance-m217-templates
+  title: The remeasured road
+  checks:
+  - charted
+  - loaded
+  - mapped
+  - verified
+  - charted
+  - loaded
+  - mapped
+  - verified
+  - runnable
+  claims: []
+  detail: 'The remeasured road: a first comparison sent the standing back, the road was charted
+    and loaded again and the outcome mapped a second time before the run stood.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-road mimis
+  origin_session: session-m218
+- road_id: road-own-road
+  seq: 3
+  concordance_id: concordance-m218-road
+  title: The roadkeeper's own road
+  checks: *id001
+  claims:
+  - run_ref
+  detail: 'The roadkeeper''s own road: this slice''s own road, carrying its run ref as
+    proof.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-road mimis
+  origin_session: session-m218
+- road_id: road-bare-road
+  seq: 4
+  concordance_id: concordance-m218-road
+  title: The bare claim road
+  checks: *id001
+  claims:
+  - feeling
+  detail: A road that carried a feeling in place of held proof, standing open.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-road mimis
+  origin_session: session-m218
+- road_id: road-leaping-road
+  seq: 5
+  concordance_id: concordance-m218-road
+  title: The leaping road
+  checks:
+  - charted
+  - loaded
+  - runnable
+  claims: []
+  detail: A road that stepped from loaded straight to runnable, outside the road sequence,
+    standing open.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-road mimis
+  origin_session: session-m218
+views:
+- view_id: view-roads
+  seq: 1
+  view_filter: all
+  detail: Every held road, complete or not.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-road mimis
+  origin_session: session-m218
+- view_id: view-runnable
+  seq: 2
+  view_filter: complete
+  detail: Only the roads standing complete.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-road mimis
+  origin_session: session-m218
+notes:
+- note_id: note-note-first
+  seq: 1
+  road_id: road-held-road
+  stance: note
+  target: the opening road
+  title: Roads first
+  detail: The roadkeeper opens by predicting the road first, told honestly.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-road mimis
+  origin_session: session-m218
+- note_id: note-concern-bare
+  seq: 2
+  road_id: road-bare-road
+  stance: concern
+  target: the bare claim road
+  title: Claim named
+  detail: A road that carried a feeling claim is not the roadkeeper's way, and stands named.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-road mimis
+  origin_session: session-m218
+traces:
+- trace_id: trace-first
+  seq: 1
+  road_id: road-held-road
+  trace: charted > loaded > mapped > verified > runnable
+  detail: 'The opening road''s walk, held exactly as walked: the trace is the walk itself.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-road mimis
+  origin_session: session-m218
+panels:
+- panel_id: panel-m217-boundary
+  view_id: view-roads
+  view_filter: all
+  rows:
+  - item_id: road-held-road
+    standing: complete
+    label: The held road
+    segment: 'road-held-road: The held road - slice: ''concordance-m217-templates'' - check: ''runnable'' - checks: 5 - claims: ''concordance_ref'' - detail: ''The opening road: a road charted for
+      the work, loaded before it ran, mapped against the outcome and verified honestly, runnable with the slice held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: road-remeasured-road
+    standing: complete
+    label: The remeasured road
+    segment: 'road-remeasured-road: The remeasured road - slice: ''concordance-m217-templates'' - check: ''runnable'' - checks: 9 - claims: ''none'' - detail: ''The remeasured road: a first comparison
+      sent the standing back, the road was charted and loaded again and the outcome mapped a second time before the run stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: road-own-road
+    standing: complete
+    label: The roadkeeper's own road
+    segment: 'road-own-road: The roadkeeper''s own road - slice: ''concordance-m218-road'' - check: ''runnable'' - checks: 5 - claims: ''run_ref'' - detail: ''The roadkeeper''s own road:
+      this slice''s own road, carrying its run ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: road-bare-road
+    standing: open
+    label: The bare claim road
+    segment: 'road-bare-road: The bare claim road - slice: ''concordance-m218-road'' - check: ''runnable'' - checks: 5 - claims: ''feeling'' - detail: ''A road that carried a feeling in place
+      of held proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof: complete stands on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: road-leaping-road
+    standing: open
+    label: The leaping road
+    segment: 'road-leaping-road: The leaping road - slice: ''concordance-m218-road'' - check: ''runnable'' - checks: 3 - claims: ''none'' - detail: ''A road that stepped from loaded straight
+      to runnable, outside the road sequence, standing open.'' - gaps: steps from loaded to runnable, which the road sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The road book holds 5 roads as of 2026-11-11: the view ''all'' shows 5 of them: complete 3, open 2; 3 of the shown roads stand complete.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly, segment by segment.
+  - Every segment is derived from its road's own fields - the slice it answers for, the steps it walked in the open and the evidence it honestly carries - and no judgement is stored on any road.
+  - 'Completeness is mapped from the held records alone: a road that steps outside the road sequence, carries a bare claim in place of held evidence, or has not reached runnable stands open, named
+    in its gaps, and the road index is derived from the held roads, never stored where it could drift.'
