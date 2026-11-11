@@ -1340,7 +1340,7 @@ slices:
   title: The 500-slice road as a campaign
   summary: Volmarr's Mimisbrunnr roadmap loadable as a campaign file (via the M-002 concordance) — his
     own road, runnable.
-  status: queued
+  status: done
 - id: M-219
   part: 9
   title: Interrupts and resumes across days

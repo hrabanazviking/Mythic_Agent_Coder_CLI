@@ -434,11 +434,11 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 217
-    assert citizen["next_slice"] == "M-218"
+    assert citizen["done"] == 218
+    assert citizen["next_slice"] == "M-219"
     assert citizen["m218_title"] == "The 500-slice road as a campaign"
     assert citizen["m218_part"] == 9
-    assert citizen["m218_status"] == "queued"
+    assert citizen["m218_status"] == "done"
 
 def test_road_record_round_trips():
     road = _road()
@@ -910,8 +910,8 @@ class TestRoadAgentStatus:
         assert status["well"]["current_road"] == "road-bare-road"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 217
-        assert status["roadmap"]["next_slice"] == "M-218"
+        assert status["roadmap"]["done"] == 218
+        assert status["roadmap"]["next_slice"] == "M-219"
         assert status["roadmap"]["m218_title"] == "The 500-slice road as a campaign"
         assert "held as data alone" in status["rule"]
         assert "road-bare-road" in status["plain_words"]
