@@ -1329,7 +1329,7 @@ slices:
   title: Multi-campaign hall
   summary: several campaigns across repos with one board; keepers per campaign; the human sees the whole
     forge at a glance.
-  status: queued
+  status: done
 - id: M-217
   part: 9
   title: Campaign templates

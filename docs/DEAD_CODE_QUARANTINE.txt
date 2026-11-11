@@ -952,3 +952,13 @@ mythic_agent/agents/llm.py:58023:view_estimate:method
 mythic_agent/agents/llm.py:58090:register_estimate_book:method
 mythic_agent/agents/llm.py:58139:record_estimate_book:method
 mythic_agent/agents/llm.py:58217:report_estimate:method
+mythic_agent/agents/llm.py:58514:get_hall_note:method
+mythic_agent/agents/llm.py:58529:hall_campaigns_for_repo:method
+mythic_agent/agents/llm.py:58535:hall_campaigns_green:method
+mythic_agent/agents/llm.py:58577:hall_index:method
+mythic_agent/agents/llm.py:58601:register_hall_campaign:method
+mythic_agent/agents/llm.py:58632:register_hall_view:method
+mythic_agent/agents/llm.py:58658:view_hall:method
+mythic_agent/agents/llm.py:58725:register_hall_book:method
+mythic_agent/agents/llm.py:58774:record_hall_book:method
+mythic_agent/agents/llm.py:58852:report_hall:method
