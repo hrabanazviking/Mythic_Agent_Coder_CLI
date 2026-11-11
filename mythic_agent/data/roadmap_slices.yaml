@@ -1376,7 +1376,7 @@ slices:
   title: Dry-run campaigns
   summary: a campaign can be rehearsed (plan, dealing, gates) with models mocked — the shape proven before
     money moves.
-  status: queued
+  status: done
 - id: M-225
   part: 9
   title: Campaign export
