@@ -434,11 +434,11 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 224
-    assert citizen["next_slice"] == "M-225"
+    assert citizen["done"] == 225
+    assert citizen["next_slice"] == "M-226"
     assert citizen["m225_title"] == "Campaign export"
     assert citizen["m225_part"] == 9
-    assert citizen["m225_status"] == "queued"
+    assert citizen["m225_status"] == "done"
 
 def test_bundle_record_round_trips():
     bundle = _bundle()
@@ -910,8 +910,8 @@ class TestBundleAgentStatus:
         assert status["ledger"]["current_bundle"] == "bundle-bare-bundle"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 224
-        assert status["roadmap"]["next_slice"] == "M-225"
+        assert status["roadmap"]["done"] == 225
+        assert status["roadmap"]["next_slice"] == "M-226"
         assert status["roadmap"]["m225_title"] == "Campaign export"
         assert "held as data alone" in status["rule"]
         assert "bundle-bare-bundle" in status["plain_words"]
