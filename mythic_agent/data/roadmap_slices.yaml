@@ -1352,7 +1352,7 @@ slices:
   title: Milestone reports
   summary: at part boundaries the coordinator reports plainly — done with evidence, partial with its road,
     blocked with what it needs.
-  status: queued
+  status: done
 - id: M-221
   part: 9
   title: The plain-language build log
