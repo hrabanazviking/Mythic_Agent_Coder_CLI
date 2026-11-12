@@ -1528,7 +1528,7 @@ slices:
   title: Webhook doors
   summary: inbound events (a PR opened, an issue filed) can *propose* campaigns — proposals only; nothing
     builds unbidden.
-  status: queued
+  status: done
 - id: M-251
   part: 10
   title: Export everything
