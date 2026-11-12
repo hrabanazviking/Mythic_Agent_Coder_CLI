@@ -1494,7 +1494,7 @@ slices:
   part: 10
   title: Kista as the key-keeper (with M-032)
   summary: every bridge's credential resolves through Kista; a bridge without a key asks once.
-  status: queued
+  status: done
 - id: M-245
   part: 10
   title: Aesir deepening (with M-025)

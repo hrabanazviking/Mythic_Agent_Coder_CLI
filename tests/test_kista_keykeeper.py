@@ -434,11 +434,11 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 243
-    assert citizen["next_slice"] == "M-244"
+    assert citizen["done"] == 244
+    assert citizen["next_slice"] == "M-245"
     assert citizen["m244_title"] == "Kista as the key-keeper (with M-032)"
     assert citizen["m244_part"] == 10
-    assert citizen["m244_status"] == "queued"
+    assert citizen["m244_status"] == "done"
 
 def test_resolution_record_round_trips():
     resolution = _resolution()
@@ -910,8 +910,8 @@ class TestResolutionAgentStatus:
         assert status["ledger"]["current_resolution"] == "resolution-bare-resolution"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 243
-        assert status["roadmap"]["next_slice"] == "M-244"
+        assert status["roadmap"]["done"] == 244
+        assert status["roadmap"]["next_slice"] == "M-245"
         assert status["roadmap"]["m244_title"] == "Kista as the key-keeper (with M-032)"
         assert "held as data alone" in status["rule"]
         assert "resolution-bare-resolution" in status["plain_words"]
