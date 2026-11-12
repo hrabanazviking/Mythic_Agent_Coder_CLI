@@ -1460,7 +1460,7 @@ slices:
   title: Plugin bundles
   summary: skills + commands + hooks + agents in one installable bundle with a manifest and provenance;
     local-first, no store required.
-  status: queued
+  status: done
 - id: M-239
   part: 10
   title: IDE companions I — VS Code family
