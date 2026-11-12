@@ -1182,3 +1182,12 @@ mythic_agent/agents/llm.py:73275:view_rivalimporters:method
 mythic_agent/agents/llm.py:73342:register_rivalimporters_book:method
 mythic_agent/agents/llm.py:73391:record_rivalimporters_book:method
 mythic_agent/agents/llm.py:73469:report_rivalimporters:method
+mythic_agent/agents/llm.py:73766:get_samverkbridge_note:method
+mythic_agent/agents/llm.py:73787:samverkbridge_green:method
+mythic_agent/agents/llm.py:73829:samverkbridge_index:method
+mythic_agent/agents/llm.py:73853:register_samverkbridge_exchange:method
+mythic_agent/agents/llm.py:73884:register_samverkbridge_view:method
+mythic_agent/agents/llm.py:73910:view_samverkbridge:method
+mythic_agent/agents/llm.py:73977:register_samverkbridge_book:method
+mythic_agent/agents/llm.py:74026:record_samverkbridge_book:method
+mythic_agent/agents/llm.py:74104:report_samverkbridge:method

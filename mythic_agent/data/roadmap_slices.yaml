@@ -1483,7 +1483,7 @@ slices:
   title: Samverk bridge
   summary: repos, issues, and PRs on Volmarr's own forge with the same craft as GitHub's (Part IV), once
     Samverk's own road provides the surfaces.
-  status: queued
+  status: done
 - id: M-243
   part: 10
   title: Samtal bridge
