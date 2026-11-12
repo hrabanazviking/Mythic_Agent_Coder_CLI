@@ -434,11 +434,11 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 235
-    assert citizen["next_slice"] == "M-236"
+    assert citizen["done"] == 236
+    assert citizen["next_slice"] == "M-237"
     assert citizen["m236_title"] == "Skills standard"
     assert citizen["m236_part"] == 10
-    assert citizen["m236_status"] == "queued"
+    assert citizen["m236_status"] == "done"
 
 def test_pack_record_round_trips():
     pack = _pack()
@@ -910,8 +910,8 @@ class TestPackAgentStatus:
         assert status["ledger"]["current_pack"] == "pack-bare-pack"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 235
-        assert status["roadmap"]["next_slice"] == "M-236"
+        assert status["roadmap"]["done"] == 236
+        assert status["roadmap"]["next_slice"] == "M-237"
         assert status["roadmap"]["m236_title"] == "Skills standard"
         assert "held as data alone" in status["rule"]
         assert "pack-bare-pack" in status["plain_words"]
