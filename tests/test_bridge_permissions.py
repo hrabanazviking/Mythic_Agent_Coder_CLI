@@ -290,7 +290,7 @@ class TestBridgePermissionsAgentStatus:
                      "get_bridgeaudit_bridge",
                      "get_bridgeaudit_record",
                      "bridgeaudit_standing",
-                     "records_for_scope",
+                     "audits_for_scope",
                      "bridgeaudit_held",
                      "bridgeaudit_index",
                      "bridgeaudit_verdict",
@@ -304,7 +304,7 @@ class TestBridgePermissionsAgentStatus:
             "bridgeaudit_book", "bridgeaudit_status",
             "get_bridgeaudit_bridge",
             "get_bridgeaudit_record",
-            "bridgeaudit_standing", "records_for_scope",
+            "bridgeaudit_standing", "audits_for_scope",
             "bridgeaudit_held", "bridgeaudit_index",
             "bridgeaudit_verdict",
             "register_bridgeaudit_record",
@@ -329,7 +329,7 @@ class TestBridgePermissionsAgentStatus:
         assert standing.stage == "unseen"
         assert standing.freshness == "stale"
         assert agent.bridgeaudit_held() == []
-        assert agent.records_for_scope("full") == []
+        assert agent.audits_for_scope("full") == []
         agent.bridgeaudit_index()
         agent.bridgeaudit_verdict()
         agent.report_bridgeaudit()
@@ -342,9 +342,9 @@ class TestBridgePermissionsAgentStatus:
         with pytest.raises(ValueError, match="holds no audit record"):
             agent.get_bridgeaudit_record("github", "audit-42")
         with pytest.raises(ValueError):
-            agent.records_for_scope("")
+            agent.audits_for_scope("")
         with pytest.raises(ValueError, match="unknown audit record scope"):
-            agent.records_for_scope("green")
+            agent.audits_for_scope("green")
         agent.close()
 
 
@@ -701,16 +701,16 @@ class TestBridgePermissionsDerivedRoads:
         assert [s["bridge"] for s in report["standings"]] == [
             "github"]
 
-    def test_records_for_scope_and_held_keys(self, agent):
+    def test_audits_for_scope_and_held_keys(self, agent):
         agent.register_bridgeaudit_record(_dm_record())
         agent.register_bridgeaudit_record(_dm_record(
             record="issue-9", scope="propose_only",
             stages=["listed"], claims=["assertion"]))
         assert [r.record for r in
-                agent.records_for_scope("full")] == [
+                agent.audits_for_scope("full")] == [
             "audit-42"]
         assert [r.record for r in
-                agent.records_for_scope("propose_only")] == [
+                agent.audits_for_scope("propose_only")] == [
             "issue-9"]
         assert agent.bridgeaudit_held() == ["github/audit-42"]
         standing = agent.bridgeaudit_standing(
