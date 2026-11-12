@@ -1188,6 +1188,290 @@ def parse_issuetrackers_args(args: Any):
         return ("draft", (rest[0], rest[1]), (), None)
     raise ValueError(ISSUETRACKERS_USAGE)
 
+
+#: The /wyrdseam slash grammar (M-249, agent layer).
+WYRDSEAM_USAGE = (
+    "Usage: /wyrdseam | /wyrdseam sources | "
+    "/wyrdseam source <source> | /wyrdseam snapshot "
+    "<source> <node> | /wyrdseam standing "
+    "<source> <node> | /wyrdseam advice | "
+    "/wyrdseam advice <campaign> | "
+    "/wyrdseam index | /wyrdseam verdict")
+
+
+def _wyrd_source_dict(entry: Any) -> dict[str, Any]:
+    """One wyrd source registry entry, as plain data (M-249)."""
+    return {"id": entry.id, "label": entry.label,
+            "snapshot_word": entry.snapshot_word,
+            "transport": entry.transport, "reason": entry.reason}
+
+
+def _wyrd_snapshot_dict(snapshot: Any) -> dict[str, Any]:
+    """One node snapshot, as plain data (M-249)."""
+    return {"source": snapshot.source,
+            "node": snapshot.node,
+            "availability": snapshot.availability,
+            "forge_state": snapshot.forge_state,
+            "load_band": snapshot.load_band,
+            "campaign_position": snapshot.campaign_position,
+            "observed_at": snapshot.observed_at,
+            "age_seconds": snapshot.age_seconds,
+            "stages": list(snapshot.stages),
+            "claims": list(snapshot.claims)}
+
+
+def _wyrd_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived snapshot standing, as plain data (M-249)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "freshness": standing.freshness,
+            "gaps": list(standing.gaps)}
+
+
+def _wyrd_advice_dict(draft: Any) -> dict[str, Any]:
+    """One campaign advice draft, as plain data (M-249)."""
+    return {"campaign": draft.campaign,
+            "node": draft.node, "advice": draft.advice,
+            "approval": draft.approval, "applied": draft.applied}
+
+
+def _wyrd_advice_text(draft: Any) -> str:
+    """One campaign advice draft told in plain words (M-249)."""
+    return (f"{draft.campaign} -> {draft.node}: advice - "
+            f"{draft.advice} (approval: {draft.approval}; "
+            "advice is never applied here)")
+
+
+def _wyrd_coerce_snapshot(snapshot: Any):
+    """A node snapshot from a snapshot or a plain telling (M-249)."""
+    from ..core.wyrd_seam import NodeSnapshot
+    if isinstance(snapshot, NodeSnapshot):
+        return snapshot
+    if isinstance(snapshot, dict):
+        return NodeSnapshot(
+            source=snapshot["source"],
+            node=snapshot["node"],
+            availability=snapshot["availability"],
+            forge_state=snapshot["forge_state"],
+            load_band=snapshot["load_band"],
+            campaign_position=snapshot.get("campaign_position", ""),
+            observed_at=snapshot["observed_at"],
+            age_seconds=snapshot["age_seconds"],
+            stages=tuple(snapshot.get("stages", ())),
+            claims=tuple(snapshot.get("claims", ())))
+    return NodeSnapshot(
+        source=snapshot.source, node=snapshot.node,
+        availability=snapshot.availability,
+        forge_state=snapshot.forge_state,
+        load_band=snapshot.load_band,
+        campaign_position=snapshot.campaign_position,
+        observed_at=snapshot.observed_at,
+        age_seconds=snapshot.age_seconds,
+        stages=tuple(snapshot.stages),
+        claims=tuple(snapshot.claims))
+
+
+class WyrdSeamRegistry:
+    """Session registry for the WYRD seam (M-249).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.wyrd_seam``): it holds
+    the shipped source registry (one entry per source,
+    held as data) beside the node snapshots held one by
+    one for the session, one snapshot per source and
+    node, and the campaign advice proposed for the
+    session, one advice draft per campaign. A snapshot
+    is validated whole by the pure layer before it is
+    held - a snapshot naming an unknown source,
+    availability, forge state, load band or evidence kind
+    refuses by name here too, and a refusal holds nothing
+    new. A second snapshot for a source and node already
+    held refuses likewise. Advice is proposed only
+    through the pure layer's advice road - approval
+    pending by default, may be marked approved by a
+    human, and never applied: the seam advises campaigns
+    and reroutes nothing on its own. Holding calls no
+    WYRD engine API, probes no machine, measures no load
+    and dispatches nothing: the registry holds tellings
+    as data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.wyrd_seam import default_registry
+        self._sources = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._drafts: dict[str, Any] = {}
+
+    def sources(self):
+        """The shipped source registry held by the session."""
+        return self._sources
+
+    def register_snapshot(self, snapshot: Any):
+        """Hold one node's snapshot, validated whole.
+
+        A second snapshot for a source and node already
+        held refuses, and a refusal holds nothing new.
+        """
+        held = _wyrd_coerce_snapshot(snapshot)
+        held.validate(self._sources)
+        key = (held.source, held.node)
+        if key in self._records:
+            raise ValueError(
+                "a world-state snapshot for source "
+                f"{held.source!r} node "
+                f"{held.node!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_snapshot(self, source: Any, node: Any):
+        """The held snapshot for one source and node."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(source, node)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no world-state snapshot "
+                f"for source {source!r} node "
+                f"{node!r}") from None
+
+    def register_snapshots(self, snapshots: Any):
+        """Hold a set of node snapshots, validated whole.
+
+        Every snapshot is validated, and checked against
+        the snapshots already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for snapshot in snapshots:
+            held = _wyrd_coerce_snapshot(snapshot)
+            held.validate(self._sources)
+            key = (held.source, held.node)
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "a world-state snapshot for source "
+                    f"{held.source!r} node "
+                    f"{held.node!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[(held.source, held.node)] = held
+        return validated
+
+    def list_snapshots(self) -> list:
+        """The node snapshots held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the snapshots and the advice."""
+        return (list(self._records.values())
+                + list(self._drafts.values()))
+
+    def standings(self) -> list:
+        """The held snapshots' standings, derived at call time."""
+        from ..core.wyrd_seam import derive_standing
+        return [derive_standing(snapshot, self._sources)
+                for snapshot in self._records.values()]
+
+    def hold_advice(self, campaign: Any, node: Any,
+                    advice: Any,
+                    approval: Any = "pending"):
+        """Propose one campaign advice draft, held for the session.
+
+        The advice is shaped by the pure layer alone - an
+        approval word outside pending/approved refuses by
+        name there, and advice is never applied. A second
+        advice draft for a campaign already advised
+        refuses likewise.
+        """
+        from ..core.wyrd_seam import propose_advice
+        draft = propose_advice(campaign, node, advice,
+                               approval=approval)
+        if draft.campaign in self._drafts:
+            raise ValueError(
+                "a campaign advice draft for campaign "
+                f"{draft.campaign!r} already stands held "
+                "for the session")
+        self._drafts[draft.campaign] = draft
+        return draft
+
+    def get_advice(self, campaign: Any):
+        """The held advice draft for one campaign."""
+        from ..core.validation import ValidationError
+        try:
+            return self._drafts[campaign]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no campaign advice for "
+                f"campaign {campaign!r}") from None
+
+    def list_advice(self) -> list:
+        """The campaign advice drafts held, in proposal order."""
+        return list(self._drafts.values())
+
+    def book(self):
+        """The held pieces composed as a WYRD seam book.
+
+        The book is plain data: the shipped source
+        registry's entries beside the node snapshots and
+        campaign advice held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.wyrd_seam import WYRD_SEAM_SCHEMA
+        return {
+            "schema": WYRD_SEAM_SCHEMA,
+            "sources": [_wyrd_source_dict(entry)
+                        for entry in self._sources.entries()],
+            "records": [_wyrd_snapshot_dict(snapshot)
+                        for snapshot in self._records.values()],
+            "drafts": [_wyrd_advice_dict(draft)
+                       for draft in self._drafts.values()],
+        }
+
+
+def parse_wyrdseam_args(args: Any):
+    """Parse /wyrdseam arguments (M-249).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``sources``, ``index`` and ``verdict`` name
+    their own stance with no target; ``source <source>``
+    names one source; ``snapshot <source> <node>`` and
+    ``standing <source> <node>`` name one source and node
+    as a pair; ``advice <campaign>`` names one campaign
+    and the bare ``advice`` stance names the session's
+    advice drafts. Anything else raises ValueError
+    carrying the usage line, exactly as the sibling
+    parsers refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("sources", "index", "verdict"):
+        if rest:
+            raise ValueError(WYRDSEAM_USAGE)
+        return (head, None, (), None)
+    if head == "source":
+        if len(rest) != 1:
+            raise ValueError(WYRDSEAM_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("snapshot", "standing"):
+        if len(rest) != 2:
+            raise ValueError(WYRDSEAM_USAGE)
+        return (head, (rest[0], rest[1]), (), None)
+    if head == "advice":
+        if not rest:
+            return ("advices", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(WYRDSEAM_USAGE)
+        return ("advice", rest[0], (), None)
+    raise ValueError(WYRDSEAM_USAGE)
+
 class Agent:
     def __init__(self, project_root: Path | None = None, name: str = "Primary", config: dict[str, Any] | None = None):
         import copy
@@ -78606,6 +78890,637 @@ class Agent:
         if announced is None:
             announced = set()
             self._issuetrackers_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _wyrdseam_registry(self):
+        """The held WYRD seam registry (M-249).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped source registry beside the session's
+        node snapshots and campaign advice one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_wyrdseam_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_wyrdseam_store", None)
+        if registry is None:
+            registry = WyrdSeamRegistry()
+            self._wyrdseam_store = registry
+        return registry
+
+    def wyrdseam_sources(self):
+        """The shipped source registry, as data (M-249).
+
+        One entry per source - wyrd_engine, manual_report,
+        campaign_journal, keeper_report - held as registry
+        entries, each naming the word that source gives a
+        single telling. Resolution registers and publishes
+        nothing, calls no WYRD engine API and probes no
+        network.
+        """
+        return self._wyrdseam_registry().sources()
+
+    def wyrdseam_book(self):
+        """The session's WYRD seam book, as data (M-249).
+
+        The held registry's book when the session holds
+        snapshots or advice one by one - otherwise the book
+        boarded whole through
+        :meth:`record_wyrdseam_snapshots`, or the shipped
+        source registry with nothing held until a snapshot
+        or advice draft is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._wyrdseam_registry()
+        if registry.list_snapshots() or registry.list_advice():
+            held = getattr(self, "_wyrdseam_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [(r["source"], r["node"])
+                     for r in held["records"]]
+                    == [(r["source"], r["node"])
+                        for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_wyrdseam_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _wyrdseam_effective_snapshot(self, source: Any,
+                                     node: Any):
+        """The snapshot a node's standing is derived from (M-249).
+
+        The held snapshot when one stands; otherwise an
+        empty snapshot - no stage walked, no claim rested
+        on, availability and forge state unknown and its
+        age past the fresh limit - so an unheld node
+        derives an honest open standing naming its gaps,
+        never a dressed claim: an absent snapshot reads
+        as unknown. An unknown source refuses by name
+        through the shipped registry first.
+        """
+        from ..core.wyrd_seam import (
+            FRESH_LIMIT_SECONDS, NodeSnapshot)
+        registry = self._wyrdseam_registry()
+        registry.sources().get(source)
+        try:
+            return registry.get_snapshot(source, node)
+        except ValueError:
+            return NodeSnapshot(
+                source=source, node=node,
+                availability="unknown", forge_state="unknown",
+                load_band="unknown", campaign_position="",
+                observed_at="(no snapshot recorded)",
+                age_seconds=FRESH_LIMIT_SECONDS + 1,
+                stages=(), claims=())
+
+    def _wyrdseam_screen(self) -> str:
+        """The /wyrdseam screen for the session (M-249)."""
+        from ..core.wyrd_seam import (
+            format_sources, format_snapshot)
+        registry = self._wyrdseam_registry()
+        lines = [format_sources(registry.sources())]
+        snapshots = registry.list_snapshots()
+        if not snapshots:
+            lines.append(
+                "World-state snapshots: none recorded this "
+                "session - world-state is current only when "
+                "a fresh snapshot rests on held evidence, "
+                "and no node stands as known until its "
+                "snapshot is recorded.")
+        else:
+            lines.extend(format_snapshot(snapshot)
+                         for snapshot in snapshots)
+        lines.extend(_wyrd_advice_text(draft)
+                     for draft in registry.list_advice())
+        return "\n".join(lines)
+
+    def wyrdseam_status(self) -> dict[str, Any]:
+        """The WYRD seam account, in plain data (M-249).
+
+        The shipped source registry's entries and the
+        node snapshots and campaign advice held this
+        session as plain records (empty until held), the
+        session book's record (the shipped source registry
+        with nothing held - until items are held), the
+        nodes standing held and still open derived at call
+        time, the index and verdict derived at call time,
+        the sources and snapshots told in plain words
+        through the pure formatters, and the plain
+        explanation. A session holding no snapshot for a
+        node derives that node's open standing. Resolution
+        registers and publishes nothing, calls no WYRD
+        engine API, probes no machine and measures no
+        load: this layer tells only.
+        """
+        from ..core import wyrd_seam as camp_module
+        registry = self._wyrdseam_registry()
+        held_records = registry.list_snapshots()
+        book = self.wyrdseam_book()
+        index = self.wyrdseam_index()
+        return {
+            "records": [_wyrd_snapshot_dict(r)
+                        for r in held_records],
+            "sources": [_wyrd_source_dict(e)
+                        for e in registry.sources().entries()],
+            "book": (book if held_records
+                     or registry.list_advice()
+                     or getattr(self, "_wyrdseam_held",
+                                None) is not None else None),
+            "wyrdseam_book": {
+                "schema": camp_module.WYRD_SEAM_SCHEMA,
+                "sources": book["sources"],
+                "records": book["records"],
+                "drafts": book["drafts"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.wyrdseam_verdict()["verdict"],
+            "sources_text": camp_module.format_sources(
+                registry.sources()),
+            "records_text": "\n".join(
+                camp_module.format_snapshot(snapshot)
+                for snapshot in held_records),
+            "drafts": [_wyrd_advice_dict(d)
+                       for d in registry.list_advice()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._wyrdseam_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": WYRDSEAM_USAGE,
+        }
+
+    def get_wyrdseam_source(self, source: Any):
+        """The one source entry a source name names (M-249).
+
+        The shipped source registry answers: a source the
+        seam book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._wyrdseam_registry().sources().get(source)
+
+    def get_wyrdseam_snapshot(self, source: Any, node: Any):
+        """The one snapshot a source and node name (M-249).
+
+        The session's held registry answers: a node the
+        session holds no snapshot for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._wyrdseam_registry().get_snapshot(source, node)
+
+    def wyrdseam_standing(self, source: Any, node: Any):
+        """Derive one node's snapshot standing (M-249).
+
+        The standing is derived at call time by the pure
+        layer from the node's effective snapshot - the
+        held snapshot, or the honest empty snapshot while
+        none stands held: held only on a full legal walk
+        resting on held evidence within the fresh limit
+        and knowing its availability and forge state,
+        otherwise open, naming every gap. Deriving
+        registers and publishes nothing.
+        """
+        from ..core.wyrd_seam import derive_standing
+        registry = self._wyrdseam_registry()
+        return derive_standing(
+            self._wyrdseam_effective_snapshot(source, node),
+            registry.sources())
+
+    def snapshots_for_availability(self, availability: Any):
+        """The held snapshots resting on one availability (M-249)."""
+        from ..core.wyrd_seam import AVAILABILITIES
+        if availability is None or not str(availability).strip():
+            raise ValueError(
+                "an availability must be named to list its "
+                "snapshots")
+        if availability not in AVAILABILITIES:
+            raise ValueError(
+                f"unknown availability {availability!r}; the "
+                "WYRD seam book names: "
+                + ", ".join(AVAILABILITIES))
+        return [r for r in
+                self._wyrdseam_registry().list_snapshots()
+                if r.availability == availability]
+
+    def wyrdseam_held(self):
+        """The nodes whose snapshot standing stands held (M-249)."""
+        registry = self._wyrdseam_registry()
+        return [f"{r.source}/{r.node}"
+                for r in registry.list_snapshots()
+                if self.wyrdseam_standing(
+                    r.source, r.node).held]
+
+    def wyrdseam_index(self) -> dict[str, Any]:
+        """Derive the world-state index at call time (M-249).
+
+        The index is derived from every held snapshot
+        alone - each held node's derived standing, the
+        held nodes named and the open nodes named in its
+        gaps. Deriving registers and publishes nothing,
+        calls no WYRD engine API and probes no network.
+        Returns the derived index record, the rendered
+        snapshots, the screen and the plain explanation.
+        """
+        from ..core import wyrd_seam as camp_module
+        registry = self._wyrdseam_registry()
+        records = registry.list_snapshots()
+        standings = []
+        for record in records:
+            standing = self.wyrdseam_standing(
+                record.source, record.node)
+            standings.append({
+                "source": record.source,
+                "node": record.node,
+                **_wyrd_standing_dict(standing)})
+        index = {
+            "type": "wyrdseam_index",
+            "slice": camp_module.WYRD_SEAM_SLICE,
+            "schema": camp_module.WYRD_SEAM_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['source']}/{s['node']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['source']}/{s['node']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_snapshot(record)
+                for record in records),
+            "screen": self._wyrdseam_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def wyrdseam_verdict(self) -> dict[str, Any]:
+        """Derive the world-state verdict at call time (M-249).
+
+        The verdict is derived from every held snapshot
+        alone: ``held`` when snapshots stand held and
+        every held snapshot's standing stands held on
+        held evidence within the fresh limit, ``open``
+        while no snapshot stands held or any held
+        snapshot stands short of held - with the held and
+        open nodes named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import wyrd_seam as camp_module
+        registry = self._wyrdseam_registry()
+        records = registry.list_snapshots()
+        held = self.wyrdseam_held()
+        open_keys = [f"{r.source}/{r.node}"
+                     for r in records
+                     if f"{r.source}/{r.node}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "World-state stands held: every recorded "
+                "snapshot is fresh and rests on held "
+                "evidence - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "World-state stands open: no world-state "
+                "snapshot is recorded this session - an "
+                "absent snapshot reads as unknown, never "
+                "as current fact.")
+        else:
+            word = "open"
+            telling = (
+                "World-state stands open: world-state is "
+                "current only when a fresh snapshot rests "
+                "on held evidence, and these snapshots "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "wyrdseam_verdict",
+            "slice": camp_module.WYRD_SEAM_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._wyrdseam_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_wyrdseam_snapshot(
+            self, snapshot: Any) -> dict[str, Any]:
+        """Hold one node's world-state snapshot for the session (M-249).
+
+        The snapshot is held whole by the session registry
+        before it is held: a snapshot naming an unknown
+        source, availability, forge state, load band or
+        evidence kind refuses by name on this road too,
+        and a refusal holds nothing new and publishes
+        nothing. A held snapshot is published as its
+        ``wyrdseam_snapshot`` session-news record through
+        the checkpoint road. Returns the held snapshot,
+        its news record, the screen rendered after it
+        landed, and the plain explanation. Holding a
+        snapshot calls no WYRD engine API, probes no
+        machine and measures no load: the telling stands
+        on this layer's book, as data.
+        """
+        from ..core import wyrd_seam as camp_module
+        registry = self._wyrdseam_registry()
+        held = registry.register_snapshot(snapshot)
+        news = {"type": "wyrdseam_snapshot",
+                **_wyrd_snapshot_dict(held)}
+        self._publish_wyrdseam_record(news)
+        return {
+            "record": _wyrd_snapshot_dict(held),
+            "record_news": news,
+            "screen": self._wyrdseam_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_wyrdseam_snapshots(
+            self, snapshots: Any) -> dict[str, Any]:
+        """Hold a set of node snapshots for the session (M-249).
+
+        Every snapshot is held by the session registry -
+        the set is validated whole, and against the
+        snapshots already held, before anything is held,
+        so a refusal holds nothing new. Every snapshot is
+        published as its session news, in the order given.
+        Returns the held snapshots, their news records,
+        the count of snapshots held, the screen, and the
+        explanation. Registering calls no WYRD engine API
+        and probes no network.
+        """
+        from ..core import wyrd_seam as camp_module
+        registry = self._wyrdseam_registry()
+        validated = registry.register_snapshots(snapshots)
+        news_records = [
+            {"type": "wyrdseam_snapshot", **_wyrd_snapshot_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_wyrdseam_record(news)
+        return {
+            "records": [_wyrd_snapshot_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._wyrdseam_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_wyrdseam_snapshots(
+            self, snapshots: Any) -> dict[str, Any]:
+        """Record a whole set of node snapshots (M-249).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its source and node keys and schema. Every
+        snapshot is held and published as its session
+        news, in the order given. Returns the held book,
+        its snapshots, their news records, the count, the
+        screen, and the explanation. Recording calls no
+        WYRD engine API, probes no machine and measures
+        no load.
+        """
+        from ..core import wyrd_seam as camp_module
+        validated = [_wyrd_coerce_snapshot(snapshot)
+                     for snapshot in snapshots]
+        for held in validated:
+            held.validate(
+                self._wyrdseam_registry().sources())
+        fingerprint = (
+            tuple((r.source, r.node) for r in validated),
+            camp_module.WYRD_SEAM_SCHEMA)
+        boarded = getattr(self, "_wyrdseam_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._wyrdseam_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these world-state snapshots are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._wyrdseam_registry()
+        registry.register_snapshots(validated)
+        boarded.add(fingerprint)
+        self._wyrdseam_held = registry.book()
+        news_records = [
+            {"type": "wyrdseam_snapshot", **_wyrd_snapshot_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_wyrdseam_record(news)
+        return {
+            "book": self._wyrdseam_held,
+            "records": [_wyrd_snapshot_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._wyrdseam_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_wyrdseam(
+            self, source: Any, node: Any) -> dict[str, Any]:
+        """Stand one node's snapshot standing on the session book (M-249).
+
+        This bridges book's own viewing road: the node's
+        source entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        node's effective snapshot, and published as its
+        ``wyrdseam_standing`` session news, with the held
+        snapshot published as its ``wyrdseam_snapshot``
+        session news when one stands held. Returns the
+        source's entry, its derived standing, the held
+        snapshot when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        world-state as data alone - it calls no WYRD
+        engine API, probes no machine, measures no load
+        and reroutes no campaign.
+        """
+        from ..core import wyrd_seam as camp_module
+        entry = self.get_wyrdseam_source(source)
+        standing = self.wyrdseam_standing(source, node)
+        try:
+            held = self.get_wyrdseam_snapshot(source, node)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "wyrdseam_snapshot",
+                           **_wyrd_snapshot_dict(held)}
+            self._publish_wyrdseam_record(record_news)
+        standing_news = {
+            "type": "wyrdseam_standing", "source": source,
+            "node": node, **_wyrd_standing_dict(standing)}
+        self._publish_wyrdseam_record(standing_news)
+        return {
+            "source": _wyrd_source_dict(entry),
+            "standing": {"source": source, "node": node,
+                         **_wyrd_standing_dict(standing)},
+            "record": (_wyrd_snapshot_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._wyrdseam_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def propose_wyrdseam_advice(
+            self, campaign: Any, node: Any, advice: Any,
+            approval: Any = "pending"
+            ) -> dict[str, Any]:
+        """Propose one campaign advice draft for the session (M-249).
+
+        The advice is shaped by the pure layer alone - it
+        stands at approval pending by default, may be
+        marked ``approved`` by a human, and an approval
+        word outside pending/approved refuses by name;
+        advice is never applied here and no campaign is
+        rerouted on this road. A held advice draft is
+        published as its ``wyrdseam_advice`` session-news
+        record through the checkpoint road. Returns the
+        held draft, its news record, the screen rendered
+        after it landed, and the plain explanation.
+        Proposing calls no WYRD engine API, probes no
+        machine and dispatches nothing.
+        """
+        from ..core import wyrd_seam as camp_module
+        registry = self._wyrdseam_registry()
+        draft = registry.hold_advice(campaign, node, advice,
+                                     approval=approval)
+        news = {"type": "wyrdseam_advice",
+                **_wyrd_advice_dict(draft)}
+        self._publish_wyrdseam_record(news)
+        return {
+            "draft": _wyrd_advice_dict(draft),
+            "draft_news": news,
+            "screen": self._wyrdseam_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def get_wyrdseam_advice(self, campaign: Any):
+        """The one advice draft a campaign names (M-249).
+
+        The session's held registry answers: a campaign
+        the session holds no advice for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._wyrdseam_registry().get_advice(campaign)
+
+    def wyrdseam_advices(self) -> list:
+        """The campaign advice drafts held for the session (M-249)."""
+        return self._wyrdseam_registry().list_advice()
+
+    def report_wyrdseam(self) -> dict[str, Any]:
+        """Render the session WYRD seam, as a report (M-249).
+
+        The shipped source registry and every held
+        snapshot's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, calls no WYRD engine API, probes
+        no machine and measures no load. Returns the book,
+        the sources, held snapshots and advice as plain
+        records, the derived standings, the rendered
+        sources and snapshots, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import wyrd_seam as camp_module
+        registry = self._wyrdseam_registry()
+        book = self.wyrdseam_book()
+        standings = []
+        for record in registry.list_snapshots():
+            standing = self.wyrdseam_standing(
+                record.source, record.node)
+            standings.append({
+                "source": record.source,
+                "node": record.node,
+                **_wyrd_standing_dict(standing)})
+        return {
+            "book": book,
+            "sources": [_wyrd_source_dict(e)
+                        for e in registry.sources().entries()],
+            "records": [_wyrd_snapshot_dict(r)
+                        for r in registry.list_snapshots()],
+            "drafts": [_wyrd_advice_dict(d)
+                       for d in registry.list_advice()],
+            "standings": standings,
+            "index": self.wyrdseam_index()["index"],
+            "verdict": self.wyrdseam_verdict()["verdict"],
+            "sources_text": camp_module.format_sources(
+                registry.sources()),
+            "records_text": "\n".join(
+                camp_module.format_snapshot(
+                    self._wyrdseam_effective_snapshot(
+                        r.source, r.node))
+                for r in registry.list_snapshots()),
+            "screen": self._wyrdseam_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_wyrdseam_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one WYRD record as session news (M-249).
+
+        The agent layer's ``wyrdseam_snapshot``,
+        ``wyrdseam_standing`` and ``wyrdseam_advice``
+        records are journaled through the same checkpoint
+        road every sibling bridge uses, when a session is
+        attached. Each record is announced at most once
+        per telling: a snapshot under its source, its
+        node, its availability, its forge state, its load
+        band, its campaign position, its observed time,
+        its age, its walked stages and its claims, a
+        standing under its source, its node, its held
+        word, its stage, its freshness and its gaps, and
+        advice under its campaign, its node, its advice
+        and its approval, so a standing grown by a newly
+        held snapshot announces again as the new figure
+        it is. A foreign record type is never published
+        on this road.
+        """
+        if record.get("type") == "wyrdseam_snapshot":
+            target = ("wyrdseam_snapshot",
+                      record.get("source"),
+                      record.get("node"),
+                      record.get("availability"),
+                      record.get("forge_state"),
+                      record.get("load_band"),
+                      record.get("campaign_position"),
+                      record.get("observed_at"),
+                      record.get("age_seconds"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "wyrdseam_standing":
+            target = ("wyrdseam_standing",
+                      record.get("source"),
+                      record.get("node"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("freshness"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "wyrdseam_advice":
+            target = ("wyrdseam_advice",
+                      record.get("campaign"),
+                      record.get("node"),
+                      record.get("advice"),
+                      record.get("approval"))
+        else:
+            return
+        announced = getattr(self, "_wyrdseam_announced", None)
+        if announced is None:
+            announced = set()
+            self._wyrdseam_announced = announced
         if target in announced:
             return
         announced.add(target)

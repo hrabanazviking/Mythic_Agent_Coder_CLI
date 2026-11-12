@@ -517,6 +517,8 @@ class CommandHandler:
                 self._handle_cibridges(args)
             elif cmd == "/issuetrackers":
                 self._handle_issuetrackers(args)
+            elif cmd == "/wyrdseam":
+                self._handle_wyrdseam(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -13658,6 +13660,118 @@ class CommandHandler:
                     "verdict_text"]
             else:
                 text = primary.issuetrackers_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+    def _handle_wyrdseam(self, args: str):
+        """M-249: /wyrdseam - the WYRD seam as data.
+
+        ``/wyrdseam`` shows the seam held this session -
+        the world-state sources as registry entries: one
+        entry per source, naming the word that source
+        gives a single telling, beside the node snapshots
+        held this session (no snapshot recorded yet when
+        none is held - world-state is current only when a
+        fresh snapshot rests on held evidence);
+        ``/wyrdseam sources`` shows the whole shipped
+        source registry; ``/wyrdseam source <source>``
+        shows one source's registry entry; ``/wyrdseam
+        snapshot <source> <node>`` shows the snapshot held
+        for one source and node; ``/wyrdseam standing
+        <source> <node>`` shows the standing derived for
+        one node - held only on a full legal walk resting
+        on held evidence within the fresh limit, otherwise
+        open, naming its gaps; ``/wyrdseam advice`` shows
+        the campaign advice held this session and
+        ``/wyrdseam advice <campaign>`` shows one advice
+        draft - advice is never applied here and no
+        campaign is rerouted on this road; ``/wyrdseam
+        index`` shows the index derived over every held
+        snapshot; ``/wyrdseam verdict`` shows the verdict
+        derived for the session. Resolution registers and
+        publishes nothing as session news on this heading:
+        snapshots are held only when they are given
+        through the agent's register roads, stood on the
+        book on the viewing road, or held on the book
+        roads, and every snapshot held for the session is
+        journaled as a wyrdseam_snapshot session event,
+        every viewed standing as a wyrdseam_standing
+        session event and every proposed advice draft as
+        a wyrdseam_advice session event. This heading
+        calls no WYRD engine API, probes no machine,
+        measures no load and reroutes no campaign -
+        holding and telling are words only.
+        """
+        from ..core.wyrd_seam import (
+            format_snapshot,
+            format_source,
+            format_sources,
+        )
+        from .llm import parse_wyrdseam_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_wyrdseam_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "sources":
+                text = format_sources(
+                    primary.wyrdseam_sources())
+            elif stance == "source":
+                text = format_source(
+                    primary.get_wyrdseam_source(target))
+            elif stance == "snapshot":
+                text = format_snapshot(
+                    primary.get_wyrdseam_snapshot(*target))
+            elif stance == "standing":
+                standing = primary.wyrdseam_standing(
+                    *target)
+                text = (
+                    f"{target[0]}/{target[1]}: world-state "
+                    f"{'current as recorded' if standing.held else 'open'} "
+                    f"(stage: {standing.stage}; "
+                    f"freshness: {standing.freshness})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "advices":
+                drafts = primary.wyrdseam_advices()
+                if not drafts:
+                    text = (
+                        "Campaign advice: none held this "
+                        "session - the seam proposes campaign "
+                        "moves only as advice, and advice is "
+                        "never applied here.")
+                else:
+                    text = "\n".join(
+                        f"{d.campaign} -> {d.node}: advice - "
+                        f"{d.advice} (approval: {d.approval}; "
+                        "advice is never applied here)"
+                        for d in drafts)
+            elif stance == "advice":
+                d = primary.get_wyrdseam_advice(target)
+                text = (
+                    f"{d.campaign} -> {d.node}: advice - "
+                    f"{d.advice} (approval: {d.approval}; "
+                    "advice is never applied here)")
+            elif stance == "index":
+                text = primary.wyrdseam_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.wyrdseam_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.wyrdseam_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
