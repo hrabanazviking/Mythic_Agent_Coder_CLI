@@ -505,6 +505,8 @@ class CommandHandler:
                 self._handle_rivalimporters(args)
             elif cmd == "/samverkbridge":
                 self._handle_samverkbridge(args)
+            elif cmd == "/samtalbridge":
+                self._handle_samtalbridge(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -13061,6 +13063,101 @@ class CommandHandler:
                 text = format_verdict(primary.samverkbridge_book())
             else:
                 text = primary.samverkbridge_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_samtalbridge(self, args: str):
+        """M-243: /samtalbridge - the dispatch engine as data.
+
+        ``/samtalbridge`` shows the dispatch book held this
+        session - dispatch halls as data: one record per
+        dispatch, held whole with the active hall it
+        was held from, its one verifiable stage
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five dispatches at the M-203 hall
+        hall, with its three hall references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/samtalbridge dispatch <dispatch-id>``
+        shows one dispatch whole; ``/samtalbridge stage
+        <stage>`` shows the dispatch one stage line
+        reaches, or names the stage unheld;
+        ``/samtalbridge hall <hall-id>`` shows the book's
+        dispatches of one hall; ``/samtalbridge view <view-id>``
+        shows one held view record; ``/samtalbridge note
+        <note-id>`` shows one held stance record;
+        ``/samtalbridge index`` shows the index derived
+        from the whole book's held dispatches; ``/samtalbridge
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/samtalbridge
+        verdict`` shows the verdict derived for the
+        whole book. Dispatch registers and publishes
+        nothing as session news: dispatches and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every dispatch held for the session is
+        journaled as a dispatch_dispatch session event,
+        every view as a dispatch_view session event,
+        every derived panel as a samtalbridge_panel
+        session event and every derived verdict as a
+        samtalbridge_verdict session event. This heading
+        builds no hall, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.samtal_bridge import (
+            format_dispatch,
+            format_book,
+            format_stage,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_dispatch_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_dispatch_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "dispatch":
+                text = format_dispatch(
+                    primary.get_samtalbridge_dispatch(target),
+                    primary.samtalbridge_book())
+            elif stance == "stage":
+                text = format_stage(
+                    primary.samtalbridge_book(), target)
+            elif stance == "hall":
+                text = format_book(
+                    primary.samtalbridge_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_samtalbridge_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.samtalbridge_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.samtalbridge_book())
+            elif stance == "panel":
+                text = format_panel(primary.samtalbridge_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.samtalbridge_book())
+            else:
+                text = primary.samtalbridge_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
