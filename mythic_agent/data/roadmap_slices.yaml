@@ -1522,7 +1522,7 @@ slices:
   title: The WYRD seam
   summary: world-state from Volmarr's WYRD engine can inform long campaigns (which machine is free, which
     forge is hot) — the workshop aware of itself.
-  status: queued
+  status: done
 - id: M-250
   part: 10
   title: Webhook doors

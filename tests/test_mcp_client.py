@@ -434,8 +434,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 248
-    assert citizen["next_slice"] == "M-249"
+    assert citizen["done"] == 249
+    assert citizen["next_slice"] == "M-250"
     assert citizen["m233_title"] == "MCP client"
     assert citizen["m233_part"] == 10
     assert citizen["m233_status"] == "done"
@@ -910,8 +910,8 @@ class TestConnectionAgentStatus:
         assert status["ledger"]["current_connection"] == "connection-bare-connection"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 248
-        assert status["roadmap"]["next_slice"] == "M-249"
+        assert status["roadmap"]["done"] == 249
+        assert status["roadmap"]["next_slice"] == "M-250"
         assert status["roadmap"]["m233_title"] == "MCP client"
         assert "held as data alone" in status["rule"]
         assert "connection-bare-connection" in status["plain_words"]
