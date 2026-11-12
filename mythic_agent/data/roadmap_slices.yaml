@@ -1442,7 +1442,7 @@ slices:
   part: 10
   title: MCP registry kindness
   summary: known servers browsable and addable from the TUI with their tools listed before trust is granted.
-  status: queued
+  status: done
 - id: M-236
   part: 10
   title: Skills standard
