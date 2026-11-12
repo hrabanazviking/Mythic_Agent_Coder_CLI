@@ -1217,3 +1217,9 @@ mythic_agent/agents/llm.py:75953:register_aesirdeepening_book:method
 mythic_agent/agents/llm.py:75986:record_aesirdeepening_book:method
 mythic_agent/agents/llm.py:76042:view_aesirdeepening:method
 mythic_agent/agents/llm.py:76080:report_aesirdeepening:method
+mythic_agent/agents/llm.py:76498:records_for_craft:method
+mythic_agent/agents/llm.py:76598:register_githostparity_record:method
+mythic_agent/agents/llm.py:76628:register_githostparity_records:method
+mythic_agent/agents/llm.py:76658:record_githostparity_records:method
+mythic_agent/agents/llm.py:76708:view_githostparity:method
+mythic_agent/agents/llm.py:76753:report_githostparity:method
