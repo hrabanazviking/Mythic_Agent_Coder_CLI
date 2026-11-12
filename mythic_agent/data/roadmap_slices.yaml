@@ -1448,7 +1448,7 @@ slices:
   title: Skills standard
   summary: reusable skill packs (the Agent Skills form) loadable per project and per user; Volmarr's own
     skill library is the first citizen.
-  status: queued
+  status: done
 - id: M-237
   part: 10
   title: Custom commands

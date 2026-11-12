@@ -360,7 +360,7 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["next_slice"] == "M-236"
+    assert citizen["next_slice"] == "M-237"
     assert citizen["m202_title"] == "Intent capture (PROJECT_FORGE form)"
     assert citizen["m202_part"] == 9
     assert citizen["m202_status"] == "done"
@@ -802,7 +802,7 @@ class TestIntentAgentStatus:
         assert status["board"]["current_intent"] == "intent-drifting-plan"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["next_slice"] == "M-236"
+        assert status["roadmap"]["next_slice"] == "M-237"
         assert "held as data alone" in status["rule"]
         assert "intent-drifting-plan" in status["plain_words"]
         assert "Intent Capture (M-202)" in status["screen"]
