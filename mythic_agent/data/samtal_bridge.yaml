@@ -1,0 +1,229 @@
+schema: mythic.samtal_bridge/1
+repo: M-243
+samtal_bridge:
+  title: Samtal bridge at the M-243 slice run
+halls:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-dispatch book
+  origin_session: session-m243
+  hall_id: hall-longhouse
+  seq: 1
+  title: Longhouse hall
+  state: live
+  detail: 'The slice the tracker looks back on first: banked at M-230, standing active in the cross-app
+    method honesty''s hands.'
+  reach: direct
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-dispatch book
+  origin_session: session-m243
+  hall_id: hall-hearth
+  seq: 2
+  title: Hearth hall
+  state: live
+  detail: 'This very slice, standing active: the samtalbridge book holding its own hall as data.'
+  reach: relayed
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-dispatch book
+  origin_session: session-m243
+  hall_id: hall-archive
+  seq: 3
+  title: Archive hall
+  state: dormant
+  detail: A queued slice the tracker has not taken yet; an dispatch naming it refuses by name.
+  reach: unlinked
+dispatch_records:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-dispatch book
+  origin_session: session-m243
+  dispatch_id: dispatch-held-dispatch
+  seq: 1
+  hall_id: hall-longhouse
+  title: The held dispatch
+  stages: &id001
+  - summoned
+  - heard
+  - answered
+  - approved
+  - held
+  claims:
+  - hall_ref
+  detail: 'The opening dispatch: a slice summoned for the hall in its home tool, heard across the workshop,
+    answered where it lives, approved to the tracker at hand and held honestly, held with the tool held
+    as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-dispatch book
+  origin_session: session-m243
+  dispatch_id: dispatch-retried-dispatch
+  seq: 2
+  hall_id: hall-longhouse
+  title: The retried dispatch
+  stages:
+  - summoned
+  - heard
+  - answered
+  - approved
+  - summoned
+  - heard
+  - answered
+  - approved
+  - held
+  claims: []
+  detail: 'The retried dispatch: a first approved step sent the standing back, the slice was summoned
+    and heard again and the tracking held a second time before the holding stood.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-dispatch book
+  origin_session: session-m243
+  dispatch_id: dispatch-own-dispatch
+  seq: 3
+  hall_id: hall-hearth
+  title: The tracker's own dispatch
+  stages: *id001
+  claims:
+  - reach_ref
+  detail: 'The tracker''s own dispatch: this slice''s own dispatch, holding its dispatch ref as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-dispatch book
+  origin_session: session-m243
+  dispatch_id: dispatch-bare-dispatch
+  seq: 4
+  hall_id: hall-hearth
+  title: The bare claim dispatch
+  stages: *id001
+  claims:
+  - feeling
+  detail: An dispatch that held a feeling in place of held proof, standing open.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-dispatch book
+  origin_session: session-m243
+  dispatch_id: dispatch-leaping-dispatch
+  seq: 5
+  hall_id: hall-hearth
+  title: The leaping dispatch
+  stages:
+  - summoned
+  - heard
+  - held
+  claims: []
+  detail: An dispatch that stepped from heard straight to held, outside the dispatch sequence, standing
+    open.
+views:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-dispatch book
+  origin_session: session-m243
+  view_id: view-dispatches
+  seq: 1
+  view_filter: all
+  detail: Every held dispatch, complete or not.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-dispatch book
+  origin_session: session-m243
+  view_id: view-held
+  seq: 2
+  view_filter: complete
+  detail: Only the dispatches standing complete.
+notes:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-dispatch book
+  origin_session: session-m243
+  note_id: note-note-first
+  seq: 1
+  dispatch_id: dispatch-held-dispatch
+  stance: note
+  target: the opening dispatch
+  title: Dispatches first
+  detail: The tracker opens by naming the slice first, told honestly.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-dispatch book
+  origin_session: session-m243
+  note_id: note-concern-bare
+  seq: 2
+  dispatch_id: dispatch-bare-dispatch
+  stance: concern
+  target: the bare claim dispatch
+  title: Claim summoned
+  detail: An dispatch that held a feeling claim is not the tracker's way, and stands summoned.
+traces:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-dispatch book
+  origin_session: session-m243
+  trace_id: trace-first
+  seq: 1
+  dispatch_id: dispatch-held-dispatch
+  trace: summoned > heard > answered > approved > held
+  detail: 'The opening dispatch''s walk, held exactly as walked: the trace is the walk itself.'
+panels:
+- panel_id: panel-samtal
+  view_id: view-dispatches
+  view_filter: all
+  rows:
+  - item_id: dispatch-held-dispatch
+    standing: complete
+    label: The held dispatch
+    segment: 'dispatch-held-dispatch: The held dispatch - hall: ''hall-longhouse'' - stage: ''held'' -
+      stages: 5 - claims: ''hall_ref'' - detail: ''The opening dispatch: a slice summoned for the hall
+      in its home tool, heard across the workshop, answered where it lives, approved to the tracker at
+      hand and held honestly, held with the tool held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: dispatch-retried-dispatch
+    standing: complete
+    label: The retried dispatch
+    segment: 'dispatch-retried-dispatch: The retried dispatch - hall: ''hall-longhouse'' - stage: ''held''
+      - stages: 9 - claims: ''none'' - detail: ''The retried dispatch: a first approved step sent the
+      standing back, the slice was summoned and heard again and the tracking held a second time before
+      the holding stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: dispatch-own-dispatch
+    standing: complete
+    label: The tracker's own dispatch
+    segment: 'dispatch-own-dispatch: The tracker''s own dispatch - hall: ''hall-hearth'' - stage: ''held''
+      - stages: 5 - claims: ''reach_ref'' - detail: ''The tracker''s own dispatch: this slice''s own dispatch,
+      holding its dispatch ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: dispatch-bare-dispatch
+    standing: open
+    label: The bare claim dispatch
+    segment: 'dispatch-bare-dispatch: The bare claim dispatch - hall: ''hall-hearth'' - stage: ''held''
+      - stages: 5 - claims: ''feeling'' - detail: ''An dispatch that held a feeling in place of held proof,
+      standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof: complete stands
+      on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: dispatch-leaping-dispatch
+    standing: open
+    label: The leaping dispatch
+    segment: 'dispatch-leaping-dispatch: The leaping dispatch - hall: ''hall-hearth'' - stage: ''held''
+      - stages: 3 - claims: ''none'' - detail: ''An dispatch that stepped from heard straight to held,
+      outside the dispatch sequence, standing open.'' - gaps: steps from heard to held, which the dispatch
+      sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The dispatch book holds 5 dispatches as of 2026-11-11: the view ''all'' shows 5 of them: complete
+    3, open 2; 3 of the shown dispatches stand complete.'
+  - Rows stand in held dispatch, the dispatch the book itself stands in, so two panels of one view diff
+    cleanly, segment by segment.
+  - Every segment is derived from its dispatch's own fields - the hall it answers for, the steps it walked
+    in the open and the evidence it honestly carries - and no judgement is stored on any dispatch.
+  - 'Completeness is answered from the held records alone: a dispatch that steps outside the dispatch
+    sequence, carries a bare claim in place of held evidence, or has not summoned held stands open, summoned
+    in its gaps, and the dispatch index is derived from the held dispatches, never stored where it could
+    drift.'
