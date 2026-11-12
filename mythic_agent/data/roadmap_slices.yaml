@@ -1511,7 +1511,7 @@ slices:
   title: CI bridges
   summary: read CI results as facts into the session; propose workflow changes only as drafts (and manual-dispatch
     by default on Volmarr's repos, M-227).
-  status: queued
+  status: done
 - id: M-248
   part: 10
   title: Issue trackers beyond git hosts

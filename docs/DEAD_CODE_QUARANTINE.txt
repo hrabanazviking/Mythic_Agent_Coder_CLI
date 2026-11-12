@@ -1223,3 +1223,10 @@ mythic_agent/agents/llm.py:76628:register_githostparity_records:method
 mythic_agent/agents/llm.py:76658:record_githostparity_records:method
 mythic_agent/agents/llm.py:76708:view_githostparity:method
 mythic_agent/agents/llm.py:76753:report_githostparity:method
+mythic_agent/agents/llm.py:77296:records_for_conclusion:method
+mythic_agent/agents/llm.py:77415:register_cibridges_record:method
+mythic_agent/agents/llm.py:77445:register_cibridges_records:method
+mythic_agent/agents/llm.py:77475:record_cibridges_records:method
+mythic_agent/agents/llm.py:77526:view_cibridges:method
+mythic_agent/agents/llm.py:77575:propose_cibridges_draft:method
+mythic_agent/agents/llm.py:77623:report_cibridges:method
