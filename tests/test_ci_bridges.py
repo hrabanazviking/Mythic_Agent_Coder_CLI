@@ -1,4 +1,11 @@
-"""Slice tests for M-247 CI bridges (pure layer)."""
+"""M-247 CI bridges - pure + agent layer tests.
+
+TIER: unit
+
+CI results enter the session as facts only when they rest on
+held evidence; workflow changes are proposed only as drafts,
+manual-dispatch by default on Volmarr's repos (M-227).
+"""
 import pytest
 
 from mythic_agent.core.ci_bridges import (
