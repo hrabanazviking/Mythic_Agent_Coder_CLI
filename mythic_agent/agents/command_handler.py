@@ -503,6 +503,8 @@ class CommandHandler:
                 self._handle_idecompanions(args)
             elif cmd == "/rivalimporters":
                 self._handle_rivalimporters(args)
+            elif cmd == "/samverkbridge":
+                self._handle_samverkbridge(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -12964,6 +12966,101 @@ class CommandHandler:
                 text = format_verdict(primary.rivalimporters_book())
             else:
                 text = primary.rivalimporters_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_samverkbridge(self, args: str):
+        """M-242: /samverkbridge - the exchange engine as data.
+
+        ``/samverkbridge`` shows the exchange book held this
+        session - exchange repos as data: one record per
+        exchange, held whole with the active repo it
+        was held from, its one verifiable stage
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five exchanges at the M-203 repo
+        repo, with its three repo references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/samverkbridge exchange <exchange-id>``
+        shows one exchange whole; ``/samverkbridge stage
+        <stage>`` shows the exchange one stage line
+        reaches, or names the stage unheld;
+        ``/samverkbridge repo <repo-id>`` shows the book's
+        exchanges of one repo; ``/samverkbridge view <view-id>``
+        shows one held view record; ``/samverkbridge note
+        <note-id>`` shows one held stance record;
+        ``/samverkbridge index`` shows the index derived
+        from the whole book's held exchanges; ``/samverkbridge
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/samverkbridge
+        verdict`` shows the verdict derived for the
+        whole book. Exchange registers and publishes
+        nothing as session news: exchanges and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every exchange held for the session is
+        journaled as a exchange_exchange session event,
+        every view as a exchange_view session event,
+        every derived panel as a samverkbridge_panel
+        session event and every derived verdict as a
+        samverkbridge_verdict session event. This heading
+        builds no repo, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.samverk_bridge import (
+            format_exchange,
+            format_book,
+            format_stage,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_exchange_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_exchange_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "exchange":
+                text = format_exchange(
+                    primary.get_samverkbridge_exchange(target),
+                    primary.samverkbridge_book())
+            elif stance == "stage":
+                text = format_stage(
+                    primary.samverkbridge_book(), target)
+            elif stance == "repo":
+                text = format_book(
+                    primary.samverkbridge_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_samverkbridge_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.samverkbridge_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.samverkbridge_book())
+            elif stance == "panel":
+                text = format_panel(primary.samverkbridge_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.samverkbridge_book())
+            else:
+                text = primary.samverkbridge_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
