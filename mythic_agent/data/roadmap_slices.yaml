@@ -1465,7 +1465,7 @@ slices:
   part: 10
   title: IDE companions I — VS Code family
   summary: open-file-at-line, selection-into-context, and diff-in-editor bridges.
-  status: queued
+  status: done
 - id: M-240
   part: 10
   title: IDE companions II — JetBrains and the generic road

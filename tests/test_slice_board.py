@@ -355,10 +355,10 @@ def test_card_from_roadmap_slice_derives_its_column():
     assert banked.column == "banked"
     assert banked.title == "The TUI redesign charter"
     queued = card_from_roadmap_slice(
-        by_id["M-239"], position=3, column="queued")
+        by_id["M-240"], position=3, column="queued")
     assert queued.column == "queued"
     with pytest.raises(ValueError):
-        card_from_roadmap_slice(by_id["M-239"], position=3,
+        card_from_roadmap_slice(by_id["M-240"], position=3,
                                 column="banked")
     ghost = SimpleNamespace(
         id="M-190", part=8, title="A ghost slice",
@@ -546,7 +546,7 @@ def test_board_laws_one_card_per_slice_and_actions_in_order():
     assert board.effective_card("M-190").column == "building"
     assert board.action_for("act-open").kind == "advance"
     with pytest.raises(KeyError):
-        board.card_for("M-239")
+        board.card_for("M-240")
     with pytest.raises(KeyError):
         board.action_for("act-nope")
     assert total_cards(board) == 3
@@ -590,7 +590,7 @@ def test_registry_holds_cards_and_actions_one_by_one():
             slice_id="M-192"))
     assert [a.action_id for a in registry.list_actions()] == ["act-1"]
     with pytest.raises(KeyError):
-        registry.get_card("M-239")
+        registry.get_card("M-240")
 
 
 def test_registry_register_board_and_refusals():
@@ -1312,12 +1312,12 @@ class TestSliceBoardAgentHolding:
             self, agent):
         roadmap = load_roadmap()
         by_id = {item.id: item for item in roadmap.slices}
-        card = card_from_roadmap_slice(by_id["M-239"], position=1)
+        card = card_from_roadmap_slice(by_id["M-240"], position=1)
         assert card.column == "queued"
-        assert card.title == "IDE companions I — VS Code family"
+        assert card.title == "IDE companions II — JetBrains and the generic road"
         with pytest.raises(ValueError):
             card_from_roadmap_slice(
-                by_id["M-239"], position=1, column="banked")
+                by_id["M-240"], position=1, column="banked")
         outcome = agent.register_slice_board_card(card)
         assert outcome["card"]["column"] == "queued"
         banked = card_from_roadmap_slice(by_id["M-171"], position=2)
@@ -1476,15 +1476,15 @@ class TestSliceBoardAgentHolding:
         before = {item.id: item.status
                   for item in load_roadmap().slices}
         agent.register_slice_board_card(_card(
-            slice_id="M-239", title="IDE companions I — VS Code family"))
+            slice_id="M-240", title="IDE companions II — JetBrains and the generic road"))
         agent.apply_slice_board_action(
-            "strike", slice_id="M-239",
+            "strike", slice_id="M-240",
             detail="struck by hand for the tests.")
-        assert agent.get_slice_board_card("M-239").struck is True
+        assert agent.get_slice_board_card("M-240").struck is True
         after = {item.id: item.status
                  for item in load_roadmap().slices}
         assert after == before
-        assert after["M-239"] == "queued"
+        assert after["M-240"] == "queued"
 
 
 class TestSliceBoardTerminalSurface:

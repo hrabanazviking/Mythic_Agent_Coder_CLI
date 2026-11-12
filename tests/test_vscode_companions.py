@@ -434,11 +434,11 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 238
-    assert citizen["next_slice"] == "M-239"
+    assert citizen["done"] == 239
+    assert citizen["next_slice"] == "M-240"
     assert citizen["m239_title"] == "IDE companions I — VS Code family"
     assert citizen["m239_part"] == 10
-    assert citizen["m239_status"] == "queued"
+    assert citizen["m239_status"] == "done"
 
 def test_companion_record_round_trips():
     companion = _companion()
@@ -910,8 +910,8 @@ class TestCompanionAgentStatus:
         assert status["ledger"]["current_companion"] == "companion-bare-companion"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 238
-        assert status["roadmap"]["next_slice"] == "M-239"
+        assert status["roadmap"]["done"] == 239
+        assert status["roadmap"]["next_slice"] == "M-240"
         assert status["roadmap"]["m239_title"] == "IDE companions I — VS Code family"
         assert "held as data alone" in status["rule"]
         assert "companion-bare-companion" in status["plain_words"]
