@@ -1505,7 +1505,7 @@ slices:
   part: 10
   title: GitHub/GitLab/Bitbucket parity
   summary: the forge's git craft is host-agnostic; hosts are registry entries like providers.
-  status: queued
+  status: done
 - id: M-247
   part: 10
   title: CI bridges
