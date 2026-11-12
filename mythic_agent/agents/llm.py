@@ -498,6 +498,159 @@ def parse_aesirdeepening_args(args: Any):
                 needs.append(token)
         return ("ask", rest[0], tuple(needs), model)
     raise ValueError(AESIRDEEPENING_USAGE)
+
+
+#: The /githostparity slash grammar (M-246, agent layer).
+GITHOSTPARITY_USAGE = (
+    "Usage: /githostparity | /githostparity hosts | "
+    "/githostparity host <host> | /githostparity record "
+    "<host> | /githostparity standing <host> | "
+    "/githostparity index | /githostparity verdict")
+
+
+class GitHostParityRegistry:
+    """Session registry for the git host parity (M-246).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.git_host_parity``):
+    it holds the shipped host registry (one entry per
+    host, held as data like a provider registry) beside
+    the parity records held one by one for the session,
+    one record per host. A record is validated whole by
+    the pure layer before it is held - a record naming
+    an unknown craft, stage or claim refuses by name
+    here too, and a refusal holds nothing new. A second
+    record for a host already held refuses likewise.
+    Holding calls no host API, clones nothing, pushes
+    nothing and probes no network: the registry holds
+    tellings as data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.git_host_parity import load_host_registry
+        self._hosts = load_host_registry()
+        self._records: dict[str, Any] = {}
+
+    def hosts(self):
+        """The shipped host registry held by the session."""
+        return self._hosts
+
+    def register_record(self, record: Any):
+        """Hold one host's parity record, validated whole.
+
+        A second record for a host already held refuses,
+        and a refusal holds nothing new.
+        """
+        from ..core.git_host_parity import (
+            validate_parity_record)
+        if not isinstance(record, dict):
+            record = record.record()
+        held = validate_parity_record(record)
+        if held.host in self._records:
+            raise ValueError(
+                "a parity record for host "
+                f"{held.host!r} already stands held for "
+                "the session")
+        self._records[held.host] = held
+        return held
+
+    def get_record(self, host: Any):
+        """The held parity record for one host, by name."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[host]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no parity record for "
+                f"host {host!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of parity records, validated whole.
+
+        Every record is validated, and checked against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        from ..core.git_host_parity import (
+            validate_parity_record)
+        validated = []
+        seen: set = set()
+        for record in records:
+            if not isinstance(record, dict):
+                record = record.record()
+            held = validate_parity_record(record)
+            if held.host in self._records or held.host in seen:
+                raise ValueError(
+                    "a parity record for host "
+                    f"{held.host!r} already stands held "
+                    "for the session")
+            seen.add(held.host)
+            validated.append(held)
+        for held in validated:
+            self._records[held.host] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The parity records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the parity records."""
+        return list(self._records.values())
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.git_host_parity import derive_standing
+        return [derive_standing(record)
+                for record in self._records.values()]
+
+    def book(self):
+        """The held pieces composed as a parity book.
+
+        The book is plain data: the shipped host
+        registry's entries beside the parity records
+        held for the session, under the pure layer's
+        schema word.
+        """
+        from ..core.git_host_parity import GIT_HOST_SCHEMA
+        return {
+            "schema": GIT_HOST_SCHEMA,
+            "hosts": [entry.record()
+                      for entry in self._hosts.hosts],
+            "records": [record.record()
+                        for record in self._records.values()],
+        }
+
+
+def parse_githostparity_args(args: Any):
+    """Parse /githostparity arguments (M-246).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``hosts``, ``index`` and ``verdict`` name
+    their own stance with no target; ``host <host>``,
+    ``record <host>`` and ``standing <host>`` name one
+    host. Anything else raises ValueError carrying the
+    usage line, exactly as the sibling parsers refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("hosts", "index", "verdict"):
+        if rest:
+            raise ValueError(GITHOSTPARITY_USAGE)
+        return (head, None, (), None)
+    if head in ("host", "record", "standing"):
+        if len(rest) != 1:
+            raise ValueError(GITHOSTPARITY_USAGE)
+        return (head, rest[0], (), None)
+    raise ValueError(GITHOSTPARITY_USAGE)
+
+
 class Agent:
     def __init__(self, project_root: Path | None = None, name: str = "Primary", config: dict[str, Any] | None = None):
         import copy
@@ -76155,6 +76308,521 @@ class Agent:
         if announced is None:
             announced = set()
             self._aesirdeepening_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _githostparity_registry(self):
+        """The held git host parity registry (M-246).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the shipped host registry beside the
+        session's parity records one by one, beside the
+        session keyboard registry (M-200) and never in
+        it. It is created on first use, so an agent
+        whose ``__init__`` never ran still holds exactly
+        one. The attribute is named
+        ``_githostparity_store``, never the method's
+        own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_githostparity_store", None)
+        if registry is None:
+            registry = GitHostParityRegistry()
+            self._githostparity_store = registry
+        return registry
+
+    def githostparity_hosts(self):
+        """The shipped host registry, as data (M-246).
+
+        One entry per host - github, gitlab, bitbucket -
+        held as registry entries like providers, each
+        naming the word that host gives the request
+        craft. Resolution registers and publishes
+        nothing, calls no host and probes no network.
+        """
+        return self._githostparity_registry().hosts()
+
+    def githostparity_book(self):
+        """The session's parity book, as data (M-246).
+
+        The held registry's book when the session holds
+        records one by one - otherwise the book boarded
+        whole through
+        :meth:`record_githostparity_records`, or the
+        shipped host registry with no records held until
+        one is held. Resolution registers and publishes
+        nothing.
+        """
+        registry = self._githostparity_registry()
+        if registry.list_records():
+            held = getattr(self, "_githostparity_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [r["host"] for r in held["records"]]
+                    == [r["host"] for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_githostparity_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _githostparity_effective_record(self, host: Any):
+        """The record a host's standing is derived from (M-246).
+
+        The held record when one stands; otherwise an
+        empty record - no craft named, no stage walked,
+        no claim rested on - so an unheld host derives
+        an honest open standing naming its gaps, never
+        a dressed claim. An unknown host refuses by
+        name through the shipped registry first.
+        """
+        from ..core.git_host_parity import ParityRecord
+        registry = self._githostparity_registry()
+        registry.hosts().for_host(host)
+        try:
+            return registry.get_record(host)
+        except ValueError:
+            return ParityRecord(
+                host=host, crafts=(), stages=(), claims=(),
+                detail="No parity record held this session.")
+
+    def _githostparity_screen(self) -> str:
+        """The /githostparity screen for the session (M-246)."""
+        from ..core.git_host_parity import (
+            format_hosts, format_parity)
+        registry = self._githostparity_registry()
+        lines = [format_hosts(registry.hosts())]
+        records = registry.list_records()
+        if not records:
+            lines.append(
+                "Parity records: none held this session - "
+                "parity is never claimed without held "
+                "evidence, and no host stands at parity "
+                "until its record is held.")
+        else:
+            lines.extend(format_parity(record)
+                         for record in records)
+        return "\n".join(lines)
+
+    def githostparity_status(self) -> dict[str, Any]:
+        """The git host parity account, in plain data (M-246).
+
+        The shipped host registry's entries and the
+        parity records held this session as plain
+        records (empty until held), the session book's
+        record (the shipped host registry with no
+        records - until items are held), the hosts
+        standing held and still open derived at call
+        time, the index and verdict derived at call
+        time, the hosts and records told in plain words
+        through the pure formatters, and the plain
+        explanation. A session holding no record for a
+        host derives that host's open standing.
+        Resolution registers and publishes nothing,
+        calls no host API, clones nothing, pushes
+        nothing and probes no network: this layer tells
+        only.
+        """
+        from ..core import git_host_parity as camp_module
+        registry = self._githostparity_registry()
+        held_records = registry.list_records()
+        book = self.githostparity_book()
+        index = self.githostparity_index()
+        return {
+            "records": [r.record() for r in held_records],
+            "hosts": [h.record()
+                      for h in registry.hosts().hosts],
+            "book": (book if held_records
+                     or getattr(self, "_githostparity_held",
+                                None) is not None else None),
+            "githostparity_book": {
+                "schema": camp_module.GIT_HOST_SCHEMA,
+                "hosts": book["hosts"],
+                "records": book["records"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.githostparity_verdict()["verdict"],
+            "hosts_text": camp_module.format_hosts(
+                registry.hosts()),
+            "records_text": "\n".join(
+                camp_module.format_parity(record)
+                for record in held_records),
+            "plain_words": camp_module.plain_words(),
+            "screen": self._githostparity_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": GITHOSTPARITY_USAGE,
+        }
+
+    def get_githostparity_host(self, host: Any):
+        """The one host entry a host name names (M-246).
+
+        The shipped host registry answers: a host the
+        parity book does not hold refuses by name,
+        exactly as the pure layer answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._githostparity_registry().hosts().for_host(
+            host)
+
+    def get_githostparity_record(self, host: Any):
+        """The one parity record a host name names (M-246).
+
+        The session's held registry answers: a host the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._githostparity_registry().get_record(host)
+
+    def githostparity_standing(self, host: Any):
+        """Derive one host's parity standing (M-246).
+
+        The standing is derived at call time by the
+        pure layer from the host's effective record -
+        the held record, or the honest empty record
+        while none stands held: held only on a full
+        legal walk resting on held evidence, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.git_host_parity import derive_standing
+        return derive_standing(
+            self._githostparity_effective_record(host))
+
+    def records_for_craft(self, craft: Any):
+        """The held records naming one git craft (M-246)."""
+        from ..core.git_host_parity import CRAFTS
+        if craft is None or not str(craft).strip():
+            raise ValueError(
+                "a craft must be named to list its records")
+        if craft not in CRAFTS:
+            raise ValueError(
+                f"unknown craft {craft!r}; the parity "
+                "book names: " + ", ".join(CRAFTS))
+        return [r for r in
+                self._githostparity_registry().list_records()
+                if craft in r.crafts]
+
+    def githostparity_held(self):
+        """The hosts whose parity stands held (M-246)."""
+        from ..core.git_host_parity import HOSTS
+        return [host for host in HOSTS
+                if self.githostparity_standing(host).standing
+                == "held"]
+
+    def githostparity_index(self) -> dict[str, Any]:
+        """Derive the parity index at call time (M-246).
+
+        The index is derived from every host's effective
+        record alone - each host's derived standing in
+        registry order, the held hosts named and the
+        open hosts named in its gaps. Deriving registers
+        and publishes nothing, calls no host API and
+        probes no network. Returns the derived index
+        record, the rendered standings, the screen and
+        the plain explanation.
+        """
+        from ..core import git_host_parity as camp_module
+        standings = [self.githostparity_standing(host)
+                     for host in camp_module.HOSTS]
+        index = {
+            "type": "githostparity_index",
+            "slice": camp_module.GIT_HOST_SLICE,
+            "schema": camp_module.GIT_HOST_SCHEMA,
+            "standings": [s.record() for s in standings],
+            "held": [s.host for s in standings
+                     if s.standing == "held"],
+            "gaps": [s.host for s in standings
+                     if s.standing != "held"],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_parity(
+                    self._githostparity_effective_record(host))
+                for host in camp_module.HOSTS),
+            "screen": self._githostparity_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def githostparity_verdict(self) -> dict[str, Any]:
+        """Derive the parity verdict at call time (M-246).
+
+        The verdict is derived from every host's
+        effective record alone: ``held`` when every
+        host's parity stands held on held evidence,
+        ``open`` while any host stands short of held -
+        with the held and open hosts named either way.
+        Deriving registers and publishes nothing.
+        Returns the verdict record, its plain-words
+        telling, the screen and the plain explanation.
+        """
+        from ..core import git_host_parity as camp_module
+        held = self.githostparity_held()
+        open_hosts = [host for host in camp_module.HOSTS
+                      if host not in held]
+        if not open_hosts:
+            word = "held"
+            telling = (
+                "Parity stands held: every host's record "
+                "walks the whole parity walk on held "
+                "evidence - " + ", ".join(held) + ".")
+        else:
+            word = "open"
+            telling = (
+                "Parity stands open: parity is never "
+                "claimed without held evidence, and these "
+                "hosts stand short of held - "
+                + ", ".join(open_hosts) + ".")
+        verdict = {
+            "type": "githostparity_verdict",
+            "slice": camp_module.GIT_HOST_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_hosts,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._githostparity_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_githostparity_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one host's parity record for the session (M-246).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        craft, stage or claim refuses by name on this
+        road too, and a refusal holds nothing new and
+        publishes nothing. A held record is published
+        as its ``githostparity_record`` session-news
+        record through the checkpoint road. Returns the
+        held record, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a record calls no host API
+        and probes no network: the telling stands on
+        this layer's book, as data.
+        """
+        from ..core import git_host_parity as camp_module
+        registry = self._githostparity_registry()
+        held = registry.register_record(record)
+        news = {"type": "githostparity_record",
+                **held.record()}
+        self._publish_githostparity_record(news)
+        return {
+            "record": held.record(),
+            "record_news": news,
+            "screen": self._githostparity_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_githostparity_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of parity records for the session (M-246).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order
+        given. Returns the held records, their news
+        records, the count of records held, the screen,
+        and the explanation. Registering calls no host
+        API and probes no network.
+        """
+        from ..core import git_host_parity as camp_module
+        registry = self._githostparity_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "githostparity_record", **r.record()}
+            for r in validated]
+        for news in news_records:
+            self._publish_githostparity_record(news)
+        return {
+            "records": [r.record() for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._githostparity_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_githostparity_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of parity records (M-246).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's
+        book; the same set boarded twice refuses -
+        fingerprinted on its hosts and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held
+        book, its records, their news records, the
+        count, the screen, and the explanation.
+        Recording calls no host API, clones nothing and
+        probes no network.
+        """
+        from ..core import git_host_parity as camp_module
+        validated = [
+            camp_module.validate_parity_record(
+                record.record()
+                if not isinstance(record, dict) else record)
+            for record in records]
+        fingerprint = (tuple(r.host for r in validated),
+                       camp_module.GIT_HOST_SCHEMA)
+        boarded = getattr(self, "_githostparity_recorded",
+                          None)
+        if boarded is None:
+            boarded = set()
+            self._githostparity_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these parity records are already boarded "
+                "for the session; a set is boarded once")
+        registry = self._githostparity_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._githostparity_held = registry.book()
+        news_records = [
+            {"type": "githostparity_record", **r.record()}
+            for r in validated]
+        for news in news_records:
+            self._publish_githostparity_record(news)
+        return {
+            "book": self._githostparity_held,
+            "records": [r.record() for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._githostparity_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_githostparity(
+            self, host: Any) -> dict[str, Any]:
+        """Stand one host's parity on the session book (M-246).
+
+        This parity book's own viewing road: the host's
+        entry is read from the shipped registry and its
+        standing is derived by the pure layer from the
+        host's effective record, and published as its
+        ``githostparity_standing`` session news, with
+        the held record published as its
+        ``githostparity_record`` session news when one
+        stands held. Returns the host's entry, its
+        derived standing, the held record when one
+        stands, their news records, the screen rendered
+        after they landed and the plain explanation.
+        HONEST BOUNDARY: viewing tells parity as data
+        alone - it calls no host API, clones nothing,
+        pushes nothing and probes no network.
+        """
+        from ..core import git_host_parity as camp_module
+        entry = self.get_githostparity_host(host)
+        standing = self.githostparity_standing(host)
+        try:
+            held = self.get_githostparity_record(host)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "githostparity_record",
+                           **held.record()}
+            self._publish_githostparity_record(record_news)
+        standing_news = {"type": "githostparity_standing",
+                         **standing.record()}
+        self._publish_githostparity_record(standing_news)
+        return {
+            "host": entry.record(),
+            "standing": standing.record(),
+            "record": (held.record()
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._githostparity_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def report_githostparity(self) -> dict[str, Any]:
+        """Render the session parity, as a report (M-246).
+
+        The shipped host registry and every host's
+        derived standing are rendered through the pure
+        formatters alone. Rendering registers and
+        publishes nothing, calls no host API, clones
+        nothing and writes nothing. Returns the book,
+        the hosts and held records as plain records,
+        the derived standings, the rendered hosts and
+        standings, the index, the verdict, the screen,
+        and the plain explanation.
+        """
+        from ..core import git_host_parity as camp_module
+        registry = self._githostparity_registry()
+        book = self.githostparity_book()
+        standings = [self.githostparity_standing(host)
+                     for host in camp_module.HOSTS]
+        return {
+            "book": book,
+            "hosts": [h.record()
+                      for h in registry.hosts().hosts],
+            "records": [r.record()
+                        for r in registry.list_records()],
+            "standings": [s.record() for s in standings],
+            "index": self.githostparity_index()["index"],
+            "verdict": self.githostparity_verdict()["verdict"],
+            "hosts_text": camp_module.format_hosts(
+                registry.hosts()),
+            "records_text": "\n".join(
+                camp_module.format_parity(
+                    self._githostparity_effective_record(host))
+                for host in camp_module.HOSTS),
+            "screen": self._githostparity_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_githostparity_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one parity record as session news (M-246).
+
+        The agent layer's ``githostparity_record`` and
+        ``githostparity_standing`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is attached. Each
+        record is announced at most once per telling: a
+        parity record under its host, its crafts, its
+        walked stages and its claims, and a standing
+        under its host, its standing word, its stage
+        and its gaps, so a standing grown by a newly
+        held record announces again as the new figure
+        it is. A foreign record type is never published
+        on this road.
+        """
+        if record.get("type") == "githostparity_record":
+            target = ("githostparity_record",
+                      record.get("host"),
+                      tuple(record.get("crafts", [])),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "githostparity_standing":
+            target = ("githostparity_standing",
+                      record.get("host"),
+                      record.get("standing"),
+                      record.get("stage"),
+                      tuple(record.get("gaps", [])))
+        else:
+            return
+        announced = getattr(self, "_githostparity_announced",
+                            None)
+        if announced is None:
+            announced = set()
+            self._githostparity_announced = announced
         if target in announced:
             return
         announced.add(target)
