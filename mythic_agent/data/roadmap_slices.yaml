@@ -1477,7 +1477,7 @@ slices:
   title: Rival importers
   summary: settings, commands, instruction files, and MCP configs imported from Claude Code, Codex, OpenCode,
     Aider, and Gemini/Antigravity layouts (per M-014's study) — arriving users keep their habits.
-  status: queued
+  status: done
 - id: M-242
   part: 10
   title: Samverk bridge
