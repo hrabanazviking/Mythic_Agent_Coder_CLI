@@ -434,11 +434,11 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 233
-    assert citizen["next_slice"] == "M-234"
+    assert citizen["done"] == 234
+    assert citizen["next_slice"] == "M-235"
     assert citizen["m234_title"] == "MCP server v2"
     assert citizen["m234_part"] == 10
-    assert citizen["m234_status"] == "queued"
+    assert citizen["m234_status"] == "done"
 
 def test_exposure_record_round_trips():
     exposure = _exposure()
@@ -910,8 +910,8 @@ class TestExposureAgentStatus:
         assert status["ledger"]["current_exposure"] == "exposure-bare-exposure"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 233
-        assert status["roadmap"]["next_slice"] == "M-234"
+        assert status["roadmap"]["done"] == 234
+        assert status["roadmap"]["next_slice"] == "M-235"
         assert status["roadmap"]["m234_title"] == "MCP server v2"
         assert "held as data alone" in status["rule"]
         assert "exposure-bare-exposure" in status["plain_words"]

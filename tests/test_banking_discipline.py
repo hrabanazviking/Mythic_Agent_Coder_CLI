@@ -436,8 +436,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 233
-    assert citizen["next_slice"] == "M-234"
+    assert citizen["done"] == 234
+    assert citizen["next_slice"] == "M-235"
     assert citizen["m206_title"] == "Banking discipline"
     assert citizen["m206_part"] == 9
     assert citizen["m206_status"] == "done"
@@ -913,8 +913,8 @@ class TestBankingAgentStatus:
         assert status["board"]["current_banking"] == "banking-bare-gate"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 233
-        assert status["roadmap"]["next_slice"] == "M-234"
+        assert status["roadmap"]["done"] == 234
+        assert status["roadmap"]["next_slice"] == "M-235"
         assert status["roadmap"]["m206_title"] == "Banking discipline"
         assert "held as data alone" in status["rule"]
         assert "banking-bare-gate" in status["plain_words"]
