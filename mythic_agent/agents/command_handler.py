@@ -495,6 +495,8 @@ class CommandHandler:
                 self._handle_skillsstandard(args)
             elif cmd == "/customcommands":
                 self._handle_customcommands(args)
+            elif cmd == "/pluginbundles":
+                self._handle_pluginbundles(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -12576,6 +12578,101 @@ class CommandHandler:
                 text = format_verdict(primary.customcommands_book())
             else:
                 text = primary.customcommands_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_pluginbundles(self, args: str):
+        """M-238: /pluginbundles - the bundle engine as data.
+
+        ``/pluginbundles`` shows the bundle book held this
+        session - bundle plugins as data: one record per
+        bundle, held whole with the active plugin it
+        was held from, its one verifiable stage
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five bundles at the M-203 plugin
+        plugin, with its three plugin references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/pluginbundles bundle <bundle-id>``
+        shows one bundle whole; ``/pluginbundles stage
+        <stage>`` shows the bundle one stage line
+        reaches, or names the stage unheld;
+        ``/pluginbundles plugin <plugin-id>`` shows the book's
+        bundles of one plugin; ``/pluginbundles view <view-id>``
+        shows one held view record; ``/pluginbundles note
+        <note-id>`` shows one held stance record;
+        ``/pluginbundles index`` shows the index derived
+        from the whole book's held bundles; ``/pluginbundles
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/pluginbundles
+        verdict`` shows the verdict derived for the
+        whole book. Bundle registers and publishes
+        nothing as session news: bundles and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every bundle held for the session is
+        journaled as a bundle_bundle session event,
+        every view as a bundle_view session event,
+        every derived panel as a pluginbundles_panel
+        session event and every derived verdict as a
+        pluginbundles_verdict session event. This heading
+        builds no plugin, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.plugin_bundles import (
+            format_bundle,
+            format_book,
+            format_stage,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_bundle_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_bundle_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "bundle":
+                text = format_bundle(
+                    primary.get_pluginbundles_bundle(target),
+                    primary.pluginbundles_book())
+            elif stance == "stage":
+                text = format_stage(
+                    primary.pluginbundles_book(), target)
+            elif stance == "plugin":
+                text = format_book(
+                    primary.pluginbundles_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_pluginbundles_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.pluginbundles_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.pluginbundles_book())
+            elif stance == "panel":
+                text = format_panel(primary.pluginbundles_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.pluginbundles_book())
+            else:
+                text = primary.pluginbundles_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
