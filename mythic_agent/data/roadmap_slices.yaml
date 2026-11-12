@@ -1471,7 +1471,7 @@ slices:
   title: IDE companions II — JetBrains and the generic road
   summary: an editor-agnostic protocol any IDE plugin can speak; terminal-first remains complete without
     any IDE.
-  status: queued
+  status: done
 - id: M-241
   part: 10
   title: Rival importers
