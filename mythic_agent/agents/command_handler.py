@@ -493,6 +493,8 @@ class CommandHandler:
                 self._handle_mcpregistry(args)
             elif cmd == "/skillsstandard":
                 self._handle_skillsstandard(args)
+            elif cmd == "/customcommands":
+                self._handle_customcommands(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -12479,6 +12481,101 @@ class CommandHandler:
                 text = format_verdict(primary.skillsstandard_book())
             else:
                 text = primary.skillsstandard_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_customcommands(self, args: str):
+        """M-237: /customcommands - the template engine as data.
+
+        ``/customcommands`` shows the template book held this
+        session - template commands as data: one record per
+        template, held whole with the active command it
+        was held from, its one verifiable stage
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five templates at the M-203 command
+        command, with its three command references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/customcommands template <template-id>``
+        shows one template whole; ``/customcommands stage
+        <stage>`` shows the template one stage line
+        reaches, or names the stage unheld;
+        ``/customcommands command <command-id>`` shows the book's
+        templates of one command; ``/customcommands view <view-id>``
+        shows one held view record; ``/customcommands note
+        <note-id>`` shows one held stance record;
+        ``/customcommands index`` shows the index derived
+        from the whole book's held templates; ``/customcommands
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/customcommands
+        verdict`` shows the verdict derived for the
+        whole book. Template registers and publishes
+        nothing as session news: templates and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every template held for the session is
+        journaled as a template_template session event,
+        every view as a template_view session event,
+        every derived panel as a customcommands_panel
+        session event and every derived verdict as a
+        customcommands_verdict session event. This heading
+        builds no command, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.custom_commands import (
+            format_template,
+            format_book,
+            format_stage,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_template_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_template_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "template":
+                text = format_template(
+                    primary.get_customcommands_template(target),
+                    primary.customcommands_book())
+            elif stance == "stage":
+                text = format_stage(
+                    primary.customcommands_book(), target)
+            elif stance == "command":
+                text = format_book(
+                    primary.customcommands_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_customcommands_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.customcommands_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.customcommands_book())
+            elif stance == "panel":
+                text = format_panel(primary.customcommands_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.customcommands_book())
+            else:
+                text = primary.customcommands_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

@@ -70389,6 +70389,641 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _customcommands_registry(self):
+        """The held command registry (M-237).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer command and view records
+        one by one, beside the session keyboard registry
+        (M-200) and never in it: the book is one
+        command book to look at. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is drafted
+        ``_customcommands_store``, never the
+        method's own name (the M-108 template).
+        """
+        registry = getattr(self, "_customcommands_store", None)
+        if registry is None:
+            from ..core.custom_commands import TemplateRegistry
+            registry = TemplateRegistry()
+            self._customcommands_store = registry
+        return registry
+
+    def customcommands_book(self):
+        """The session's command book, as data (M-237).
+
+        The held registry's book when the session
+        holds any item - the things the session can
+        actually be viewed for (items held one by one
+        stand under a session book composed here in
+        the agent layer, so a later whole book
+        boarded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book boarded whole through
+        :meth:`record_customcommands_book`, or the shipped
+        example book until one is boarded. Template
+        registers and publishes nothing.
+        """
+        from ..core.custom_commands import (
+            TemplateBook, load_template)
+        registry = self._customcommands_registry()
+        if registry.list_items():
+            try:
+                book = registry.book()
+            except ValueError:
+                return TemplateBook(
+                    title=registry.title() or "The Custom Commands",
+                    commands=(), templates=registry.list_templates(),
+                    views=registry.list_views(), notes=(),
+                    traces=(), panels=())
+            held = getattr(self, "_customcommands_held", None)
+            if held is not None and held.title == book.title \
+                    and held.command_ids() == book.command_ids() \
+                    and held.template_ids() == book.template_ids() \
+                    and [v.view_id for v in held.views] == [
+                        v.view_id for v in book.views]:
+                return held
+            return book
+        book = getattr(self, "_customcommands_held", None)
+        if book is None:
+            return load_template()
+        return book
+
+    def _customcommands_default_view(self, book: Any):
+        """The view a book derives under by default (M-237).
+
+        The view its own stored panel stands under,
+        else its first held view, else None - a book
+        holding commands but no view yet derives no panel
+        and no verdict, and says so plainly.
+        """
+        for panel in book.panels:
+            if panel.view_id is not None:
+                try:
+                    return book.view_for(panel.view_id)
+                except KeyError:
+                    continue
+        if book.views:
+            return book.views[0]
+        return None
+
+    def _customcommands_screen(self) -> str:
+        """The /customcommands screen for the session's state (M-237)."""
+        from ..core import custom_commands as camp_module
+        registry = self._customcommands_registry()
+        if not registry.list_items():
+            return camp_module.format_template_screen()
+        book = self.customcommands_book()
+        if not book.views:
+            return camp_module.format_book(book)
+        return camp_module.format_template_screen(book)
+
+    def customcommands_status(self) -> dict[str, Any]:
+        """The command account, in plain data (M-237).
+
+        The command and view records held this session as
+        plain records, the held book's record (none
+        until an item stands held), the session book's
+        commands, views and notes as plain records (the
+        shipped example book - six commands at the M-200
+        slice command, with its two views, its two
+        stance records and its one pinned panel - until
+        items are held), its whole-book record, the
+        panel derived from the whole book under its
+        default view and every panel the book holds
+        as plain records, the verdict derived for
+        the whole book, the index derived from the
+        book's held commands, the first stance record the
+        book holds, the command rule as data, the
+        last command told in plain words, the panel and
+        the verdict told in plain words, the one
+        screen - rendered from the held book, or from
+        the shipped example book when nothing is held
+        yet - and the plain explanation. A book
+        holding commands but no view yet derives no panel
+        and no verdict. Template registers and
+        publishes nothing, moves no pointer, renders
+        no live UI and opens no file: this
+        layer tells only.
+        """
+        from ..core import custom_commands as camp_module
+        registry = self._customcommands_registry()
+        held_acts = registry.list_slices()
+        held_templates = registry.list_templates()
+        held_views = registry.list_views()
+        held_items = registry.list_items()
+        book = self.customcommands_book()
+        default = self._customcommands_default_view(book)
+        latest_words = camp_module.index_plain_words(book)
+        modal = camp_module.first_note(book)
+        return {
+            "commands": [item.to_record() for item in held_acts],
+            "template_records": [item.to_record() for item in held_templates],
+            "views": [item.to_record() for item in held_views],
+            "book": (book.to_record() if held_items else None),
+            "customcommands_book": {
+                "title": book.title,
+                "commands": [item.to_record() for item in book.commands],
+                "template_records": [item.to_record() for item in book.templates],
+                "views": [item.to_record() for item in book.views],
+                "notes": [item.to_record() for item in book.notes],
+                "traces": [item.to_record() for item in book.traces],
+            },
+            "book_record": camp_module.book_record(book),
+            "panel": (camp_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (camp_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "index": camp_module.index_record(book),
+            "ledger": camp_module.ledger_record(book),
+            "roadmap": camp_module.roadmap_record(),
+            "first_note": (camp_module.note_record(modal)
+                         if modal is not None else None),
+            "rule": camp_module.TEMPLATE_RULE,
+            "plain_words": latest_words,
+            "panel_plain_words": (
+                camp_module.panel_plain_words(book, default)
+                if default is not None else ""),
+            "verdict_plain_words": (
+                camp_module.verdict_plain_words(book, default)
+                if default is not None else ""),
+            "screen": self._customcommands_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def get_customcommands_template(self, template_id: Any):
+        """The one command an id names (M-237).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the shipped
+        example book answers (or the book boarded
+        whole for the session). A held item answers
+        for its own book alone: an id the held book
+        holds no command for raises KeyError, with no
+        silent fall back to the example, exactly as
+        the pure layer answers. Template registers
+        and publishes nothing.
+        """
+        registry = self._customcommands_registry()
+        if registry.list_items():
+            return registry.get_template(template_id)
+        return self.customcommands_book().template_for(template_id)
+
+    def get_customcommands_view(self, view_id: Any):
+        """The one view record an id names (M-237).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the shipped
+        example book answers (or the book boarded
+        whole for the session). Template registers
+        and publishes nothing.
+        """
+        registry = self._customcommands_registry()
+        if registry.list_items():
+            return registry.get_view(view_id)
+        return self.customcommands_book().view_for(view_id)
+
+    def get_customcommands_note(self, note_id: Any):
+        """The one stance record an id names (M-237).
+
+        The session book answers - the shipped example
+        book until a book is boarded whole for the
+        session. Notes travel with whole books: a
+        session holding commands one by one holds no
+        notes, and an id it holds no record for
+        raises KeyError - the stance stands unheld,
+        honestly. Template registers and publishes
+        nothing, and opens no file: the record is
+        data alone.
+        """
+        return self.customcommands_book().note_for(note_id)
+
+    def templates_for_command(self, command_id: Any):
+        """The session book's commands of one state (M-237)."""
+        from ..core.custom_commands import (
+            templates_for_command as _for_slice)
+        return _for_slice(self.customcommands_book(), command_id)
+
+    def customcommands_green(self):
+        """The session book's commands standing ready (M-237)."""
+        from ..core.custom_commands import (
+            green_templates as _green)
+        return _green(self.customcommands_book())
+
+    def customcommands_panel(self, view: Any = None):
+        """The panel derived for the whole book (M-237).
+
+        Derived under the drafted view, or under the
+        book's default view when none is drafted; a book
+        holding no view at all refuses plainly rather
+        than inventing one.
+        """
+        from ..core.custom_commands import (
+            derive_panel as _derive_panel)
+        book = self.customcommands_book()
+        resolved = view if view is not None \
+            else self._customcommands_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive a panel under")
+        return _derive_panel(book, resolved)
+
+    def customcommands_verdict(self, view: Any = None):
+        """The verdict derived for the whole book (M-237).
+
+        Derived under the drafted view, or under the
+        book's default view when none is drafted; a book
+        holding no view at all refuses plainly rather
+        than inventing one.
+        """
+        from ..core.custom_commands import (
+            derive_verdict as _derive_verdict)
+        book = self.customcommands_book()
+        resolved = view if view is not None \
+            else self._customcommands_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive a verdict under")
+        return _derive_verdict(book, resolved)
+
+    def customcommands_index(self) -> dict[str, Any]:
+        """Print the index derived from the held commands (M-237).
+
+        The printable index target: the index is
+        derived at call time from the session book's
+        held commands alone - one template per ready
+        command under its own stages, and the unready
+        commands drafted in its gaps. Printing registers
+        and publishes nothing, moves no pointer,
+        renders no live UI and opens no file. Returns the derived index record, the
+        rendered index, the screen and the plain
+        explanation.
+        """
+        from ..core import custom_commands as camp_module
+        book = self.customcommands_book()
+        index = camp_module.derive_index(book)
+        return {
+            "index": index.to_record(),
+            "index_record": camp_module.index_record(index),
+            "index_text": camp_module.format_index(book),
+            "screen": self._customcommands_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_customcommands_template(self, template: Any) -> dict[str, Any]:
+        """Hold one command for the session (M-237).
+
+        The command is held by the pure registry under
+        its command id - a command id or a sequence
+        already standing here refuses, and a refusal
+        holds nothing new and publishes nothing. The
+        command is held whole by the pure layer before
+        it is held: a command claiming a live
+        execution, template, template or push refuses by
+        name on this target too. A held command is
+        published as its ``command_record`` session-news
+        record through the checkpoint target. Returns
+        the held command, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a command executes nothing:
+        the thing stands on this layer's book, as
+        data, heldance whole.
+        """
+        from ..core import custom_commands as camp_module
+        registry = self._customcommands_registry()
+        held = registry.register_template(template)
+        news = camp_module.template_record(held)
+        self._publish_customcommands_record(news)
+        return {
+            "template": held.to_record(),
+            "record_news": news,
+            "screen": self._customcommands_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_customcommands_view(self, view: Any) -> dict[str, Any]:
+        """Hold one view record for the session (M-237).
+
+        The view is held by the pure registry under
+        its id - a view id or a sequence already
+        standing here refuses, and a refusal holds
+        nothing new and publishes nothing. A held
+        view is published as its ``view_record``
+        session-news record through the checkpoint
+        target. Returns the held view, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding a view only ever
+        looks: it executes nothing and sends nothing.
+        """
+        from ..core import custom_commands as camp_module
+        registry = self._customcommands_registry()
+        held = registry.register_view(view)
+        news = camp_module.view_record(held)
+        self._publish_customcommands_record(news)
+        return {
+            "view": held.to_record(),
+            "record_news": news,
+            "screen": self._customcommands_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_customcommands(
+            self, view_filter: Any, *,
+            detail: Any = None,
+            recorded_on: Any = "2026-11-10",
+            actor: Any = "the jarl",
+            source: Any = "template gate",
+            origin_session: Any = "session-m215",
+            view_id: Any = None) -> dict[str, Any]:
+        """Stand one view on the session's held book (M-237).
+
+        This command's own viewing target: the view record
+        is composed by the pure layer at the next
+        sequence of the session's held book, held
+        whole, and held by the pure registry. The view
+        is published as its ``view_record`` session
+        news, the panel derived from the whole book as
+        its ``panel_record`` session news, and the
+        verdict derived for the whole book as its
+        ``verdict_record`` session news. Returns the
+        held view, its view filter, its news records,
+        the screen rendered after it landed and the
+        plain explanation. HONEST COMMAND: viewing
+        tells the book alone, as data - it moves no pointer and renders no live UI.
+        """
+        from ..core import custom_commands as camp_module
+        registry = self._customcommands_registry()
+        held_views = registry.list_views()
+        seq = (max(v.seq for v in held_views) + 1) \
+            if held_views else 1
+        fields: dict[str, Any] = {
+            "seq": seq, "view_filter": view_filter,
+            "detail": detail if detail is not None else (
+                f"View filter {view_filter!r} in the "
+                "session's held book, composed on the "
+                "viewing target."),
+            "recorded_on": recorded_on,
+            "actor": actor, "source": source,
+            "origin_session": origin_session}
+        if view_id is not None:
+            fields["view_id"] = view_id
+        else:
+            held_ids = {v.view_id for v in held_views}
+            fresh = 1
+            while f"view-{fresh}" in held_ids:
+                fresh += 1
+            fields["view_id"] = f"view-{fresh}"
+        view = camp_module.build_view(fields)
+        held = registry.register_view(view)
+        view_news = camp_module.view_record(held)
+        self._publish_customcommands_record(view_news)
+        book = self.customcommands_book()
+        panel_news = camp_module.panel_record(
+            camp_module.derive_panel(book, held))
+        self._publish_customcommands_record(panel_news)
+        verdict_news = camp_module.verdict_record(
+            camp_module.derive_verdict(book, held))
+        self._publish_customcommands_record(verdict_news)
+        return {
+            "view": held.to_record(),
+            "view_filter": held.view_filter,
+            "record_news": view_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._customcommands_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_customcommands_book(self, book: Any) -> dict[str, Any]:
+        """Register a whole command book (M-237).
+
+        Every command and view record of the book is held
+        by the pure registry, in held and boarded
+        template - the book is held whole, and against
+        the held book, before anything is held, so a
+        refusal holds nothing new. The first book held
+        sets the registry's title; a later book under
+        a different title refuses, as does a book
+        naming a held command id, sequence or target, or a
+        view id or sequence. The book's panels are
+        derivations, not holdings, and are not held;
+        its notes travel with whole books and are
+        held on the record target, not this one. Every
+        command is published as its session news and
+        every view as its ``view_record`` session
+        news, in template. Returns the held book, its
+        commands and views, their news records, the count
+        of commands held, the screen, and the explanation.
+        Registering executes nothing, renders no live
+        UI and opens no file.
+        """
+        from ..core import custom_commands as camp_module
+        validated = camp_module.build_book(book)
+        registry = self._customcommands_registry()
+        registry.register_book(validated)
+        records = [
+            camp_module.command_record(item)
+            for item in validated.commands]
+        records += [
+            camp_module.template_record(item)
+            for item in validated.templates]
+        records += [
+            camp_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_customcommands_record(news)
+        return {
+            "book": validated.to_record(),
+            "commands": [item.to_record() for item in validated.commands],
+            "template_records": [item.to_record() for item in validated.templates],
+            "views": [item.to_record() for item in validated.views],
+            "records_news": records,
+            "count": len(validated.templates),
+            "screen": self._customcommands_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_customcommands_book(self, book: Any = None) -> dict[str, Any]:
+        """Record a whole command book (M-237).
+
+        With no book drafted, the shipped example book
+        is boarded through the pure layer - four commands
+        at the M-237 slice command, with its two
+        views, its two stance records and its one
+        pinned panel. A book checked from a file (the
+        pure layer's ``load_template_file``
+        target) may be passed instead. The book is
+        held whole before anything is held - a book
+        holding two commands under one map refuses here
+        by name, as does any record claiming a live
+        command target. Every command and view is held and
+        published as its session news, in template, and
+        the panel derived under the book's default
+        view as its ``panel_record`` session news;
+        the book is remembered whole as the session's
+        - its held panel and notes and all - and the
+        same book boarded twice refuses -
+        fingerprinted on its command ids, view ids and
+        title. Returns the held book, its commands and
+        views, their news records, the panel news
+        record, the index news record, the count,
+        the screen, and the explanation. Recording
+        executes nothing, renders no live UI and
+        opens no file.
+        """
+        from ..core import custom_commands as camp_module
+        book = book if book is not None \
+            else camp_module.load_template()
+        validated = camp_module.build_book(book)
+        fingerprint = (tuple(validated.template_ids()),
+                       tuple(validated.command_ids()),
+                       tuple(v.view_id for v in validated.views),
+                       validated.title)
+        boarded = getattr(self, "_customcommands_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._customcommands_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "this command book is already boarded for the "
+                "session; a book is boarded once")
+        registry = self._customcommands_registry()
+        registry.register_book(validated)
+        boarded.add(fingerprint)
+        self._customcommands_held = validated
+        records = [
+            camp_module.command_record(item)
+            for item in validated.commands]
+        records += [
+            camp_module.template_record(item)
+            for item in validated.templates]
+        records += [
+            camp_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_customcommands_record(news)
+        panel_news = camp_module.panel_record(
+            camp_module.derive_panel(
+                validated,
+                self._customcommands_default_view(validated)),
+            validated)
+        self._publish_customcommands_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "commands": [item.to_record() for item in validated.commands],
+            "template_records": [item.to_record() for item in validated.templates],
+            "views": [item.to_record() for item in validated.views],
+            "records_news": records,
+            "panel_record": panel_news,
+            "index_record": camp_module.index_record(validated),
+            "count": len(validated.templates),
+            "screen": camp_module.format_template_screen(validated),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def report_customcommands(self) -> dict[str, Any]:
+        """Render the session command book, as a template (M-237).
+
+        The book - the held registry's book when the
+        session holds any item, otherwise the shipped
+        example book (or the book boarded whole for
+        the session) - is rendered through the pure
+        formatters alone. Rendering registers and
+        publishes nothing, executes nothing, renders
+        no live UI and writes nothing. Returns the
+        book, its commands, views, notes and panels as
+        plain records, the derived panel, verdict and
+        index (panel and verdict none while the book
+        holds no view), the first stance record, the
+        rendered book, panel, verdict and index,
+        the screen, and the plain explanation.
+        """
+        from ..core import custom_commands as camp_module
+        book = self.customcommands_book()
+        default = self._customcommands_default_view(book)
+        modal = camp_module.first_note(book)
+        return {
+            "book": book.to_record(),
+            "commands": [item.to_record() for item in book.commands],
+            "template_records": [item.to_record() for item in book.templates],
+            "views": [item.to_record() for item in book.views],
+            "notes": [item.to_record() for item in book.notes],
+            "traces": [item.to_record() for item in book.traces],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (camp_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "verdict": (camp_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "index": camp_module.index_record(book),
+            "first_note": (camp_module.note_record(modal)
+                         if modal is not None else None),
+            "book_text": camp_module.format_book(book),
+            "panel_text": (camp_module.format_panel(book, default)
+                           if default is not None else ""),
+            "verdict_text": (camp_module.format_verdict(
+                book, default)
+                if default is not None else ""),
+            "index_text": camp_module.format_index(book),
+            "screen": self._customcommands_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_customcommands_record(self, record: dict[str, Any]) -> None:
+        """Publish one command record as session news (M-237).
+
+        The pure layer's ``command_record``, ``view_record``,
+        ``panel_record`` and ``verdict_record`` are
+        journaled through the same checkpoint target
+        every sibling command uses, when a session is
+        attached. Each record is announced at most
+        once per trace: a command under its own command id
+        and segment, a view under its own view id,
+        sequence and view filter, a panel under its
+        whole derived trace, and a verdict under its
+        word and tallies, so a panel or verdict grown
+        by a newly held command or view announces again
+        as the new figure it is. A foreign record
+        type is never published on this target.
+        """
+        if record.get("type") == "template_template":
+            target = ("template_template", record.get("template_id"),
+                   record.get("segment"))
+        elif record.get("type") == "template_run":
+            target = ("template_run", record.get("command_id"),
+                   record.get("state"))
+        elif record.get("type") == "template_view":
+            target = ("template_view", record.get("view_id"),
+                   record.get("seq"), record.get("view_filter"))
+        elif record.get("type") == "template_panel":
+            target = ("customcommands_panel", record.get("panel_id"),
+                   record.get("view_id"),
+                   tuple(row.get("item_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_shown"))
+        elif record.get("type") == "template_verdict":
+            target = ("customcommands_verdict", record.get("verdict"),
+                   record.get("total_shown"),
+                   record.get("green_shown"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(self, "_customcommands_announced", None)
+        if announced is None:
+            announced = set()
+            self._customcommands_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
     def _mcpserver_registry(self):
         """The held service registry (M-234).
 
