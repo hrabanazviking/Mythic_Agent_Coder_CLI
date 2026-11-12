@@ -434,8 +434,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 242
-    assert citizen["next_slice"] == "M-243"
+    assert citizen["done"] == 243
+    assert citizen["next_slice"] == "M-244"
     assert citizen["m226_title"] == "Standing orders"
     assert citizen["m226_part"] == 9
     assert citizen["m226_status"] == "done"
@@ -910,8 +910,8 @@ class TestOrderAgentStatus:
         assert status["ledger"]["current_order"] == "order-bare-order"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 242
-        assert status["roadmap"]["next_slice"] == "M-243"
+        assert status["roadmap"]["done"] == 243
+        assert status["roadmap"]["next_slice"] == "M-244"
         assert status["roadmap"]["m226_title"] == "Standing orders"
         assert "held as data alone" in status["rule"]
         assert "order-bare-order" in status["plain_words"]

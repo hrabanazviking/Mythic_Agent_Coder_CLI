@@ -1489,7 +1489,7 @@ slices:
   title: Samtal bridge
   summary: a seat in a hall can summon the coder; stand-ups and milestone reports post to the hall; approvals
     can be given in the hall under the same scope rules.
-  status: queued
+  status: done
 - id: M-244
   part: 10
   title: Kista as the key-keeper (with M-032)
