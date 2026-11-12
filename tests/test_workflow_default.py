@@ -434,8 +434,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 247
-    assert citizen["next_slice"] == "M-248"
+    assert citizen["done"] == 248
+    assert citizen["next_slice"] == "M-249"
     assert citizen["m227_title"] == "Workflow default honoured"
     assert citizen["m227_part"] == 9
     assert citizen["m227_status"] == "done"
@@ -910,8 +910,8 @@ class TestProposalAgentStatus:
         assert status["ledger"]["current_proposal"] == "proposal-bare-proposal"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 247
-        assert status["roadmap"]["next_slice"] == "M-248"
+        assert status["roadmap"]["done"] == 248
+        assert status["roadmap"]["next_slice"] == "M-249"
         assert status["roadmap"]["m227_title"] == "Workflow default honoured"
         assert "held as data alone" in status["rule"]
         assert "proposal-bare-proposal" in status["plain_words"]

@@ -1230,3 +1230,10 @@ mythic_agent/agents/llm.py:77475:record_cibridges_records:method
 mythic_agent/agents/llm.py:77526:view_cibridges:method
 mythic_agent/agents/llm.py:77575:propose_cibridges_draft:method
 mythic_agent/agents/llm.py:77623:report_cibridges:method
+mythic_agent/agents/llm.py:78188:records_for_state:method
+mythic_agent/agents/llm.py:78307:register_issuetrackers_record:method
+mythic_agent/agents/llm.py:78337:register_issuetrackers_records:method
+mythic_agent/agents/llm.py:78367:record_issuetrackers_records:method
+mythic_agent/agents/llm.py:78418:view_issuetrackers:method
+mythic_agent/agents/llm.py:78467:propose_issuetrackers_draft:method
+mythic_agent/agents/llm.py:78515:report_issuetrackers:method

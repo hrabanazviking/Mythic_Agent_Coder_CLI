@@ -1516,7 +1516,7 @@ slices:
   part: 10
   title: Issue trackers beyond git hosts
   summary: Linear/Jira-class bridges as MCP-first integrations, read-mostly, write by approval.
-  status: queued
+  status: done
 - id: M-249
   part: 10
   title: The WYRD seam
