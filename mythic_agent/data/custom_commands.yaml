@@ -1,0 +1,228 @@
+schema: mythic.custom_commands/1
+command: M-237
+custom_commands:
+  title: Custom commands at the M-237 slice run
+commands:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template book
+  origin_session: session-m237
+  command_id: cmd-review
+  seq: 1
+  title: Review command
+  state: live
+  detail: 'The slice the tracker looks back on first: banked at M-230, standing active in the cross-app
+    method honesty''s hands.'
+  origin: project
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template book
+  origin_session: session-m237
+  command_id: cmd-standup
+  seq: 2
+  title: Standup command
+  state: live
+  detail: 'This very slice, standing active: the customcommands book holding its own command as data.'
+  origin: user
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template book
+  origin_session: session-m237
+  command_id: cmd-seidr
+  seq: 3
+  title: Seidr command
+  state: dormant
+  detail: A queued slice the tracker has not taken yet; an template naming it refuses by name.
+  origin: unfiled
+template_records:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template book
+  origin_session: session-m237
+  template_id: template-held-template
+  seq: 1
+  command_id: cmd-review
+  title: The held template
+  stages: &id001
+  - drafted
+  - checked
+  - filed
+  - joined
+  - held
+  claims:
+  - template_ref
+  detail: 'The opening template: a slice drafted for the command in its home tool, checked across the
+    workshop, filed where it lives, joined to the tracker at hand and held honestly, held with the tool
+    held as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template book
+  origin_session: session-m237
+  template_id: template-retried-template
+  seq: 2
+  command_id: cmd-review
+  title: The retried template
+  stages:
+  - drafted
+  - checked
+  - filed
+  - joined
+  - drafted
+  - checked
+  - filed
+  - joined
+  - held
+  claims: []
+  detail: 'The retried template: a first joined step sent the standing back, the slice was drafted and
+    checked again and the tracking held a second time before the holding stood.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template book
+  origin_session: session-m237
+  template_id: template-own-template
+  seq: 3
+  command_id: cmd-standup
+  title: The tracker's own template
+  stages: *id001
+  claims:
+  - origin_ref
+  detail: 'The tracker''s own template: this slice''s own template, holding its template ref as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template book
+  origin_session: session-m237
+  template_id: template-bare-template
+  seq: 4
+  command_id: cmd-standup
+  title: The bare claim template
+  stages: *id001
+  claims:
+  - feeling
+  detail: An template that held a feeling in place of held proof, standing open.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template book
+  origin_session: session-m237
+  template_id: template-leaping-template
+  seq: 5
+  command_id: cmd-standup
+  title: The leaping template
+  stages:
+  - drafted
+  - checked
+  - held
+  claims: []
+  detail: An template that stepped from checked straight to held, outside the template sequence, standing
+    open.
+views:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template book
+  origin_session: session-m237
+  view_id: view-templates
+  seq: 1
+  view_filter: all
+  detail: Every held template, complete or not.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template book
+  origin_session: session-m237
+  view_id: view-held
+  seq: 2
+  view_filter: complete
+  detail: Only the templates standing complete.
+notes:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template book
+  origin_session: session-m237
+  note_id: note-note-first
+  seq: 1
+  template_id: template-held-template
+  stance: note
+  target: the opening template
+  title: Templates first
+  detail: The tracker opens by naming the slice first, told honestly.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template book
+  origin_session: session-m237
+  note_id: note-concern-bare
+  seq: 2
+  template_id: template-bare-template
+  stance: concern
+  target: the bare claim template
+  title: Claim drafted
+  detail: An template that held a feeling claim is not the tracker's way, and stands drafted.
+traces:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-template book
+  origin_session: session-m237
+  trace_id: trace-first
+  seq: 1
+  template_id: template-held-template
+  trace: drafted > checked > filed > joined > held
+  detail: 'The opening template''s walk, held exactly as walked: the trace is the walk itself.'
+panels:
+- panel_id: panel-command
+  view_id: view-templates
+  view_filter: all
+  rows:
+  - item_id: template-held-template
+    standing: complete
+    label: The held template
+    segment: 'template-held-template: The held template - command: ''cmd-review'' - stage: ''held'' -
+      stages: 5 - claims: ''template_ref'' - detail: ''The opening template: a slice drafted for the command
+      in its home tool, checked across the workshop, filed where it lives, joined to the tracker at hand
+      and held honestly, held with the tool held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: template-retried-template
+    standing: complete
+    label: The retried template
+    segment: 'template-retried-template: The retried template - command: ''cmd-review'' - stage: ''held''
+      - stages: 9 - claims: ''none'' - detail: ''The retried template: a first joined step sent the standing
+      back, the slice was drafted and checked again and the tracking held a second time before the holding
+      stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: template-own-template
+    standing: complete
+    label: The tracker's own template
+    segment: 'template-own-template: The tracker''s own template - command: ''cmd-standup'' - stage: ''held''
+      - stages: 5 - claims: ''origin_ref'' - detail: ''The tracker''s own template: this slice''s own
+      template, holding its template ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: template-bare-template
+    standing: open
+    label: The bare claim template
+    segment: 'template-bare-template: The bare claim template - command: ''cmd-standup'' - stage: ''held''
+      - stages: 5 - claims: ''feeling'' - detail: ''An template that held a feeling in place of held proof,
+      standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof: complete stands
+      on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: template-leaping-template
+    standing: open
+    label: The leaping template
+    segment: 'template-leaping-template: The leaping template - command: ''cmd-standup'' - stage: ''held''
+      - stages: 3 - claims: ''none'' - detail: ''An template that stepped from checked straight to held,
+      outside the template sequence, standing open.'' - gaps: steps from checked to held, which the template
+      sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The template book holds 5 templates as of 2026-11-11: the view ''all'' shows 5 of them: complete
+    3, open 2; 3 of the shown templates stand complete.'
+  - Rows stand in held template, the template the book itself stands in, so two panels of one view diff
+    cleanly, segment by segment.
+  - Every segment is derived from its template's own fields - the command it answers for, the steps it
+    walked in the open and the evidence it honestly carries - and no judgement is stored on any template.
+  - 'Completeness is filed from the held records alone: a template that steps outside the template sequence,
+    carries a bare claim in place of held evidence, or has not drafted held stands open, drafted in its
+    gaps, and the template index is derived from the held templates, never stored where it could drift.'
