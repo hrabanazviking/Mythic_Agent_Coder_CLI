@@ -1,0 +1,228 @@
+schema: mythic.mcp_registry/1
+entry: M-235
+mcp_registry:
+  title: MCP registry at the M-235 slice run
+entrys:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-listing book
+  origin_session: session-m235
+  entry_id: entry-filesystem
+  seq: 1
+  title: Filesystem entry
+  state: live
+  detail: 'The slice the tracker looks back on first: banked at M-230, standing active in the cross-app
+    method honesty''s hands.'
+  trust: trusted
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-listing book
+  origin_session: session-m235
+  entry_id: entry-search
+  seq: 2
+  title: Search entry
+  state: live
+  detail: 'This very slice, standing active: the mcpregistry book holding its own entry as data.'
+  trust: trusted
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-listing book
+  origin_session: session-m235
+  entry_id: entry-remote
+  seq: 3
+  title: Remote entry
+  state: dormant
+  detail: A queued slice the tracker has not taken yet; an listing naming it refuses by name.
+  trust: undecided
+listing_records:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-listing book
+  origin_session: session-m235
+  listing_id: listing-held-listing
+  seq: 1
+  entry_id: entry-filesystem
+  title: The held listing
+  stages: &id001
+  - listed
+  - browsed
+  - reviewed
+  - decided
+  - held
+  claims:
+  - tools_ref
+  detail: 'The opening listing: a slice listed for the entry in its home tool, browsed across the workshop,
+    reviewed where it lives, decided to the tracker at hand and held honestly, held with the tool held
+    as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-listing book
+  origin_session: session-m235
+  listing_id: listing-retried-listing
+  seq: 2
+  entry_id: entry-filesystem
+  title: The retried listing
+  stages:
+  - listed
+  - browsed
+  - reviewed
+  - decided
+  - listed
+  - browsed
+  - reviewed
+  - decided
+  - held
+  claims: []
+  detail: 'The retried listing: a first decided step sent the standing back, the slice was listed and
+    browsed again and the tracking held a second time before the holding stood.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-listing book
+  origin_session: session-m235
+  listing_id: listing-own-listing
+  seq: 3
+  entry_id: entry-search
+  title: The tracker's own listing
+  stages: *id001
+  claims:
+  - decision_ref
+  detail: 'The tracker''s own listing: this slice''s own listing, holding its listing ref as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-listing book
+  origin_session: session-m235
+  listing_id: listing-bare-listing
+  seq: 4
+  entry_id: entry-search
+  title: The bare claim listing
+  stages: *id001
+  claims:
+  - feeling
+  detail: An listing that held a feeling in place of held proof, standing open.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-listing book
+  origin_session: session-m235
+  listing_id: listing-leaping-listing
+  seq: 5
+  entry_id: entry-search
+  title: The leaping listing
+  stages:
+  - listed
+  - browsed
+  - held
+  claims: []
+  detail: An listing that stepped from browsed straight to held, outside the listing sequence, standing
+    open.
+views:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-listing book
+  origin_session: session-m235
+  view_id: view-listings
+  seq: 1
+  view_filter: all
+  detail: Every held listing, complete or not.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-listing book
+  origin_session: session-m235
+  view_id: view-held
+  seq: 2
+  view_filter: complete
+  detail: Only the listings standing complete.
+notes:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-listing book
+  origin_session: session-m235
+  note_id: note-note-first
+  seq: 1
+  listing_id: listing-held-listing
+  stance: note
+  target: the opening listing
+  title: Listings first
+  detail: The tracker opens by naming the slice first, told honestly.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-listing book
+  origin_session: session-m235
+  note_id: note-concern-bare
+  seq: 2
+  listing_id: listing-bare-listing
+  stance: concern
+  target: the bare claim listing
+  title: Claim listed
+  detail: An listing that held a feeling claim is not the tracker's way, and stands listed.
+traces:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-listing book
+  origin_session: session-m235
+  trace_id: trace-first
+  seq: 1
+  listing_id: listing-held-listing
+  trace: listed > browsed > reviewed > decided > held
+  detail: 'The opening listing''s walk, held exactly as walked: the trace is the walk itself.'
+panels:
+- panel_id: panel-entry
+  view_id: view-listings
+  view_filter: all
+  rows:
+  - item_id: listing-held-listing
+    standing: complete
+    label: The held listing
+    segment: 'listing-held-listing: The held listing - entry: ''entry-filesystem'' - stage: ''held'' -
+      stages: 5 - claims: ''tools_ref'' - detail: ''The opening listing: a slice listed for the entry
+      in its home tool, browsed across the workshop, reviewed where it lives, decided to the tracker at
+      hand and held honestly, held with the tool held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: listing-retried-listing
+    standing: complete
+    label: The retried listing
+    segment: 'listing-retried-listing: The retried listing - entry: ''entry-filesystem'' - stage: ''held''
+      - stages: 9 - claims: ''none'' - detail: ''The retried listing: a first decided step sent the standing
+      back, the slice was listed and browsed again and the tracking held a second time before the holding
+      stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: listing-own-listing
+    standing: complete
+    label: The tracker's own listing
+    segment: 'listing-own-listing: The tracker''s own listing - entry: ''entry-search'' - stage: ''held''
+      - stages: 5 - claims: ''decision_ref'' - detail: ''The tracker''s own listing: this slice''s own
+      listing, holding its listing ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: listing-bare-listing
+    standing: open
+    label: The bare claim listing
+    segment: 'listing-bare-listing: The bare claim listing - entry: ''entry-search'' - stage: ''held''
+      - stages: 5 - claims: ''feeling'' - detail: ''An listing that held a feeling in place of held proof,
+      standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof: complete stands
+      on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: listing-leaping-listing
+    standing: open
+    label: The leaping listing
+    segment: 'listing-leaping-listing: The leaping listing - entry: ''entry-search'' - stage: ''held''
+      - stages: 3 - claims: ''none'' - detail: ''An listing that stepped from browsed straight to held,
+      outside the listing sequence, standing open.'' - gaps: steps from browsed to held, which the listing
+      sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The listing book holds 5 listings as of 2026-11-11: the view ''all'' shows 5 of them: complete 3,
+    open 2; 3 of the shown listings stand complete.'
+  - Rows stand in held listing, the listing the book itself stands in, so two panels of one view diff
+    cleanly, segment by segment.
+  - Every segment is derived from its listing's own fields - the entry it answers for, the steps it walked
+    in the open and the evidence it honestly carries - and no judgement is stored on any listing.
+  - 'Completeness is reviewed from the held records alone: a listing that steps outside the listing sequence,
+    carries a bare claim in place of held evidence, or has not listed held stands open, listed in its
+    gaps, and the listing index is derived from the held listings, never stored where it could drift.'
