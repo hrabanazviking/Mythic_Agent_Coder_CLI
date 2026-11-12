@@ -1437,7 +1437,7 @@ slices:
   title: MCP server v2
   summary: the existing `mythic-mcp` gains campaign, board, and memory-map services with versioned contracts;
     external agents (Hermes-class) can be dealt slices.
-  status: queued
+  status: done
 - id: M-235
   part: 10
   title: MCP registry kindness
