@@ -501,6 +501,8 @@ class CommandHandler:
                 self._handle_vscodecompanions(args)
             elif cmd == "/idecompanions":
                 self._handle_idecompanions(args)
+            elif cmd == "/rivalimporters":
+                self._handle_rivalimporters(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -12867,6 +12869,101 @@ class CommandHandler:
                 text = format_verdict(primary.idecompanions_book())
             else:
                 text = primary.idecompanions_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_rivalimporters(self, args: str):
+        """M-241: /rivalimporters - the importer engine as data.
+
+        ``/rivalimporters`` shows the importer book held this
+        session - importer sources as data: one record per
+        importer, held whole with the active source it
+        was held from, its one verifiable stage
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five importers at the M-203 source
+        source, with its three source references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/rivalimporters importer <importer-id>``
+        shows one importer whole; ``/rivalimporters stage
+        <stage>`` shows the importer one stage line
+        reaches, or names the stage unheld;
+        ``/rivalimporters source <source-id>`` shows the book's
+        importers of one source; ``/rivalimporters view <view-id>``
+        shows one held view record; ``/rivalimporters note
+        <note-id>`` shows one held stance record;
+        ``/rivalimporters index`` shows the index derived
+        from the whole book's held importers; ``/rivalimporters
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/rivalimporters
+        verdict`` shows the verdict derived for the
+        whole book. Importer registers and publishes
+        nothing as session news: importers and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every importer held for the session is
+        journaled as a importer_importer session event,
+        every view as a importer_view session event,
+        every derived panel as a rivalimporters_panel
+        session event and every derived verdict as a
+        rivalimporters_verdict session event. This heading
+        builds no source, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.rival_importers import (
+            format_importer,
+            format_book,
+            format_stage,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_importer_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_importer_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "importer":
+                text = format_importer(
+                    primary.get_rivalimporters_importer(target),
+                    primary.rivalimporters_book())
+            elif stance == "stage":
+                text = format_stage(
+                    primary.rivalimporters_book(), target)
+            elif stance == "source":
+                text = format_book(
+                    primary.rivalimporters_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_rivalimporters_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.rivalimporters_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.rivalimporters_book())
+            elif stance == "panel":
+                text = format_panel(primary.rivalimporters_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.rivalimporters_book())
+            else:
+                text = primary.rivalimporters_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
