@@ -1119,3 +1119,12 @@ mythic_agent/agents/llm.py:69465:view_mcpserver:method
 mythic_agent/agents/llm.py:69532:register_mcpserver_book:method
 mythic_agent/agents/llm.py:69581:record_mcpserver_book:method
 mythic_agent/agents/llm.py:69659:report_mcpserver:method
+mythic_agent/agents/llm.py:69321:get_mcpregistry_note:method
+mythic_agent/agents/llm.py:69342:mcpregistry_green:method
+mythic_agent/agents/llm.py:69384:mcpregistry_index:method
+mythic_agent/agents/llm.py:69408:register_mcpregistry_listing:method
+mythic_agent/agents/llm.py:69439:register_mcpregistry_view:method
+mythic_agent/agents/llm.py:69465:view_mcpregistry:method
+mythic_agent/agents/llm.py:69532:register_mcpregistry_book:method
+mythic_agent/agents/llm.py:69581:record_mcpregistry_book:method
+mythic_agent/agents/llm.py:69659:report_mcpregistry:method
