@@ -489,6 +489,8 @@ class CommandHandler:
                 self._handle_crossapp(args)
             elif cmd == "/mcpclient":
                 self._handle_mcpclient(args)
+            elif cmd == "/mcpserver":
+                self._handle_mcpserver(args)
             elif cmd == "/ceremony":
                 self._handle_ceremony(args)
             elif cmd == "/conflicts":
@@ -12283,6 +12285,101 @@ class CommandHandler:
                 text = format_verdict(primary.mcpclient_book())
             else:
                 text = primary.mcpclient_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_mcpserver(self, args: str):
+        """M-234: /mcpserver - the exposure engine as data.
+
+        ``/mcpserver`` shows the exposure book held this
+        session - exposure services as data: one record per
+        exposure, held whole with the active service it
+        was held from, its one verifiable stage
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five exposures at the M-203 service
+        service, with its three service references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/mcpserver exposure <exposure-id>``
+        shows one exposure whole; ``/mcpserver stage
+        <stage>`` shows the exposure one stage line
+        reaches, or names the stage unheld;
+        ``/mcpserver service <service-id>`` shows the book's
+        exposures of one service; ``/mcpserver view <view-id>``
+        shows one held view record; ``/mcpserver note
+        <note-id>`` shows one held stance record;
+        ``/mcpserver index`` shows the index derived
+        from the whole book's held exposures; ``/mcpserver
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/mcpserver
+        verdict`` shows the verdict derived for the
+        whole book. Exposure registers and publishes
+        nothing as session news: exposures and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every exposure held for the session is
+        journaled as a exposure_exposure session event,
+        every view as a exposure_view session event,
+        every derived panel as a mcpserver_panel
+        session event and every derived verdict as a
+        mcpserver_verdict session event. This heading
+        builds no service, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.mcp_server_v2 import (
+            format_exposure,
+            format_book,
+            format_stage,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_exposure_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_exposure_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "exposure":
+                text = format_exposure(
+                    primary.get_mcpserver_exposure(target),
+                    primary.mcpserver_book())
+            elif stance == "stage":
+                text = format_stage(
+                    primary.mcpserver_book(), target)
+            elif stance == "service":
+                text = format_book(
+                    primary.mcpserver_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_mcpserver_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.mcpserver_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.mcpserver_book())
+            elif stance == "panel":
+                text = format_panel(primary.mcpserver_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.mcpserver_book())
+            else:
+                text = primary.mcpserver_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
