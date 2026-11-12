@@ -1155,3 +1155,12 @@ mythic_agent/agents/llm.py:71370:view_pluginbundles:method
 mythic_agent/agents/llm.py:71437:register_pluginbundles_book:method
 mythic_agent/agents/llm.py:71486:record_pluginbundles_book:method
 mythic_agent/agents/llm.py:71564:report_pluginbundles:method
+mythic_agent/agents/llm.py:71861:get_vscodecompanions_note:method
+mythic_agent/agents/llm.py:71882:vscodecompanions_green:method
+mythic_agent/agents/llm.py:71924:vscodecompanions_index:method
+mythic_agent/agents/llm.py:71948:register_vscodecompanions_companion:method
+mythic_agent/agents/llm.py:71979:register_vscodecompanions_view:method
+mythic_agent/agents/llm.py:72005:view_vscodecompanions:method
+mythic_agent/agents/llm.py:72072:register_vscodecompanions_book:method
+mythic_agent/agents/llm.py:72121:record_vscodecompanions_book:method
+mythic_agent/agents/llm.py:72199:report_vscodecompanions:method

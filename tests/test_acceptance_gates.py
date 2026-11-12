@@ -443,8 +443,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 238
-    assert citizen["next_slice"] == "M-239"
+    assert citizen["done"] == 239
+    assert citizen["next_slice"] == "M-240"
     assert citizen["m205_title"] == "Acceptance gates per slice"
     assert citizen["m205_part"] == 9
     assert citizen["m205_status"] == "done"
@@ -920,8 +920,8 @@ class TestAcceptanceAgentStatus:
         assert status["board"]["current_audit"] == "audit-feeling-gate"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 238
-        assert status["roadmap"]["next_slice"] == "M-239"
+        assert status["roadmap"]["done"] == 239
+        assert status["roadmap"]["next_slice"] == "M-240"
         assert status["roadmap"]["m205_title"] == "Acceptance gates per slice"
         assert "held as data alone" in status["rule"]
         assert "audit-feeling-gate" in status["plain_words"]
