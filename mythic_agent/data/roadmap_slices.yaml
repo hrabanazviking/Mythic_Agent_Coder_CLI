@@ -1544,7 +1544,7 @@ slices:
   part: 10
   title: Bridge permissions audit
   summary: one screen listing every bridge, its keys' home (Kista refs), its scopes, its last use.
-  status: queued
+  status: done
 - id: M-254
   part: 10
   title: Part X gate
