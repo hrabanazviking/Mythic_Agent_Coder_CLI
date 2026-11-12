@@ -1251,3 +1251,10 @@ mythic_agent/agents/llm.py:80190:record_webhookdoors_events:method
 mythic_agent/agents/llm.py:80240:view_webhookdoors:method
 mythic_agent/agents/llm.py:80287:propose_webhookdoors_proposal:method
 mythic_agent/agents/llm.py:80335:report_webhookdoors:method
+mythic_agent/agents/llm.py:80922:records_for_scope:method
+mythic_agent/agents/llm.py:81043:register_exporteverything_record:method
+mythic_agent/agents/llm.py:81074:register_exporteverything_records:method
+mythic_agent/agents/llm.py:81104:record_exporteverything_records:method
+mythic_agent/agents/llm.py:81154:view_exporteverything:method
+mythic_agent/agents/llm.py:81201:prepare_exporteverything_draft:method
+mythic_agent/agents/llm.py:81249:report_exporteverything:method

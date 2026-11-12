@@ -434,8 +434,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 250
-    assert citizen["next_slice"] == "M-251"
+    assert citizen["done"] == 251
+    assert citizen["next_slice"] == "M-252"
     assert citizen["m230_title"] == "Method metrics"
     assert citizen["m230_part"] == 9
     assert citizen["m230_status"] == "done"
@@ -910,8 +910,8 @@ class TestReadingAgentStatus:
         assert status["ledger"]["current_reading"] == "reading-bare-reading"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 250
-        assert status["roadmap"]["next_slice"] == "M-251"
+        assert status["roadmap"]["done"] == 251
+        assert status["roadmap"]["next_slice"] == "M-252"
         assert status["roadmap"]["m230_title"] == "Method metrics"
         assert "held as data alone" in status["rule"]
         assert "reading-bare-reading" in status["plain_words"]

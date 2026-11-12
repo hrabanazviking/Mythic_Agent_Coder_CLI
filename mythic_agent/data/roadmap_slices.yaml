@@ -1534,7 +1534,7 @@ slices:
   title: Export everything
   summary: sessions, campaigns, memories, and configs export in open formats; leaving is as easy as arriving
     (the Interoperability Principle).
-  status: queued
+  status: done
 - id: M-252
   part: 10
   title: Docs MCP pattern generalised
