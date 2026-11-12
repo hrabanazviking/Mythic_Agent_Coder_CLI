@@ -651,6 +651,274 @@ def parse_githostparity_args(args: Any):
     raise ValueError(GITHOSTPARITY_USAGE)
 
 
+#: The /cibridges slash grammar (M-247, agent layer).
+CIBRIDGES_USAGE = (
+    "Usage: /cibridges | /cibridges providers | "
+    "/cibridges provider <provider> | /cibridges record "
+    "<provider> <workflow> | /cibridges standing "
+    "<provider> <workflow> | /cibridges draft | "
+    "/cibridges draft <provider> <workflow> | "
+    "/cibridges index | /cibridges verdict")
+
+
+def _ci_provider_dict(entry: Any) -> dict[str, Any]:
+    """One CI provider registry entry, as plain data (M-247)."""
+    return {"id": entry.id, "label": entry.label,
+            "run_word": entry.run_word, "reason": entry.reason}
+
+
+def _ci_record_dict(record: Any) -> dict[str, Any]:
+    """One CI run record, as plain data (M-247)."""
+    return {"provider": record.provider,
+            "workflow": record.workflow, "ref": record.ref,
+            "conclusion": record.conclusion,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+def _ci_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived CI standing, as plain data (M-247)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "gaps": list(standing.gaps)}
+
+
+def _ci_draft_dict(draft: Any) -> dict[str, Any]:
+    """One workflow draft, as plain data (M-247)."""
+    return {"provider": draft.provider,
+            "workflow": draft.workflow, "change": draft.change,
+            "trigger": draft.trigger, "applied": draft.applied}
+
+
+def _ci_draft_text(draft: Any) -> str:
+    """One workflow draft told in plain words (M-247)."""
+    return (f"{draft.provider}/{draft.workflow}: draft - "
+            f"{draft.change} (trigger: {draft.trigger}; "
+            "a draft is never applied here)")
+
+
+def _ci_coerce_record(record: Any):
+    """A CI run record from a record or a plain telling (M-247)."""
+    from ..core.ci_bridges import CIRecord
+    if isinstance(record, CIRecord):
+        return record
+    if isinstance(record, dict):
+        return CIRecord(
+            provider=record["provider"],
+            workflow=record["workflow"], ref=record["ref"],
+            conclusion=record["conclusion"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return CIRecord(
+        provider=record.provider, workflow=record.workflow,
+        ref=record.ref, conclusion=record.conclusion,
+        stages=tuple(record.stages), claims=tuple(record.claims))
+
+
+class CIBridgesRegistry:
+    """Session registry for the CI bridges (M-247).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.ci_bridges``): it
+    holds the shipped provider registry (one entry per
+    provider, held as data) beside the CI run records
+    held one by one for the session, one record per
+    provider and workflow, and the workflow drafts
+    proposed for the session, one draft per provider
+    and workflow. A record is validated whole by the
+    pure layer before it is held - a record naming an
+    unknown provider, conclusion or evidence kind
+    refuses by name here too, and a refusal holds
+    nothing new. A second record for a provider and
+    workflow already held refuses likewise. A draft is
+    proposed only through the pure layer's draft road -
+    manual dispatch by default, never applied. Holding
+    calls no CI API, fetches no run, changes no
+    workflow and dispatches nothing: the registry holds
+    tellings as data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.ci_bridges import default_registry
+        self._providers = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._drafts: dict[tuple, Any] = {}
+
+    def providers(self):
+        """The shipped provider registry held by the session."""
+        return self._providers
+
+    def register_record(self, record: Any):
+        """Hold one run's record, validated whole.
+
+        A second record for a provider and workflow
+        already held refuses, and a refusal holds
+        nothing new.
+        """
+        held = _ci_coerce_record(record)
+        held.validate(self._providers)
+        key = (held.provider, held.workflow)
+        if key in self._records:
+            raise ValueError(
+                "a ci record for provider "
+                f"{held.provider!r} workflow "
+                f"{held.workflow!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, provider: Any, workflow: Any):
+        """The held record for one provider and workflow."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(provider, workflow)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no ci record for "
+                f"provider {provider!r} workflow "
+                f"{workflow!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of run records, validated whole.
+
+        Every record is validated, and checked against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _ci_coerce_record(record)
+            held.validate(self._providers)
+            key = (held.provider, held.workflow)
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "a ci record for provider "
+                    f"{held.provider!r} workflow "
+                    f"{held.workflow!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[(held.provider, held.workflow)] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The run records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the run records and the drafts."""
+        return (list(self._records.values())
+                + list(self._drafts.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.ci_bridges import derive_standing
+        return [derive_standing(record, self._providers)
+                for record in self._records.values()]
+
+    def hold_draft(self, provider: Any, workflow: Any,
+                   change: Any,
+                   trigger: Any = "workflow_dispatch"):
+        """Propose one workflow draft, held for the session.
+
+        The draft is shaped by the pure layer alone -
+        a trigger other than manual dispatch refuses
+        by name there, and a draft is never applied.
+        A second draft for a provider and workflow
+        already drafted refuses likewise.
+        """
+        from ..core.ci_bridges import propose_draft
+        draft = propose_draft(provider, workflow, change,
+                              trigger=trigger,
+                              registry=self._providers)
+        key = (draft.provider, draft.workflow)
+        if key in self._drafts:
+            raise ValueError(
+                "a workflow draft for provider "
+                f"{draft.provider!r} workflow "
+                f"{draft.workflow!r} already stands held "
+                "for the session")
+        self._drafts[key] = draft
+        return draft
+
+    def get_draft(self, provider: Any, workflow: Any):
+        """The held draft for one provider and workflow."""
+        from ..core.validation import ValidationError
+        try:
+            return self._drafts[(provider, workflow)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no workflow draft for "
+                f"provider {provider!r} workflow "
+                f"{workflow!r}") from None
+
+    def list_drafts(self) -> list:
+        """The workflow drafts held, in proposal order."""
+        return list(self._drafts.values())
+
+    def book(self):
+        """The held pieces composed as a CI bridges book.
+
+        The book is plain data: the shipped provider
+        registry's entries beside the run records and
+        workflow drafts held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.ci_bridges import CI_BRIDGE_SCHEMA
+        return {
+            "schema": CI_BRIDGE_SCHEMA,
+            "providers": [_ci_provider_dict(entry)
+                          for entry in self._providers.entries()],
+            "records": [_ci_record_dict(record)
+                        for record in self._records.values()],
+            "drafts": [_ci_draft_dict(draft)
+                       for draft in self._drafts.values()],
+        }
+
+
+def parse_cibridges_args(args: Any):
+    """Parse /cibridges arguments (M-247).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``providers``, ``index`` and ``verdict``
+    name their own stance with no target; ``provider
+    <provider>`` names one provider; ``record
+    <provider> <workflow>``, ``standing <provider>
+    <workflow>`` and ``draft <provider> <workflow>``
+    name one provider and workflow as a pair; the bare
+    ``draft`` stance names the session's drafts.
+    Anything else raises ValueError carrying the usage
+    line, exactly as the sibling parsers refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("providers", "index", "verdict"):
+        if rest:
+            raise ValueError(CIBRIDGES_USAGE)
+        return (head, None, (), None)
+    if head == "provider":
+        if len(rest) != 1:
+            raise ValueError(CIBRIDGES_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 2:
+            raise ValueError(CIBRIDGES_USAGE)
+        return (head, (rest[0], rest[1]), (), None)
+    if head == "draft":
+        if not rest:
+            return ("drafts", None, (), None)
+        if len(rest) != 2:
+            raise ValueError(CIBRIDGES_USAGE)
+        return ("draft", (rest[0], rest[1]), (), None)
+    raise ValueError(CIBRIDGES_USAGE)
+
 class Agent:
     def __init__(self, project_root: Path | None = None, name: str = "Primary", config: dict[str, Any] | None = None):
         import copy
@@ -76823,6 +77091,629 @@ class Agent:
         if announced is None:
             announced = set()
             self._githostparity_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _cibridges_registry(self):
+        """The held CI bridges registry (M-247).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the shipped provider registry beside
+        the session's run records and workflow drafts
+        one by one. It is created on first use, so an
+        agent whose ``__init__`` never ran still holds
+        exactly one. The attribute is named
+        ``_cibridges_store``, never the method's own
+        name (the M-108 resolution).
+        """
+        registry = getattr(self, "_cibridges_store", None)
+        if registry is None:
+            registry = CIBridgesRegistry()
+            self._cibridges_store = registry
+        return registry
+
+    def cibridges_providers(self):
+        """The shipped provider registry, as data (M-247).
+
+        One entry per provider - github_actions,
+        gitlab_ci, bitbucket_pipelines, local_manual -
+        held as registry entries, each naming the word
+        that provider gives a single run. Resolution
+        registers and publishes nothing, calls no CI
+        API and probes no network.
+        """
+        return self._cibridges_registry().providers()
+
+    def cibridges_book(self):
+        """The session's CI bridges book, as data (M-247).
+
+        The held registry's book when the session holds
+        records or drafts one by one - otherwise the
+        book boarded whole through
+        :meth:`record_cibridges_records`, or the shipped
+        provider registry with nothing held until a
+        record or draft is held. Resolution registers
+        and publishes nothing.
+        """
+        registry = self._cibridges_registry()
+        if registry.list_records() or registry.list_drafts():
+            held = getattr(self, "_cibridges_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [(r["provider"], r["workflow"])
+                     for r in held["records"]]
+                    == [(r["provider"], r["workflow"])
+                        for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_cibridges_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _cibridges_effective_record(self, provider: Any,
+                                    workflow: Any):
+        """The record a run's standing is derived from (M-247).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on - so an unheld run derives an honest open
+        standing naming its gaps, never a dressed claim.
+        An unknown provider refuses by name through the
+        shipped registry first.
+        """
+        from ..core.ci_bridges import CIRecord
+        registry = self._cibridges_registry()
+        registry.providers().get(provider)
+        try:
+            return registry.get_record(provider, workflow)
+        except ValueError:
+            return CIRecord(
+                provider=provider, workflow=workflow,
+                ref="(no record held)", conclusion="unknown",
+                stages=(), claims=())
+
+    def _cibridges_screen(self) -> str:
+        """The /cibridges screen for the session (M-247)."""
+        from ..core.ci_bridges import (
+            format_providers, format_record)
+        registry = self._cibridges_registry()
+        lines = [format_providers(registry.providers())]
+        records = registry.list_records()
+        if not records:
+            lines.append(
+                "CI records: none held this session - a CI "
+                "result is a fact only when it rests on "
+                "held evidence, and no run stands as a "
+                "fact until its record is held.")
+        else:
+            lines.extend(format_record(record)
+                         for record in records)
+        lines.extend(_ci_draft_text(draft)
+                     for draft in registry.list_drafts())
+        return "\n".join(lines)
+
+    def cibridges_status(self) -> dict[str, Any]:
+        """The CI bridges account, in plain data (M-247).
+
+        The shipped provider registry's entries and the
+        run records and workflow drafts held this
+        session as plain records (empty until held), the
+        session book's record (the shipped provider
+        registry with nothing held - until items are
+        held), the runs standing held and still open
+        derived at call time, the index and verdict
+        derived at call time, the providers and records
+        told in plain words through the pure formatters,
+        and the plain explanation. A session holding no
+        record for a run derives that run's open
+        standing. Resolution registers and publishes
+        nothing, calls no CI API, fetches no run and
+        probes no network: this layer tells only.
+        """
+        from ..core import ci_bridges as camp_module
+        registry = self._cibridges_registry()
+        held_records = registry.list_records()
+        book = self.cibridges_book()
+        index = self.cibridges_index()
+        return {
+            "records": [_ci_record_dict(r)
+                        for r in held_records],
+            "providers": [_ci_provider_dict(e)
+                          for e in registry.providers().entries()],
+            "book": (book if held_records
+                     or registry.list_drafts()
+                     or getattr(self, "_cibridges_held",
+                                None) is not None else None),
+            "cibridges_book": {
+                "schema": camp_module.CI_BRIDGE_SCHEMA,
+                "providers": book["providers"],
+                "records": book["records"],
+                "drafts": book["drafts"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.cibridges_verdict()["verdict"],
+            "providers_text": camp_module.format_providers(
+                registry.providers()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "drafts": [_ci_draft_dict(d)
+                       for d in registry.list_drafts()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._cibridges_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": CIBRIDGES_USAGE,
+        }
+
+    def get_cibridges_provider(self, provider: Any):
+        """The one provider entry a provider name names (M-247).
+
+        The shipped provider registry answers: a
+        provider the bridges book does not hold refuses
+        by name, exactly as the pure layer answers.
+        Resolution registers and publishes nothing.
+        """
+        return self._cibridges_registry().providers().get(
+            provider)
+
+    def get_cibridges_record(self, provider: Any,
+                             workflow: Any):
+        """The one run record a provider and workflow name (M-247).
+
+        The session's held registry answers: a run the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._cibridges_registry().get_record(
+            provider, workflow)
+
+    def cibridges_standing(self, provider: Any,
+                           workflow: Any):
+        """Derive one run's CI standing (M-247).
+
+        The standing is derived at call time by the
+        pure layer from the run's effective record -
+        the held record, or the honest empty record
+        while none stands held: held only on a full
+        legal walk resting on held evidence, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.ci_bridges import derive_standing
+        registry = self._cibridges_registry()
+        return derive_standing(
+            self._cibridges_effective_record(provider, workflow),
+            registry.providers())
+
+    def records_for_conclusion(self, conclusion: Any):
+        """The held records resting on one conclusion (M-247)."""
+        from ..core.ci_bridges import CONCLUSIONS
+        if conclusion is None or not str(conclusion).strip():
+            raise ValueError(
+                "a conclusion must be named to list its "
+                "records")
+        if conclusion not in CONCLUSIONS:
+            raise ValueError(
+                f"unknown conclusion {conclusion!r}; the "
+                "ci bridges book names: "
+                + ", ".join(CONCLUSIONS))
+        return [r for r in
+                self._cibridges_registry().list_records()
+                if r.conclusion == conclusion]
+
+    def cibridges_held(self):
+        """The runs whose CI standing stands held (M-247)."""
+        registry = self._cibridges_registry()
+        return [f"{r.provider}/{r.workflow}"
+                for r in registry.list_records()
+                if self.cibridges_standing(
+                    r.provider, r.workflow).held]
+
+    def cibridges_index(self) -> dict[str, Any]:
+        """Derive the CI index at call time (M-247).
+
+        The index is derived from every held record
+        alone - each held run's derived standing, the
+        held runs named and the open runs named in its
+        gaps. Deriving registers and publishes nothing,
+        calls no CI API and probes no network. Returns
+        the derived index record, the rendered records,
+        the screen and the plain explanation.
+        """
+        from ..core import ci_bridges as camp_module
+        registry = self._cibridges_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.cibridges_standing(
+                record.provider, record.workflow)
+            standings.append({
+                "provider": record.provider,
+                "workflow": record.workflow,
+                **_ci_standing_dict(standing)})
+        index = {
+            "type": "cibridges_index",
+            "slice": camp_module.CI_BRIDGE_SLICE,
+            "schema": camp_module.CI_BRIDGE_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['provider']}/{s['workflow']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['provider']}/{s['workflow']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._cibridges_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def cibridges_verdict(self) -> dict[str, Any]:
+        """Derive the CI verdict at call time (M-247).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and
+        every held record's standing stands held on
+        held evidence, ``open`` while no record stands
+        held or any held record stands short of held -
+        with the held and open runs named either way.
+        Deriving registers and publishes nothing.
+        Returns the verdict record, its plain-words
+        telling, the screen and the plain explanation.
+        """
+        from ..core import ci_bridges as camp_module
+        registry = self._cibridges_registry()
+        records = registry.list_records()
+        held = self.cibridges_held()
+        open_keys = [f"{r.provider}/{r.workflow}"
+                     for r in records
+                     if f"{r.provider}/{r.workflow}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "CI stands held: every held record walks "
+                "the whole evidence walk on held evidence "
+                "- " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "CI stands open: no CI record is held this "
+                "session - a CI result is a fact only when "
+                "it rests on held evidence.")
+        else:
+            word = "open"
+            telling = (
+                "CI stands open: a CI result is a fact "
+                "only when it rests on held evidence, and "
+                "these records stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "cibridges_verdict",
+            "slice": camp_module.CI_BRIDGE_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._cibridges_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_cibridges_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one run's CI record for the session (M-247).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        provider, conclusion or evidence kind refuses
+        by name on this road too, and a refusal holds
+        nothing new and publishes nothing. A held record
+        is published as its ``cibridges_record``
+        session-news record through the checkpoint road.
+        Returns the held record, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a record calls no CI API
+        and probes no network: the telling stands on
+        this layer's book, as data.
+        """
+        from ..core import ci_bridges as camp_module
+        registry = self._cibridges_registry()
+        held = registry.register_record(record)
+        news = {"type": "cibridges_record",
+                **_ci_record_dict(held)}
+        self._publish_cibridges_record(news)
+        return {
+            "record": _ci_record_dict(held),
+            "record_news": news,
+            "screen": self._cibridges_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_cibridges_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of CI records for the session (M-247).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order
+        given. Returns the held records, their news
+        records, the count of records held, the screen,
+        and the explanation. Registering calls no CI
+        API and probes no network.
+        """
+        from ..core import ci_bridges as camp_module
+        registry = self._cibridges_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "cibridges_record", **_ci_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_cibridges_record(news)
+        return {
+            "records": [_ci_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._cibridges_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_cibridges_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of CI records (M-247).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's
+        book; the same set boarded twice refuses -
+        fingerprinted on its provider and workflow keys
+        and schema. Every record is held and published
+        as its session news, in the order given. Returns
+        the held book, its records, their news records,
+        the count, the screen, and the explanation.
+        Recording calls no CI API, fetches no run and
+        probes no network.
+        """
+        from ..core import ci_bridges as camp_module
+        validated = [_ci_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._cibridges_registry().providers())
+        fingerprint = (
+            tuple((r.provider, r.workflow) for r in validated),
+            camp_module.CI_BRIDGE_SCHEMA)
+        boarded = getattr(self, "_cibridges_recorded",
+                          None)
+        if boarded is None:
+            boarded = set()
+            self._cibridges_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these ci records are already boarded "
+                "for the session; a set is boarded once")
+        registry = self._cibridges_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._cibridges_held = registry.book()
+        news_records = [
+            {"type": "cibridges_record", **_ci_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_cibridges_record(news)
+        return {
+            "book": self._cibridges_held,
+            "records": [_ci_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._cibridges_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_cibridges(
+            self, provider: Any,
+            workflow: Any) -> dict[str, Any]:
+        """Stand one run's CI standing on the session book (M-247).
+
+        This bridges book's own viewing road: the run's
+        provider entry is read from the shipped registry
+        and its standing is derived by the pure layer
+        from the run's effective record, and published
+        as its ``cibridges_standing`` session news, with
+        the held record published as its
+        ``cibridges_record`` session news when one
+        stands held. Returns the provider's entry, its
+        derived standing, the held record when one
+        stands, their news records, the screen rendered
+        after they landed and the plain explanation.
+        HONEST BOUNDARY: viewing tells CI as data
+        alone - it calls no CI API, fetches no run,
+        changes no workflow and probes no network.
+        """
+        from ..core import ci_bridges as camp_module
+        entry = self.get_cibridges_provider(provider)
+        standing = self.cibridges_standing(provider, workflow)
+        try:
+            held = self.get_cibridges_record(provider, workflow)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "cibridges_record",
+                           **_ci_record_dict(held)}
+            self._publish_cibridges_record(record_news)
+        standing_news = {
+            "type": "cibridges_standing", "provider": provider,
+            "workflow": workflow, **_ci_standing_dict(standing)}
+        self._publish_cibridges_record(standing_news)
+        return {
+            "provider": _ci_provider_dict(entry),
+            "standing": {"provider": provider,
+                         "workflow": workflow,
+                         **_ci_standing_dict(standing)},
+            "record": (_ci_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._cibridges_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def propose_cibridges_draft(
+            self, provider: Any, workflow: Any, change: Any,
+            trigger: Any = "workflow_dispatch"
+            ) -> dict[str, Any]:
+        """Propose one workflow draft for the session (M-247).
+
+        The draft is shaped by the pure layer alone -
+        on Volmarr's repos a draft dispatches manually
+        by default (the M-227 law), so a trigger other
+        than ``workflow_dispatch`` refuses by name, and
+        a draft is never applied here. A held draft is
+        published as its ``cibridges_draft`` session-news
+        record through the checkpoint road. Returns the
+        held draft, its news record, the screen rendered
+        after it landed, and the plain explanation.
+        Proposing calls no CI API, changes no workflow
+        and dispatches nothing.
+        """
+        from ..core import ci_bridges as camp_module
+        registry = self._cibridges_registry()
+        draft = registry.hold_draft(provider, workflow,
+                                    change, trigger=trigger)
+        news = {"type": "cibridges_draft",
+                **_ci_draft_dict(draft)}
+        self._publish_cibridges_record(news)
+        return {
+            "draft": _ci_draft_dict(draft),
+            "draft_news": news,
+            "screen": self._cibridges_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def get_cibridges_draft(self, provider: Any,
+                            workflow: Any):
+        """The one workflow draft a provider and workflow name (M-247).
+
+        The session's held registry answers: a workflow
+        the session holds no draft for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._cibridges_registry().get_draft(
+            provider, workflow)
+
+    def cibridges_drafts(self) -> list:
+        """The workflow drafts held for the session (M-247)."""
+        return self._cibridges_registry().list_drafts()
+
+    def report_cibridges(self) -> dict[str, Any]:
+        """Render the session CI bridges, as a report (M-247).
+
+        The shipped provider registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers
+        and publishes nothing, calls no CI API, fetches
+        no run and writes nothing. Returns the book, the
+        providers, held records and drafts as plain
+        records, the derived standings, the rendered
+        providers and records, the index, the verdict,
+        the screen, and the plain explanation.
+        """
+        from ..core import ci_bridges as camp_module
+        registry = self._cibridges_registry()
+        book = self.cibridges_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.cibridges_standing(
+                record.provider, record.workflow)
+            standings.append({
+                "provider": record.provider,
+                "workflow": record.workflow,
+                **_ci_standing_dict(standing)})
+        return {
+            "book": book,
+            "providers": [_ci_provider_dict(e)
+                          for e in registry.providers().entries()],
+            "records": [_ci_record_dict(r)
+                        for r in registry.list_records()],
+            "drafts": [_ci_draft_dict(d)
+                       for d in registry.list_drafts()],
+            "standings": standings,
+            "index": self.cibridges_index()["index"],
+            "verdict": self.cibridges_verdict()["verdict"],
+            "providers_text": camp_module.format_providers(
+                registry.providers()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._cibridges_effective_record(
+                        r.provider, r.workflow))
+                for r in registry.list_records()),
+            "screen": self._cibridges_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_cibridges_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one CI record as session news (M-247).
+
+        The agent layer's ``cibridges_record``,
+        ``cibridges_standing`` and ``cibridges_draft``
+        records are journaled through the same
+        checkpoint road every sibling bridge uses, when
+        a session is attached. Each record is announced
+        at most once per telling: a run record under its
+        provider, its workflow, its ref, its conclusion,
+        its walked stages and its claims, a standing
+        under its provider, its workflow, its held word,
+        its stage and its gaps, and a draft under its
+        provider, its workflow, its change and its
+        trigger, so a standing grown by a newly held
+        record announces again as the new figure it is.
+        A foreign record type is never published on this
+        road.
+        """
+        if record.get("type") == "cibridges_record":
+            target = ("cibridges_record",
+                      record.get("provider"),
+                      record.get("workflow"),
+                      record.get("ref"),
+                      record.get("conclusion"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "cibridges_standing":
+            target = ("cibridges_standing",
+                      record.get("provider"),
+                      record.get("workflow"),
+                      record.get("held"),
+                      record.get("stage"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "cibridges_draft":
+            target = ("cibridges_draft",
+                      record.get("provider"),
+                      record.get("workflow"),
+                      record.get("change"),
+                      record.get("trigger"))
+        else:
+            return
+        announced = getattr(self, "_cibridges_announced",
+                            None)
+        if announced is None:
+            announced = set()
+            self._cibridges_announced = announced
         if target in announced:
             return
         announced.add(target)

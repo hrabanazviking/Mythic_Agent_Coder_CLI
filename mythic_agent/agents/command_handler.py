@@ -513,6 +513,8 @@ class CommandHandler:
                 self._handle_aesirdeepening(args)
             elif cmd == "/githostparity":
                 self._handle_githostparity(args)
+            elif cmd == "/cibridges":
+                self._handle_cibridges(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -13430,6 +13432,118 @@ class CommandHandler:
                     "verdict_text"]
             else:
                 text = primary.githostparity_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+    def _handle_cibridges(self, args: str):
+        """M-247: /cibridges - the CI bridges as data.
+
+        ``/cibridges`` shows the bridges held this
+        session - the CI providers as registry entries:
+        one entry per provider, naming the word that
+        provider gives a single run, beside the run
+        records held this session (no record held yet
+        when none is held - a CI result is a fact only
+        when it rests on held evidence); ``/cibridges
+        providers`` shows the whole shipped provider
+        registry; ``/cibridges provider <provider>``
+        shows one provider's registry entry;
+        ``/cibridges record <provider> <workflow>``
+        shows the run record held for one provider and
+        workflow; ``/cibridges standing <provider>
+        <workflow>`` shows the standing derived for one
+        run - held only on a full legal walk resting on
+        held evidence, otherwise open, naming its gaps;
+        ``/cibridges draft`` shows the workflow drafts
+        held this session and ``/cibridges draft
+        <provider> <workflow>`` shows one draft - a
+        draft is never applied here, and on Volmarr's
+        repos it dispatches manually by default;
+        ``/cibridges index`` shows the index derived
+        over every held record; ``/cibridges verdict``
+        shows the verdict derived for the session.
+        Resolution registers and publishes nothing as
+        session news on this heading: records are held
+        only when they are given through the agent's
+        register roads, stood on the book on the viewing
+        road, or held on the book roads, and every record
+        held for the session is journaled as a
+        cibridges_record session event, every viewed
+        standing as a cibridges_standing session event
+        and every proposed draft as a cibridges_draft
+        session event. This heading calls no CI API,
+        fetches no run, changes no workflow and probes
+        no network - holding and telling are words only.
+        """
+        from ..core.ci_bridges import (
+            format_provider,
+            format_providers,
+            format_record,
+        )
+        from .llm import parse_cibridges_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_cibridges_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "providers":
+                text = format_providers(
+                    primary.cibridges_providers())
+            elif stance == "provider":
+                text = format_provider(
+                    primary.get_cibridges_provider(target))
+            elif stance == "record":
+                text = format_record(
+                    primary.get_cibridges_record(*target))
+            elif stance == "standing":
+                standing = primary.cibridges_standing(
+                    *target)
+                text = (
+                    f"{target[0]}/{target[1]}: CI "
+                    f"{'held as fact' if standing.held else 'open'} "
+                    f"(stage: {standing.stage})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "drafts":
+                drafts = primary.cibridges_drafts()
+                if not drafts:
+                    text = (
+                        "Workflow drafts: none held this "
+                        "session - workflow changes are "
+                        "proposed only as drafts, and a "
+                        "draft is never applied here.")
+                else:
+                    text = "\n".join(
+                        f"{d.provider}/{d.workflow}: draft - "
+                        f"{d.change} (trigger: {d.trigger}; "
+                        "a draft is never applied here)"
+                        for d in drafts)
+            elif stance == "draft":
+                d = primary.get_cibridges_draft(*target)
+                text = (
+                    f"{d.provider}/{d.workflow}: draft - "
+                    f"{d.change} (trigger: {d.trigger}; "
+                    "a draft is never applied here)")
+            elif stance == "index":
+                text = primary.cibridges_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.cibridges_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.cibridges_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
