@@ -1472,6 +1472,286 @@ def parse_wyrdseam_args(args: Any):
         return ("advice", rest[0], (), None)
     raise ValueError(WYRDSEAM_USAGE)
 
+
+#: The /webhookdoors slash grammar (M-250, agent layer).
+WEBHOOKDOORS_USAGE = (
+    "Usage: /webhookdoors | /webhookdoors sources | "
+    "/webhookdoors source <source> | /webhookdoors event "
+    "<source> <event> | /webhookdoors standing "
+    "<source> <event> | /webhookdoors propose | "
+    "/webhookdoors propose <campaign> | "
+    "/webhookdoors index | /webhookdoors verdict")
+
+
+def _wh_source_dict(entry: Any) -> dict[str, Any]:
+    """One webhook source registry entry, as plain data (M-250)."""
+    return {"id": entry.id, "label": entry.label,
+            "event_word": entry.event_word,
+            "transport": entry.transport, "reason": entry.reason}
+
+
+def _wh_event_dict(event: Any) -> dict[str, Any]:
+    """One inbound event, as plain data (M-250)."""
+    return {"source": event.source,
+            "event": event.event,
+            "kind": event.kind,
+            "title": event.title,
+            "subject": event.subject,
+            "observed_at": event.observed_at,
+            "age_seconds": event.age_seconds,
+            "stages": list(event.stages),
+            "claims": list(event.claims)}
+
+
+def _wh_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived event standing, as plain data (M-250)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "freshness": standing.freshness,
+            "gaps": list(standing.gaps)}
+
+
+def _wh_proposal_dict(draft: Any) -> dict[str, Any]:
+    """One campaign proposal draft, as plain data (M-250)."""
+    return {"campaign": draft.campaign,
+            "source": draft.source, "event": draft.event,
+            "proposal": draft.proposal,
+            "approval": draft.approval, "applied": draft.applied}
+
+
+def _wh_proposal_text(draft: Any) -> str:
+    """One campaign proposal draft told in plain words (M-250)."""
+    return (f"{draft.campaign} <- {draft.source}/{draft.event}: "
+            f"proposal - {draft.proposal} (approval: "
+            f"{draft.approval}; a proposal is never "
+            "applied or built here)")
+
+
+def _wh_coerce_event(event: Any):
+    """An inbound event from an event or a plain telling (M-250)."""
+    from ..core.webhook_doors import InboundEvent
+    if isinstance(event, InboundEvent):
+        return event
+    if isinstance(event, dict):
+        return InboundEvent(
+            source=event["source"],
+            event=event["event"],
+            kind=event["kind"],
+            title=event["title"],
+            subject=event.get("subject", ""),
+            observed_at=event["observed_at"],
+            age_seconds=event["age_seconds"],
+            stages=tuple(event.get("stages", ())),
+            claims=tuple(event.get("claims", ())))
+    return InboundEvent(
+        source=event.source, event=event.event,
+        kind=event.kind,
+        title=event.title,
+        subject=event.subject,
+        observed_at=event.observed_at,
+        age_seconds=event.age_seconds,
+        stages=tuple(event.stages),
+        claims=tuple(event.claims))
+
+class WebhookDoorsRegistry:
+    """Session registry for the webhook doors (M-250).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.webhook_doors``): it
+    holds the shipped source registry (one entry per
+    source, held as data) beside the inbound events held
+    one by one for the session, one event per source and
+    event, and the campaign proposals proposed for the
+    session, one proposal draft per campaign. An event
+    is validated whole by the pure layer before it is
+    held - an event naming an unknown source, kind or
+    evidence kind refuses by name here too, and a refusal
+    holds nothing new. A second event for a source and
+    event already held refuses likewise. Proposals are
+    proposed only through the pure layer's proposal road
+    - approval pending by default, may be marked approved
+    by a human, and never applied or built: the doors
+    propose campaigns and build nothing unbidden. Holding
+    opens no webhook listener, calls no host API, probes
+    no network and starts nothing: the registry holds
+    tellings as data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.webhook_doors import default_registry
+        self._sources = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._drafts: dict[str, Any] = {}
+
+    def sources(self):
+        """The shipped source registry held by the session."""
+        return self._sources
+
+    def register_event(self, event: Any):
+        """Hold one inbound event, validated whole.
+
+        A second event for a source and event already
+        held refuses, and a refusal holds nothing new.
+        """
+        held = _wh_coerce_event(event)
+        held.validate(self._sources)
+        key = (held.source, held.event)
+        if key in self._records:
+            raise ValueError(
+                "an inbound event for source "
+                f"{held.source!r} event "
+                f"{held.event!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_event(self, source: Any, event: Any):
+        """The held event for one source and event."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(source, event)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no inbound event "
+                f"for source {source!r} event "
+                f"{event!r}") from None
+
+    def register_events(self, events: Any):
+        """Hold a set of inbound events, validated whole.
+
+        Every event is validated, and checked against
+        the events already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for event in events:
+            held = _wh_coerce_event(event)
+            held.validate(self._sources)
+            key = (held.source, held.event)
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "an inbound event for source "
+                    f"{held.source!r} event "
+                    f"{held.event!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[(held.source, held.event)] = held
+        return validated
+
+    def list_events(self) -> list:
+        """The inbound events held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the events and the proposals."""
+        return (list(self._records.values())
+                + list(self._drafts.values()))
+
+    def standings(self) -> list:
+        """The held events' standings, derived at call time."""
+        from ..core.webhook_doors import derive_standing
+        return [derive_standing(event, self._sources)
+                for event in self._records.values()]
+
+    def hold_proposal(self, campaign: Any, source: Any,
+                      event: Any, proposal: Any,
+                      approval: Any = "pending"):
+        """Propose one campaign proposal draft, held for the session.
+
+        The proposal is shaped by the pure layer alone -
+        an approval word outside pending/approved refuses
+        by name there, and a proposal is never applied or
+        built. A second proposal draft for a campaign
+        already proposed refuses likewise.
+        """
+        from ..core.webhook_doors import propose_proposal
+        draft = propose_proposal(campaign, source, event,
+                                 proposal, approval=approval)
+        if draft.campaign in self._drafts:
+            raise ValueError(
+                "a campaign proposal draft for campaign "
+                f"{draft.campaign!r} already stands held "
+                "for the session")
+        self._drafts[draft.campaign] = draft
+        return draft
+
+    def get_proposal(self, campaign: Any):
+        """The held proposal draft for one campaign."""
+        from ..core.validation import ValidationError
+        try:
+            return self._drafts[campaign]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no campaign proposal for "
+                f"campaign {campaign!r}") from None
+
+    def list_proposals(self) -> list:
+        """The campaign proposal drafts held, in proposal order."""
+        return list(self._drafts.values())
+
+    def book(self):
+        """The held pieces composed as a webhook doors book.
+
+        The book is plain data: the shipped source
+        registry's entries beside the inbound events and
+        campaign proposals held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.webhook_doors import WEBHOOK_DOORS_SCHEMA
+        return {
+            "schema": WEBHOOK_DOORS_SCHEMA,
+            "sources": [_wh_source_dict(entry)
+                        for entry in self._sources.entries()],
+            "records": [_wh_event_dict(event)
+                        for event in self._records.values()],
+            "drafts": [_wh_proposal_dict(draft)
+                       for draft in self._drafts.values()],
+        }
+
+
+def parse_webhookdoors_args(args: Any):
+    """Parse /webhookdoors arguments (M-250).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``sources``, ``index`` and ``verdict`` name
+    their own stance with no target; ``source <source>``
+    names one source; ``event <source> <event>`` and
+    ``standing <source> <event>`` name one source and event
+    as a pair; ``propose <campaign>`` names one campaign
+    and the bare ``propose`` stance names the session's
+    proposal drafts. Anything else raises ValueError
+    carrying the usage line, exactly as the sibling
+    parsers refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("sources", "index", "verdict"):
+        if rest:
+            raise ValueError(WEBHOOKDOORS_USAGE)
+        return (head, None, (), None)
+    if head == "source":
+        if len(rest) != 1:
+            raise ValueError(WEBHOOKDOORS_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("event", "standing"):
+        if len(rest) != 2:
+            raise ValueError(WEBHOOKDOORS_USAGE)
+        return (head, (rest[0], rest[1]), (), None)
+    if head == "propose":
+        if not rest:
+            return ("proposals", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(WEBHOOKDOORS_USAGE)
+        return ("propose", rest[0], (), None)
+    raise ValueError(WEBHOOKDOORS_USAGE)
 class Agent:
     def __init__(self, project_root: Path | None = None, name: str = "Primary", config: dict[str, Any] | None = None):
         import copy
@@ -79526,6 +79806,638 @@ class Agent:
         announced.add(target)
         if self._session_store and self.session_id:
             self._checkpoint(record)
+
+    def _webhookdoors_registry(self):
+        """The held webhook doors registry (M-250).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped source registry beside the session's
+        event events and campaign proposal one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_webhookdoors_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_webhookdoors_store", None)
+        if registry is None:
+            registry = WebhookDoorsRegistry()
+            self._webhookdoors_store = registry
+        return registry
+
+    def webhookdoors_sources(self):
+        """The shipped source registry, as data (M-250).
+
+        One entry per source - github, gitlab, bitbucket, generic - held as registry
+        entries, each naming the word that source gives a
+        single telling. Resolution registers and publishes
+        nothing, calls no host API and probes no
+        network.
+        """
+        return self._webhookdoors_registry().sources()
+
+    def webhookdoors_book(self):
+        """The session's webhook doors book, as data (M-250).
+
+        The held registry's book when the session holds
+        events or proposal one by one - otherwise the book
+        boarded whole through
+        :meth:`record_webhookdoors_events`, or the shipped
+        source registry with nothing held until a event
+        or proposal draft is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._webhookdoors_registry()
+        if registry.list_events() or registry.list_proposals():
+            held = getattr(self, "_webhookdoors_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [(r["source"], r["event"])
+                     for r in held["records"]]
+                    == [(r["source"], r["event"])
+                        for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_webhookdoors_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _webhookdoors_effective_event(self, source: Any,
+                                      event: Any):
+        """The event an event's standing is derived from (M-250).
+
+        The held event when one stands; otherwise an
+        empty event - no stage walked, no claim rested
+        on, kind unknown, no subject named and its age
+        past the fresh limit - so an unheld event derives
+        an honest open standing naming its gaps, never a
+        dressed claim: an absent event reads as unknown.
+        An unknown source refuses by name through the
+        shipped registry first.
+        """
+        from ..core.webhook_doors import (
+            FRESH_LIMIT_SECONDS, InboundEvent)
+        registry = self._webhookdoors_registry()
+        registry.sources().get(source)
+        try:
+            return registry.get_event(source, event)
+        except ValueError:
+            return InboundEvent(
+                source=source, event=event,
+                kind="unknown", title="(no event recorded)",
+                subject="",
+                observed_at="(no event recorded)",
+                age_seconds=FRESH_LIMIT_SECONDS + 1,
+                stages=(), claims=())
+
+    def _webhookdoors_screen(self) -> str:
+        """The /webhookdoors screen for the session (M-250)."""
+        from ..core.webhook_doors import (
+            format_sources, format_event)
+        registry = self._webhookdoors_registry()
+        lines = [format_sources(registry.sources())]
+        events = registry.list_events()
+        if not events:
+            lines.append(
+                "Inbound events: none recorded this "
+                "session - an event is a fact only when "
+                "a fresh event rests on held evidence, "
+                "and no event stands as known until it "
+                "is recorded.")
+        else:
+            lines.extend(format_event(event)
+                         for event in events)
+        lines.extend(_wh_proposal_text(draft)
+                     for draft in registry.list_proposals())
+        return "\n".join(lines)
+
+    def webhookdoors_status(self) -> dict[str, Any]:
+        """The webhook doors account, in plain data (M-250).
+
+        The shipped source registry's entries and the
+        event events and campaign proposal held this
+        session as plain records (empty until held), the
+        session book's record (the shipped source registry
+        with nothing held - until items are held), the
+        events standing held and still open derived at call
+        time, the index and verdict derived at call time,
+        the sources and events told in plain words
+        through the pure formatters, and the plain
+        explanation. A session holding no event for a
+        event derives that event's open standing. Resolution
+        registers and publishes nothing, calls no Webhook
+        engine API, opens no listener and measures no
+        load: this layer tells only.
+        """
+        from ..core import webhook_doors as camp_module
+        registry = self._webhookdoors_registry()
+        held_records = registry.list_events()
+        book = self.webhookdoors_book()
+        index = self.webhookdoors_index()
+        return {
+            "records": [_wh_event_dict(r)
+                        for r in held_records],
+            "sources": [_wh_source_dict(e)
+                        for e in registry.sources().entries()],
+            "book": (book if held_records
+                     or registry.list_proposals()
+                     or getattr(self, "_webhookdoors_held",
+                                None) is not None else None),
+            "webhookdoors_book": {
+                "schema": camp_module.WEBHOOK_DOORS_SCHEMA,
+                "sources": book["sources"],
+                "records": book["records"],
+                "drafts": book["drafts"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.webhookdoors_verdict()["verdict"],
+            "sources_text": camp_module.format_sources(
+                registry.sources()),
+            "records_text": "\n".join(
+                camp_module.format_event(event)
+                for event in held_records),
+            "drafts": [_wh_proposal_dict(d)
+                       for d in registry.list_proposals()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._webhookdoors_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": WEBHOOKDOORS_USAGE,
+        }
+
+    def get_webhookdoors_source(self, source: Any):
+        """The one source entry a source name names (M-250).
+
+        The shipped source registry answers: a source the
+        doors book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._webhookdoors_registry().sources().get(source)
+
+    def get_webhookdoors_event(self, source: Any, event: Any):
+        """The one event a source and event name (M-250).
+
+        The session's held registry answers: a event the
+        session holds no event for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._webhookdoors_registry().get_event(source, event)
+
+    def webhookdoors_standing(self, source: Any, event: Any):
+        """Derive one event's event standing (M-250).
+
+        The standing is derived at call time by the pure
+        layer from the event's effective event - the
+        held event, or the honest empty event while
+        none stands held: held only on a full legal walk
+        resting on held evidence within the fresh limit
+        and knowing its kind,
+        otherwise open, naming every gap. Deriving
+        registers and publishes nothing.
+        """
+        from ..core.webhook_doors import derive_standing
+        registry = self._webhookdoors_registry()
+        return derive_standing(
+            self._webhookdoors_effective_event(source, event),
+            registry.sources())
+
+    def events_for_kind(self, kind: Any):
+        """The held events resting on one kind (M-250)."""
+        from ..core.webhook_doors import EVENT_KINDS
+        if kind is None or not str(kind).strip():
+            raise ValueError(
+                "a kind must be named to list its events")
+        if kind not in EVENT_KINDS:
+            raise ValueError(
+                f"unknown webhook event kind {kind!r}; the "
+                "webhook doors book names: "
+                + ", ".join(EVENT_KINDS))
+        return [r for r in
+                self._webhookdoors_registry().list_events()
+                if r.kind == kind]
+
+    def webhookdoors_held(self):
+        """The events whose event standing stands held (M-250)."""
+        registry = self._webhookdoors_registry()
+        return [f"{r.source}/{r.event}"
+                for r in registry.list_events()
+                if self.webhookdoors_standing(
+                    r.source, r.event).held]
+
+    def webhookdoors_index(self) -> dict[str, Any]:
+        """Derive the webhook index at call time (M-250).
+
+        The index is derived from every held event
+        alone - each held event's derived standing, the
+        held events named and the open events named in its
+        gaps. Deriving registers and publishes nothing,
+        calls no host API and probes no network.
+        Returns the derived index record, the rendered
+        events, the screen and the plain explanation.
+        """
+        from ..core import webhook_doors as camp_module
+        registry = self._webhookdoors_registry()
+        records = registry.list_events()
+        standings = []
+        for record in records:
+            standing = self.webhookdoors_standing(
+                record.source, record.event)
+            standings.append({
+                "source": record.source,
+                "event": record.event,
+                **_wh_standing_dict(standing)})
+        index = {
+            "type": "webhookdoors_index",
+            "slice": camp_module.WEBHOOK_DOORS_SLICE,
+            "schema": camp_module.WEBHOOK_DOORS_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['source']}/{s['event']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['source']}/{s['event']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_event(record)
+                for record in records),
+            "screen": self._webhookdoors_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def webhookdoors_verdict(self) -> dict[str, Any]:
+        """Derive the webhook verdict at call time (M-250).
+
+        The verdict is derived from every held event
+        alone: ``held`` when events stand held and
+        every held event's standing stands held on
+        held evidence within the fresh limit, ``open``
+        while no event stands held or any held
+        event stands short of held - with the held and
+        open events named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import webhook_doors as camp_module
+        registry = self._webhookdoors_registry()
+        records = registry.list_events()
+        held = self.webhookdoors_held()
+        open_keys = [f"{r.source}/{r.event}"
+                     for r in records
+                     if f"{r.source}/{r.event}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Webhook doors stand held: every recorded "
+                "event is fresh and rests on held "
+                "evidence - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Webhook doors stand open: no webhook "
+                "event is recorded this session - an "
+                "absent event reads as unknown, never "
+                "as current fact.")
+        else:
+            word = "open"
+            telling = (
+                "Webhook doors stand open: an event is "
+                "a fact only when a fresh event rests "
+                "on held evidence, and these events "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "webhookdoors_verdict",
+            "slice": camp_module.WEBHOOK_DOORS_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._webhookdoors_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_webhookdoors_event(
+            self, event: Any) -> dict[str, Any]:
+        """Hold one event's inbound event for the session (M-250).
+
+        The event is held whole by the session registry
+        before it is held: a event naming an unknown
+        source, availability, forge state, load band or
+        evidence kind refuses by name on this road too,
+        and a refusal holds nothing new and publishes
+        nothing. A held event is published as its
+        ``webhookdoors_event`` session-news record through
+        the checkpoint road. Returns the held event,
+        its news record, the screen rendered after it
+        landed, and the plain explanation. Holding a
+        event calls no host API, probes no
+        machine and starts nothing: the telling stands
+        on this layer's book, as data.
+        """
+        from ..core import webhook_doors as camp_module
+        registry = self._webhookdoors_registry()
+        held = registry.register_event(event)
+        news = {"type": "webhookdoors_event",
+                **_wh_event_dict(held)}
+        self._publish_webhookdoors_record(news)
+        return {
+            "record": _wh_event_dict(held),
+            "record_news": news,
+            "screen": self._webhookdoors_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_webhookdoors_events(
+            self, events: Any) -> dict[str, Any]:
+        """Hold a set of event events for the session (M-250).
+
+        Every event is held by the session registry -
+        the set is validated whole, and against the
+        events already held, before anything is held,
+        so a refusal holds nothing new. Every event is
+        published as its session news, in the order given.
+        Returns the held events, their news records,
+        the count of events held, the screen, and the
+        explanation. Registering calls no host API
+        and probes no network.
+        """
+        from ..core import webhook_doors as camp_module
+        registry = self._webhookdoors_registry()
+        validated = registry.register_events(events)
+        news_records = [
+            {"type": "webhookdoors_event", **_wh_event_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_webhookdoors_record(news)
+        return {
+            "records": [_wh_event_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._webhookdoors_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_webhookdoors_events(
+            self, events: Any) -> dict[str, Any]:
+        """Record a whole set of event events (M-250).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its source and event keys and schema. Every
+        event is held and published as its session
+        news, in the order given. Returns the held book,
+        its events, their news records, the count, the
+        screen, and the explanation. Recording calls no
+        host API, opens no listener and measures
+        no load.
+        """
+        from ..core import webhook_doors as camp_module
+        validated = [_wh_coerce_event(event)
+                     for event in events]
+        for held in validated:
+            held.validate(
+                self._webhookdoors_registry().sources())
+        fingerprint = (
+            tuple((r.source, r.event) for r in validated),
+            camp_module.WEBHOOK_DOORS_SCHEMA)
+        boarded = getattr(self, "_webhookdoors_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._webhookdoors_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these inbound events are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._webhookdoors_registry()
+        registry.register_events(validated)
+        boarded.add(fingerprint)
+        self._webhookdoors_held = registry.book()
+        news_records = [
+            {"type": "webhookdoors_event", **_wh_event_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_webhookdoors_record(news)
+        return {
+            "book": self._webhookdoors_held,
+            "records": [_wh_event_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._webhookdoors_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_webhookdoors(
+            self, source: Any, event: Any) -> dict[str, Any]:
+        """Stand one event's event standing on the session book (M-250).
+
+        This bridges book's own viewing road: the event's
+        source entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        event's effective event, and published as its
+        ``webhookdoors_standing`` session news, with the held
+        event published as its ``webhookdoors_event``
+        session news when one stands held. Returns the
+        source's entry, its derived standing, the held
+        event when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        webhook as data alone - it calls no Webhook
+        engine API, opens no listener, starts nothing
+        and builds nothing unbidden.
+        """
+        from ..core import webhook_doors as camp_module
+        entry = self.get_webhookdoors_source(source)
+        standing = self.webhookdoors_standing(source, event)
+        try:
+            held = self.get_webhookdoors_event(source, event)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "webhookdoors_event",
+                           **_wh_event_dict(held)}
+            self._publish_webhookdoors_record(record_news)
+        standing_news = {
+            "type": "webhookdoors_standing", "source": source,
+            "event": event, **_wh_standing_dict(standing)}
+        self._publish_webhookdoors_record(standing_news)
+        return {
+            "source": _wh_source_dict(entry),
+            "standing": {"source": source, "event": event,
+                         **_wh_standing_dict(standing)},
+            "record": (_wh_event_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._webhookdoors_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def propose_webhookdoors_proposal(
+            self, campaign: Any, source: Any, event: Any,
+            proposal: Any, approval: Any = "pending"
+            ) -> dict[str, Any]:
+        """Propose one campaign proposal draft for the session (M-250).
+
+        The proposal is shaped by the pure layer alone -
+        it stands at approval pending by default, may be
+        marked ``approved`` by a human, and an approval
+        word outside pending/approved refuses by name;
+        a proposal is never applied or built here and no
+        campaign is started on this road. A held proposal
+        draft is published as its ``webhookdoors_proposal``
+        session-news record through the checkpoint road.
+        Returns the held draft, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Proposing opens no webhook listener,
+        calls no host API and builds nothing unbidden.
+        """
+        from ..core import webhook_doors as camp_module
+        registry = self._webhookdoors_registry()
+        draft = registry.hold_proposal(campaign, source, event,
+                                       proposal,
+                                       approval=approval)
+        news = {"type": "webhookdoors_proposal",
+                **_wh_proposal_dict(draft)}
+        self._publish_webhookdoors_record(news)
+        return {
+            "draft": _wh_proposal_dict(draft),
+            "draft_news": news,
+            "screen": self._webhookdoors_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def get_webhookdoors_proposal(self, campaign: Any):
+        """The one proposal draft a campaign names (M-250).
+
+        The session's held registry answers: a campaign
+        the session holds no proposal for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._webhookdoors_registry().get_proposal(campaign)
+
+    def webhookdoors_proposals(self) -> list:
+        """The campaign proposal drafts held for the session (M-250)."""
+        return self._webhookdoors_registry().list_proposals()
+
+    def report_webhookdoors(self) -> dict[str, Any]:
+        """Render the session webhook doors, as a report (M-250).
+
+        The shipped source registry and every held
+        event's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, calls no host API, probes
+        no machine and starts nothing. Returns the book,
+        the sources, held events and proposal as plain
+        records, the derived standings, the rendered
+        sources and events, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import webhook_doors as camp_module
+        registry = self._webhookdoors_registry()
+        book = self.webhookdoors_book()
+        standings = []
+        for record in registry.list_events():
+            standing = self.webhookdoors_standing(
+                record.source, record.event)
+            standings.append({
+                "source": record.source,
+                "event": record.event,
+                **_wh_standing_dict(standing)})
+        return {
+            "book": book,
+            "sources": [_wh_source_dict(e)
+                        for e in registry.sources().entries()],
+            "records": [_wh_event_dict(r)
+                        for r in registry.list_events()],
+            "drafts": [_wh_proposal_dict(d)
+                       for d in registry.list_proposals()],
+            "standings": standings,
+            "index": self.webhookdoors_index()["index"],
+            "verdict": self.webhookdoors_verdict()["verdict"],
+            "sources_text": camp_module.format_sources(
+                registry.sources()),
+            "records_text": "\n".join(
+                camp_module.format_event(
+                    self._webhookdoors_effective_event(
+                        r.source, r.event))
+                for r in registry.list_events()),
+            "screen": self._webhookdoors_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_webhookdoors_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one webhook record as session news (M-250).
+
+        The agent layer's ``webhookdoors_event``,
+        ``webhookdoors_standing`` and
+        ``webhookdoors_proposal`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is attached. Each
+        record is announced at most once per telling: an
+        event under its source, its event, its kind, its
+        title, its subject, its observed time, its age,
+        its walked stages and its claims, a standing under
+        its source, its event, its held word, its stage,
+        its freshness and its gaps, and a proposal under
+        its campaign, its source, its event, its proposal
+        and its approval, so a standing grown by a newly
+        held event announces again as the new figure it
+        is. A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "webhookdoors_event":
+            target = ("webhookdoors_event",
+                      record.get("source"),
+                      record.get("event"),
+                      record.get("kind"),
+                      record.get("title"),
+                      record.get("subject"),
+                      record.get("observed_at"),
+                      record.get("age_seconds"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "webhookdoors_standing":
+            target = ("webhookdoors_standing",
+                      record.get("source"),
+                      record.get("event"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("freshness"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "webhookdoors_proposal":
+            target = ("webhookdoors_proposal",
+                      record.get("campaign"),
+                      record.get("source"),
+                      record.get("event"),
+                      record.get("proposal"),
+                      record.get("approval"))
+        else:
+            return
+        announced = getattr(self, "_webhookdoors_announced", None)
+        if announced is None:
+            announced = set()
+            self._webhookdoors_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+
 
     def _mcpserver_registry(self):
         """The held service registry (M-234).
