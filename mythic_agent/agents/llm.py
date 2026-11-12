@@ -1752,6 +1752,288 @@ def parse_webhookdoors_args(args: Any):
             raise ValueError(WEBHOOKDOORS_USAGE)
         return ("propose", rest[0], (), None)
     raise ValueError(WEBHOOKDOORS_USAGE)
+#: The /exporteverything slash grammar (M-251, agent layer).
+EXPORTEVERYTHING_USAGE = (
+    "Usage: /exporteverything | /exporteverything kinds | "
+    "/exporteverything kind <kind> | /exporteverything record "
+    "<kind> <record> | /exporteverything standing "
+    "<kind> <record> | /exporteverything prepare | "
+    "/exporteverything prepare <bundle> | "
+    "/exporteverything index | /exporteverything verdict")
+
+
+def _ee_kind_dict(entry: Any) -> dict[str, Any]:
+    """One export kind registry entry, as plain data (M-251)."""
+    return {"id": entry.id, "label": entry.label,
+            "item_word": entry.item_word,
+            "format_name": entry.format_name,
+            "openness": entry.openness, "reason": entry.reason}
+
+
+def _ee_record_dict(record: Any) -> dict[str, Any]:
+    """One export record, as plain data (M-251)."""
+    return {"kind": record.kind,
+            "record": record.record,
+            "scope": record.scope,
+            "title": record.title,
+            "subject": record.subject,
+            "observed_at": record.observed_at,
+            "age_seconds": record.age_seconds,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+def _ee_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived record standing, as plain data (M-251)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "freshness": standing.freshness,
+            "gaps": list(standing.gaps)}
+
+
+def _ee_draft_dict(draft: Any) -> dict[str, Any]:
+    """One bundle draft draft, as plain data (M-251)."""
+    return {"bundle": draft.bundle,
+            "kind": draft.kind, "record": draft.record,
+            "draft": draft.draft,
+            "state": draft.state, "exported": draft.exported}
+
+
+def _ee_draft_text(draft: Any) -> str:
+    """One bundle draft draft told in plain words (M-251)."""
+    return (f"{draft.bundle} <- {draft.kind}/{draft.record}: "
+            f"draft - {draft.draft} (state: "
+            f"{draft.state}; a draft is never "
+            "exported here)")
+
+
+def _ee_coerce_record(record: Any):
+    """An export record from an record or a plain telling (M-251)."""
+    from ..core.export_everything import ExportRecord
+    if isinstance(record, ExportRecord):
+        return record
+    if isinstance(record, dict):
+        return ExportRecord(
+            kind=record["kind"],
+            record=record["record"],
+            scope=record["scope"],
+            title=record["title"],
+            subject=record.get("subject", ""),
+            observed_at=record["observed_at"],
+            age_seconds=record["age_seconds"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return ExportRecord(
+        kind=record.kind, record=record.record,
+        scope=record.scope,
+        title=record.title,
+        subject=record.subject,
+        observed_at=record.observed_at,
+        age_seconds=record.age_seconds,
+        stages=tuple(record.stages),
+        claims=tuple(record.claims))
+
+class ExportEverythingRegistry:
+    """Session registry for the export everything (M-251).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.export_everything``): it
+    holds the shipped kind registry (one entry per
+    kind, held as data) beside the export records held
+    one by one for the session, one record per kind and
+    record, and the bundle drafts prepared for the
+    session, one draft draft per bundle. An record
+    is validated whole by the pure layer before it is
+    held - an record naming an unknown kind, scope or
+    evidence kind refuses by name here too, and a refusal
+    holds nothing new. A second record for a kind and
+    record already held refuses likewise. Drafts are
+    prepared only through the pure layer's draft road
+    - state ready by default, may be marked shared
+    by a human, and never exported or built: the doors
+    prepare bundles and export nothing here. Holding
+    performs no export, calls no host API, probes
+    no network and starts nothing: the registry holds
+    tellings as data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.export_everything import default_registry
+        self._kinds = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._drafts: dict[str, Any] = {}
+
+    def kinds(self):
+        """The shipped kind registry held by the session."""
+        return self._kinds
+
+    def register_record(self, record: Any):
+        """Hold one export record, validated whole.
+
+        A second record for a kind and record already
+        held refuses, and a refusal holds nothing new.
+        """
+        held = _ee_coerce_record(record)
+        held.validate(self._kinds)
+        key = (held.kind, held.record)
+        if key in self._records:
+            raise ValueError(
+                "an export record for kind "
+                f"{held.kind!r} record "
+                f"{held.record!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, kind: Any, record: Any):
+        """The held record for one kind and record."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(kind, record)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no export record "
+                f"for kind {kind!r} record "
+                f"{record!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of export records, validated whole.
+
+        Every record is validated, and checked against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _ee_coerce_record(record)
+            held.validate(self._kinds)
+            key = (held.kind, held.record)
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "an export record for kind "
+                    f"{held.kind!r} record "
+                    f"{held.record!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[(held.kind, held.record)] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The export records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the records and the drafts."""
+        return (list(self._records.values())
+                + list(self._drafts.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.export_everything import derive_standing
+        return [derive_standing(record, self._kinds)
+                for record in self._records.values()]
+
+    def hold_draft(self, bundle: Any, kind: Any,
+                      record: Any, draft: Any,
+                      state: Any = "ready"):
+        """Prepare one bundle draft draft, held for the session.
+
+        The draft is shaped by the pure layer alone -
+        an state word outside ready/shared refuses
+        by name there, and a draft is never exported or
+        built. A second draft draft for a bundle
+        already prepared refuses likewise.
+        """
+        from ..core.export_everything import prepare_draft
+        draft = prepare_draft(bundle, kind, record,
+                                 draft, state=state)
+        if draft.bundle in self._drafts:
+            raise ValueError(
+                "a bundle draft draft for bundle "
+                f"{draft.bundle!r} already stands held "
+                "for the session")
+        self._drafts[draft.bundle] = draft
+        return draft
+
+    def get_draft(self, bundle: Any):
+        """The held draft draft for one bundle."""
+        from ..core.validation import ValidationError
+        try:
+            return self._drafts[bundle]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no bundle draft for "
+                f"bundle {bundle!r}") from None
+
+    def list_drafts(self) -> list:
+        """The bundle draft drafts held, in draft order."""
+        return list(self._drafts.values())
+
+    def book(self):
+        """The held pieces composed as a export everything book.
+
+        The book is plain data: the shipped kind
+        registry's entries beside the export records and
+        bundle drafts held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.export_everything import EXPORT_EVERYTHING_SCHEMA
+        return {
+            "schema": EXPORT_EVERYTHING_SCHEMA,
+            "kinds": [_ee_kind_dict(entry)
+                        for entry in self._kinds.entries()],
+            "records": [_ee_record_dict(record)
+                        for record in self._records.values()],
+            "drafts": [_ee_draft_dict(draft)
+                       for draft in self._drafts.values()],
+        }
+
+
+def parse_exporteverything_args(args: Any):
+    """Parse /exporteverything arguments (M-251).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``kinds``, ``index`` and ``verdict`` name
+    their own stance with no target; ``kind <kind>``
+    names one kind; ``record <kind> <record>`` and
+    ``standing <kind> <record>`` name one kind and record
+    as a pair; ``prepare <bundle>`` names one bundle
+    and the bare ``prepare`` stance names the session's
+    draft drafts. Anything else raises ValueError
+    carrying the usage line, exactly as the sibling
+    parsers refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("kinds", "index", "verdict"):
+        if rest:
+            raise ValueError(EXPORTEVERYTHING_USAGE)
+        return (head, None, (), None)
+    if head == "kind":
+        if len(rest) != 1:
+            raise ValueError(EXPORTEVERYTHING_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 2:
+            raise ValueError(EXPORTEVERYTHING_USAGE)
+        return (head, (rest[0], rest[1]), (), None)
+    if head == "prepare":
+        if not rest:
+            return ("drafts", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(EXPORTEVERYTHING_USAGE)
+        return ("prepare", rest[0], (), None)
+    raise ValueError(EXPORTEVERYTHING_USAGE)
+
+
 class Agent:
     def __init__(self, project_root: Path | None = None, name: str = "Primary", config: dict[str, Any] | None = None):
         import copy
@@ -80437,6 +80719,637 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+
+
+    def _exporteverything_registry(self):
+        """The held export everything registry (M-251).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped kind registry beside the session's
+        record records and bundle draft one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_exporteverything_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_exporteverything_store", None)
+        if registry is None:
+            registry = ExportEverythingRegistry()
+            self._exporteverything_store = registry
+        return registry
+
+    def exporteverything_kinds(self):
+        """The shipped kind registry, as data (M-251).
+
+        One entry per kind - github, gitlab, bitbucket, generic - held as registry
+        entries, each naming the word that kind gives a
+        single telling. Resolution registers and publishes
+        nothing, calls no host API and probes no
+        network.
+        """
+        return self._exporteverything_registry().kinds()
+
+    def exporteverything_book(self):
+        """The session's export everything book, as data (M-251).
+
+        The held registry's book when the session holds
+        records or draft one by one - otherwise the book
+        boarded whole through
+        :meth:`record_exporteverything_records`, or the shipped
+        kind registry with nothing held until a record
+        or draft draft is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._exporteverything_registry()
+        if registry.list_records() or registry.list_drafts():
+            held = getattr(self, "_exporteverything_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [(r["kind"], r["record"])
+                     for r in held["records"]]
+                    == [(r["kind"], r["record"])
+                        for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_exporteverything_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _exporteverything_effective_record(self, kind: Any,
+                                      record: Any):
+        """The record an record's standing is derived from (M-251).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on, scope unknown, no subject named and its age
+        past the fresh limit - so an unheld record derives
+        an honest open standing naming its gaps, never a
+        dressed claim: an absent record reads as unknown.
+        An unknown kind refuses by name through the
+        shipped registry first.
+        """
+        from ..core.export_everything import (
+            FRESH_LIMIT_SECONDS, ExportRecord)
+        registry = self._exporteverything_registry()
+        registry.kinds().get(kind)
+        try:
+            return registry.get_record(kind, record)
+        except ValueError:
+            return ExportRecord(
+                kind=kind, record=record,
+                scope="unknown", title="(no record recorded)",
+                subject="",
+                observed_at="(no record recorded)",
+                age_seconds=FRESH_LIMIT_SECONDS + 1,
+                stages=(), claims=())
+
+    def _exporteverything_screen(self) -> str:
+        """The /exporteverything screen for the session (M-251)."""
+        from ..core.export_everything import (
+            format_kinds, format_record)
+        registry = self._exporteverything_registry()
+        lines = [format_kinds(registry.kinds())]
+        records = registry.list_records()
+        if not records:
+            lines.append(
+                "Export records: none recorded this "
+                "session - an record is a fact only when "
+                "a fresh record rests on held evidence, "
+                "and no record stands as known until it "
+                "is recorded.")
+        else:
+            lines.extend(format_record(record)
+                         for record in records)
+        lines.extend(_ee_draft_text(draft)
+                     for draft in registry.list_drafts())
+        return "\n".join(lines)
+
+    def exporteverything_status(self) -> dict[str, Any]:
+        """The export everything account, in plain data (M-251).
+
+        The shipped kind registry's entries and the
+        record records and bundle draft held this
+        session as plain records (empty until held), the
+        session book's record (the shipped kind registry
+        with nothing held - until items are held), the
+        records standing held and still open derived at call
+        time, the index and verdict derived at call time,
+        the kinds and records told in plain words
+        through the pure formatters, and the plain
+        explanation. A session holding no record for a
+        record derives that record's open standing. Resolution
+        registers and publishes nothing, calls no Export
+        engine API, performs no export and measures no
+        load: this layer tells only.
+        """
+        from ..core import export_everything as camp_module
+        registry = self._exporteverything_registry()
+        held_records = registry.list_records()
+        book = self.exporteverything_book()
+        index = self.exporteverything_index()
+        return {
+            "records": [_ee_record_dict(r)
+                        for r in held_records],
+            "kinds": [_ee_kind_dict(e)
+                        for e in registry.kinds().entries()],
+            "book": (book if held_records
+                     or registry.list_drafts()
+                     or getattr(self, "_exporteverything_held",
+                                None) is not None else None),
+            "exporteverything_book": {
+                "schema": camp_module.EXPORT_EVERYTHING_SCHEMA,
+                "kinds": book["kinds"],
+                "records": book["records"],
+                "drafts": book["drafts"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.exporteverything_verdict()["verdict"],
+            "kinds_text": camp_module.format_kinds(
+                registry.kinds()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "drafts": [_ee_draft_dict(d)
+                       for d in registry.list_drafts()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._exporteverything_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": EXPORTEVERYTHING_USAGE,
+        }
+
+    def get_exporteverything_kind(self, kind: Any):
+        """The one kind entry a kind name names (M-251).
+
+        The shipped kind registry answers: a kind the
+        doors book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._exporteverything_registry().kinds().get(kind)
+
+    def get_exporteverything_record(self, kind: Any, record: Any):
+        """The one record a kind and record name (M-251).
+
+        The session's held registry answers: a record the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._exporteverything_registry().get_record(kind, record)
+
+    def exporteverything_standing(self, kind: Any, record: Any):
+        """Derive one record's record standing (M-251).
+
+        The standing is derived at call time by the pure
+        layer from the record's effective record - the
+        held record, or the honest empty record while
+        none stands held: held only on a full legal walk
+        resting on held evidence within the fresh limit
+        and knowing its scope,
+        otherwise open, naming every gap. Deriving
+        registers and publishes nothing.
+        """
+        from ..core.export_everything import derive_standing
+        registry = self._exporteverything_registry()
+        return derive_standing(
+            self._exporteverything_effective_record(kind, record),
+            registry.kinds())
+
+    def records_for_scope(self, scope: Any):
+        """The held records resting on one scope (M-251)."""
+        from ..core.export_everything import RECORD_SCOPES
+        if scope is None or not str(scope).strip():
+            raise ValueError(
+                "a scope must be named to list its records")
+        if scope not in RECORD_SCOPES:
+            raise ValueError(
+                f"unknown export record scope {scope!r}; the "
+                "export everything book names: "
+                + ", ".join(RECORD_SCOPES))
+        return [r for r in
+                self._exporteverything_registry().list_records()
+                if r.scope == scope]
+
+    def exporteverything_held(self):
+        """The records whose record standing stands held (M-251)."""
+        registry = self._exporteverything_registry()
+        return [f"{r.kind}/{r.record}"
+                for r in registry.list_records()
+                if self.exporteverything_standing(
+                    r.kind, r.record).held]
+
+    def exporteverything_index(self) -> dict[str, Any]:
+        """Derive the export index at call time (M-251).
+
+        The index is derived from every held record
+        alone - each held record's derived standing, the
+        held records named and the open records named in its
+        gaps. Deriving registers and publishes nothing,
+        calls no host API and probes no network.
+        Returns the derived index record, the rendered
+        records, the screen and the plain explanation.
+        """
+        from ..core import export_everything as camp_module
+        registry = self._exporteverything_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.exporteverything_standing(
+                record.kind, record.record)
+            standings.append({
+                "kind": record.kind,
+                "record": record.record,
+                **_ee_standing_dict(standing)})
+        index = {
+            "type": "exporteverything_index",
+            "slice": camp_module.EXPORT_EVERYTHING_SLICE,
+            "schema": camp_module.EXPORT_EVERYTHING_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['kind']}/{s['record']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['kind']}/{s['record']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._exporteverything_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def exporteverything_verdict(self) -> dict[str, Any]:
+        """Derive the export verdict at call time (M-251).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and
+        every held record's standing stands held on
+        held evidence within the fresh limit, ``open``
+        while no record stands held or any held
+        record stands short of held - with the held and
+        open records named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import export_everything as camp_module
+        registry = self._exporteverything_registry()
+        records = registry.list_records()
+        held = self.exporteverything_held()
+        open_keys = [f"{r.kind}/{r.record}"
+                     for r in records
+                     if f"{r.kind}/{r.record}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Export everything stands held: every recorded "
+                "record is fresh and rests on held "
+                "evidence - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Export everything stands open: no export "
+                "record is recorded this session - an "
+                "absent record reads as unknown, never "
+                "as current fact.")
+        else:
+            word = "open"
+            telling = (
+                "Export everything stands open: an record is "
+                "a fact only when a fresh record rests "
+                "on held evidence, and these records "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "exporteverything_verdict",
+            "slice": camp_module.EXPORT_EVERYTHING_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._exporteverything_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_exporteverything_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one record's export record for the session (M-251).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        kind, availability, forge state, load band or
+        evidence kind refuses by name on this road too,
+        and a refusal holds nothing new and publishes
+        nothing. A held record is published as its
+        ``exporteverything_record`` session-news record through
+        the checkpoint road. Returns the held record,
+        its news record, the screen rendered after it
+        landed, and the plain explanation. Holding a
+        record calls no host API, probes no
+        machine and starts nothing: the telling stands
+        on this layer's book, as data.
+        """
+        from ..core import export_everything as camp_module
+        registry = self._exporteverything_registry()
+        held = registry.register_record(record)
+        news = {"type": "exporteverything_record",
+                **_ee_record_dict(held)}
+        self._publish_exporteverything_record(news)
+        return {
+            "record": _ee_record_dict(held),
+            "record_news": news,
+            "screen": self._exporteverything_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_exporteverything_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of record records for the session (M-251).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order given.
+        Returns the held records, their news records,
+        the count of records held, the screen, and the
+        explanation. Registering calls no host API
+        and probes no network.
+        """
+        from ..core import export_everything as camp_module
+        registry = self._exporteverything_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "exporteverything_record", **_ee_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_exporteverything_record(news)
+        return {
+            "records": [_ee_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._exporteverything_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_exporteverything_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of record records (M-251).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its kind and record keys and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held book,
+        its records, their news records, the count, the
+        screen, and the explanation. Recording calls no
+        host API, performs no export and measures
+        no load.
+        """
+        from ..core import export_everything as camp_module
+        validated = [_ee_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._exporteverything_registry().kinds())
+        fingerprint = (
+            tuple((r.kind, r.record) for r in validated),
+            camp_module.EXPORT_EVERYTHING_SCHEMA)
+        boarded = getattr(self, "_exporteverything_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._exporteverything_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these export records are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._exporteverything_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._exporteverything_held = registry.book()
+        news_records = [
+            {"type": "exporteverything_record", **_ee_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_exporteverything_record(news)
+        return {
+            "book": self._exporteverything_held,
+            "records": [_ee_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._exporteverything_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_exporteverything(
+            self, kind: Any, record: Any) -> dict[str, Any]:
+        """Stand one record's record standing on the session book (M-251).
+
+        This bridges book's own viewing road: the record's
+        kind entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        record's effective record, and published as its
+        ``exporteverything_standing`` session news, with the held
+        record published as its ``exporteverything_record``
+        session news when one stands held. Returns the
+        kind's entry, its derived standing, the held
+        record when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        export as data alone - it calls no Export
+        engine API, performs no export, starts nothing
+        and exports nothing here.
+        """
+        from ..core import export_everything as camp_module
+        entry = self.get_exporteverything_kind(kind)
+        standing = self.exporteverything_standing(kind, record)
+        try:
+            held = self.get_exporteverything_record(kind, record)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "exporteverything_record",
+                           **_ee_record_dict(held)}
+            self._publish_exporteverything_record(record_news)
+        standing_news = {
+            "type": "exporteverything_standing", "kind": kind,
+            "record": record, **_ee_standing_dict(standing)}
+        self._publish_exporteverything_record(standing_news)
+        return {
+            "kind": _ee_kind_dict(entry),
+            "standing": {"kind": kind, "record": record,
+                         **_ee_standing_dict(standing)},
+            "record": (_ee_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._exporteverything_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def prepare_exporteverything_draft(
+            self, bundle: Any, kind: Any, record: Any,
+            draft: Any, state: Any = "ready"
+            ) -> dict[str, Any]:
+        """Prepare one bundle draft draft for the session (M-251).
+
+        The draft is shaped by the pure layer alone -
+        it stands at state ready by default, may be
+        marked ``shared`` by a human, and an state
+        word outside ready/shared refuses by name;
+        a draft is never exported here and no
+        bundle is started on this road. A held draft
+        draft is published as its ``exporteverything_draft``
+        session-news record through the checkpoint road.
+        Returns the held draft, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Proposing performs no export,
+        calls no host API and exports nothing here.
+        """
+        from ..core import export_everything as camp_module
+        registry = self._exporteverything_registry()
+        draft = registry.hold_draft(bundle, kind, record,
+                                       draft,
+                                       state=state)
+        news = {"type": "exporteverything_draft",
+                **_ee_draft_dict(draft)}
+        self._publish_exporteverything_record(news)
+        return {
+            "draft": _ee_draft_dict(draft),
+            "draft_news": news,
+            "screen": self._exporteverything_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def get_exporteverything_draft(self, bundle: Any):
+        """The one draft draft a bundle names (M-251).
+
+        The session's held registry answers: a bundle
+        the session holds no draft for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._exporteverything_registry().get_draft(bundle)
+
+    def exporteverything_drafts(self) -> list:
+        """The bundle draft drafts held for the session (M-251)."""
+        return self._exporteverything_registry().list_drafts()
+
+    def report_exporteverything(self) -> dict[str, Any]:
+        """Render the session export everything, as a report (M-251).
+
+        The shipped kind registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, calls no host API, probes
+        no machine and starts nothing. Returns the book,
+        the kinds, held records and draft as plain
+        records, the derived standings, the rendered
+        kinds and records, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import export_everything as camp_module
+        registry = self._exporteverything_registry()
+        book = self.exporteverything_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.exporteverything_standing(
+                record.kind, record.record)
+            standings.append({
+                "kind": record.kind,
+                "record": record.record,
+                **_ee_standing_dict(standing)})
+        return {
+            "book": book,
+            "kinds": [_ee_kind_dict(e)
+                        for e in registry.kinds().entries()],
+            "records": [_ee_record_dict(r)
+                        for r in registry.list_records()],
+            "drafts": [_ee_draft_dict(d)
+                       for d in registry.list_drafts()],
+            "standings": standings,
+            "index": self.exporteverything_index()["index"],
+            "verdict": self.exporteverything_verdict()["verdict"],
+            "kinds_text": camp_module.format_kinds(
+                registry.kinds()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._exporteverything_effective_record(
+                        r.kind, r.record))
+                for r in registry.list_records()),
+            "screen": self._exporteverything_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_exporteverything_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one export record as session news (M-251).
+
+        The agent layer's ``exporteverything_record``,
+        ``exporteverything_standing`` and
+        ``exporteverything_draft`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is attached. Each
+        record is announced at most once per telling: an
+        record under its kind, its record, its kind, its
+        title, its subject, its observed time, its age,
+        its walked stages and its claims, a standing under
+        its kind, its record, its held word, its stage,
+        its freshness and its gaps, and a draft under
+        its bundle, its kind, its record, its draft
+        and its state, so a standing grown by a newly
+        held record announces again as the new figure it
+        is. A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "exporteverything_record":
+            target = ("exporteverything_record",
+                      record.get("kind"),
+                      record.get("record"),
+                      record.get("scope"),
+                      record.get("title"),
+                      record.get("subject"),
+                      record.get("observed_at"),
+                      record.get("age_seconds"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "exporteverything_standing":
+            target = ("exporteverything_standing",
+                      record.get("kind"),
+                      record.get("record"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("freshness"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "exporteverything_draft":
+            target = ("exporteverything_draft",
+                      record.get("bundle"),
+                      record.get("kind"),
+                      record.get("record"),
+                      record.get("draft"),
+                      record.get("state"))
+        else:
+            return
+        announced = getattr(self, "_exporteverything_announced", None)
+        if announced is None:
+            announced = set()
+            self._exporteverything_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
 
 
     def _mcpserver_registry(self):

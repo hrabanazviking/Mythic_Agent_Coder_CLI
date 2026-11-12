@@ -521,6 +521,8 @@ class CommandHandler:
                 self._handle_wyrdseam(args)
             elif cmd == "/webhookdoors":
                 self._handle_webhookdoors(args)
+            elif cmd == "/exporteverything":
+                self._handle_exporteverything(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -13886,6 +13888,118 @@ class CommandHandler:
                     "verdict_text"]
             else:
                 text = primary.webhookdoors_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+    def _handle_exporteverything(self, args: str):
+        """M-251: /exporteverything - the export everything as data.
+
+        ``/exporteverything`` shows the doors held this session -
+        the export kinds as registry entries: one
+        entry per kind, naming the word that kind
+        gives a single telling, beside the record records
+        held this session (no record recorded yet when
+        none is held - export is current only when a
+        fresh record rests on held evidence);
+        ``/exporteverything kinds`` shows the whole shipped
+        kind registry; ``/exporteverything kind <kind>``
+        shows one kind's registry entry; ``/exporteverything
+        record <kind> <record>`` shows the record held
+        for one kind and record; ``/exporteverything standing
+        <kind> <record>`` shows the standing derived for
+        one record - held only on a full legal walk resting
+        on held evidence within the fresh limit, otherwise
+        open, naming its gaps; ``/exporteverything prepare`` shows
+        the bundle draft held this session and
+        ``/exporteverything prepare <bundle>`` shows one draft
+        draft - draft is never exported here and no
+        bundle is exported here on this road; ``/exporteverything
+        index`` shows the index derived over every held
+        record; ``/exporteverything verdict`` shows the verdict
+        derived for the session. Resolution registers and
+        publishes nothing as session news on this heading:
+        records are held only when they are given
+        through the agent's register roads, stood on the
+        book on the viewing road, or held on the book
+        roads, and every record held for the session is
+        journaled as a exporteverything_record session record,
+        every viewed standing as a exporteverything_standing
+        session record and every prepared draft draft as
+        a exporteverything_draft session record. This heading
+        calls no host API, performs no export,
+        starts nothing and exports nothing here -
+        holding and telling are words only.
+        """
+        from ..core.export_everything import (
+            format_record,
+            format_kind,
+            format_kinds,
+        )
+        from .llm import parse_exporteverything_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_exporteverything_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "kinds":
+                text = format_kinds(
+                    primary.exporteverything_kinds())
+            elif stance == "kind":
+                text = format_kind(
+                    primary.get_exporteverything_kind(target))
+            elif stance == "record":
+                text = format_record(
+                    primary.get_exporteverything_record(*target))
+            elif stance == "standing":
+                standing = primary.exporteverything_standing(
+                    *target)
+                text = (
+                    f"{target[0]}/{target[1]}: export "
+                    f"{'held as open' if standing.held else 'open'} "
+                    f"(stage: {standing.stage}; "
+                    f"freshness: {standing.freshness})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "drafts":
+                drafts = primary.exporteverything_drafts()
+                if not drafts:
+                    text = (
+                        "Bundle draft: none held this "
+                        "session - the doors prepare bundle "
+                        "moves only as drafts, and a draft is "
+                        "never exported here.")
+                else:
+                    text = "\n".join(
+                        f"{d.bundle} -> {d.record}: draft - "
+                        f"{d.draft} (state: {d.state}; "
+                        "draft is never exported here)"
+                        for d in drafts)
+            elif stance == "prepare":
+                d = primary.get_exporteverything_draft(target)
+                text = (
+                    f"{d.bundle} -> {d.record}: draft - "
+                    f"{d.draft} (state: {d.state}; "
+                    "draft is never exported here)")
+            elif stance == "index":
+                text = primary.exporteverything_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.exporteverything_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.exporteverything_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
