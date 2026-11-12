@@ -507,6 +507,8 @@ class CommandHandler:
                 self._handle_samverkbridge(args)
             elif cmd == "/samtalbridge":
                 self._handle_samtalbridge(args)
+            elif cmd == "/kistakeykeeper":
+                self._handle_kistakeykeeper(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -13158,6 +13160,101 @@ class CommandHandler:
                 text = format_verdict(primary.samtalbridge_book())
             else:
                 text = primary.samtalbridge_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_kistakeykeeper(self, args: str):
+        """M-244: /kistakeykeeper - the resolution engine as data.
+
+        ``/kistakeykeeper`` shows the resolution book held this
+        session - resolution bridges as data: one record per
+        resolution, held whole with the active bridge it
+        was held from, its one verifiable stage
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five resolutions at the M-203 bridge
+        bridge, with its three bridge references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/kistakeykeeper resolution <resolution-id>``
+        shows one resolution whole; ``/kistakeykeeper stage
+        <stage>`` shows the resolution one stage line
+        reaches, or names the stage unheld;
+        ``/kistakeykeeper bridge <bridge-id>`` shows the book's
+        resolutions of one bridge; ``/kistakeykeeper view <view-id>``
+        shows one held view record; ``/kistakeykeeper note
+        <note-id>`` shows one held stance record;
+        ``/kistakeykeeper index`` shows the index derived
+        from the whole book's held resolutions; ``/kistakeykeeper
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/kistakeykeeper
+        verdict`` shows the verdict derived for the
+        whole book. Resolution registers and publishes
+        nothing as session news: resolutions and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every resolution held for the session is
+        journaled as a resolution_resolution session event,
+        every view as a resolution_view session event,
+        every derived panel as a kistakeykeeper_panel
+        session event and every derived verdict as a
+        kistakeykeeper_verdict session event. This heading
+        builds no bridge, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.kista_keykeeper import (
+            format_resolution,
+            format_book,
+            format_stage,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_resolution_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_resolution_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "resolution":
+                text = format_resolution(
+                    primary.get_kistakeykeeper_resolution(target),
+                    primary.kistakeykeeper_book())
+            elif stance == "stage":
+                text = format_stage(
+                    primary.kistakeykeeper_book(), target)
+            elif stance == "bridge":
+                text = format_book(
+                    primary.kistakeykeeper_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_kistakeykeeper_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.kistakeykeeper_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.kistakeykeeper_book())
+            elif stance == "panel":
+                text = format_panel(primary.kistakeykeeper_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.kistakeykeeper_book())
+            else:
+                text = primary.kistakeykeeper_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
