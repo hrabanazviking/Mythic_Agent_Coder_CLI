@@ -1539,7 +1539,7 @@ slices:
   part: 10
   title: Docs MCP pattern generalised
   summary: any project's docs MCP (like the Mojo one) attachable as a knowledge bridge in one step.
-  status: queued
+  status: done
 - id: M-253
   part: 10
   title: Bridge permissions audit
