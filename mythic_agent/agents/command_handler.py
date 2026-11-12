@@ -515,6 +515,8 @@ class CommandHandler:
                 self._handle_githostparity(args)
             elif cmd == "/cibridges":
                 self._handle_cibridges(args)
+            elif cmd == "/issuetrackers":
+                self._handle_issuetrackers(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -13544,6 +13546,118 @@ class CommandHandler:
                     "verdict_text"]
             else:
                 text = primary.cibridges_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+    def _handle_issuetrackers(self, args: str):
+        """M-248: /issuetrackers - the issue trackers as data.
+
+        ``/issuetrackers`` shows the bridges held this
+        session - the issue trackers as registry entries:
+        one entry per tracker, naming the word that
+        tracker gives a single issue, beside the issue
+        records held this session (no record held yet
+        when none is held - an issue is a fact only
+        when it rests on held evidence); ``/issuetrackers
+        trackers`` shows the whole shipped tracker
+        registry; ``/issuetrackers tracker <tracker>``
+        shows one tracker's registry entry;
+        ``/issuetrackers record <tracker> <issue_key>``
+        shows the run record held for one tracker and
+        issue_key; ``/issuetrackers standing <tracker>
+        <issue_key>`` shows the standing derived for one
+        issue - held only on a full legal walk resting on
+        held evidence, otherwise open, naming its gaps;
+        ``/issuetrackers draft`` shows the write drafts
+        held this session and ``/issuetrackers draft
+        <tracker> <issue_key>`` shows one draft - a
+        draft is never applied here, and on Volmarr's
+        repos it stands at approval pending by default;
+        ``/issuetrackers index`` shows the index derived
+        over every held record; ``/issuetrackers verdict``
+        shows the verdict derived for the session.
+        Resolution registers and publishes nothing as
+        session news on this heading: records are held
+        only when they are given through the agent's
+        register roads, stood on the book on the viewing
+        road, or held on the book roads, and every record
+        held for the session is journaled as a
+        issuetrackers_record session event, every viewed
+        standing as a issuetrackers_standing session event
+        and every proposed draft as a issuetrackers_draft
+        session event. This heading calls no tracker API,
+        fetches no issue, writes nothing to any tracker and probes
+        no network - holding and telling are words only.
+        """
+        from ..core.issue_trackers import (
+            format_tracker,
+            format_trackers,
+            format_record,
+        )
+        from .llm import parse_issuetrackers_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_issuetrackers_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "trackers":
+                text = format_trackers(
+                    primary.issuetrackers_trackers())
+            elif stance == "tracker":
+                text = format_tracker(
+                    primary.get_issuetrackers_tracker(target))
+            elif stance == "record":
+                text = format_record(
+                    primary.get_issuetrackers_record(*target))
+            elif stance == "standing":
+                standing = primary.issuetrackers_standing(
+                    *target)
+                text = (
+                    f"{target[0]}/{target[1]}: issue "
+                    f"{'held as fact' if standing.held else 'open'} "
+                    f"(stage: {standing.stage})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "drafts":
+                drafts = primary.issuetrackers_drafts()
+                if not drafts:
+                    text = (
+                        "Write drafts: none held this "
+                        "session - tracker writes are "
+                        "proposed only as drafts, and a "
+                        "draft is never applied here.")
+                else:
+                    text = "\n".join(
+                        f"{d.tracker}/{d.issue_key}: draft - "
+                        f"{d.change} (approval: {d.approval}; "
+                        "a draft is never applied here)"
+                        for d in drafts)
+            elif stance == "draft":
+                d = primary.get_issuetrackers_draft(*target)
+                text = (
+                    f"{d.tracker}/{d.issue_key}: draft - "
+                    f"{d.change} (approval: {d.approval}; "
+                    "a draft is never applied here)")
+            elif stance == "index":
+                text = primary.issuetrackers_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.issuetrackers_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.issuetrackers_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
