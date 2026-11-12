@@ -519,6 +519,8 @@ class CommandHandler:
                 self._handle_issuetrackers(args)
             elif cmd == "/wyrdseam":
                 self._handle_wyrdseam(args)
+            elif cmd == "/webhookdoors":
+                self._handle_webhookdoors(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -13772,6 +13774,118 @@ class CommandHandler:
                     "verdict_text"]
             else:
                 text = primary.wyrdseam_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+    def _handle_webhookdoors(self, args: str):
+        """M-250: /webhookdoors - the webhook doors as data.
+
+        ``/webhookdoors`` shows the doors held this session -
+        the webhook sources as registry entries: one
+        entry per source, naming the word that source
+        gives a single telling, beside the event events
+        held this session (no event recorded yet when
+        none is held - webhook is current only when a
+        fresh event rests on held evidence);
+        ``/webhookdoors sources`` shows the whole shipped
+        source registry; ``/webhookdoors source <source>``
+        shows one source's registry entry; ``/webhookdoors
+        event <source> <event>`` shows the event held
+        for one source and event; ``/webhookdoors standing
+        <source> <event>`` shows the standing derived for
+        one event - held only on a full legal walk resting
+        on held evidence within the fresh limit, otherwise
+        open, naming its gaps; ``/webhookdoors propose`` shows
+        the campaign proposal held this session and
+        ``/webhookdoors propose <campaign>`` shows one proposal
+        draft - proposal is never applied here and no
+        campaign is built unbidden on this road; ``/webhookdoors
+        index`` shows the index derived over every held
+        event; ``/webhookdoors verdict`` shows the verdict
+        derived for the session. Resolution registers and
+        publishes nothing as session news on this heading:
+        events are held only when they are given
+        through the agent's register roads, stood on the
+        book on the viewing road, or held on the book
+        roads, and every event held for the session is
+        journaled as a webhookdoors_event session event,
+        every viewed standing as a webhookdoors_standing
+        session event and every proposed proposal draft as
+        a webhookdoors_proposal session event. This heading
+        calls no host API, opens no listener,
+        starts nothing and builds nothing unbidden -
+        holding and telling are words only.
+        """
+        from ..core.webhook_doors import (
+            format_event,
+            format_source,
+            format_sources,
+        )
+        from .llm import parse_webhookdoors_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_webhookdoors_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "sources":
+                text = format_sources(
+                    primary.webhookdoors_sources())
+            elif stance == "source":
+                text = format_source(
+                    primary.get_webhookdoors_source(target))
+            elif stance == "event":
+                text = format_event(
+                    primary.get_webhookdoors_event(*target))
+            elif stance == "standing":
+                standing = primary.webhookdoors_standing(
+                    *target)
+                text = (
+                    f"{target[0]}/{target[1]}: webhook "
+                    f"{'held as recorded' if standing.held else 'open'} "
+                    f"(stage: {standing.stage}; "
+                    f"freshness: {standing.freshness})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "proposals":
+                drafts = primary.webhookdoors_proposals()
+                if not drafts:
+                    text = (
+                        "Campaign proposal: none held this "
+                        "session - the doors propose campaign "
+                        "moves only as proposals, and a proposal is "
+                        "never applied here.")
+                else:
+                    text = "\n".join(
+                        f"{d.campaign} -> {d.event}: proposal - "
+                        f"{d.proposal} (approval: {d.approval}; "
+                        "proposal is never applied here)"
+                        for d in drafts)
+            elif stance == "propose":
+                d = primary.get_webhookdoors_proposal(target)
+                text = (
+                    f"{d.campaign} -> {d.event}: proposal - "
+                    f"{d.proposal} (approval: {d.approval}; "
+                    "proposal is never applied here)")
+            elif stance == "index":
+                text = primary.webhookdoors_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.webhookdoors_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.webhookdoors_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
