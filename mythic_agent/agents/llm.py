@@ -73564,6 +73564,641 @@ class Agent:
         if self._session_store and self.session_id:
             self._checkpoint(record)
 
+    def _samverkbridge_registry(self):
+        """The held repo registry (M-242).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the pure-layer repo and view records
+        one by one, beside the session keyboard registry
+        (M-200) and never in it: the book is one
+        repo book to look at. It is created on
+        first use, so an agent whose ``__init__``
+        never ran still holds exactly one. The
+        attribute is opened
+        ``_samverkbridge_store``, never the
+        method's own name (the M-108 exchange).
+        """
+        registry = getattr(self, "_samverkbridge_store", None)
+        if registry is None:
+            from ..core.samverk_bridge import ExchangeRegistry
+            registry = ExchangeRegistry()
+            self._samverkbridge_store = registry
+        return registry
+
+    def samverkbridge_book(self):
+        """The session's repo book, as data (M-242).
+
+        The held registry's book when the session
+        holds any item - the things the session can
+        actually be viewed for (items held one by one
+        stand under a session book composed here in
+        the agent layer, so a later whole book
+        boarded under its own title is never refused
+        by a shim title at the registry) - otherwise
+        the book boarded whole through
+        :meth:`record_samverkbridge_book`, or the shipped
+        example book until one is boarded. Exchange
+        registers and publishes nothing.
+        """
+        from ..core.samverk_bridge import (
+            ExchangeBook, load_exchange)
+        registry = self._samverkbridge_registry()
+        if registry.list_items():
+            try:
+                book = registry.book()
+            except ValueError:
+                return ExchangeBook(
+                    title=registry.title() or "The Samverk Bridge",
+                    repos=(), exchanges=registry.list_exchanges(),
+                    views=registry.list_views(), notes=(),
+                    traces=(), panels=())
+            held = getattr(self, "_samverkbridge_held", None)
+            if held is not None and held.title == book.title \
+                    and held.repo_ids() == book.repo_ids() \
+                    and held.exchange_ids() == book.exchange_ids() \
+                    and [v.view_id for v in held.views] == [
+                        v.view_id for v in book.views]:
+                return held
+            return book
+        book = getattr(self, "_samverkbridge_held", None)
+        if book is None:
+            return load_exchange()
+        return book
+
+    def _samverkbridge_default_view(self, book: Any):
+        """The view a book derives under by default (M-242).
+
+        The view its own stored panel stands under,
+        else its first held view, else None - a book
+        holding repos but no view yet derives no panel
+        and no verdict, and says so plainly.
+        """
+        for panel in book.panels:
+            if panel.view_id is not None:
+                try:
+                    return book.view_for(panel.view_id)
+                except KeyError:
+                    continue
+        if book.views:
+            return book.views[0]
+        return None
+
+    def _samverkbridge_screen(self) -> str:
+        """The /samverkbridge screen for the session's state (M-242)."""
+        from ..core import samverk_bridge as camp_module
+        registry = self._samverkbridge_registry()
+        if not registry.list_items():
+            return camp_module.format_exchange_screen()
+        book = self.samverkbridge_book()
+        if not book.views:
+            return camp_module.format_book(book)
+        return camp_module.format_exchange_screen(book)
+
+    def samverkbridge_status(self) -> dict[str, Any]:
+        """The repo account, in plain data (M-242).
+
+        The repo and view records held this session as
+        plain records, the held book's record (none
+        until an item stands held), the session book's
+        repos, views and notes as plain records (the
+        shipped example book - six repos at the M-200
+        slice repo, with its two views, its two
+        stance records and its one pinned panel - until
+        items are held), its whole-book record, the
+        panel derived from the whole book under its
+        default view and every panel the book holds
+        as plain records, the verdict derived for
+        the whole book, the index derived from the
+        book's held repos, the first stance record the
+        book holds, the repo rule as data, the
+        last repo told in plain words, the panel and
+        the verdict told in plain words, the one
+        screen - rendered from the held book, or from
+        the shipped example book when nothing is held
+        yet - and the plain explanation. A book
+        holding repos but no view yet derives no panel
+        and no verdict. Exchange registers and
+        publishes nothing, moves no pointer, renders
+        no live UI and opens no file: this
+        layer tells only.
+        """
+        from ..core import samverk_bridge as camp_module
+        registry = self._samverkbridge_registry()
+        held_acts = registry.list_slices()
+        held_exchanges = registry.list_exchanges()
+        held_views = registry.list_views()
+        held_items = registry.list_items()
+        book = self.samverkbridge_book()
+        default = self._samverkbridge_default_view(book)
+        latest_words = camp_module.index_plain_words(book)
+        modal = camp_module.first_note(book)
+        return {
+            "repos": [item.to_record() for item in held_acts],
+            "exchange_records": [item.to_record() for item in held_exchanges],
+            "views": [item.to_record() for item in held_views],
+            "book": (book.to_record() if held_items else None),
+            "samverkbridge_book": {
+                "title": book.title,
+                "repos": [item.to_record() for item in book.repos],
+                "exchange_records": [item.to_record() for item in book.exchanges],
+                "views": [item.to_record() for item in book.views],
+                "notes": [item.to_record() for item in book.notes],
+                "traces": [item.to_record() for item in book.traces],
+            },
+            "book_record": camp_module.book_record(book),
+            "panel": (camp_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "panels": [p.to_record() for p in book.panels],
+            "verdict": (camp_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "index": camp_module.index_record(book),
+            "ledger": camp_module.ledger_record(book),
+            "roadmap": camp_module.roadmap_record(),
+            "first_note": (camp_module.note_record(modal)
+                         if modal is not None else None),
+            "rule": camp_module.EXCHANGE_RULE,
+            "plain_words": latest_words,
+            "panel_plain_words": (
+                camp_module.panel_plain_words(book, default)
+                if default is not None else ""),
+            "verdict_plain_words": (
+                camp_module.verdict_plain_words(book, default)
+                if default is not None else ""),
+            "screen": self._samverkbridge_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def get_samverkbridge_exchange(self, exchange_id: Any):
+        """The one repo an id names (M-242).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the shipped
+        example book answers (or the book boarded
+        whole for the session). A held item answers
+        for its own book alone: an id the held book
+        holds no repo for raises KeyError, with no
+        silent fall back to the example, exactly as
+        the pure layer answers. Exchange registers
+        and publishes nothing.
+        """
+        registry = self._samverkbridge_registry()
+        if registry.list_items():
+            return registry.get_exchange(exchange_id)
+        return self.samverkbridge_book().exchange_for(exchange_id)
+
+    def get_samverkbridge_view(self, view_id: Any):
+        """The one view record an id names (M-242).
+
+        The session's held registry answers when the
+        session holds any item; otherwise the shipped
+        example book answers (or the book boarded
+        whole for the session). Exchange registers
+        and publishes nothing.
+        """
+        registry = self._samverkbridge_registry()
+        if registry.list_items():
+            return registry.get_view(view_id)
+        return self.samverkbridge_book().view_for(view_id)
+
+    def get_samverkbridge_note(self, note_id: Any):
+        """The one stance record an id names (M-242).
+
+        The session book answers - the shipped example
+        book until a book is boarded whole for the
+        session. Notes travel with whole books: a
+        session holding repos one by one holds no
+        notes, and an id it holds no record for
+        raises KeyError - the stance stands unheld,
+        honestly. Exchange registers and publishes
+        nothing, and opens no file: the record is
+        data alone.
+        """
+        return self.samverkbridge_book().note_for(note_id)
+
+    def exchanges_for_repo(self, repo_id: Any):
+        """The session book's repos of one state (M-242)."""
+        from ..core.samverk_bridge import (
+            exchanges_for_repo as _for_slice)
+        return _for_slice(self.samverkbridge_book(), repo_id)
+
+    def samverkbridge_green(self):
+        """The session book's repos standing ready (M-242)."""
+        from ..core.samverk_bridge import (
+            green_exchanges as _green)
+        return _green(self.samverkbridge_book())
+
+    def samverkbridge_panel(self, view: Any = None):
+        """The panel derived for the whole book (M-242).
+
+        Derived under the opened view, or under the
+        book's default view when none is opened; a book
+        holding no view at all refuses plainly rather
+        than inventing one.
+        """
+        from ..core.samverk_bridge import (
+            derive_panel as _derive_panel)
+        book = self.samverkbridge_book()
+        resolved = view if view is not None \
+            else self._samverkbridge_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive a panel under")
+        return _derive_panel(book, resolved)
+
+    def samverkbridge_verdict(self, view: Any = None):
+        """The verdict derived for the whole book (M-242).
+
+        Derived under the opened view, or under the
+        book's default view when none is opened; a book
+        holding no view at all refuses plainly rather
+        than inventing one.
+        """
+        from ..core.samverk_bridge import (
+            derive_verdict as _derive_verdict)
+        book = self.samverkbridge_book()
+        resolved = view if view is not None \
+            else self._samverkbridge_default_view(book)
+        if resolved is None:
+            raise ValueError(
+                "no view stands in the book to derive a verdict under")
+        return _derive_verdict(book, resolved)
+
+    def samverkbridge_index(self) -> dict[str, Any]:
+        """Print the index derived from the held repos (M-242).
+
+        The printable index target: the index is
+        derived at call time from the session book's
+        held repos alone - one exchange per ready
+        repo under its own stages, and the unready
+        repos opened in its gaps. Printing registers
+        and publishes nothing, moves no pointer,
+        renders no live UI and opens no file. Returns the derived index record, the
+        rendered index, the screen and the plain
+        explanation.
+        """
+        from ..core import samverk_bridge as camp_module
+        book = self.samverkbridge_book()
+        index = camp_module.derive_index(book)
+        return {
+            "index": index.to_record(),
+            "index_record": camp_module.index_record(index),
+            "index_text": camp_module.format_index(book),
+            "screen": self._samverkbridge_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_samverkbridge_exchange(self, exchange: Any) -> dict[str, Any]:
+        """Hold one repo for the session (M-242).
+
+        The repo is held by the pure registry under
+        its repo id - a repo id or a sequence
+        already standing here refuses, and a refusal
+        holds nothing new and publishes nothing. The
+        repo is held whole by the pure layer before
+        it is held: a repo claiming a live
+        execution, exchange, exchange or push refuses by
+        name on this target too. A held repo is
+        published as its ``repo_record`` session-news
+        record through the checkpoint target. Returns
+        the held repo, its news record, the screen
+        rendered after it landed, and the plain
+        explanation. Holding a repo executes nothing:
+        the thing stands on this layer's book, as
+        data, heldance whole.
+        """
+        from ..core import samverk_bridge as camp_module
+        registry = self._samverkbridge_registry()
+        held = registry.register_exchange(exchange)
+        news = camp_module.exchange_record(held)
+        self._publish_samverkbridge_record(news)
+        return {
+            "exchange": held.to_record(),
+            "record_news": news,
+            "screen": self._samverkbridge_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_samverkbridge_view(self, view: Any) -> dict[str, Any]:
+        """Hold one view record for the session (M-242).
+
+        The view is held by the pure registry under
+        its id - a view id or a sequence already
+        standing here refuses, and a refusal holds
+        nothing new and publishes nothing. A held
+        view is published as its ``view_record``
+        session-news record through the checkpoint
+        target. Returns the held view, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding a view only ever
+        looks: it executes nothing and sends nothing.
+        """
+        from ..core import samverk_bridge as camp_module
+        registry = self._samverkbridge_registry()
+        held = registry.register_view(view)
+        news = camp_module.view_record(held)
+        self._publish_samverkbridge_record(news)
+        return {
+            "view": held.to_record(),
+            "record_news": news,
+            "screen": self._samverkbridge_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_samverkbridge(
+            self, view_filter: Any, *,
+            detail: Any = None,
+            recorded_on: Any = "2026-11-10",
+            actor: Any = "the jarl",
+            repo: Any = "exchange gate",
+            origin_session: Any = "session-m215",
+            view_id: Any = None) -> dict[str, Any]:
+        """Stand one view on the session's held book (M-242).
+
+        This repo's own viewing target: the view record
+        is composed by the pure layer at the next
+        sequence of the session's held book, held
+        whole, and held by the pure registry. The view
+        is published as its ``view_record`` session
+        news, the panel derived from the whole book as
+        its ``panel_record`` session news, and the
+        verdict derived for the whole book as its
+        ``verdict_record`` session news. Returns the
+        held view, its view filter, its news records,
+        the screen rendered after it landed and the
+        plain explanation. HONEST REPO: viewing
+        tells the book alone, as data - it moves no pointer and renders no live UI.
+        """
+        from ..core import samverk_bridge as camp_module
+        registry = self._samverkbridge_registry()
+        held_views = registry.list_views()
+        seq = (max(v.seq for v in held_views) + 1) \
+            if held_views else 1
+        fields: dict[str, Any] = {
+            "seq": seq, "view_filter": view_filter,
+            "detail": detail if detail is not None else (
+                f"View filter {view_filter!r} in the "
+                "session's held book, composed on the "
+                "viewing target."),
+            "recorded_on": recorded_on,
+            "actor": actor, "repo": repo,
+            "origin_session": origin_session}
+        if view_id is not None:
+            fields["view_id"] = view_id
+        else:
+            held_ids = {v.view_id for v in held_views}
+            fresh = 1
+            while f"view-{fresh}" in held_ids:
+                fresh += 1
+            fields["view_id"] = f"view-{fresh}"
+        view = camp_module.build_view(fields)
+        held = registry.register_view(view)
+        view_news = camp_module.view_record(held)
+        self._publish_samverkbridge_record(view_news)
+        book = self.samverkbridge_book()
+        panel_news = camp_module.panel_record(
+            camp_module.derive_panel(book, held))
+        self._publish_samverkbridge_record(panel_news)
+        verdict_news = camp_module.verdict_record(
+            camp_module.derive_verdict(book, held))
+        self._publish_samverkbridge_record(verdict_news)
+        return {
+            "view": held.to_record(),
+            "view_filter": held.view_filter,
+            "record_news": view_news,
+            "panel_record": panel_news,
+            "verdict_record": verdict_news,
+            "screen": self._samverkbridge_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_samverkbridge_book(self, book: Any) -> dict[str, Any]:
+        """Register a whole repo book (M-242).
+
+        Every repo and view record of the book is held
+        by the pure registry, in held and boarded
+        exchange - the book is held whole, and against
+        the held book, before anything is held, so a
+        refusal holds nothing new. The first book held
+        sets the registry's title; a later book under
+        a different title refuses, as does a book
+        naming a held repo id, sequence or target, or a
+        view id or sequence. The book's panels are
+        derivations, not holdings, and are not held;
+        its notes travel with whole books and are
+        held on the record target, not this one. Every
+        repo is published as its session news and
+        every view as its ``view_record`` session
+        news, in exchange. Returns the held book, its
+        repos and views, their news records, the count
+        of repos held, the screen, and the explanation.
+        Registering executes nothing, renders no live
+        UI and opens no file.
+        """
+        from ..core import samverk_bridge as camp_module
+        validated = camp_module.build_book(book)
+        registry = self._samverkbridge_registry()
+        registry.register_book(validated)
+        records = [
+            camp_module.repo_record(item)
+            for item in validated.repos]
+        records += [
+            camp_module.exchange_record(item)
+            for item in validated.exchanges]
+        records += [
+            camp_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_samverkbridge_record(news)
+        return {
+            "book": validated.to_record(),
+            "repos": [item.to_record() for item in validated.repos],
+            "exchange_records": [item.to_record() for item in validated.exchanges],
+            "views": [item.to_record() for item in validated.views],
+            "records_news": records,
+            "count": len(validated.exchanges),
+            "screen": self._samverkbridge_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_samverkbridge_book(self, book: Any = None) -> dict[str, Any]:
+        """Record a whole repo book (M-242).
+
+        With no book opened, the shipped example book
+        is boarded through the pure layer - four repos
+        at the M-242 slice repo, with its two
+        views, its two stance records and its one
+        pinned panel. A book triaged from a file (the
+        pure layer's ``load_exchange_file``
+        target) may be passed instead. The book is
+        held whole before anything is held - a book
+        holding two repos under one map refuses here
+        by name, as does any record claiming a live
+        repo target. Every repo and view is held and
+        published as its session news, in exchange, and
+        the panel derived under the book's default
+        view as its ``panel_record`` session news;
+        the book is remembered whole as the session's
+        - its held panel and notes and all - and the
+        same book boarded twice refuses -
+        fingerprinted on its repo ids, view ids and
+        title. Returns the held book, its repos and
+        views, their news records, the panel news
+        record, the index news record, the count,
+        the screen, and the explanation. Recording
+        executes nothing, renders no live UI and
+        opens no file.
+        """
+        from ..core import samverk_bridge as camp_module
+        book = book if book is not None \
+            else camp_module.load_exchange()
+        validated = camp_module.build_book(book)
+        fingerprint = (tuple(validated.exchange_ids()),
+                       tuple(validated.repo_ids()),
+                       tuple(v.view_id for v in validated.views),
+                       validated.title)
+        boarded = getattr(self, "_samverkbridge_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._samverkbridge_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "this repo book is already boarded for the "
+                "session; a book is boarded once")
+        registry = self._samverkbridge_registry()
+        registry.register_book(validated)
+        boarded.add(fingerprint)
+        self._samverkbridge_held = validated
+        records = [
+            camp_module.repo_record(item)
+            for item in validated.repos]
+        records += [
+            camp_module.exchange_record(item)
+            for item in validated.exchanges]
+        records += [
+            camp_module.view_record(view)
+            for view in validated.views]
+        for news in records:
+            self._publish_samverkbridge_record(news)
+        panel_news = camp_module.panel_record(
+            camp_module.derive_panel(
+                validated,
+                self._samverkbridge_default_view(validated)),
+            validated)
+        self._publish_samverkbridge_record(panel_news)
+        return {
+            "book": validated.to_record(),
+            "repos": [item.to_record() for item in validated.repos],
+            "exchange_records": [item.to_record() for item in validated.exchanges],
+            "views": [item.to_record() for item in validated.views],
+            "records_news": records,
+            "panel_record": panel_news,
+            "index_record": camp_module.index_record(validated),
+            "count": len(validated.exchanges),
+            "screen": camp_module.format_exchange_screen(validated),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def report_samverkbridge(self) -> dict[str, Any]:
+        """Render the session repo book, as a exchange (M-242).
+
+        The book - the held registry's book when the
+        session holds any item, otherwise the shipped
+        example book (or the book boarded whole for
+        the session) - is rendered through the pure
+        formatters alone. Rendering registers and
+        publishes nothing, executes nothing, renders
+        no live UI and writes nothing. Returns the
+        book, its repos, views, notes and panels as
+        plain records, the derived panel, verdict and
+        index (panel and verdict none while the book
+        holds no view), the first stance record, the
+        rendered book, panel, verdict and index,
+        the screen, and the plain explanation.
+        """
+        from ..core import samverk_bridge as camp_module
+        book = self.samverkbridge_book()
+        default = self._samverkbridge_default_view(book)
+        modal = camp_module.first_note(book)
+        return {
+            "book": book.to_record(),
+            "repos": [item.to_record() for item in book.repos],
+            "exchange_records": [item.to_record() for item in book.exchanges],
+            "views": [item.to_record() for item in book.views],
+            "notes": [item.to_record() for item in book.notes],
+            "traces": [item.to_record() for item in book.traces],
+            "panels": [p.to_record() for p in book.panels],
+            "panel": (camp_module.derive_panel(
+                book, default).to_record()
+                if default is not None else None),
+            "verdict": (camp_module.derive_verdict(
+                book, default).to_record()
+                if default is not None else None),
+            "index": camp_module.index_record(book),
+            "first_note": (camp_module.note_record(modal)
+                         if modal is not None else None),
+            "book_text": camp_module.format_book(book),
+            "panel_text": (camp_module.format_panel(book, default)
+                           if default is not None else ""),
+            "verdict_text": (camp_module.format_verdict(
+                book, default)
+                if default is not None else ""),
+            "index_text": camp_module.format_index(book),
+            "screen": self._samverkbridge_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_samverkbridge_record(self, record: dict[str, Any]) -> None:
+        """Publish one repo record as session news (M-242).
+
+        The pure layer's ``repo_record``, ``view_record``,
+        ``panel_record`` and ``verdict_record`` are
+        journaled through the same checkpoint target
+        every sibling repo uses, when a session is
+        attached. Each record is announced at most
+        once per trace: a repo under its own repo id
+        and segment, a view under its own view id,
+        sequence and view filter, a panel under its
+        whole derived trace, and a verdict under its
+        word and tallies, so a panel or verdict grown
+        by a newly held repo or view announces again
+        as the new figure it is. A foreign record
+        type is never published on this target.
+        """
+        if record.get("type") == "exchange_exchange":
+            target = ("exchange_exchange", record.get("exchange_id"),
+                   record.get("segment"))
+        elif record.get("type") == "exchange_run":
+            target = ("exchange_run", record.get("repo_id"),
+                   record.get("state"))
+        elif record.get("type") == "exchange_view":
+            target = ("exchange_view", record.get("view_id"),
+                   record.get("seq"), record.get("view_filter"))
+        elif record.get("type") == "exchange_panel":
+            target = ("samverkbridge_panel", record.get("panel_id"),
+                   record.get("view_id"),
+                   tuple(row.get("item_id")
+                         for row in record.get("rows", [])),
+                   record.get("total_shown"))
+        elif record.get("type") == "exchange_verdict":
+            target = ("samverkbridge_verdict", record.get("verdict"),
+                   record.get("total_shown"),
+                   record.get("green_shown"),
+                   record.get("latest_on"))
+        else:
+            return
+        announced = getattr(self, "_samverkbridge_announced", None)
+        if announced is None:
+            announced = set()
+            self._samverkbridge_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
     def _mcpserver_registry(self):
         """The held service registry (M-234).
 
