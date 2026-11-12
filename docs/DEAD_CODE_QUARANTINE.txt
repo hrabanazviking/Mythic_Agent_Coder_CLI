@@ -1191,3 +1191,12 @@ mythic_agent/agents/llm.py:73910:view_samverkbridge:method
 mythic_agent/agents/llm.py:73977:register_samverkbridge_book:method
 mythic_agent/agents/llm.py:74026:record_samverkbridge_book:method
 mythic_agent/agents/llm.py:74104:report_samverkbridge:method
+mythic_agent/agents/llm.py:74401:get_samtalbridge_note:method
+mythic_agent/agents/llm.py:74422:samtalbridge_green:method
+mythic_agent/agents/llm.py:74464:samtalbridge_index:method
+mythic_agent/agents/llm.py:74488:register_samtalbridge_dispatch:method
+mythic_agent/agents/llm.py:74519:register_samtalbridge_view:method
+mythic_agent/agents/llm.py:74545:view_samtalbridge:method
+mythic_agent/agents/llm.py:74612:register_samtalbridge_book:method
+mythic_agent/agents/llm.py:74661:record_samtalbridge_book:method
+mythic_agent/agents/llm.py:74739:report_samtalbridge:method
