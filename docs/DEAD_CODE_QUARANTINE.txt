@@ -1258,3 +1258,10 @@ mythic_agent/agents/llm.py:81104:record_exporteverything_records:method
 mythic_agent/agents/llm.py:81154:view_exporteverything:method
 mythic_agent/agents/llm.py:81201:prepare_exporteverything_draft:method
 mythic_agent/agents/llm.py:81249:report_exporteverything:method
+mythic_agent/agents/llm.py:81833:attachments_for_scope:method
+mythic_agent/agents/llm.py:81954:register_docsmcp_record:method
+mythic_agent/agents/llm.py:81985:register_docsmcp_records:method
+mythic_agent/agents/llm.py:82015:record_docsmcp_records:method
+mythic_agent/agents/llm.py:82065:view_docsmcp:method
+mythic_agent/agents/llm.py:82112:prepare_docsmcp_proposal:method
+mythic_agent/agents/llm.py:82160:report_docsmcp:method
