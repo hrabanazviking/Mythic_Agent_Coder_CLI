@@ -511,6 +511,8 @@ class CommandHandler:
                 self._handle_kistakeykeeper(args)
             elif cmd == "/aesirdeepening":
                 self._handle_aesirdeepening(args)
+            elif cmd == "/githostparity":
+                self._handle_githostparity(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -13349,6 +13351,92 @@ class CommandHandler:
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
 
+    def _handle_githostparity(self, args: str):
+        """M-246: /githostparity - the parity as data.
+
+        ``/githostparity`` shows the parity held this
+        session - the forge's git hosts as registry
+        entries like providers: one entry per host,
+        naming the word that host gives the request
+        craft, beside the parity records held this
+        session (no record held yet when none is held -
+        parity is never claimed without held evidence);
+        ``/githostparity hosts`` shows the whole shipped
+        host registry; ``/githostparity host <host>``
+        shows one host's registry entry;
+        ``/githostparity record <host>`` shows the parity
+        record held for one host; ``/githostparity
+        standing <host>`` shows the standing derived for
+        one host - held only on a full legal walk
+        resting on held evidence, otherwise open, naming
+        its gaps; ``/githostparity index`` shows the
+        index derived over every host;
+        ``/githostparity verdict`` shows the verdict
+        derived for the session. Resolution registers
+        and publishes nothing as session news on this
+        heading: records are held only when they are
+        given through the agent's register roads, stood
+        on the book on the viewing road, or held on the
+        book roads, and every record held for the
+        session is journaled as a githostparity_record
+        session event and every viewed standing as a
+        githostparity_standing session event. This
+        heading calls no host API, clones nothing,
+        pushes nothing and probes no network - holding
+        and telling are words only.
+        """
+        from ..core.git_host_parity import (
+            format_host,
+            format_hosts,
+            format_parity,
+        )
+        from .llm import parse_githostparity_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_githostparity_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "hosts":
+                text = format_hosts(
+                    primary.githostparity_hosts())
+            elif stance == "host":
+                text = format_host(
+                    primary.get_githostparity_host(target))
+            elif stance == "record":
+                text = format_parity(
+                    primary.get_githostparity_record(target))
+            elif stance == "standing":
+                standing = primary.githostparity_standing(
+                    target)
+                text = (
+                    f"{standing.host}: parity "
+                    f"{standing.standing} (stage: "
+                    f"{standing.stage or 'none'})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "index":
+                text = primary.githostparity_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.githostparity_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.githostparity_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
     def _handle_mcpserver(self, args: str):
         """M-234: /mcpserver - the exposure engine as data.
 
