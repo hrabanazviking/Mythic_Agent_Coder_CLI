@@ -523,6 +523,8 @@ class CommandHandler:
                 self._handle_webhookdoors(args)
             elif cmd == "/exporteverything":
                 self._handle_exporteverything(args)
+            elif cmd == "/docsmcp":
+                self._handle_docsmcp(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -14000,6 +14002,118 @@ class CommandHandler:
                     "verdict_text"]
             else:
                 text = primary.exporteverything_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+    def _handle_docsmcp(self, args: str):
+        """M-252: /docsmcp - the docs MCP pattern as data.
+
+        ``/docsmcp`` shows the doors held this session -
+        the export projects as registry entries: one
+        entry per project, naming the word that project
+        gives a single telling, beside the record records
+        held this session (no record recorded yet when
+        none is held - export is current only when a
+        fresh record rests on held evidence);
+        ``/docsmcp projects`` shows the whole shipped
+        project registry; ``/docsmcp project <project>``
+        shows one project's registry entry; ``/docsmcp
+        record <project> <record>`` shows the record held
+        for one project and record; ``/docsmcp standing
+        <project> <record>`` shows the standing derived for
+        one record - held only on a full legal walk resting
+        on held evidence within the fresh limit, otherwise
+        open, naming its gaps; ``/docsmcp propose`` shows
+        the bridge proposal held this session and
+        ``/docsmcp propose <bridge>`` shows one proposal
+        proposal - proposal is never attached here and no
+        bridge is attached here on this road; ``/docsmcp
+        index`` shows the index derived over every held
+        record; ``/docsmcp verdict`` shows the verdict
+        derived for the session. Resolution registers and
+        publishes nothing as session news on this heading:
+        records are held only when they are given
+        through the agent's register roads, stood on the
+        book on the viewing road, or held on the book
+        roads, and every record held for the session is
+        journaled as a docsmcp_record session record,
+        every viewed standing as a docsmcp_standing
+        session record and every proposed proposal proposal as
+        a docsmcp_proposal session record. This heading
+        calls no host API, performs no export,
+        starts nothing and exports nothing here -
+        holding and telling are words only.
+        """
+        from ..core.docs_mcp_pattern import (
+            format_record,
+            format_project,
+            format_projects,
+        )
+        from .llm import parse_docsmcp_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_docsmcp_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "projects":
+                text = format_projects(
+                    primary.docsmcp_projects())
+            elif stance == "project":
+                text = format_project(
+                    primary.get_docsmcp_project(target))
+            elif stance == "record":
+                text = format_record(
+                    primary.get_docsmcp_record(*target))
+            elif stance == "standing":
+                standing = primary.docsmcp_standing(
+                    *target)
+                text = (
+                    f"{target[0]}/{target[1]}: attachment "
+                    f"{'held as bridge' if standing.held else 'open'} "
+                    f"(stage: {standing.stage}; "
+                    f"freshness: {standing.freshness})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "proposals":
+                proposals = primary.docsmcp_proposals()
+                if not proposals:
+                    text = (
+                        "Bridge proposal: none held this "
+                        "session - the doors propose bridge "
+                        "moves only as proposals, and a proposal is "
+                        "never attached here.")
+                else:
+                    text = "\n".join(
+                        f"{d.bridge} -> {d.record}: proposal - "
+                        f"{d.proposal} (state: {d.state}; "
+                        "proposal is never attached here)"
+                        for d in proposals)
+            elif stance == "propose":
+                d = primary.get_docsmcp_proposal(target)
+                text = (
+                    f"{d.bridge} -> {d.record}: proposal - "
+                    f"{d.proposal} (state: {d.state}; "
+                    "proposal is never attached here)")
+            elif stance == "index":
+                text = primary.docsmcp_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.docsmcp_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.docsmcp_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
