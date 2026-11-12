@@ -1500,7 +1500,7 @@ slices:
   title: Aesir deepening (with M-025)
   summary: Aesir sessions selectable per role; its honest capability reports shape what the router asks
     of it.
-  status: queued
+  status: done
 - id: M-246
   part: 10
   title: GitHub/GitLab/Bitbucket parity
