@@ -2034,6 +2034,288 @@ def parse_exporteverything_args(args: Any):
     raise ValueError(EXPORTEVERYTHING_USAGE)
 
 
+#: The /bridgeaudit slash grammar (M-253, agent layer).
+BRIDGEAUDIT_USAGE = (
+    "Usage: /bridgeaudit | /bridgeaudit bridges | "
+    "/bridgeaudit bridge <bridge> | /bridgeaudit record "
+    "<bridge> <record> | /bridgeaudit standing "
+    "<bridge> <record> | /bridgeaudit report | "
+    "/bridgeaudit report <bridge> | "
+    "/bridgeaudit index | /bridgeaudit verdict")
+
+
+def _ba_bridge_dict(entry: Any) -> dict[str, Any]:
+    """One export bridge registry entry, as plain data (M-253)."""
+    return {"id": entry.id, "label": entry.label,
+            "item_word": entry.item_word,
+            "key_home": entry.key_home,
+            "standing": entry.standing, "reason": entry.reason}
+
+
+def _ba_record_dict(record: Any) -> dict[str, Any]:
+    """One audit record, as plain data (M-253)."""
+    return {"bridge": record.bridge,
+            "record": record.record,
+            "scope": record.scope,
+            "title": record.title,
+            "subject": record.subject,
+            "observed_at": record.observed_at,
+            "age_seconds": record.age_seconds,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+def _ba_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived record standing, as plain data (M-253)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "freshness": standing.freshness,
+            "gaps": list(standing.gaps)}
+
+
+def _ba_report_dict(report: Any) -> dict[str, Any]:
+    """One bridge report report, as plain data (M-253)."""
+    return {"bridge": report.bridge,
+            "entry": report.entry, "record": report.record,
+            "report": report.report,
+            "state": report.state, "granted": report.granted}
+
+
+def _ba_report_text(report: Any) -> str:
+    """One bridge report report told in plain words (M-253)."""
+    return (f"{report.bridge} <- {report.entry}/{report.record}: "
+            f"report - {report.report} (state: "
+            f"{report.state}; a report is never "
+            "granted here)")
+
+
+def _ba_coerce_record(record: Any):
+    """An audit record from an record or a plain telling (M-253)."""
+    from ..core.bridge_permissions import AuditRecord
+    if isinstance(record, AuditRecord):
+        return record
+    if isinstance(record, dict):
+        return AuditRecord(
+            bridge=record["bridge"],
+            record=record["record"],
+            scope=record["scope"],
+            title=record["title"],
+            subject=record.get("subject", ""),
+            observed_at=record["observed_at"],
+            age_seconds=record["age_seconds"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return AuditRecord(
+        bridge=record.bridge, record=record.record,
+        scope=record.scope,
+        title=record.title,
+        subject=record.subject,
+        observed_at=record.observed_at,
+        age_seconds=record.age_seconds,
+        stages=tuple(record.stages),
+        claims=tuple(record.claims))
+
+class BridgePermissionsRegistry:
+    """Session registry for the bridge permissions audit (M-253).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.bridge_permissions``): it
+    holds the shipped bridge registry (one entry per
+    bridge, held as data) beside the audit records held
+    one by one for the session, one record per bridge and
+    record, and the bridge reports reportd for the
+    session, one report report per bridge. An record
+    is validated whole by the pure layer before it is
+    held - an record naming an unknown bridge, scope or
+    evidence bridge refuses by name here too, and a refusal
+    holds nothing new. A second record for a bridge and
+    record already held refuses likewise. Reports are
+    reportd only through the pure layer's report road
+    - state ready by default, may be marked shared
+    by a human, and never a grant or built: the doors
+    report bridges and export nothing here. Holding
+    performs no export, calls no host API, probes
+    no network and starts nothing: the registry holds
+    tellings as data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.bridge_permissions import default_registry
+        self._bridges = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._reports: dict[str, Any] = {}
+
+    def bridges(self):
+        """The shipped bridge registry held by the session."""
+        return self._bridges
+
+    def register_record(self, record: Any):
+        """Hold one audit record, validated whole.
+
+        A second record for a bridge and record already
+        held refuses, and a refusal holds nothing new.
+        """
+        held = _ba_coerce_record(record)
+        held.validate(self._bridges)
+        key = (held.bridge, held.record)
+        if key in self._records:
+            raise ValueError(
+                "an audit record for bridge "
+                f"{held.bridge!r} record "
+                f"{held.record!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, bridge: Any, record: Any):
+        """The held record for one bridge and record."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(bridge, record)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no audit record "
+                f"for bridge {bridge!r} record "
+                f"{record!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of audit records, validated whole.
+
+        Every record is validated, and checked against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _ba_coerce_record(record)
+            held.validate(self._bridges)
+            key = (held.bridge, held.record)
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "an audit record for bridge "
+                    f"{held.bridge!r} record "
+                    f"{held.record!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[(held.bridge, held.record)] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The audit records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the records and the reports."""
+        return (list(self._records.values())
+                + list(self._reports.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.bridge_permissions import derive_standing
+        return [derive_standing(record, self._bridges)
+                for record in self._records.values()]
+
+    def hold_report(self, bridge: Any, entry: Any,
+                      record: Any, report: Any,
+                      state: Any = "ready"):
+        """Prepare one bridge report report, held for the session.
+
+        The report is shaped by the pure layer alone -
+        an state word outside ready/shared refuses
+        by name there, and a report is never a grant or
+        built. A second report report for a bridge
+        already reportd refuses likewise.
+        """
+        from ..core.bridge_permissions import prepare_report
+        report = prepare_report(bridge, entry, record,
+                                 report, state=state)
+        if report.bridge in self._reports:
+            raise ValueError(
+                "a bridge report report for bridge "
+                f"{report.bridge!r} already stands held "
+                "for the session")
+        self._reports[report.bridge] = report
+        return report
+
+    def get_report(self, bridge: Any):
+        """The held report report for one bridge."""
+        from ..core.validation import ValidationError
+        try:
+            return self._reports[bridge]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no bridge report for "
+                f"bridge {bridge!r}") from None
+
+    def list_reports(self) -> list:
+        """The bridge report reports held, in report order."""
+        return list(self._reports.values())
+
+    def book(self):
+        """The held pieces composed as a bridge permissions audit book.
+
+        The book is plain data: the shipped bridge
+        registry's entries beside the audit records and
+        bridge reports held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.bridge_permissions import BRIDGE_PERMISSIONS_SCHEMA
+        return {
+            "schema": BRIDGE_PERMISSIONS_SCHEMA,
+            "bridges": [_ba_bridge_dict(entry)
+                        for entry in self._bridges.entries()],
+            "records": [_ba_record_dict(record)
+                        for record in self._records.values()],
+            "reports": [_ba_report_dict(report)
+                       for report in self._reports.values()],
+        }
+
+
+def parse_bridgeaudit_args(args: Any):
+    """Parse /bridgeaudit arguments (M-253).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``bridges``, ``index`` and ``verdict`` name
+    their own stance with no target; ``bridge <bridge>``
+    names one bridge; ``record <bridge> <record>`` and
+    ``standing <bridge> <record>`` name one bridge and record
+    as a pair; ``report <bridge>`` names one bridge
+    and the bare ``report`` stance names the session's
+    report reports. Anything else raises ValueError
+    carrying the usage line, exactly as the sibling
+    parsers refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("bridges", "index", "verdict"):
+        if rest:
+            raise ValueError(BRIDGEAUDIT_USAGE)
+        return (head, None, (), None)
+    if head == "bridge":
+        if len(rest) != 1:
+            raise ValueError(BRIDGEAUDIT_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 2:
+            raise ValueError(BRIDGEAUDIT_USAGE)
+        return (head, (rest[0], rest[1]), (), None)
+    if head == "report":
+        if not rest:
+            return ("reports", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(BRIDGEAUDIT_USAGE)
+        return ("report", rest[0], (), None)
+    raise ValueError(BRIDGEAUDIT_USAGE)
+
+
 #: The /docsmcp slash grammar (M-252, agent layer).
 DOCSMCP_USAGE = (
     "Usage: /docsmcp | /docsmcp projects | "
@@ -82263,6 +82545,637 @@ class Agent:
             self._checkpoint(record)
 
 
+
+
+    def _bridgeaudit_registry(self):
+        """The held bridge permissions audit registry (M-253).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped bridge registry beside the session's
+        record records and bridge report one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_bridgeaudit_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_bridgeaudit_store", None)
+        if registry is None:
+            registry = BridgePermissionsRegistry()
+            self._bridgeaudit_store = registry
+        return registry
+
+    def bridgeaudit_bridges(self):
+        """The shipped bridge registry, as data (M-253).
+
+        One entry per bridge - mojo, python, rust, generic - held as registry
+        entries, each naming the word that bridge gives a
+        single telling. Resolution registers and publishes
+        nothing, calls no host API and probes no
+        network.
+        """
+        return self._bridgeaudit_registry().bridges()
+
+    def bridgeaudit_book(self):
+        """The session's bridge permissions audit book, as data (M-253).
+
+        The held registry's book when the session holds
+        records or report one by one - otherwise the book
+        boarded whole through
+        :meth:`record_bridgeaudit_records`, or the shipped
+        bridge registry with nothing held until a record
+        or report report is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._bridgeaudit_registry()
+        if registry.list_records() or registry.list_reports():
+            held = getattr(self, "_bridgeaudit_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [(r["bridge"], r["record"])
+                     for r in held["records"]]
+                    == [(r["bridge"], r["record"])
+                        for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_bridgeaudit_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _bridgeaudit_effective_record(self, bridge: Any,
+                                      record: Any):
+        """The record an record's standing is derived from (M-253).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on, scope unknown, no subject named and its age
+        past the fresh limit - so an unheld record derives
+        an honest open standing naming its gaps, never a
+        dressed claim: an absent record reads as unknown.
+        An unknown bridge refuses by name through the
+        shipped registry first.
+        """
+        from ..core.bridge_permissions import (
+            FRESH_LIMIT_SECONDS, AuditRecord)
+        registry = self._bridgeaudit_registry()
+        registry.bridges().get(bridge)
+        try:
+            return registry.get_record(bridge, record)
+        except ValueError:
+            return AuditRecord(
+                bridge=bridge, record=record,
+                scope="unknown", title="(no record recorded)",
+                subject="",
+                observed_at="(no record recorded)",
+                age_seconds=FRESH_LIMIT_SECONDS + 1,
+                stages=(), claims=())
+
+    def _bridgeaudit_screen(self) -> str:
+        """The /bridgeaudit screen for the session (M-253)."""
+        from ..core.bridge_permissions import (
+            format_bridges, format_record)
+        registry = self._bridgeaudit_registry()
+        lines = [format_bridges(registry.bridges())]
+        records = registry.list_records()
+        if not records:
+            lines.append(
+                "Export records: none recorded this "
+                "session - an record is a fact only when "
+                "a fresh record rests on held evidence, "
+                "and no record stands as known until it "
+                "is recorded.")
+        else:
+            lines.extend(format_record(record)
+                         for record in records)
+        lines.extend(_ba_report_text(report)
+                     for report in registry.list_reports())
+        return "\n".join(lines)
+
+    def bridgeaudit_status(self) -> dict[str, Any]:
+        """The bridge permissions audit account, in plain data (M-253).
+
+        The shipped bridge registry's entries and the
+        record records and bridge report held this
+        session as plain records (empty until held), the
+        session book's record (the shipped bridge registry
+        with nothing held - until items are held), the
+        records standing held and still open derived at call
+        time, the index and verdict derived at call time,
+        the bridges and records told in plain words
+        through the pure formatters, and the plain
+        explanation. A session holding no record for a
+        record derives that record's open standing. Resolution
+        registers and publishes nothing, calls no Export
+        engine API, performs no export and measures no
+        load: this layer tells only.
+        """
+        from ..core import bridge_permissions as camp_module
+        registry = self._bridgeaudit_registry()
+        held_records = registry.list_records()
+        book = self.bridgeaudit_book()
+        index = self.bridgeaudit_index()
+        return {
+            "records": [_ba_record_dict(r)
+                        for r in held_records],
+            "bridges": [_ba_bridge_dict(e)
+                        for e in registry.bridges().entries()],
+            "book": (book if held_records
+                     or registry.list_reports()
+                     or getattr(self, "_bridgeaudit_held",
+                                None) is not None else None),
+            "bridgeaudit_book": {
+                "schema": camp_module.BRIDGE_PERMISSIONS_SCHEMA,
+                "bridges": book["bridges"],
+                "records": book["records"],
+                "reports": book["reports"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.bridgeaudit_verdict()["verdict"],
+            "bridges_text": camp_module.format_bridges(
+                registry.bridges()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "reports": [_ba_report_dict(d)
+                       for d in registry.list_reports()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._bridgeaudit_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": BRIDGEAUDIT_USAGE,
+        }
+
+    def get_bridgeaudit_bridge(self, bridge: Any):
+        """The one bridge entry a bridge name names (M-253).
+
+        The shipped bridge registry answers: a bridge the
+        doors book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._bridgeaudit_registry().bridges().get(bridge)
+
+    def get_bridgeaudit_record(self, bridge: Any, record: Any):
+        """The one record a bridge and record name (M-253).
+
+        The session's held registry answers: a record the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._bridgeaudit_registry().get_record(bridge, record)
+
+    def bridgeaudit_standing(self, bridge: Any, record: Any):
+        """Derive one record's record standing (M-253).
+
+        The standing is derived at call time by the pure
+        layer from the record's effective record - the
+        held record, or the honest empty record while
+        none stands held: held only on a full legal walk
+        resting on held evidence within the fresh limit
+        and knowing its scope,
+        otherwise open, naming every gap. Deriving
+        registers and publishes nothing.
+        """
+        from ..core.bridge_permissions import derive_standing
+        registry = self._bridgeaudit_registry()
+        return derive_standing(
+            self._bridgeaudit_effective_record(bridge, record),
+            registry.bridges())
+
+    def audits_for_scope(self, scope: Any):
+        """The held records resting on one scope (M-253)."""
+        from ..core.bridge_permissions import AUDIT_SCOPES
+        if scope is None or not str(scope).strip():
+            raise ValueError(
+                "a scope must be named to list its records")
+        if scope not in AUDIT_SCOPES:
+            raise ValueError(
+                f"unknown audit record scope {scope!r}; the "
+                "bridge permissions audit book names: "
+                + ", ".join(AUDIT_SCOPES))
+        return [r for r in
+                self._bridgeaudit_registry().list_records()
+                if r.scope == scope]
+
+    def bridgeaudit_held(self):
+        """The records whose record standing stands held (M-253)."""
+        registry = self._bridgeaudit_registry()
+        return [f"{r.bridge}/{r.record}"
+                for r in registry.list_records()
+                if self.bridgeaudit_standing(
+                    r.bridge, r.record).held]
+
+    def bridgeaudit_index(self) -> dict[str, Any]:
+        """Derive the export index at call time (M-253).
+
+        The index is derived from every held record
+        alone - each held record's derived standing, the
+        held records named and the open records named in its
+        gaps. Deriving registers and publishes nothing,
+        calls no host API and probes no network.
+        Returns the derived index record, the rendered
+        records, the screen and the plain explanation.
+        """
+        from ..core import bridge_permissions as camp_module
+        registry = self._bridgeaudit_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.bridgeaudit_standing(
+                record.bridge, record.record)
+            standings.append({
+                "bridge": record.bridge,
+                "record": record.record,
+                **_ba_standing_dict(standing)})
+        index = {
+            "type": "bridgeaudit_index",
+            "slice": camp_module.BRIDGE_PERMISSIONS_SLICE,
+            "schema": camp_module.BRIDGE_PERMISSIONS_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['bridge']}/{s['record']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['bridge']}/{s['record']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._bridgeaudit_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def bridgeaudit_verdict(self) -> dict[str, Any]:
+        """Derive the export verdict at call time (M-253).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and
+        every held record's standing stands held on
+        held evidence within the fresh limit, ``open``
+        while no record stands held or any held
+        record stands short of held - with the held and
+        open records named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import bridge_permissions as camp_module
+        registry = self._bridgeaudit_registry()
+        records = registry.list_records()
+        held = self.bridgeaudit_held()
+        open_keys = [f"{r.bridge}/{r.record}"
+                     for r in records
+                     if f"{r.bridge}/{r.record}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Bridge permissions audit stands held: every recorded "
+                "record is fresh and rests on held "
+                "evidence - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Bridge permissions audit stands open: no export "
+                "record is recorded this session - an "
+                "absent record reads as unknown, never "
+                "as current fact.")
+        else:
+            word = "open"
+            telling = (
+                "Bridge permissions audit stands open: an record is "
+                "a fact only when a fresh record rests "
+                "on held evidence, and these records "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "bridgeaudit_verdict",
+            "slice": camp_module.BRIDGE_PERMISSIONS_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._bridgeaudit_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_bridgeaudit_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one record's audit record for the session (M-253).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        bridge, availability, forge state, load band or
+        evidence bridge refuses by name on this road too,
+        and a refusal holds nothing new and publishes
+        nothing. A held record is published as its
+        ``bridgeaudit_record`` session-news record through
+        the checkpoint road. Returns the held record,
+        its news record, the screen rendered after it
+        landed, and the plain explanation. Holding a
+        record calls no host API, probes no
+        machine and starts nothing: the telling stands
+        on this layer's book, as data.
+        """
+        from ..core import bridge_permissions as camp_module
+        registry = self._bridgeaudit_registry()
+        held = registry.register_record(record)
+        news = {"type": "bridgeaudit_record",
+                **_ba_record_dict(held)}
+        self._publish_bridgeaudit_record(news)
+        return {
+            "record": _ba_record_dict(held),
+            "record_news": news,
+            "screen": self._bridgeaudit_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_bridgeaudit_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of record records for the session (M-253).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order given.
+        Returns the held records, their news records,
+        the count of records held, the screen, and the
+        explanation. Registering calls no host API
+        and probes no network.
+        """
+        from ..core import bridge_permissions as camp_module
+        registry = self._bridgeaudit_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "bridgeaudit_record", **_ba_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_bridgeaudit_record(news)
+        return {
+            "records": [_ba_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._bridgeaudit_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_bridgeaudit_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of record records (M-253).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its bridge and record keys and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held book,
+        its records, their news records, the count, the
+        screen, and the explanation. Recording calls no
+        host API, performs no export and measures
+        no load.
+        """
+        from ..core import bridge_permissions as camp_module
+        validated = [_ba_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._bridgeaudit_registry().bridges())
+        fingerprint = (
+            tuple((r.bridge, r.record) for r in validated),
+            camp_module.BRIDGE_PERMISSIONS_SCHEMA)
+        boarded = getattr(self, "_bridgeaudit_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._bridgeaudit_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these audit records are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._bridgeaudit_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._bridgeaudit_held = registry.book()
+        news_records = [
+            {"type": "bridgeaudit_record", **_ba_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_bridgeaudit_record(news)
+        return {
+            "book": self._bridgeaudit_held,
+            "records": [_ba_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._bridgeaudit_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_bridgeaudit(
+            self, bridge: Any, record: Any) -> dict[str, Any]:
+        """Stand one record's record standing on the session book (M-253).
+
+        This bridges book's own viewing road: the record's
+        bridge entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        record's effective record, and published as its
+        ``bridgeaudit_standing`` session news, with the held
+        record published as its ``bridgeaudit_record``
+        session news when one stands held. Returns the
+        bridge's entry, its derived standing, the held
+        record when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        export as data alone - it calls no Export
+        engine API, performs no export, starts nothing
+        and exports nothing here.
+        """
+        from ..core import bridge_permissions as camp_module
+        entry = self.get_bridgeaudit_bridge(bridge)
+        standing = self.bridgeaudit_standing(bridge, record)
+        try:
+            held = self.get_bridgeaudit_record(bridge, record)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "bridgeaudit_record",
+                           **_ba_record_dict(held)}
+            self._publish_bridgeaudit_record(record_news)
+        standing_news = {
+            "type": "bridgeaudit_standing", "bridge": bridge,
+            "record": record, **_ba_standing_dict(standing)}
+        self._publish_bridgeaudit_record(standing_news)
+        return {
+            "bridge": _ba_bridge_dict(entry),
+            "standing": {"bridge": bridge, "record": record,
+                         **_ba_standing_dict(standing)},
+            "record": (_ba_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._bridgeaudit_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def prepare_bridgeaudit_report(
+            self, bridge: Any, entry: Any, record: Any,
+            report: Any, state: Any = "ready"
+            ) -> dict[str, Any]:
+        """Prepare one bridge report report for the session (M-253).
+
+        The report is shaped by the pure layer alone -
+        it stands at state ready by default, may be
+        marked ``shared`` by a human, and an state
+        word outside ready/shared refuses by name;
+        a report is never a grant here and no
+        bridge is started on this road. A held report
+        report is published as its ``bridgeaudit_report``
+        session-news record through the checkpoint road.
+        Returns the held report, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Proposing performs no export,
+        calls no host API and exports nothing here.
+        """
+        from ..core import bridge_permissions as camp_module
+        registry = self._bridgeaudit_registry()
+        report = registry.hold_report(bridge, entry, record,
+                                       report,
+                                       state=state)
+        news = {"type": "bridgeaudit_report",
+                **_ba_report_dict(report)}
+        self._publish_bridgeaudit_record(news)
+        return {
+            "report": _ba_report_dict(report),
+            "report_news": news,
+            "screen": self._bridgeaudit_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def get_bridgeaudit_report(self, bridge: Any):
+        """The one report report a bridge names (M-253).
+
+        The session's held registry answers: a bridge
+        the session holds no report for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._bridgeaudit_registry().get_report(bridge)
+
+    def bridgeaudit_reports(self) -> list:
+        """The bridge report reports held for the session (M-253)."""
+        return self._bridgeaudit_registry().list_reports()
+
+    def report_bridgeaudit(self) -> dict[str, Any]:
+        """Render the session bridge permissions audit, as a report (M-253).
+
+        The shipped bridge registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, calls no host API, probes
+        no machine and starts nothing. Returns the book,
+        the bridges, held records and report as plain
+        records, the derived standings, the rendered
+        bridges and records, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import bridge_permissions as camp_module
+        registry = self._bridgeaudit_registry()
+        book = self.bridgeaudit_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.bridgeaudit_standing(
+                record.bridge, record.record)
+            standings.append({
+                "bridge": record.bridge,
+                "record": record.record,
+                **_ba_standing_dict(standing)})
+        return {
+            "book": book,
+            "bridges": [_ba_bridge_dict(e)
+                        for e in registry.bridges().entries()],
+            "records": [_ba_record_dict(r)
+                        for r in registry.list_records()],
+            "reports": [_ba_report_dict(d)
+                       for d in registry.list_reports()],
+            "standings": standings,
+            "index": self.bridgeaudit_index()["index"],
+            "verdict": self.bridgeaudit_verdict()["verdict"],
+            "bridges_text": camp_module.format_bridges(
+                registry.bridges()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._bridgeaudit_effective_record(
+                        r.bridge, r.record))
+                for r in registry.list_records()),
+            "screen": self._bridgeaudit_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_bridgeaudit_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one audit record as session news (M-253).
+
+        The agent layer's ``bridgeaudit_record``,
+        ``bridgeaudit_standing`` and
+        ``bridgeaudit_report`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is granted. Each
+        record is announced at most once per telling: an
+        record under its bridge, its record, its bridge, its
+        title, its subject, its observed time, its age,
+        its walked stages and its claims, a standing under
+        its bridge, its record, its held word, its stage,
+        its freshness and its gaps, and a report under
+        its bridge, its bridge, its record, its report
+        and its state, so a standing grown by a newly
+        held record announces again as the new figure it
+        is. A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "bridgeaudit_record":
+            target = ("bridgeaudit_record",
+                      record.get("bridge"),
+                      record.get("record"),
+                      record.get("scope"),
+                      record.get("title"),
+                      record.get("subject"),
+                      record.get("observed_at"),
+                      record.get("age_seconds"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "bridgeaudit_standing":
+            target = ("bridgeaudit_standing",
+                      record.get("bridge"),
+                      record.get("record"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("freshness"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "bridgeaudit_report":
+            target = ("bridgeaudit_report",
+                      record.get("bridge"),
+                      record.get("bridge"),
+                      record.get("record"),
+                      record.get("report"),
+                      record.get("state"))
+        else:
+            return
+        announced = getattr(self, "_bridgeaudit_announced", None)
+        if announced is None:
+            announced = set()
+            self._bridgeaudit_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
     def _mcpserver_registry(self):
         """The held service registry (M-234).
 

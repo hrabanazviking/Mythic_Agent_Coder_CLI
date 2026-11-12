@@ -525,6 +525,8 @@ class CommandHandler:
                 self._handle_exporteverything(args)
             elif cmd == "/docsmcp":
                 self._handle_docsmcp(args)
+            elif cmd == "/bridgeaudit":
+                self._handle_bridgeaudit(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -14009,6 +14011,120 @@ class CommandHandler:
         publish_sync(
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
+    def _handle_bridgeaudit(self, args: str):
+        """M-253: /bridgeaudit - the bridge permissions audit as data.
+
+        ``/bridgeaudit`` shows the doors held this session -
+        the export bridges as registry entries: one
+        entry per bridge, naming the word that bridge
+        gives a single telling, beside the record records
+        held this session (no record recorded yet when
+        none is held - export is current only when a
+        fresh record rests on held evidence);
+        ``/bridgeaudit bridges`` shows the whole shipped
+        bridge registry; ``/bridgeaudit bridge <bridge>``
+        shows one bridge's registry entry; ``/bridgeaudit
+        record <bridge> <record>`` shows the record held
+        for one bridge and record; ``/bridgeaudit standing
+        <bridge> <record>`` shows the standing derived for
+        one record - held only on a full legal walk resting
+        on held evidence within the fresh limit, otherwise
+        open, naming its gaps; ``/bridgeaudit report`` shows
+        the bridge report held this session and
+        ``/bridgeaudit report <bridge>`` shows one report
+        report - report is never a grant here and no
+        bridge is granted here on this road; ``/bridgeaudit
+        index`` shows the index derived over every held
+        record; ``/bridgeaudit verdict`` shows the verdict
+        derived for the session. Resolution registers and
+        publishes nothing as session news on this heading:
+        records are held only when they are given
+        through the agent's register roads, stood on the
+        book on the viewing road, or held on the book
+        roads, and every record held for the session is
+        journaled as a bridgeaudit_record session record,
+        every viewed standing as a bridgeaudit_standing
+        session record and every reportd report report as
+        a bridgeaudit_report session record. This heading
+        calls no host API, performs no export,
+        starts nothing and exports nothing here -
+        holding and telling are words only.
+        """
+        from ..core.bridge_permissions import (
+            format_record,
+            format_bridge,
+            format_bridges,
+        )
+        from .llm import parse_bridgeaudit_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_bridgeaudit_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "bridges":
+                text = format_bridges(
+                    primary.bridgeaudit_bridges())
+            elif stance == "bridge":
+                text = format_bridge(
+                    primary.get_bridgeaudit_bridge(target))
+            elif stance == "record":
+                text = format_record(
+                    primary.get_bridgeaudit_record(*target))
+            elif stance == "standing":
+                standing = primary.bridgeaudit_standing(
+                    *target)
+                text = (
+                    f"{target[0]}/{target[1]}: audit "
+                    f"{'held as audited' if standing.held else 'open'} "
+                    f"(stage: {standing.stage}; "
+                    f"freshness: {standing.freshness})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "reports":
+                reports = primary.bridgeaudit_reports()
+                if not reports:
+                    text = (
+                        "Bridge report: none held this "
+                        "session - the doors report bridge "
+                        "moves only as reports, and a report is "
+                        "never a grant here.")
+                else:
+                    text = "\n".join(
+                        f"{d.bridge} -> {d.record}: report - "
+                        f"{d.report} (state: {d.state}; "
+                        "report is never a grant here)"
+                        for d in reports)
+            elif stance == "report":
+                d = primary.get_bridgeaudit_report(target)
+                text = (
+                    f"{d.bridge} -> {d.record}: report - "
+                    f"{d.report} (state: {d.state}; "
+                    "report is never a grant here)")
+            elif stance == "index":
+                text = primary.bridgeaudit_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.bridgeaudit_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.bridgeaudit_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
     def _handle_docsmcp(self, args: str):
         """M-252: /docsmcp - the docs MCP pattern as data.
 
