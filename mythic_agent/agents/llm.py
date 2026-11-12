@@ -344,6 +344,160 @@ class _CheckpointTimelineAdapter:
             f"no checkpoint with id {checkpoint_id!r} in "
             "this workspace; nothing was restored")
 
+#: The /aesirdeepening slash grammar (M-245, agent layer).
+AESIRDEEPENING_USAGE = (
+    "Usage: /aesirdeepening | /aesirdeepening report | "
+    "/aesirdeepening selections | /aesirdeepening selection "
+    "<office> | /aesirdeepening ask <office> [needs...] "
+    "[model:<name>] | /aesirdeepening index | "
+    "/aesirdeepening verdict")
+
+
+class AesirDeepeningRegistry:
+    """Session registry for the Aesir deepening (M-245).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.aesir_deepening``): it
+    holds one validated capability report and the
+    per-office selections held one by one for the
+    session, beside the shipped selection book. A report
+    is validated whole by the pure layer before it is
+    held - a report claiming more than Aesir's documented
+    v1 ceiling refuses by name here too, and a refusal
+    holds nothing new. A selection naming an office the
+    crew does not hold, or a second selection for an
+    office already held, refuses likewise. Holding opens
+    no session, calls no model and probes no server:
+    the registry holds tellings as data, alone.
+    """
+
+    def __init__(self) -> None:
+        self._report: Any = None
+        self._selections: dict[str, Any] = {}
+
+    def register_report(self, report: Any):
+        """Hold one capability report, validated whole."""
+        from ..core.aesir_deepening import validate_report
+        if not isinstance(report, dict):
+            report = report.record()
+        held = validate_report(report)
+        self._report = held
+        return held
+
+    def report(self):
+        """The held capability report, or None."""
+        return self._report
+
+    def register_selection(self, selection: Any):
+        """Hold one office's selection, validated whole.
+
+        A second selection for an office already held
+        refuses, and a refusal holds nothing new.
+        """
+        from ..core.aesir_deepening import validate_selection
+        if not isinstance(selection, dict):
+            selection = selection.record()
+        held = validate_selection(selection)
+        if held.office in self._selections:
+            raise ValueError(
+                "a selection for office "
+                f"{held.office!r} already stands held for "
+                "the session")
+        self._selections[held.office] = held
+        return held
+
+    def register_book(self, book: Any):
+        """Hold a whole selection book's selections.
+
+        The book is validated whole, and against the
+        selections already held, before anything is
+        held, so a refusal holds nothing new.
+        """
+        from ..core.aesir_deepening import (
+            validate_selection_book)
+        if not isinstance(book, dict):
+            book = book.record()
+        validated = validate_selection_book(book)
+        for selection in validated.selections:
+            if selection.office in self._selections:
+                raise ValueError(
+                    "a selection for office "
+                    f"{selection.office!r} already stands "
+                    "held for the session")
+        for selection in validated.selections:
+            self._selections[selection.office] = selection
+        return validated
+
+    def list_selections(self) -> list:
+        """The selections held one by one, in hold order."""
+        return list(self._selections.values())
+
+    def list_items(self) -> list:
+        """Everything held: the report, then selections."""
+        items: list = []
+        if self._report is not None:
+            items.append(self._report)
+        items.extend(self._selections.values())
+        return items
+
+    def get_selection(self, office: Any):
+        """The held selection for one office, by name."""
+        from ..core.validation import ValidationError
+        try:
+            return self._selections[office]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no selection for office "
+                f"{office!r}") from None
+
+    def book(self):
+        """The held selections composed as a book."""
+        from ..core.aesir_deepening import SelectionBook
+        return SelectionBook(
+            selections=tuple(self._selections.values()))
+
+
+def parse_aesirdeepening_args(args: Any):
+    """Parse /aesirdeepening arguments (M-245).
+
+    Returns ``(stance, target, needs, model)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``report``, ``selections``, ``index`` and
+    ``verdict`` name their own stance with no target;
+    ``selection <office>`` names one office; ``ask
+    <office> [needs...] [model:<name>]`` names the
+    office, the needs in order, and an optional model
+    token. Anything else raises ValueError carrying the
+    usage line, exactly as the sibling parsers refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("report", "selections", "index", "verdict"):
+        if rest:
+            raise ValueError(AESIRDEEPENING_USAGE)
+        return (head, None, (), None)
+    if head == "selection":
+        if len(rest) != 1:
+            raise ValueError(AESIRDEEPENING_USAGE)
+        return ("selection", rest[0], (), None)
+    if head == "ask":
+        if not rest:
+            raise ValueError(AESIRDEEPENING_USAGE)
+        needs: list = []
+        model = None
+        for token in rest[1:]:
+            if token.startswith("model:"):
+                if model is not None or not token[6:]:
+                    raise ValueError(AESIRDEEPENING_USAGE)
+                model = token[6:]
+            else:
+                needs.append(token)
+        return ("ask", rest[0], tuple(needs), model)
+    raise ValueError(AESIRDEEPENING_USAGE)
 class Agent:
     def __init__(self, project_root: Path | None = None, name: str = "Primary", config: dict[str, Any] | None = None):
         import copy
@@ -75463,6 +75617,544 @@ class Agent:
         if announced is None:
             announced = set()
             self._kistakeykeeper_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _aesirdeepening_registry(self):
+        """The held Aesir deepening registry (M-245).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the session's capability report and
+        per-office selections one by one, beside the
+        session keyboard registry (M-200) and never in
+        it. It is created on first use, so an agent
+        whose ``__init__`` never ran still holds exactly
+        one. The attribute is named
+        ``_aesirdeepening_store``, never the method's
+        own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_aesirdeepening_store", None)
+        if registry is None:
+            registry = AesirDeepeningRegistry()
+            self._aesirdeepening_store = registry
+        return registry
+
+    def aesirdeepening_book(self):
+        """The session's selection book, as data (M-245).
+
+        The held registry's book when the session holds
+        selections one by one - otherwise the book
+        boarded whole through
+        :meth:`record_aesirdeepening_book`, or the
+        shipped selection book until one is boarded.
+        Resolution registers and publishes nothing.
+        """
+        from ..core.aesir_deepening import load_selection_book
+        registry = self._aesirdeepening_registry()
+        if registry.list_selections():
+            held = getattr(self, "_aesirdeepening_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [s.office for s in held.selections]
+                    == [s.office for s in book.selections]):
+                return held
+            return book
+        book = getattr(self, "_aesirdeepening_held", None)
+        if book is None:
+            return load_selection_book()
+        return book
+
+    def aesirdeepening_report(self):
+        """The session's held capability report (M-245).
+
+        The report the session registered, or None
+        while no report stands held - Aesir is silent
+        until a report is registered, and the silence
+        is told honestly, never dressed as a telling.
+        Resolution registers and publishes nothing.
+        """
+        return self._aesirdeepening_registry().report()
+
+    def _aesirdeepening_effective_report(self):
+        """The report asks are shaped from (M-245).
+
+        The held report when one stands; otherwise a
+        silent report - reachable false, every live
+        field unknown - so no ask is shaped from an
+        honest unknown.
+        """
+        from ..core.aesir_deepening import validate_report
+        report = self.aesirdeepening_report()
+        if report is not None:
+            return report
+        return validate_report({"reachable": False})
+
+    def _aesirdeepening_screen(self) -> str:
+        """The /aesirdeepening screen for the session (M-245)."""
+        from ..core.aesir_deepening import (
+            format_report, format_selections)
+        book = self.aesirdeepening_book()
+        report = self.aesirdeepening_report()
+        if report is None:
+            telling = (
+                "Aesir capability report: none held this "
+                "session - Aesir is silent until a report "
+                "is registered, and no ask is shaped from "
+                "silence.")
+        else:
+            telling = format_report(report)
+        return format_selections(book) + "\n" + telling
+
+    def aesirdeepening_status(self) -> dict[str, Any]:
+        """The Aesir deepening account, in plain data (M-245).
+
+        The report and selections held this session as
+        plain records (none and empty until held), the
+        session book's record (the shipped selection
+        book - nine offices, six selected - until items
+        are held), the selected and unselected offices
+        derived from the book, the index and verdict
+        derived at call time, the report, selections
+        and screen told in plain words through the pure
+        formatters, and the plain explanation. A session
+        holding no report derives the silent verdict.
+        Resolution registers and publishes nothing,
+        opens no session, calls no model and probes no
+        server: this layer tells only.
+        """
+        from ..core import aesir_deepening as camp_module
+        registry = self._aesirdeepening_registry()
+        held_selections = registry.list_selections()
+        report = registry.report()
+        book = self.aesirdeepening_book()
+        effective = self._aesirdeepening_effective_report()
+        index = self.aesirdeepening_index()
+        return {
+            "report": (report.record() if report is not None
+                       else None),
+            "selections": [s.record() for s in held_selections],
+            "book": (book.record() if held_selections
+                     or getattr(self, "_aesirdeepening_held",
+                                None) is not None else None),
+            "aesirdeepening_book": {
+                "schema": camp_module.AESIR_SCHEMA,
+                "selections": [s.record()
+                               for s in book.selections],
+            },
+            "book_record": camp_module.SelectionBook.record(book),
+            "selected": [s.office for s in book.selections
+                         if s.selected],
+            "not_selected": [s.office for s in book.selections
+                             if not s.selected],
+            "index": index["index"],
+            "verdict": self.aesirdeepening_verdict()["verdict"],
+            "report_text": camp_module.format_report(effective),
+            "selections_text": camp_module.format_selections(book),
+            "plain_words": camp_module.plain_words(),
+            "screen": self._aesirdeepening_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": AESIRDEEPENING_USAGE,
+        }
+
+    def get_aesirdeepening_selection(self, office: Any):
+        """The one selection an office names (M-245).
+
+        The session's held registry answers when the
+        session holds selections; otherwise the session
+        book answers (the shipped book until one is
+        boarded). An office the crew does not hold, or
+        one the held book holds no selection for, refuses
+        by name, exactly as the pure layer answers.
+        Resolution registers and publishes nothing.
+        """
+        registry = self._aesirdeepening_registry()
+        if registry.list_selections():
+            return registry.get_selection(office)
+        return self.aesirdeepening_book().for_office(office)
+
+    def aesirdeepening_ask(
+            self, office: Any, needs: Any = (),
+            model: Any = None):
+        """Derive what the router may ask of Aesir (M-245).
+
+        The ask is derived at call time by the pure
+        layer from the session book, the session's
+        effective report and the named needs: an office
+        not selected for Aesir, or a silent server,
+        shapes no ask at all - the road named is the
+        session default. Deriving registers and
+        publishes nothing, opens no session and calls
+        no model: the ask is data alone.
+        """
+        from ..core.aesir_deepening import shape_ask
+        return shape_ask(
+            self.aesirdeepening_book(),
+            self._aesirdeepening_effective_report(),
+            office, needs=needs, model=model)
+
+    def selections_for_capability(self, capability: Any):
+        """The session book's selections of one capability (M-245)."""
+        if capability is None or not str(capability).strip():
+            raise ValueError(
+                "a capability must be named to list its "
+                "selections")
+        return [s for s in self.aesirdeepening_book().selections
+                if s.capability == capability]
+
+    def aesirdeepening_selected(self):
+        """The session book's offices selected for Aesir (M-245)."""
+        return [s for s in self.aesirdeepening_book().selections
+                if s.selected]
+
+    def aesirdeepening_index(self) -> dict[str, Any]:
+        """Derive the selection index at call time (M-245).
+
+        The index is derived from the session book's
+        selections alone - the selected offices under
+        their capabilities, and the unselected offices
+        named in its gaps. Deriving registers and
+        publishes nothing, opens no session and probes
+        no server. Returns the derived index record,
+        the rendered selections, the screen and the
+        plain explanation.
+        """
+        from ..core import aesir_deepening as camp_module
+        book = self.aesirdeepening_book()
+        index = {
+            "type": "aesirdeepening_index",
+            "slice": camp_module.AESIR_SLICE,
+            "schema": camp_module.AESIR_SCHEMA,
+            "selections": [s.record() for s in book.selections],
+            "selected": [s.office for s in book.selections
+                         if s.selected],
+            "gaps": [s.office for s in book.selections
+                     if not s.selected],
+            "total": len(book.selections),
+        }
+        return {
+            "index": index,
+            "index_text": camp_module.format_selections(book),
+            "screen": self._aesirdeepening_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def aesirdeepening_verdict(self) -> dict[str, Any]:
+        """Derive the deepening's verdict at call time (M-245).
+
+        The verdict is derived from the held report and
+        the session book alone: ``silent`` while no
+        report stands held or the held report is
+        unreachable, ``answering`` while a reachable
+        report stands - with the selected offices the
+        router may ask for named either way. Deriving
+        registers and publishes nothing. Returns the
+        verdict record, its plain-words telling, the
+        screen and the plain explanation.
+        """
+        from ..core import aesir_deepening as camp_module
+        report = self.aesirdeepening_report()
+        selected = [s.office
+                    for s in self.aesirdeepening_book().selections
+                    if s.selected]
+        if report is None or not report.reachable:
+            word = "silent"
+            telling = (
+                "Aesir is silent: no reachable capability "
+                "report stands held, so no ask is shaped "
+                "and the session default carries every "
+                "office.")
+        else:
+            word = "answering"
+            telling = (
+                "Aesir is answering: its held report shapes "
+                "asks for the selected offices - "
+                + ", ".join(selected) + ".")
+        verdict = {
+            "type": "aesirdeepening_verdict",
+            "slice": camp_module.AESIR_SLICE,
+            "verdict": word,
+            "selected": selected,
+            "reachable": bool(report is not None
+                              and report.reachable),
+            "model": (report.model if report is not None
+                      else None),
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._aesirdeepening_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_aesirdeepening_report(
+            self, report: Any) -> dict[str, Any]:
+        """Hold one capability report for the session (M-245).
+
+        The report is held whole by the pure registry
+        before it is held: a report claiming more than
+        Aesir's documented v1 ceiling refuses by name
+        on this road too, and a refusal holds nothing
+        new and publishes nothing. A held report is
+        published as its ``aesirdeepening_report``
+        session-news record through the checkpoint
+        road. Returns the held report, its news record,
+        the screen rendered after it landed, and the
+        plain explanation. Holding a report probes no
+        server and calls no model: the telling stands
+        on this layer's book, as data.
+        """
+        from ..core import aesir_deepening as camp_module
+        registry = self._aesirdeepening_registry()
+        held = registry.register_report(report)
+        news = {"type": "aesirdeepening_report",
+                **held.record()}
+        self._publish_aesirdeepening_record(news)
+        return {
+            "report": held.record(),
+            "record_news": news,
+            "screen": self._aesirdeepening_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_aesirdeepening_selection(
+            self, selection: Any) -> dict[str, Any]:
+        """Hold one office's selection for the session (M-245).
+
+        The selection is held whole by the pure registry
+        before it is held: an office the crew does not
+        hold, or a second selection for an office
+        already held, refuses by name on this road too,
+        and a refusal holds nothing new and publishes
+        nothing. A held selection is published as its
+        ``aesirdeepening_selection`` session-news record
+        through the checkpoint road. Returns the held
+        selection, its news record, the screen rendered
+        after it landed, and the plain explanation.
+        Holding a selection opens no session: the record
+        stands on this layer's book, as data.
+        """
+        from ..core import aesir_deepening as camp_module
+        registry = self._aesirdeepening_registry()
+        held = registry.register_selection(selection)
+        news = {"type": "aesirdeepening_selection",
+                **held.record()}
+        self._publish_aesirdeepening_record(news)
+        return {
+            "selection": held.record(),
+            "record_news": news,
+            "screen": self._aesirdeepening_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_aesirdeepening_book(
+            self, book: Any) -> dict[str, Any]:
+        """Register a whole selection book (M-245).
+
+        Every selection of the book is held by the pure
+        registry - the book is validated whole, and
+        against the selections already held, before
+        anything is held, so a refusal holds nothing
+        new. Every selection is published as its
+        session news, in book order. Returns the held
+        book, its selections, their news records, the
+        count of selections held, the screen, and the
+        explanation. Registering opens no session,
+        calls no model and probes no server.
+        """
+        from ..core import aesir_deepening as camp_module
+        registry = self._aesirdeepening_registry()
+        validated = registry.register_book(book)
+        records = [
+            {"type": "aesirdeepening_selection", **s.record()}
+            for s in validated.selections]
+        for news in records:
+            self._publish_aesirdeepening_record(news)
+        return {
+            "book": validated.record(),
+            "selections": [s.record()
+                           for s in validated.selections],
+            "records_news": records,
+            "count": len(validated.selections),
+            "screen": self._aesirdeepening_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_aesirdeepening_book(
+            self, book: Any = None) -> dict[str, Any]:
+        """Record a whole selection book (M-245).
+
+        With no book named, the shipped selection book
+        is boarded through the pure layer - nine
+        offices, six selected for Aesir. A book loaded
+        from a file (the pure layer's
+        ``load_selection_book_file`` road) may be passed
+        instead. The book is validated whole before
+        anything is held, and remembered whole as the
+        session's; the same book boarded twice refuses -
+        fingerprinted on its offices and schema. Every
+        selection is held and published as its session
+        news, in book order. Returns the held book, its
+        selections, their news records, the count, the
+        screen, and the explanation. Recording opens no
+        session, calls no model and probes no server.
+        """
+        from ..core import aesir_deepening as camp_module
+        if book is None:
+            book = camp_module.load_selection_book()
+        validated = camp_module.validate_selection_book(
+            book.record() if not isinstance(book, dict)
+            else book)
+        fingerprint = (tuple(s.office
+                             for s in validated.selections),
+                       validated.record()["schema"])
+        boarded = getattr(self, "_aesirdeepening_recorded",
+                          None)
+        if boarded is None:
+            boarded = set()
+            self._aesirdeepening_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "this selection book is already boarded "
+                "for the session; a book is boarded once")
+        registry = self._aesirdeepening_registry()
+        registry.register_book(validated)
+        boarded.add(fingerprint)
+        self._aesirdeepening_held = validated
+        records = [
+            {"type": "aesirdeepening_selection", **s.record()}
+            for s in validated.selections]
+        for news in records:
+            self._publish_aesirdeepening_record(news)
+        return {
+            "book": validated.record(),
+            "selections": [s.record()
+                           for s in validated.selections],
+            "records_news": records,
+            "count": len(validated.selections),
+            "screen": self._aesirdeepening_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_aesirdeepening(
+            self, office: Any, needs: Any = (),
+            model: Any = None) -> dict[str, Any]:
+        """Stand one office's ask on the session book (M-245).
+
+        This deepening's own viewing road: the ask is
+        derived by the pure layer from the session book
+        and the session's effective report, and published
+        as its ``aesirdeepening_ask`` session news, with
+        the office's selection published as its
+        ``aesirdeepening_selection`` session news.
+        Returns the derived ask, the office's selection,
+        their news records, the screen rendered after
+        they landed and the plain explanation. HONEST
+        BOUNDARY: viewing shapes an ask as data alone -
+        it opens no session, calls no model, probes no
+        server and rewrites no route.
+        """
+        from ..core import aesir_deepening as camp_module
+        selection = self.get_aesirdeepening_selection(office)
+        ask = self.aesirdeepening_ask(
+            office, needs=needs, model=model)
+        selection_news = {
+            "type": "aesirdeepening_selection",
+            **selection.record()}
+        self._publish_aesirdeepening_record(selection_news)
+        ask_news = {"type": "aesirdeepening_ask",
+                    **ask.record()}
+        self._publish_aesirdeepening_record(ask_news)
+        return {
+            "ask": ask.record(),
+            "selection": selection.record(),
+            "record_news": ask_news,
+            "selection_record": selection_news,
+            "screen": self._aesirdeepening_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def report_aesirdeepening(self) -> dict[str, Any]:
+        """Render the session deepening, as a report (M-245).
+
+        The session book and the session's effective
+        report are rendered through the pure formatters
+        alone, and an ask is derived for every selected
+        office with no named needs. Rendering registers
+        and publishes nothing, opens no session, calls
+        no model and writes nothing. Returns the book
+        and report as plain records, the derived asks,
+        the rendered report, selections and asks, the
+        index, the verdict, the screen, and the plain
+        explanation.
+        """
+        from ..core import aesir_deepening as camp_module
+        book = self.aesirdeepening_book()
+        effective = self._aesirdeepening_effective_report()
+        asks = [self.aesirdeepening_ask(s.office)
+                for s in book.selections if s.selected]
+        return {
+            "book": book.record(),
+            "report": effective.record(),
+            "selections": [s.record() for s in book.selections],
+            "asks": [a.record() for a in asks],
+            "index": self.aesirdeepening_index()["index"],
+            "verdict": self.aesirdeepening_verdict()["verdict"],
+            "report_text": camp_module.format_report(effective),
+            "selections_text": camp_module.format_selections(
+                book),
+            "ask_text": "\n".join(
+                camp_module.format_ask(a) for a in asks),
+            "screen": self._aesirdeepening_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_aesirdeepening_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one deepening record as session news (M-245).
+
+        The agent layer's ``aesirdeepening_report``,
+        ``aesirdeepening_selection`` and
+        ``aesirdeepening_ask`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is attached. Each
+        record is announced at most once per telling: a
+        report under its reachability and resident
+        model, a selection under its office, its
+        standing and its capability, and an ask under
+        its office, its shape, its granted and refused
+        needs and its model, so an ask grown by a newly
+        held report announces again as the new figure it
+        is. A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "aesirdeepening_report":
+            target = ("aesirdeepening_report",
+                      record.get("reachable"),
+                      record.get("model"),
+                      record.get("streaming"))
+        elif record.get("type") == "aesirdeepening_selection":
+            target = ("aesirdeepening_selection",
+                      record.get("office"),
+                      record.get("selected"),
+                      record.get("capability"))
+        elif record.get("type") == "aesirdeepening_ask":
+            target = ("aesirdeepening_ask",
+                      record.get("office"),
+                      record.get("shaped"),
+                      tuple(record.get("granted", [])),
+                      tuple(record.get("refused", [])),
+                      record.get("model"))
+        else:
+            return
+        announced = getattr(self, "_aesirdeepening_announced",
+                            None)
+        if announced is None:
+            announced = set()
+            self._aesirdeepening_announced = announced
         if target in announced:
             return
         announced.add(target)
