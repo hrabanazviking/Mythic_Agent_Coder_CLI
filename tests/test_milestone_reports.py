@@ -434,8 +434,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 237
-    assert citizen["next_slice"] == "M-238"
+    assert citizen["done"] == 238
+    assert citizen["next_slice"] == "M-239"
     assert citizen["m220_title"] == "Milestone reports"
     assert citizen["m220_part"] == 9
     assert citizen["m220_status"] == "done"
@@ -910,8 +910,8 @@ class TestReportAgentStatus:
         assert status["chronicle"]["current_report"] == "report-bare-report"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 237
-        assert status["roadmap"]["next_slice"] == "M-238"
+        assert status["roadmap"]["done"] == 238
+        assert status["roadmap"]["next_slice"] == "M-239"
         assert status["roadmap"]["m220_title"] == "Milestone reports"
         assert "held as data alone" in status["rule"]
         assert "report-bare-report" in status["plain_words"]

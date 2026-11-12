@@ -434,8 +434,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 237
-    assert citizen["next_slice"] == "M-238"
+    assert citizen["done"] == 238
+    assert citizen["next_slice"] == "M-239"
     assert citizen["m229_title"] == "The method, teachable"
     assert citizen["m229_part"] == 9
     assert citizen["m229_status"] == "done"
@@ -910,8 +910,8 @@ class TestLessonAgentStatus:
         assert status["ledger"]["current_lesson"] == "lesson-bare-lesson"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 237
-        assert status["roadmap"]["next_slice"] == "M-238"
+        assert status["roadmap"]["done"] == 238
+        assert status["roadmap"]["next_slice"] == "M-239"
         assert status["roadmap"]["m229_title"] == "The method, teachable"
         assert "held as data alone" in status["rule"]
         assert "lesson-bare-lesson" in status["plain_words"]
