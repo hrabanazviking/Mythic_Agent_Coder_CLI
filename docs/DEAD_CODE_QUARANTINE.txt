@@ -1237,3 +1237,10 @@ mythic_agent/agents/llm.py:78367:record_issuetrackers_records:method
 mythic_agent/agents/llm.py:78418:view_issuetrackers:method
 mythic_agent/agents/llm.py:78467:propose_issuetrackers_draft:method
 mythic_agent/agents/llm.py:78515:report_issuetrackers:method
+mythic_agent/agents/llm.py:79098:snapshots_for_availability:method
+mythic_agent/agents/llm.py:79220:register_wyrdseam_snapshot:method
+mythic_agent/agents/llm.py:79251:register_wyrdseam_snapshots:method
+mythic_agent/agents/llm.py:79281:record_wyrdseam_snapshots:method
+mythic_agent/agents/llm.py:79331:view_wyrdseam:method
+mythic_agent/agents/llm.py:79378:propose_wyrdseam_advice:method
+mythic_agent/agents/llm.py:79425:report_wyrdseam:method
