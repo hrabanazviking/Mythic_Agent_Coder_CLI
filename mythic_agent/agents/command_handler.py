@@ -509,6 +509,8 @@ class CommandHandler:
                 self._handle_samtalbridge(args)
             elif cmd == "/kistakeykeeper":
                 self._handle_kistakeykeeper(args)
+            elif cmd == "/aesirdeepening":
+                self._handle_aesirdeepening(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -13263,6 +13265,89 @@ class CommandHandler:
             "agent_chat_chunk", agent_name="Primary",
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
 
+
+    def _handle_aesirdeepening(self, args: str):
+        """M-245: /aesirdeepening - the deepening as data.
+
+        ``/aesirdeepening`` shows the deepening held this
+        session - Aesir's per-role selections as data:
+        one record per crew office, naming whether an
+        Aesir session is selectable for that role and
+        why, beside the capability report held this
+        session (the shipped selection book - nine
+        offices, six selected - when none is held yet);
+        ``/aesirdeepening report`` shows the held
+        report, or the silent report while none stands;
+        ``/aesirdeepening selections`` shows the whole
+        book; ``/aesirdeepening selection <office>``
+        shows one office's selection;
+        ``/aesirdeepening ask <office> [needs...]
+        [model:<name>]`` shows the ask derived for one
+        office - never shaped for an unselected office
+        or a silent server; ``/aesirdeepening index``
+        shows the index derived from the whole book;
+        ``/aesirdeepening verdict`` shows the verdict
+        derived for the session. Resolution registers
+        and publishes nothing as session news on this
+        heading: reports and selections are held only
+        when they are given through the agent's register
+        roads, stood on the book on the viewing road, or
+        held on the book roads, and every report held
+        for the session is journaled as an
+        aesirdeepening_report session event, every
+        selection as an aesirdeepening_selection session
+        event and every viewed ask as an
+        aesirdeepening_ask session event. This heading
+        opens no session, calls no model, probes no
+        server and rewrites no route - holding and
+        telling are words only.
+        """
+        from ..core.aesir_deepening import (
+            format_ask,
+            format_selection,
+            format_selections,
+        )
+        from .llm import parse_aesirdeepening_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_aesirdeepening_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "report":
+                text = primary.aesirdeepening_status()[
+                    "report_text"]
+            elif stance == "selections":
+                text = format_selections(
+                    primary.aesirdeepening_book())
+            elif stance == "selection":
+                text = format_selection(
+                    primary.get_aesirdeepening_selection(target))
+            elif stance == "ask":
+                text = format_ask(primary.aesirdeepening_ask(
+                    target, needs=needs, model=model))
+            elif stance == "index":
+                text = primary.aesirdeepening_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.aesirdeepening_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.aesirdeepening_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
 
     def _handle_mcpserver(self, args: str):
         """M-234: /mcpserver - the exposure engine as data.
