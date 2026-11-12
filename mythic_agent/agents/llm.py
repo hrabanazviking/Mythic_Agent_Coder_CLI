@@ -919,6 +919,275 @@ def parse_cibridges_args(args: Any):
         return ("draft", (rest[0], rest[1]), (), None)
     raise ValueError(CIBRIDGES_USAGE)
 
+
+#: The /issuetrackers slash grammar (M-248, agent layer).
+ISSUETRACKERS_USAGE = (
+    "Usage: /issuetrackers | /issuetrackers trackers | "
+    "/issuetrackers tracker <tracker> | /issuetrackers record "
+    "<tracker> <issue> | /issuetrackers standing "
+    "<tracker> <issue> | /issuetrackers draft | "
+    "/issuetrackers draft <tracker> <issue> | "
+    "/issuetrackers index | /issuetrackers verdict")
+
+
+def _issue_tracker_dict(entry: Any) -> dict[str, Any]:
+    """One issue tracker registry entry, as plain data (M-248)."""
+    return {"id": entry.id, "label": entry.label,
+            "issue_word": entry.issue_word,
+            "transport": entry.transport, "reason": entry.reason}
+
+
+def _issue_record_dict(record: Any) -> dict[str, Any]:
+    """One issue record, as plain data (M-248)."""
+    return {"tracker": record.tracker,
+            "issue_key": record.issue_key, "title": record.title,
+            "state": record.state,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+def _issue_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived issue standing, as plain data (M-248)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "gaps": list(standing.gaps)}
+
+
+def _issue_draft_dict(draft: Any) -> dict[str, Any]:
+    """One write draft, as plain data (M-248)."""
+    return {"tracker": draft.tracker,
+            "issue_key": draft.issue_key, "change": draft.change,
+            "approval": draft.approval, "applied": draft.applied}
+
+
+def _issue_draft_text(draft: Any) -> str:
+    """One write draft told in plain words (M-248)."""
+    return (f"{draft.tracker}/{draft.issue_key}: draft - "
+            f"{draft.change} (approval: {draft.approval}; "
+            "a draft is never applied here)")
+
+
+def _issue_coerce_record(record: Any):
+    """An issue record from a record or a plain telling (M-248)."""
+    from ..core.issue_trackers import IssueRecord
+    if isinstance(record, IssueRecord):
+        return record
+    if isinstance(record, dict):
+        return IssueRecord(
+            tracker=record["tracker"],
+            issue_key=record["issue_key"], title=record["title"],
+            state=record["state"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return IssueRecord(
+        tracker=record.tracker, issue_key=record.issue_key,
+        title=record.title, state=record.state,
+        stages=tuple(record.stages), claims=tuple(record.claims))
+
+
+class IssueTrackersRegistry:
+    """Session registry for the issue trackers (M-248).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.issue_trackers``): it
+    holds the shipped tracker registry (one entry per
+    tracker, held as data) beside the issue records
+    held one by one for the session, one record per
+    tracker and issue_key, and the write drafts
+    proposed for the session, one draft per tracker
+    and issue_key. A record is validated whole by the
+    pure layer before it is held - a record naming an
+    unknown tracker, state or evidence kind
+    refuses by name here too, and a refusal holds
+    nothing new. A second record for a tracker and
+    issue_key already held refuses likewise. A draft is
+    proposed only through the pure layer's draft road -
+    approval pending by default, may be marked approved by a human, and never applied. Holding
+    calls no tracker API, fetches no issue, writes nothing to any tracker and dispatches nothing: the registry holds
+    tellings as data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.issue_trackers import default_registry
+        self._trackers = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._drafts: dict[tuple, Any] = {}
+
+    def trackers(self):
+        """The shipped tracker registry held by the session."""
+        return self._trackers
+
+    def register_record(self, record: Any):
+        """Hold one issue's record, validated whole.
+
+        A second record for a tracker and issue_key
+        already held refuses, and a refusal holds
+        nothing new.
+        """
+        held = _issue_coerce_record(record)
+        held.validate(self._trackers)
+        key = (held.tracker, held.issue_key)
+        if key in self._records:
+            raise ValueError(
+                "an issue record for tracker "
+                f"{held.tracker!r} issue_key "
+                f"{held.issue_key!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, tracker: Any, issue_key: Any):
+        """The held record for one tracker and issue_key."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(tracker, issue_key)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no issue record for "
+                f"tracker {tracker!r} issue_key "
+                f"{issue_key!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of issue records, validated whole.
+
+        Every record is validated, and checked against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _issue_coerce_record(record)
+            held.validate(self._trackers)
+            key = (held.tracker, held.issue_key)
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "an issue record for tracker "
+                    f"{held.tracker!r} issue_key "
+                    f"{held.issue_key!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[(held.tracker, held.issue_key)] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The issue records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the issue records and the drafts."""
+        return (list(self._records.values())
+                + list(self._drafts.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.issue_trackers import derive_standing
+        return [derive_standing(record, self._trackers)
+                for record in self._records.values()]
+
+    def hold_draft(self, tracker: Any, issue_key: Any,
+                   change: Any,
+                   approval: Any = "pending"):
+        """Propose one write draft, held for the session.
+
+        The draft is shaped by the pure layer alone -
+        an approval word outside pending/approved refuses
+        by name there, and a draft is never applied.
+        A second draft for a tracker and issue_key
+        already drafted refuses likewise.
+        """
+        from ..core.issue_trackers import propose_write
+        draft = propose_write(tracker, issue_key, change,
+                              approval=approval,
+                              registry=self._trackers)
+        key = (draft.tracker, draft.issue_key)
+        if key in self._drafts:
+            raise ValueError(
+                "a write draft for tracker "
+                f"{draft.tracker!r} issue_key "
+                f"{draft.issue_key!r} already stands held "
+                "for the session")
+        self._drafts[key] = draft
+        return draft
+
+    def get_draft(self, tracker: Any, issue_key: Any):
+        """The held draft for one tracker and issue_key."""
+        from ..core.validation import ValidationError
+        try:
+            return self._drafts[(tracker, issue_key)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no write draft for "
+                f"tracker {tracker!r} issue_key "
+                f"{issue_key!r}") from None
+
+    def list_drafts(self) -> list:
+        """The write drafts held, in proposal order."""
+        return list(self._drafts.values())
+
+    def book(self):
+        """The held pieces composed as a issue trackers book.
+
+        The book is plain data: the shipped tracker
+        registry's entries beside the issue records and
+        write drafts held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.issue_trackers import ISSUE_TRACKER_SCHEMA
+        return {
+            "schema": ISSUE_TRACKER_SCHEMA,
+            "trackers": [_issue_tracker_dict(entry)
+                          for entry in self._trackers.entries()],
+            "records": [_issue_record_dict(record)
+                        for record in self._records.values()],
+            "drafts": [_issue_draft_dict(draft)
+                       for draft in self._drafts.values()],
+        }
+
+
+def parse_issuetrackers_args(args: Any):
+    """Parse /issuetrackers arguments (M-248).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``trackers``, ``index`` and ``verdict``
+    name their own stance with no target; ``tracker
+    <tracker>`` names one tracker; ``record
+    <tracker> <issue_key>``, ``standing <tracker>
+    <issue_key>`` and ``draft <tracker> <issue_key>``
+    name one tracker and issue_key as a pair; the bare
+    ``draft`` stance names the session's drafts.
+    Anything else raises ValueError carrying the usage
+    line, exactly as the sibling parsers refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("trackers", "index", "verdict"):
+        if rest:
+            raise ValueError(ISSUETRACKERS_USAGE)
+        return (head, None, (), None)
+    if head == "tracker":
+        if len(rest) != 1:
+            raise ValueError(ISSUETRACKERS_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 2:
+            raise ValueError(ISSUETRACKERS_USAGE)
+        return (head, (rest[0], rest[1]), (), None)
+    if head == "draft":
+        if not rest:
+            return ("drafts", None, (), None)
+        if len(rest) != 2:
+            raise ValueError(ISSUETRACKERS_USAGE)
+        return ("draft", (rest[0], rest[1]), (), None)
+    raise ValueError(ISSUETRACKERS_USAGE)
+
 class Agent:
     def __init__(self, project_root: Path | None = None, name: str = "Primary", config: dict[str, Any] | None = None):
         import copy
@@ -77714,6 +77983,629 @@ class Agent:
         if announced is None:
             announced = set()
             self._cibridges_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _issuetrackers_registry(self):
+        """The held issue trackers registry (M-248).
+
+        The registry lives in the agent layer alone -
+        it is session state, not a stored setting -
+        and holds the shipped tracker registry beside
+        the session's issue records and write drafts
+        one by one. It is created on first use, so an
+        agent whose ``__init__`` never ran still holds
+        exactly one. The attribute is named
+        ``_issuetrackers_store``, never the method's own
+        name (the M-108 resolution).
+        """
+        registry = getattr(self, "_issuetrackers_store", None)
+        if registry is None:
+            registry = IssueTrackersRegistry()
+            self._issuetrackers_store = registry
+        return registry
+
+    def issuetrackers_trackers(self):
+        """The shipped tracker registry, as data (M-248).
+
+        One entry per tracker - github_actions,
+        gitlab_ci, bitbucket_pipelines, local_manual -
+        held as registry entries, each naming the word
+        that tracker gives a single issue. Resolution
+        registers and publishes nothing, calls no CI
+        API and probes no network.
+        """
+        return self._issuetrackers_registry().trackers()
+
+    def issuetrackers_book(self):
+        """The session's issue trackers book, as data (M-248).
+
+        The held registry's book when the session holds
+        records or drafts one by one - otherwise the
+        book boarded whole through
+        :meth:`record_issuetrackers_records`, or the shipped
+        tracker registry with nothing held until a
+        record or draft is held. Resolution registers
+        and publishes nothing.
+        """
+        registry = self._issuetrackers_registry()
+        if registry.list_records() or registry.list_drafts():
+            held = getattr(self, "_issuetrackers_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [(r["tracker"], r["issue_key"])
+                     for r in held["records"]]
+                    == [(r["tracker"], r["issue_key"])
+                        for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_issuetrackers_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _issuetrackers_effective_record(self, tracker: Any,
+                                    issue_key: Any):
+        """The record an issue's standing is derived from (M-248).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on - so an unheld issue derives an honest open
+        standing naming its gaps, never a dressed claim.
+        An unknown tracker refuses by name through the
+        shipped registry first.
+        """
+        from ..core.issue_trackers import IssueRecord
+        registry = self._issuetrackers_registry()
+        registry.trackers().get(tracker)
+        try:
+            return registry.get_record(tracker, issue_key)
+        except ValueError:
+            return IssueRecord(
+                tracker=tracker, issue_key=issue_key,
+                title="(no record held)", state="unknown",
+                stages=(), claims=())
+
+    def _issuetrackers_screen(self) -> str:
+        """The /issuetrackers screen for the session (M-248)."""
+        from ..core.issue_trackers import (
+            format_trackers, format_record)
+        registry = self._issuetrackers_registry()
+        lines = [format_trackers(registry.trackers())]
+        records = registry.list_records()
+        if not records:
+            lines.append(
+                "Issue records: none held this session - an issue "
+                "is a fact only when it rests on "
+                "held evidence, and no issue stands as a "
+                "fact until its record is held.")
+        else:
+            lines.extend(format_record(record)
+                         for record in records)
+        lines.extend(_issue_draft_text(draft)
+                     for draft in registry.list_drafts())
+        return "\n".join(lines)
+
+    def issuetrackers_status(self) -> dict[str, Any]:
+        """The issue trackers account, in plain data (M-248).
+
+        The shipped tracker registry's entries and the
+        issue records and write drafts held this
+        session as plain records (empty until held), the
+        session book's record (the shipped tracker
+        registry with nothing held - until items are
+        held), the issues standing held and still open
+        derived at call time, the index and verdict
+        derived at call time, the trackers and records
+        told in plain words through the pure formatters,
+        and the plain explanation. A session holding no
+        record for an issue derives that issue's open
+        standing. Resolution registers and publishes
+        nothing, calls no tracker API, fetches no issue and
+        probes no network: this layer tells only.
+        """
+        from ..core import issue_trackers as camp_module
+        registry = self._issuetrackers_registry()
+        held_records = registry.list_records()
+        book = self.issuetrackers_book()
+        index = self.issuetrackers_index()
+        return {
+            "records": [_issue_record_dict(r)
+                        for r in held_records],
+            "trackers": [_issue_tracker_dict(e)
+                          for e in registry.trackers().entries()],
+            "book": (book if held_records
+                     or registry.list_drafts()
+                     or getattr(self, "_issuetrackers_held",
+                                None) is not None else None),
+            "issuetrackers_book": {
+                "schema": camp_module.ISSUE_TRACKER_SCHEMA,
+                "trackers": book["trackers"],
+                "records": book["records"],
+                "drafts": book["drafts"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.issuetrackers_verdict()["verdict"],
+            "trackers_text": camp_module.format_trackers(
+                registry.trackers()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "drafts": [_issue_draft_dict(d)
+                       for d in registry.list_drafts()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._issuetrackers_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": ISSUETRACKERS_USAGE,
+        }
+
+    def get_issuetrackers_tracker(self, tracker: Any):
+        """The one tracker entry a tracker name names (M-248).
+
+        The shipped tracker registry answers: a
+        tracker the bridges book does not hold refuses
+        by name, exactly as the pure layer answers.
+        Resolution registers and publishes nothing.
+        """
+        return self._issuetrackers_registry().trackers().get(
+            tracker)
+
+    def get_issuetrackers_record(self, tracker: Any,
+                             issue_key: Any):
+        """The one issue record a tracker and issue_key name (M-248).
+
+        The session's held registry answers: an issue the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._issuetrackers_registry().get_record(
+            tracker, issue_key)
+
+    def issuetrackers_standing(self, tracker: Any,
+                           issue_key: Any):
+        """Derive one issue's issue standing (M-248).
+
+        The standing is derived at call time by the
+        pure layer from the issue's effective record -
+        the held record, or the honest empty record
+        while none stands held: held only on a full
+        legal walk resting on held evidence, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.issue_trackers import derive_standing
+        registry = self._issuetrackers_registry()
+        return derive_standing(
+            self._issuetrackers_effective_record(tracker, issue_key),
+            registry.trackers())
+
+    def records_for_state(self, state: Any):
+        """The held records resting on one state (M-248)."""
+        from ..core.issue_trackers import ISSUE_STATES
+        if state is None or not str(state).strip():
+            raise ValueError(
+                "a state must be named to list its "
+                "records")
+        if state not in ISSUE_STATES:
+            raise ValueError(
+                f"unknown issue state {state!r}; the "
+                "issue trackers book names: "
+                + ", ".join(ISSUE_STATES))
+        return [r for r in
+                self._issuetrackers_registry().list_records()
+                if r.state == state]
+
+    def issuetrackers_held(self):
+        """The issues whose issue standing stands held (M-248)."""
+        registry = self._issuetrackers_registry()
+        return [f"{r.tracker}/{r.issue_key}"
+                for r in registry.list_records()
+                if self.issuetrackers_standing(
+                    r.tracker, r.issue_key).held]
+
+    def issuetrackers_index(self) -> dict[str, Any]:
+        """Derive the issue index at call time (M-248).
+
+        The index is derived from every held record
+        alone - each held issue's derived standing, the
+        held runs named and the open runs named in its
+        gaps. Deriving registers and publishes nothing,
+        calls no tracker API and probes no network. Returns
+        the derived index record, the rendered records,
+        the screen and the plain explanation.
+        """
+        from ..core import issue_trackers as camp_module
+        registry = self._issuetrackers_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.issuetrackers_standing(
+                record.tracker, record.issue_key)
+            standings.append({
+                "tracker": record.tracker,
+                "issue_key": record.issue_key,
+                **_issue_standing_dict(standing)})
+        index = {
+            "type": "issuetrackers_index",
+            "slice": camp_module.ISSUE_TRACKER_SLICE,
+            "schema": camp_module.ISSUE_TRACKER_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['tracker']}/{s['issue_key']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['tracker']}/{s['issue_key']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._issuetrackers_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def issuetrackers_verdict(self) -> dict[str, Any]:
+        """Derive the issue verdict at call time (M-248).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and
+        every held record's standing stands held on
+        held evidence, ``open`` while no record stands
+        held or any held record stands short of held -
+        with the held and open runs named either way.
+        Deriving registers and publishes nothing.
+        Returns the verdict record, its plain-words
+        telling, the screen and the plain explanation.
+        """
+        from ..core import issue_trackers as camp_module
+        registry = self._issuetrackers_registry()
+        records = registry.list_records()
+        held = self.issuetrackers_held()
+        open_keys = [f"{r.tracker}/{r.issue_key}"
+                     for r in records
+                     if f"{r.tracker}/{r.issue_key}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Issues stand held: every held record walks "
+                "the whole evidence walk on held evidence "
+                "- " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Issues stand open: no issue record is held this "
+                "session - an issue is a fact only when "
+                "it rests on held evidence.")
+        else:
+            word = "open"
+            telling = (
+                "Issues stand open: an issue is a fact "
+                "only when it rests on held evidence, and "
+                "these records stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "issuetrackers_verdict",
+            "slice": camp_module.ISSUE_TRACKER_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._issuetrackers_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_issuetrackers_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one issue's issue record for the session (M-248).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        tracker, state or evidence kind refuses
+        by name on this road too, and a refusal holds
+        nothing new and publishes nothing. A held record
+        is published as its ``issuetrackers_record``
+        session-news record through the checkpoint road.
+        Returns the held record, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a record calls no tracker API
+        and probes no network: the telling stands on
+        this layer's book, as data.
+        """
+        from ..core import issue_trackers as camp_module
+        registry = self._issuetrackers_registry()
+        held = registry.register_record(record)
+        news = {"type": "issuetrackers_record",
+                **_issue_record_dict(held)}
+        self._publish_issuetrackers_record(news)
+        return {
+            "record": _issue_record_dict(held),
+            "record_news": news,
+            "screen": self._issuetrackers_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_issuetrackers_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of issue records for the session (M-248).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order
+        given. Returns the held records, their news
+        records, the count of records held, the screen,
+        and the explanation. Registering calls no CI
+        API and probes no network.
+        """
+        from ..core import issue_trackers as camp_module
+        registry = self._issuetrackers_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "issuetrackers_record", **_issue_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_issuetrackers_record(news)
+        return {
+            "records": [_issue_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._issuetrackers_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_issuetrackers_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of issue records (M-248).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's
+        book; the same set boarded twice refuses -
+        fingerprinted on its tracker and issue_key keys
+        and schema. Every record is held and published
+        as its session news, in the order given. Returns
+        the held book, its records, their news records,
+        the count, the screen, and the explanation.
+        Recording calls no tracker API, fetches no issue and
+        probes no network.
+        """
+        from ..core import issue_trackers as camp_module
+        validated = [_issue_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._issuetrackers_registry().trackers())
+        fingerprint = (
+            tuple((r.tracker, r.issue_key) for r in validated),
+            camp_module.ISSUE_TRACKER_SCHEMA)
+        boarded = getattr(self, "_issuetrackers_recorded",
+                          None)
+        if boarded is None:
+            boarded = set()
+            self._issuetrackers_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these issue records are already boarded "
+                "for the session; a set is boarded once")
+        registry = self._issuetrackers_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._issuetrackers_held = registry.book()
+        news_records = [
+            {"type": "issuetrackers_record", **_issue_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_issuetrackers_record(news)
+        return {
+            "book": self._issuetrackers_held,
+            "records": [_issue_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._issuetrackers_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_issuetrackers(
+            self, tracker: Any,
+            issue_key: Any) -> dict[str, Any]:
+        """Stand one issue's issue standing on the session book (M-248).
+
+        This bridges book's own viewing road: the issue's
+        tracker entry is read from the shipped registry
+        and its standing is derived by the pure layer
+        from the issue's effective record, and published
+        as its ``issuetrackers_standing`` session news, with
+        the held record published as its
+        ``issuetrackers_record`` session news when one
+        stands held. Returns the tracker's entry, its
+        derived standing, the held record when one
+        stands, their news records, the screen rendered
+        after they landed and the plain explanation.
+        HONEST BOUNDARY: viewing tells issues as data
+        alone - it calls no tracker API, fetches no issue,
+        writes nothing to any tracker and probes no network.
+        """
+        from ..core import issue_trackers as camp_module
+        entry = self.get_issuetrackers_tracker(tracker)
+        standing = self.issuetrackers_standing(tracker, issue_key)
+        try:
+            held = self.get_issuetrackers_record(tracker, issue_key)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "issuetrackers_record",
+                           **_issue_record_dict(held)}
+            self._publish_issuetrackers_record(record_news)
+        standing_news = {
+            "type": "issuetrackers_standing", "tracker": tracker,
+            "issue_key": issue_key, **_issue_standing_dict(standing)}
+        self._publish_issuetrackers_record(standing_news)
+        return {
+            "tracker": _issue_tracker_dict(entry),
+            "standing": {"tracker": tracker,
+                         "issue_key": issue_key,
+                         **_issue_standing_dict(standing)},
+            "record": (_issue_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._issuetrackers_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def propose_issuetrackers_draft(
+            self, tracker: Any, issue_key: Any, change: Any,
+            approval: Any = "pending"
+            ) -> dict[str, Any]:
+        """Propose one write draft for the session (M-248).
+
+        The draft is shaped by the pure layer alone -
+        it stands at approval pending by default, may
+        be marked ``approved`` by a human, and an
+        approval word outside pending/approved refuses
+        by name; a draft is never applied here. A held draft is
+        published as its ``issuetrackers_draft`` session-news
+        record through the checkpoint road. Returns the
+        held draft, its news record, the screen rendered
+        after it landed, and the plain explanation.
+        Proposing calls no tracker API, writes nothing
+        to any tracker and dispatches nothing.
+        """
+        from ..core import issue_trackers as camp_module
+        registry = self._issuetrackers_registry()
+        draft = registry.hold_draft(tracker, issue_key,
+                                    change, approval=approval)
+        news = {"type": "issuetrackers_draft",
+                **_issue_draft_dict(draft)}
+        self._publish_issuetrackers_record(news)
+        return {
+            "draft": _issue_draft_dict(draft),
+            "draft_news": news,
+            "screen": self._issuetrackers_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def get_issuetrackers_draft(self, tracker: Any,
+                            issue_key: Any):
+        """The one write draft a tracker and issue_key name (M-248).
+
+        The session's held registry answers: a issue_key
+        the session holds no draft for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._issuetrackers_registry().get_draft(
+            tracker, issue_key)
+
+    def issuetrackers_drafts(self) -> list:
+        """The write drafts held for the session (M-248)."""
+        return self._issuetrackers_registry().list_drafts()
+
+    def report_issuetrackers(self) -> dict[str, Any]:
+        """Render the session issue trackers, as a report (M-248).
+
+        The shipped tracker registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers
+        and publishes nothing, calls no tracker API, fetches
+        no run and writes nothing. Returns the book, the
+        trackers, held records and drafts as plain
+        records, the derived standings, the rendered
+        trackers and records, the index, the verdict,
+        the screen, and the plain explanation.
+        """
+        from ..core import issue_trackers as camp_module
+        registry = self._issuetrackers_registry()
+        book = self.issuetrackers_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.issuetrackers_standing(
+                record.tracker, record.issue_key)
+            standings.append({
+                "tracker": record.tracker,
+                "issue_key": record.issue_key,
+                **_issue_standing_dict(standing)})
+        return {
+            "book": book,
+            "trackers": [_issue_tracker_dict(e)
+                          for e in registry.trackers().entries()],
+            "records": [_issue_record_dict(r)
+                        for r in registry.list_records()],
+            "drafts": [_issue_draft_dict(d)
+                       for d in registry.list_drafts()],
+            "standings": standings,
+            "index": self.issuetrackers_index()["index"],
+            "verdict": self.issuetrackers_verdict()["verdict"],
+            "trackers_text": camp_module.format_trackers(
+                registry.trackers()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._issuetrackers_effective_record(
+                        r.tracker, r.issue_key))
+                for r in registry.list_records()),
+            "screen": self._issuetrackers_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_issuetrackers_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one issue record as session news (M-248).
+
+        The agent layer's ``issuetrackers_record``,
+        ``issuetrackers_standing`` and ``issuetrackers_draft``
+        records are journaled through the same
+        checkpoint road every sibling bridge uses, when
+        a session is attached. Each record is announced
+        at most once per telling: an issue record under its
+        tracker, its issue_key, its ref, its state,
+        its walked stages and its claims, a standing
+        under its tracker, its issue_key, its held word,
+        its stage and its gaps, and a draft under its
+        tracker, its issue_key, its change and its
+        approval, so a standing grown by a newly held
+        record announces again as the new figure it is.
+        A foreign record type is never published on this
+        road.
+        """
+        if record.get("type") == "issuetrackers_record":
+            target = ("issuetrackers_record",
+                      record.get("tracker"),
+                      record.get("issue_key"),
+                      record.get("title"),
+                      record.get("state"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "issuetrackers_standing":
+            target = ("issuetrackers_standing",
+                      record.get("tracker"),
+                      record.get("issue_key"),
+                      record.get("held"),
+                      record.get("stage"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "issuetrackers_draft":
+            target = ("issuetrackers_draft",
+                      record.get("tracker"),
+                      record.get("issue_key"),
+                      record.get("change"),
+                      record.get("approval"))
+        else:
+            return
+        announced = getattr(self, "_issuetrackers_announced",
+                            None)
+        if announced is None:
+            announced = set()
+            self._issuetrackers_announced = announced
         if target in announced:
             return
         announced.add(target)
