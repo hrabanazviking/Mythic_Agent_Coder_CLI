@@ -1164,3 +1164,12 @@ mythic_agent/agents/llm.py:72005:view_vscodecompanions:method
 mythic_agent/agents/llm.py:72072:register_vscodecompanions_book:method
 mythic_agent/agents/llm.py:72121:record_vscodecompanions_book:method
 mythic_agent/agents/llm.py:72199:report_vscodecompanions:method
+mythic_agent/agents/llm.py:72496:get_idecompanions_note:method
+mythic_agent/agents/llm.py:72517:idecompanions_green:method
+mythic_agent/agents/llm.py:72559:idecompanions_index:method
+mythic_agent/agents/llm.py:72583:register_idecompanions_endpoint:method
+mythic_agent/agents/llm.py:72614:register_idecompanions_view:method
+mythic_agent/agents/llm.py:72640:view_idecompanions:method
+mythic_agent/agents/llm.py:72707:register_idecompanions_book:method
+mythic_agent/agents/llm.py:72756:record_idecompanions_book:method
+mythic_agent/agents/llm.py:72834:report_idecompanions:method
