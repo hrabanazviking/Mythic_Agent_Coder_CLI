@@ -1244,3 +1244,10 @@ mythic_agent/agents/llm.py:79281:record_wyrdseam_snapshots:method
 mythic_agent/agents/llm.py:79331:view_wyrdseam:method
 mythic_agent/agents/llm.py:79378:propose_wyrdseam_advice:method
 mythic_agent/agents/llm.py:79425:report_wyrdseam:method
+mythic_agent/agents/llm.py:80008:events_for_kind:method
+mythic_agent/agents/llm.py:80129:register_webhookdoors_event:method
+mythic_agent/agents/llm.py:80160:register_webhookdoors_events:method
+mythic_agent/agents/llm.py:80190:record_webhookdoors_events:method
+mythic_agent/agents/llm.py:80240:view_webhookdoors:method
+mythic_agent/agents/llm.py:80287:propose_webhookdoors_proposal:method
+mythic_agent/agents/llm.py:80335:report_webhookdoors:method

@@ -434,8 +434,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 249
-    assert citizen["next_slice"] == "M-250"
+    assert citizen["done"] == 250
+    assert citizen["next_slice"] == "M-251"
     assert citizen["m231_title"] == "Cross-app method"
     assert citizen["m231_part"] == 9
     assert citizen["m231_status"] == "done"
@@ -910,8 +910,8 @@ class TestExternalAgentStatus:
         assert status["ledger"]["current_external"] == "external-bare-external"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 249
-        assert status["roadmap"]["next_slice"] == "M-250"
+        assert status["roadmap"]["done"] == 250
+        assert status["roadmap"]["next_slice"] == "M-251"
         assert status["roadmap"]["m231_title"] == "Cross-app method"
         assert "held as data alone" in status["rule"]
         assert "external-bare-external" in status["plain_words"]
