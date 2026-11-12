@@ -491,6 +491,8 @@ class CommandHandler:
                 self._handle_mcpclient(args)
             elif cmd == "/mcpregistry":
                 self._handle_mcpregistry(args)
+            elif cmd == "/skillsstandard":
+                self._handle_skillsstandard(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -12382,6 +12384,101 @@ class CommandHandler:
                 text = format_verdict(primary.mcpregistry_book())
             else:
                 text = primary.mcpregistry_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_skillsstandard(self, args: str):
+        """M-236: /skillsstandard - the pack engine as data.
+
+        ``/skillsstandard`` shows the pack book held this
+        session - pack skills as data: one record per
+        pack, held whole with the active skill it
+        was held from, its one verifiable stage
+        at the house grain and its claims, and
+        the notes held as data beside them (the shipped
+        example book - five packs at the M-203 skill
+        skill, with its three skill references, its
+        two views, two stance records, one trace
+        trace and its one pinned panel - when none
+        is held yet); ``/skillsstandard pack <pack-id>``
+        shows one pack whole; ``/skillsstandard stage
+        <stage>`` shows the pack one stage line
+        reaches, or names the stage unheld;
+        ``/skillsstandard skill <skill-id>`` shows the book's
+        packs of one skill; ``/skillsstandard view <view-id>``
+        shows one held view record; ``/skillsstandard note
+        <note-id>`` shows one held stance record;
+        ``/skillsstandard index`` shows the index derived
+        from the whole book's held packs; ``/skillsstandard
+        panel`` shows the panel derived from the
+        whole book under its default view; ``/skillsstandard
+        verdict`` shows the verdict derived for the
+        whole book. Pack registers and publishes
+        nothing as session news: packs and views are
+        held only when they are given through the
+        agent's register targets, stood on the book on
+        the viewing target, or held on the book targets,
+        and every pack held for the session is
+        journaled as a pack_pack session event,
+        every view as a pack_view session event,
+        every derived panel as a skillsstandard_panel
+        session event and every derived verdict as a
+        skillsstandard_verdict session event. This heading
+        builds no skill, executes nothing and banks
+        nothing - holding and telling are words only.
+        """
+        from ..core.skills_standard import (
+            format_pack,
+            format_book,
+            format_stage,
+            format_index,
+            format_note,
+            format_panel,
+            format_verdict,
+            format_view,
+            parse_pack_args,
+        )
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target = parse_pack_args(args)
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "pack":
+                text = format_pack(
+                    primary.get_skillsstandard_pack(target),
+                    primary.skillsstandard_book())
+            elif stance == "stage":
+                text = format_stage(
+                    primary.skillsstandard_book(), target)
+            elif stance == "skill":
+                text = format_book(
+                    primary.skillsstandard_book(), target)
+            elif stance == "view":
+                text = format_view(primary.get_skillsstandard_view(target))
+            elif stance == "note":
+                text = format_note(
+                    primary.skillsstandard_book().note_for(target))
+            elif stance == "index":
+                text = format_index(primary.skillsstandard_book())
+            elif stance == "panel":
+                text = format_panel(primary.skillsstandard_book())
+            elif stance == "verdict":
+                text = format_verdict(primary.skillsstandard_book())
+            else:
+                text = primary.skillsstandard_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
