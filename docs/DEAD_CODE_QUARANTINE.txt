@@ -1265,3 +1265,10 @@ mythic_agent/agents/llm.py:82015:record_docsmcp_records:method
 mythic_agent/agents/llm.py:82065:view_docsmcp:method
 mythic_agent/agents/llm.py:82112:prepare_docsmcp_proposal:method
 mythic_agent/agents/llm.py:82160:report_docsmcp:method
+mythic_agent/agents/llm.py:82748:audits_for_scope:method
+mythic_agent/agents/llm.py:82869:register_bridgeaudit_record:method
+mythic_agent/agents/llm.py:82900:register_bridgeaudit_records:method
+mythic_agent/agents/llm.py:82930:record_bridgeaudit_records:method
+mythic_agent/agents/llm.py:82980:view_bridgeaudit:method
+mythic_agent/agents/llm.py:83027:prepare_bridgeaudit_report:method
+mythic_agent/agents/llm.py:83075:report_bridgeaudit:method
