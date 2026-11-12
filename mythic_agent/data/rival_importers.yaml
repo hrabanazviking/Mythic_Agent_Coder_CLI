@@ -1,0 +1,229 @@
+schema: mythic.rival_importers/1
+source: M-241
+rival_importers:
+  title: Rival importers at the M-241 slice run
+sources:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-importer book
+  origin_session: session-m241
+  source_id: rival-claude
+  seq: 1
+  title: Claude Code
+  state: live
+  detail: 'The slice the tracker looks back on first: banked at M-230, standing active in the cross-app
+    method honesty''s hands.'
+  layout: native
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-importer book
+  origin_session: session-m241
+  source_id: rival-codex
+  seq: 2
+  title: Codex
+  state: live
+  detail: 'This very slice, standing active: the rivalimporters book holding its own source as data.'
+  layout: adapted
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-importer book
+  origin_session: session-m241
+  source_id: rival-opencode
+  seq: 3
+  title: OpenCode
+  state: dormant
+  detail: A queued slice the tracker has not taken yet; an importer naming it refuses by name.
+  layout: unlinked
+importer_records:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-importer book
+  origin_session: session-m241
+  importer_id: importer-held-importer
+  seq: 1
+  source_id: rival-claude
+  title: The held importer
+  stages: &id001
+  - detected
+  - mapped
+  - converted
+  - imported
+  - held
+  claims:
+  - settings_ref
+  detail: 'The opening importer: a slice detected for the source in its home tool, mapped across the workshop,
+    converted where it lives, imported to the tracker at hand and held honestly, held with the tool held
+    as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-importer book
+  origin_session: session-m241
+  importer_id: importer-retried-importer
+  seq: 2
+  source_id: rival-claude
+  title: The retried importer
+  stages:
+  - detected
+  - mapped
+  - converted
+  - imported
+  - detected
+  - mapped
+  - converted
+  - imported
+  - held
+  claims: []
+  detail: 'The retried importer: a first imported step sent the standing back, the slice was detected
+    and mapped again and the tracking held a second time before the holding stood.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-importer book
+  origin_session: session-m241
+  importer_id: importer-own-importer
+  seq: 3
+  source_id: rival-codex
+  title: The tracker's own importer
+  stages: *id001
+  claims:
+  - layout_ref
+  detail: 'The tracker''s own importer: this slice''s own importer, holding its importer ref as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-importer book
+  origin_session: session-m241
+  importer_id: importer-bare-importer
+  seq: 4
+  source_id: rival-codex
+  title: The bare claim importer
+  stages: *id001
+  claims:
+  - feeling
+  detail: An importer that held a feeling in place of held proof, standing open.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-importer book
+  origin_session: session-m241
+  importer_id: importer-leaping-importer
+  seq: 5
+  source_id: rival-codex
+  title: The leaping importer
+  stages:
+  - detected
+  - mapped
+  - held
+  claims: []
+  detail: An importer that stepped from mapped straight to held, outside the importer sequence, standing
+    open.
+views:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-importer book
+  origin_session: session-m241
+  view_id: view-importers
+  seq: 1
+  view_filter: all
+  detail: Every held importer, complete or not.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-importer book
+  origin_session: session-m241
+  view_id: view-held
+  seq: 2
+  view_filter: complete
+  detail: Only the importers standing complete.
+notes:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-importer book
+  origin_session: session-m241
+  note_id: note-note-first
+  seq: 1
+  importer_id: importer-held-importer
+  stance: note
+  target: the opening importer
+  title: Importers first
+  detail: The tracker opens by naming the slice first, told honestly.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-importer book
+  origin_session: session-m241
+  note_id: note-concern-bare
+  seq: 2
+  importer_id: importer-bare-importer
+  stance: concern
+  target: the bare claim importer
+  title: Claim detected
+  detail: An importer that held a feeling claim is not the tracker's way, and stands detected.
+traces:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-importer book
+  origin_session: session-m241
+  trace_id: trace-first
+  seq: 1
+  importer_id: importer-held-importer
+  trace: detected > mapped > converted > imported > held
+  detail: 'The opening importer''s walk, held exactly as walked: the trace is the walk itself.'
+panels:
+- panel_id: panel-rival
+  view_id: view-importers
+  view_filter: all
+  rows:
+  - item_id: importer-held-importer
+    standing: complete
+    label: The held importer
+    segment: 'importer-held-importer: The held importer - source: ''rival-claude'' - stage: ''held'' -
+      stages: 5 - claims: ''settings_ref'' - detail: ''The opening importer: a slice detected for the
+      source in its home tool, mapped across the workshop, converted where it lives, imported to the tracker
+      at hand and held honestly, held with the tool held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: importer-retried-importer
+    standing: complete
+    label: The retried importer
+    segment: 'importer-retried-importer: The retried importer - source: ''rival-claude'' - stage: ''held''
+      - stages: 9 - claims: ''none'' - detail: ''The retried importer: a first imported step sent the
+      standing back, the slice was detected and mapped again and the tracking held a second time before
+      the holding stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: importer-own-importer
+    standing: complete
+    label: The tracker's own importer
+    segment: 'importer-own-importer: The tracker''s own importer - source: ''rival-codex'' - stage: ''held''
+      - stages: 5 - claims: ''layout_ref'' - detail: ''The tracker''s own importer: this slice''s own
+      importer, holding its importer ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: importer-bare-importer
+    standing: open
+    label: The bare claim importer
+    segment: 'importer-bare-importer: The bare claim importer - source: ''rival-codex'' - stage: ''held''
+      - stages: 5 - claims: ''feeling'' - detail: ''An importer that held a feeling in place of held proof,
+      standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof: complete stands
+      on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: importer-leaping-importer
+    standing: open
+    label: The leaping importer
+    segment: 'importer-leaping-importer: The leaping importer - source: ''rival-codex'' - stage: ''held''
+      - stages: 3 - claims: ''none'' - detail: ''An importer that stepped from mapped straight to held,
+      outside the importer sequence, standing open.'' - gaps: steps from mapped to held, which the importer
+      sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The importer book holds 5 importers as of 2026-11-11: the view ''all'' shows 5 of them: complete
+    3, open 2; 3 of the shown importers stand complete.'
+  - Rows stand in held importer, the importer the book itself stands in, so two panels of one view diff
+    cleanly, segment by segment.
+  - Every segment is derived from its importer's own fields - the source it answers for, the steps it
+    walked in the open and the evidence it honestly carries - and no judgement is stored on any importer.
+  - 'Completeness is converted from the held records alone: a importer that steps outside the importer
+    sequence, carries a bare claim in place of held evidence, or has not detected held stands open, detected
+    in its gaps, and the importer index is derived from the held importers, never stored where it could
+    drift.'
