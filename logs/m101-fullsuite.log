@@ -1,0 +1,672 @@
+........................................................................ [  1%]
+........................................................................ [  2%]
+........................................................................ [  4%]
+........................................................................ [  5%]
+........................................................................ [  6%]
+........................................................................ [  8%]
+........................................................................ [  9%]
+........................................................................ [ 11%]
+........................................................................ [ 12%]
+..............FFF....................................................... [ 13%]
+..................................................F..................... [ 15%]
+........................................................................ [ 16%]
+........................................................................ [ 17%]
+.........................................................F.............. [ 19%]
+........................................................................ [ 20%]
+........................................................................ [ 22%]
+........................................................................ [ 23%]
+........................................................................ [ 24%]
+........................................................................ [ 26%]
+........................................s............................... [ 27%]
+........................................................................ [ 28%]
+........................................................................ [ 30%]
+................................EEEEEEEEF............................... [ 31%]
+........................................................................ [ 33%]
+........................................................................ [ 34%]
+........................................................................ [ 35%]
+........................................................................ [ 37%]
+........................................................................ [ 38%]
+........................................................................ [ 39%]
+........................................................................ [ 41%]
+........................................................................ [ 42%]
+........................................................................ [ 44%]
+........................................................................ [ 45%]
+................................................F....................... [ 46%]
+...................................................................F.... [ 48%]
+........................................................................ [ 49%]
+...............................F........................................ [ 51%]
+........................................................................ [ 52%]
+........................................................................ [ 53%]
+........................................................................ [ 55%]
+........................................................................ [ 56%]
+........................................................................ [ 57%]
+..................................F..F.................................. [ 59%]
+........................................................................ [ 60%]
+........................................................................ [ 62%]
+........................................................................ [ 63%]
+........................................................................ [ 64%]
+........................................................................ [ 66%]
+........................................................................ [ 67%]
+........................................................................ [ 68%]
+........................................................................ [ 70%]
+...................................F.F.................................. [ 71%]
+........................................................................ [ 73%]
+........................................................................ [ 74%]
+........................................................................ [ 75%]
+........................................................................ [ 77%]
+........................................................................ [ 78%]
+........................................................................ [ 79%]
+........................................................................ [ 81%]
+........................................................................ [ 82%]
+........................................................................ [ 84%]
+........................................................................ [ 85%]
+........................................................................ [ 86%]
+........................................................................ [ 88%]
+........................................................................ [ 89%]
+............F........................................................... [ 90%]
+........................................................................ [ 92%]
+........................................................................ [ 93%]
+........................................................................ [ 95%]
+........................................................................ [ 96%]
+........................................................................ [ 97%]
+........................................................................ [ 99%]
+.......................................                                  [100%]
+==================================== ERRORS ====================================
+____ ERROR at setup of test_shipped_audit_loads_and_validates_against_tree _____
+
+    @pytest.fixture(scope="module")
+    def audit() -> GapAudit:
+>       return load_audit(repo_root=REPO_ROOT)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_gap_audit.py:35: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+data = None, repo_root = PosixPath('/home/volmarr/mythic-hammer/repo')
+
+    def load_audit(
+        data: Optional[Dict[str, Any]] = None,
+        repo_root: Optional[Path] = None,
+    ) -> GapAudit:
+        """Load and validate the shipped gap audit (or *data* when given).
+    
+        Raises :class:`~mythic_agent.core.validation.ValidationError`
+        listing every problem when the data is not a well-formed audit.
+        """
+        raw = data if data is not None else load_resource(AUDIT_RESOURCE)
+        problems = validate_audit(raw, repo_root=repo_root)
+        if problems:
+>           raise ValidationError("gap audit failed validation: " + "; ".join(problems))
+E           mythic_agent.core.validation.ValidationError: gap audit failed validation: audit row hooks: owning_module mythic_agent/core/hooks.py marked proposed but present
+
+mythic_agent/core/gap_audit.py:277: ValidationError
+_________ ERROR at setup of test_every_census_gap_has_exactly_one_row __________
+
+    @pytest.fixture(scope="module")
+    def audit() -> GapAudit:
+>       return load_audit(repo_root=REPO_ROOT)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_gap_audit.py:35: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+data = None, repo_root = PosixPath('/home/volmarr/mythic-hammer/repo')
+
+    def load_audit(
+        data: Optional[Dict[str, Any]] = None,
+        repo_root: Optional[Path] = None,
+    ) -> GapAudit:
+        """Load and validate the shipped gap audit (or *data* when given).
+    
+        Raises :class:`~mythic_agent.core.validation.ValidationError`
+        listing every problem when the data is not a well-formed audit.
+        """
+        raw = data if data is not None else load_resource(AUDIT_RESOURCE)
+        problems = validate_audit(raw, repo_root=repo_root)
+        if problems:
+>           raise ValidationError("gap audit failed validation: " + "; ".join(problems))
+E           mythic_agent.core.validation.ValidationError: gap audit failed validation: audit row hooks: owning_module mythic_agent/core/hooks.py marked proposed but present
+
+mythic_agent/core/gap_audit.py:277: ValidationError
+________ ERROR at setup of test_rows_agree_with_census_owner_and_state _________
+
+    @pytest.fixture(scope="module")
+    def audit() -> GapAudit:
+>       return load_audit(repo_root=REPO_ROOT)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_gap_audit.py:35: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+data = None, repo_root = PosixPath('/home/volmarr/mythic-hammer/repo')
+
+    def load_audit(
+        data: Optional[Dict[str, Any]] = None,
+        repo_root: Optional[Path] = None,
+    ) -> GapAudit:
+        """Load and validate the shipped gap audit (or *data* when given).
+    
+        Raises :class:`~mythic_agent.core.validation.ValidationError`
+        listing every problem when the data is not a well-formed audit.
+        """
+        raw = data if data is not None else load_resource(AUDIT_RESOURCE)
+        problems = validate_audit(raw, repo_root=repo_root)
+        if problems:
+>           raise ValidationError("gap audit failed validation: " + "; ".join(problems))
+E           mythic_agent.core.validation.ValidationError: gap audit failed validation: audit row hooks: owning_module mythic_agent/core/hooks.py marked proposed but present
+
+mythic_agent/core/gap_audit.py:277: ValidationError
+_____________ ERROR at setup of test_module_kind_matches_the_tree ______________
+
+    @pytest.fixture(scope="module")
+    def audit() -> GapAudit:
+>       return load_audit(repo_root=REPO_ROOT)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_gap_audit.py:35: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+data = None, repo_root = PosixPath('/home/volmarr/mythic-hammer/repo')
+
+    def load_audit(
+        data: Optional[Dict[str, Any]] = None,
+        repo_root: Optional[Path] = None,
+    ) -> GapAudit:
+        """Load and validate the shipped gap audit (or *data* when given).
+    
+        Raises :class:`~mythic_agent.core.validation.ValidationError`
+        listing every problem when the data is not a well-formed audit.
+        """
+        raw = data if data is not None else load_resource(AUDIT_RESOURCE)
+        problems = validate_audit(raw, repo_root=repo_root)
+        if problems:
+>           raise ValidationError("gap audit failed validation: " + "; ".join(problems))
+E           mythic_agent.core.validation.ValidationError: gap audit failed validation: audit row hooks: owning_module mythic_agent/core/hooks.py marked proposed but present
+
+mythic_agent/core/gap_audit.py:277: ValidationError
+______________ ERROR at setup of test_parts_match_roadmap_ranges _______________
+
+    @pytest.fixture(scope="module")
+    def audit() -> GapAudit:
+>       return load_audit(repo_root=REPO_ROOT)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_gap_audit.py:35: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+data = None, repo_root = PosixPath('/home/volmarr/mythic-hammer/repo')
+
+    def load_audit(
+        data: Optional[Dict[str, Any]] = None,
+        repo_root: Optional[Path] = None,
+    ) -> GapAudit:
+        """Load and validate the shipped gap audit (or *data* when given).
+    
+        Raises :class:`~mythic_agent.core.validation.ValidationError`
+        listing every problem when the data is not a well-formed audit.
+        """
+        raw = data if data is not None else load_resource(AUDIT_RESOURCE)
+        problems = validate_audit(raw, repo_root=repo_root)
+        if problems:
+>           raise ValidationError("gap audit failed validation: " + "; ".join(problems))
+E           mythic_agent.core.validation.ValidationError: gap audit failed validation: audit row hooks: owning_module mythic_agent/core/hooks.py marked proposed but present
+
+mythic_agent/core/gap_audit.py:277: ValidationError
+____ ERROR at setup of test_baseline_failures_all_classified_with_evidence _____
+
+    @pytest.fixture(scope="module")
+    def audit() -> GapAudit:
+>       return load_audit(repo_root=REPO_ROOT)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_gap_audit.py:35: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+data = None, repo_root = PosixPath('/home/volmarr/mythic-hammer/repo')
+
+    def load_audit(
+        data: Optional[Dict[str, Any]] = None,
+        repo_root: Optional[Path] = None,
+    ) -> GapAudit:
+        """Load and validate the shipped gap audit (or *data* when given).
+    
+        Raises :class:`~mythic_agent.core.validation.ValidationError`
+        listing every problem when the data is not a well-formed audit.
+        """
+        raw = data if data is not None else load_resource(AUDIT_RESOURCE)
+        problems = validate_audit(raw, repo_root=repo_root)
+        if problems:
+>           raise ValidationError("gap audit failed validation: " + "; ".join(problems))
+E           mythic_agent.core.validation.ValidationError: gap audit failed validation: audit row hooks: owning_module mythic_agent/core/hooks.py marked proposed but present
+
+mythic_agent/core/gap_audit.py:277: ValidationError
+______ ERROR at setup of test_render_markdown_lists_every_row_and_finding ______
+
+    @pytest.fixture(scope="module")
+    def audit() -> GapAudit:
+>       return load_audit(repo_root=REPO_ROOT)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_gap_audit.py:35: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+data = None, repo_root = PosixPath('/home/volmarr/mythic-hammer/repo')
+
+    def load_audit(
+        data: Optional[Dict[str, Any]] = None,
+        repo_root: Optional[Path] = None,
+    ) -> GapAudit:
+        """Load and validate the shipped gap audit (or *data* when given).
+    
+        Raises :class:`~mythic_agent.core.validation.ValidationError`
+        listing every problem when the data is not a well-formed audit.
+        """
+        raw = data if data is not None else load_resource(AUDIT_RESOURCE)
+        problems = validate_audit(raw, repo_root=repo_root)
+        if problems:
+>           raise ValidationError("gap audit failed validation: " + "; ".join(problems))
+E           mythic_agent.core.validation.ValidationError: gap audit failed validation: audit row hooks: owning_module mythic_agent/core/hooks.py marked proposed but present
+
+mythic_agent/core/gap_audit.py:277: ValidationError
+______________ ERROR at setup of test_row_lookup_raises_keyerror _______________
+
+    @pytest.fixture(scope="module")
+    def audit() -> GapAudit:
+>       return load_audit(repo_root=REPO_ROOT)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_gap_audit.py:35: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+data = None, repo_root = PosixPath('/home/volmarr/mythic-hammer/repo')
+
+    def load_audit(
+        data: Optional[Dict[str, Any]] = None,
+        repo_root: Optional[Path] = None,
+    ) -> GapAudit:
+        """Load and validate the shipped gap audit (or *data* when given).
+    
+        Raises :class:`~mythic_agent.core.validation.ValidationError`
+        listing every problem when the data is not a well-formed audit.
+        """
+        raw = data if data is not None else load_resource(AUDIT_RESOURCE)
+        problems = validate_audit(raw, repo_root=repo_root)
+        if problems:
+>           raise ValidationError("gap audit failed validation: " + "; ".join(problems))
+E           mythic_agent.core.validation.ValidationError: gap audit failed validation: audit row hooks: owning_module mythic_agent/core/hooks.py marked proposed but present
+
+mythic_agent/core/gap_audit.py:277: ValidationError
+=================================== FAILURES ===================================
+____________________ test_every_defaults_key_is_catalogued _____________________
+
+catalog = ConfigCatalog(catalogued='2026-10-30', scope_note="Every setting in config_defaults.yaml and runtime_defaults.yaml, ev...honour.", names=('AGENTS.md', 'CLAUDE.md', '.mythic.md', '.mythic', '.muserules', '.cursorrules', '.aider.rules.md'))))
+
+    def test_every_defaults_key_is_catalogued(catalog):
+        names = set(catalog.setting_names())
+        defaults = yaml.safe_load((resource_root() / "config_defaults.yaml").read_text())
+        for key in defaults:
+>           assert key in names, f"config_defaults key {key!r} uncatalogued"
+E           AssertionError: config_defaults key 'hooks' uncatalogued
+E           assert 'hooks' in {'api_keys', 'apply_repair_loop', 'approval_timeout', 'asset_sight', 'auto_accept_permissions', 'auto_commit', ...}
+
+tests/test_config_catalog.py:69: AssertionError
+_____________________ test_every_schema_key_is_catalogued ______________________
+
+catalog = ConfigCatalog(catalogued='2026-10-30', scope_note="Every setting in config_defaults.yaml and runtime_defaults.yaml, ev...honour.", names=('AGENTS.md', 'CLAUDE.md', '.mythic.md', '.mythic', '.muserules', '.cursorrules', '.aider.rules.md'))))
+
+    def test_every_schema_key_is_catalogued(catalog):
+        names = set(catalog.setting_names())
+        for key in CONFIG_SCHEMA:
+>           assert key in names, f"CONFIG_SCHEMA key {key!r} uncatalogued"
+E           AssertionError: CONFIG_SCHEMA key 'hooks' uncatalogued
+E           assert 'hooks' in {'api_keys', 'apply_repair_loop', 'approval_timeout', 'asset_sight', 'auto_accept_permissions', 'auto_commit', ...}
+
+tests/test_config_catalog.py:80: AssertionError
+___________ test_setting_types_and_defaults_match_the_defaults_files ___________
+
+catalog = ConfigCatalog(catalogued='2026-10-30', scope_note="Every setting in config_defaults.yaml and runtime_defaults.yaml, ev...honour.", names=('AGENTS.md', 'CLAUDE.md', '.mythic.md', '.mythic', '.muserules', '.cursorrules', '.aider.rules.md'))))
+
+    def test_setting_types_and_defaults_match_the_defaults_files(catalog):
+        by_name = {s.name: s for s in catalog.settings}
+        defaults = yaml.safe_load((resource_root() / "config_defaults.yaml").read_text())
+        for key, value in defaults.items():
+            if key in ("runtime", "github"):
+                continue
+>           assert by_name[key].type == type(value).__name__, key
+                   ^^^^^^^^^^^^
+E           KeyError: 'hooks'
+
+tests/test_config_catalog.py:89: KeyError
+____________ test_estimator_heuristic_backend_when_tiktoken_absent _____________
+
+    def test_estimator_heuristic_backend_when_tiktoken_absent():
+        est = TokenEstimator()
+>       assert est.backend == "heuristic"
+E       AssertionError: assert 'tiktoken' == 'heuristic'
+E         
+E         - heuristic
+E         + tiktoken
+
+tests/test_context_compiler.py:34: AssertionError
+___________________ test_no_new_dead_code_beyond_quarantine ____________________
+
+    def test_no_new_dead_code_beyond_quarantine():
+        """Gate: every currently-dead item must already be quarantined.
+    
+        Fails when a scan finds a dead item that is not recorded in
+        docs/DEAD_CODE_QUARANTINE.txt, i.e. when NEW dead code appears.
+        """
+        assert QUARANTINE.exists(), (
+            f"quarantine inventory missing: {QUARANTINE}"
+        )
+        quarantined = {_key(item) for item in load_quarantine(str(QUARANTINE))}
+        current = scan(PACKAGE)
+        new_items = [_key(item) for item in current
+                     if _key(item) not in quarantined]
+>       assert not new_items, (
+            "NEW dead code found beyond docs/DEAD_CODE_QUARANTINE.txt; "
+            "either remove it or re-run the quarantine scan and record it:\n"
+            + "\n".join(f"  {path}:{name} ({kind})"
+                        for path, name, kind in sorted(new_items))
+        )
+E       AssertionError: NEW dead code found beyond docs/DEAD_CODE_QUARANTINE.txt; either remove it or re-run the quarantine scan and record it:
+E           mythic_agent/agents/llm.py:configured_hooks (method)
+E       assert not [('mythic_agent/agents/llm.py', 'configured_hooks', 'method')]
+
+tests/test_dead_code.py:103: AssertionError
+_____________________ test_validation_rejects_broken_data ______________________
+
+    def test_validation_rejects_broken_data():
+        raw = load_resource("gap_audit.yaml")
+    
+        bad_schema = copy.deepcopy(raw)
+        bad_schema["schema"] = "something/else"
+        assert any("schema" in p for p in validate_audit(bad_schema))
+    
+        dropped_row = copy.deepcopy(raw)
+        dropped_row["rows"] = [r for r in dropped_row["rows"] if r["feature"] != "repo-map"]
+        assert any("no audit row" in p for p in validate_audit(dropped_row))
+    
+        wrong_owner = copy.deepcopy(raw)
+        for row in wrong_owner["rows"]:
+            if row["feature"] == "repo-map":
+                row["slice"] = "M-043"
+        assert any("census owner" in p for p in validate_audit(wrong_owner))
+    
+        wrong_part = copy.deepcopy(raw)
+        for row in wrong_part["rows"]:
+            if row["feature"] == "repo-map":
+                row["part"] = "IV"
+        assert any("roadmap part" in p for p in validate_audit(wrong_part))
+    
+        # A still-proposed row (hooks) carries the
+        # lying-kind mutation: repo-map's own row flipped to
+        # "existing" truthfully when M-044 built its module,
+        # lsp-integration's row flipped truthfully at M-049,
+        # and debugger-dap's row flipped truthfully at M-054.
+        lying_kind = copy.deepcopy(raw)
+        for row in lying_kind["rows"]:
+            if row["feature"] == "hooks":
+                row["module_kind"] = "existing"
+>       assert any("marked existing but absent" in p
+                   for p in validate_audit(lying_kind, repo_root=REPO_ROOT))
+E       assert False
+E        +  where False = any(<generator object test_validation_rejects_broken_data.<locals>.<genexpr> at 0x7cc0ef319cb0>)
+
+tests/test_gap_audit.py:146: AssertionError
+____________ TestGapAuditRow.test_lsp_row_names_an_existing_module _____________
+
+self = <test_lsp_client.TestGapAuditRow object at 0x7cc104006ad0>
+
+    def test_lsp_row_names_an_existing_module(self):
+>       audit = load_audit(repo_root=REPO_ROOT)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_lsp_client.py:577: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+data = None, repo_root = PosixPath('/home/volmarr/mythic-hammer/repo')
+
+    def load_audit(
+        data: Optional[Dict[str, Any]] = None,
+        repo_root: Optional[Path] = None,
+    ) -> GapAudit:
+        """Load and validate the shipped gap audit (or *data* when given).
+    
+        Raises :class:`~mythic_agent.core.validation.ValidationError`
+        listing every problem when the data is not a well-formed audit.
+        """
+        raw = data if data is not None else load_resource(AUDIT_RESOURCE)
+        problems = validate_audit(raw, repo_root=repo_root)
+        if problems:
+>           raise ValidationError("gap audit failed validation: " + "; ".join(problems))
+E           mythic_agent.core.validation.ValidationError: gap audit failed validation: audit row hooks: owning_module mythic_agent/core/hooks.py marked proposed but present
+
+mythic_agent/core/gap_audit.py:277: ValidationError
+_________ TestGapAuditRowStillMissing.test_lsp_row_state_stays_missing _________
+
+self = <test_lsp_navigation.TestGapAuditRowStillMissing object at 0x7cc1043e1450>
+
+    def test_lsp_row_state_stays_missing(self):
+>       audit = load_audit(repo_root=REPO_ROOT)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_lsp_navigation.py:909: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+data = None, repo_root = PosixPath('/home/volmarr/mythic-hammer/repo')
+
+    def load_audit(
+        data: Optional[Dict[str, Any]] = None,
+        repo_root: Optional[Path] = None,
+    ) -> GapAudit:
+        """Load and validate the shipped gap audit (or *data* when given).
+    
+        Raises :class:`~mythic_agent.core.validation.ValidationError`
+        listing every problem when the data is not a well-formed audit.
+        """
+        raw = data if data is not None else load_resource(AUDIT_RESOURCE)
+        problems = validate_audit(raw, repo_root=repo_root)
+        if problems:
+>           raise ValidationError("gap audit failed validation: " + "; ".join(problems))
+E           mythic_agent.core.validation.ValidationError: gap audit failed validation: audit row hooks: owning_module mythic_agent/core/hooks.py marked proposed but present
+
+mythic_agent/core/gap_audit.py:277: ValidationError
+___ TestGapAuditRowAfterM051.test_lsp_row_state_stays_missing_census_pinned ____
+
+self = <test_lsp_rename.TestGapAuditRowAfterM051 object at 0x7cc1043e3d90>
+
+    def test_lsp_row_state_stays_missing_census_pinned(self):
+>       audit = load_audit(repo_root=REPO_ROOT)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_lsp_rename.py:1127: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+data = None, repo_root = PosixPath('/home/volmarr/mythic-hammer/repo')
+
+    def load_audit(
+        data: Optional[Dict[str, Any]] = None,
+        repo_root: Optional[Path] = None,
+    ) -> GapAudit:
+        """Load and validate the shipped gap audit (or *data* when given).
+    
+        Raises :class:`~mythic_agent.core.validation.ValidationError`
+        listing every problem when the data is not a well-formed audit.
+        """
+        raw = data if data is not None else load_resource(AUDIT_RESOURCE)
+        problems = validate_audit(raw, repo_root=repo_root)
+        if problems:
+>           raise ValidationError("gap audit failed validation: " + "; ".join(problems))
+E           mythic_agent.core.validation.ValidationError: gap audit failed validation: audit row hooks: owning_module mythic_agent/core/hooks.py marked proposed but present
+
+mythic_agent/core/gap_audit.py:277: ValidationError
+_______________________ test_every_module_appears_in_doc _______________________
+
+    def test_every_module_appears_in_doc():
+        index = _read_machine_index()
+        doc_modules = [m["module"] for m in index["modules"]]
+        assert len(doc_modules) == len(set(doc_modules)), "duplicate modules in doc index"
+>       assert set(doc_modules) == set(_discover_modules()), (
+            "doc index does not cover the current module tree"
+        )
+E       AssertionError: doc index does not cover the current module tree
+E       assert {'mythic_agen.../llm.py', ...} == {'mythic_agen.../llm.py', ...}
+E         
+E         Extra items in the right set:
+E         'mythic_agent/core/hooks.py'
+E         Use -v to get more diff
+
+tests/test_ownership.py:80: AssertionError
+______________________________ test_doc_is_fresh _______________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-volmarr/pytest-684/test_doc_is_fresh0')
+
+    def test_doc_is_fresh(tmp_path: Path):
+        """Regenerating the doc yields identical content modulo the timestamp line."""
+        import sys
+    
+        regen = tmp_path / "OWNERSHIP.regen.md"
+        run = subprocess.run(
+            [sys.executable, str(GEN_SCRIPT), "--out", str(regen)],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        assert run.returncode == 0, f"generator failed: {run.stderr}"
+        current = DOC.read_text(encoding="utf-8")
+        fresh = regen.read_text(encoding="utf-8")
+>       assert _normalize(current) == _normalize(fresh), (
+            "docs/OWNERSHIP.md is stale — regenerate with `python scripts/gen_ownership.py`"
+        )
+E       AssertionError: docs/OWNERSHIP.md is stale — regenerate with `python scripts/gen_ownership.py`
+E       assert ['# Source Ow...e file.', ...] == ['# Source Ow...e file.', ...]
+E         
+E         At index 9 diff: 'Total modules: **218**' != 'Total modules: **219**'
+E         Right contains 9 more items, first extra item: '    {'
+E         Use -v to get more diff
+
+tests/test_ownership.py:137: AssertionError
+_____________________ test_all_names_exist_and_are_public ______________________
+
+    def test_all_names_exist_and_are_public():
+        failures = []
+        for dotted, path in _iter_modules():
+            failures.extend(validate_module(dotted, path))
+>       assert not failures, "\n".join(failures)
+E       AssertionError: mythic_agent.core.audio: import failed unexpectedly: PortAudioError: Error initializing PortAudio: Unanticipated host error [PaErrorCode -9999]: 'PulseAudio_Initialize: Can't connect to server' [<error getting host API: -10000> error -1]
+E       assert not ["mythic_agent.core.audio: import failed unexpectedly: PortAudioError: Error initializing PortAudio: Unanticipated hos...ror [PaErrorCode -9999]: 'PulseAudio_Initialize: Can't connect to server' [<error getting host API: -10000> error -1]"]
+
+tests/test_public_api.py:122: AssertionError
+________________ test_public_api_inventory_doc_is_synchronized _________________
+
+    def test_public_api_inventory_doc_is_synchronized():
+        """docs/PUBLIC_API.md must reflect the live scan (regenerate when the API changes)."""
+        doc = (REPO_ROOT / "docs" / "PUBLIC_API.md").read_text(encoding="utf-8")
+        live_total = sum(
+            len(names) for _, path in _iter_modules() if (names := read_all_names(path)) is not None
+        )
+>       assert f"TOTAL: {live_total} public names" in doc, (
+            f"docs/PUBLIC_API.md is out of sync: live scan finds {live_total} public names; "
+            "regenerate the doc"
+        )
+E       AssertionError: docs/PUBLIC_API.md is out of sync: live scan finds 3210 public names; regenerate the doc
+E       assert 'TOTAL: 3210 public names' in '# Public API Inventory — Mythic Agent Coder CLI\n\nGenerated by scanning `mythic_agent/` with the standard-library `a...\n    Path\n    SliceDefinition\n    SliceResult\n    SliceRunner\n    config_manager\n    dataclass\n    field\n```\n'
+
+tests/test_public_api.py:143: AssertionError
+________ TestGapAuditRow.test_structural_row_stays_validator_consistent ________
+
+self = <test_structural_rewrite.TestGapAuditRow object at 0x7cc1032bf4d0>
+
+    def test_structural_row_stays_validator_consistent(self):
+        # The audit's cross-check pins a row's state to the
+        # census row's Mythic state, and the census counts a
+        # feature as a gap only while it is PARTIAL/MISSING —
+        # so neither file can honestly flip to HAVE alone,
+        # exactly as M-044's shipped repo-map row still reads
+        # MISSING in both. What M-048 can truthfully assert
+        # is that the row loads against the real tree with
+        # its module standing.
+>       audit = load_audit(repo_root=REPO_ROOT)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_structural_rewrite.py:402: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+data = None, repo_root = PosixPath('/home/volmarr/mythic-hammer/repo')
+
+    def load_audit(
+        data: Optional[Dict[str, Any]] = None,
+        repo_root: Optional[Path] = None,
+    ) -> GapAudit:
+        """Load and validate the shipped gap audit (or *data* when given).
+    
+        Raises :class:`~mythic_agent.core.validation.ValidationError`
+        listing every problem when the data is not a well-formed audit.
+        """
+        raw = data if data is not None else load_resource(AUDIT_RESOURCE)
+        problems = validate_audit(raw, repo_root=repo_root)
+        if problems:
+>           raise ValidationError("gap audit failed validation: " + "; ".join(problems))
+E           mythic_agent.core.validation.ValidationError: gap audit failed validation: audit row hooks: owning_module mythic_agent/core/hooks.py marked proposed but present
+
+mythic_agent/core/gap_audit.py:277: ValidationError
+=============================== warnings summary ===============================
+tests/test_async_boundary.py::test_publish_sync_handles_async_subscriber_without_qualname
+  /home/volmarr/mythic-hammer/repo/tests/test_async_boundary.py:192: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    assert asyncio.iscoroutinefunction(partial_cb)
+
+tests/test_async_boundary.py: 2 warnings
+tests/test_execution.py: 2 warnings
+tests/test_fallback_chain.py: 3 warnings
+tests/test_provider_adapters.py: 8 warnings
+tests/test_runtime.py: 5 warnings
+  /home/volmarr/mythic-hammer/repo/mythic_agent/core/secure_api.py:75: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    if asyncio.iscoroutinefunction(callback):
+
+tests/test_debugger.py::test_dying_adapter_raises_in_its_own_words
+  /home/volmarr/mythic-hammer/repo/.venv-hammer/lib/python3.14/site-packages/_pytest/unraisableexception.py:63: PytestUnraisableExceptionWarning: Exception ignored while finalizing file <_io.BufferedWriter name=13>: None
+  
+  Traceback (most recent call last):
+    File "/home/volmarr/mythic-hammer/repo/tests/test_debugger.py", line 421, in test_dying_adapter_raises_in_its_own_words
+      client.close()
+      ~~~~~~~~~~~~^^
+  BrokenPipeError: [Errno 32] Broken pipe
+  
+  
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+tests/test_provider_adapters.py::test_streaming_reassembles_fragmented_text_and_tool_calls
+tests/test_provider_adapters.py::test_incomplete_tool_fragments_are_rejected
+tests/test_provider_adapters.py::test_streaming_turn_executes_tools_and_never_duplicates_text
+  /usr/lib/python3.14/asyncio/base_events.py:744: RuntimeWarning: coroutine method 'aclose' of 'PoolByteStream.__aiter__' was never awaited
+    self._ready.clear()
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+SKIPPED [1] tests/test_execution.py:121: live tier: set MYTHIC_LIVE_TESTS=1 to run
+ERROR tests/test_gap_audit.py::test_shipped_audit_loads_and_validates_against_tree
+ERROR tests/test_gap_audit.py::test_every_census_gap_has_exactly_one_row - my...
+ERROR tests/test_gap_audit.py::test_rows_agree_with_census_owner_and_state - ...
+ERROR tests/test_gap_audit.py::test_module_kind_matches_the_tree - mythic_age...
+ERROR tests/test_gap_audit.py::test_parts_match_roadmap_ranges - mythic_agent...
+ERROR tests/test_gap_audit.py::test_baseline_failures_all_classified_with_evidence
+ERROR tests/test_gap_audit.py::test_render_markdown_lists_every_row_and_finding
+ERROR tests/test_gap_audit.py::test_row_lookup_raises_keyerror - mythic_agent...
+FAILED tests/test_config_catalog.py::test_every_defaults_key_is_catalogued - ...
+FAILED tests/test_config_catalog.py::test_every_schema_key_is_catalogued - As...
+FAILED tests/test_config_catalog.py::test_setting_types_and_defaults_match_the_defaults_files
+FAILED tests/test_context_compiler.py::test_estimator_heuristic_backend_when_tiktoken_absent
+FAILED tests/test_dead_code.py::test_no_new_dead_code_beyond_quarantine - Ass...
+FAILED tests/test_gap_audit.py::test_validation_rejects_broken_data - assert ...
+FAILED tests/test_lsp_client.py::TestGapAuditRow::test_lsp_row_names_an_existing_module
+FAILED tests/test_lsp_navigation.py::TestGapAuditRowStillMissing::test_lsp_row_state_stays_missing
+FAILED tests/test_lsp_rename.py::TestGapAuditRowAfterM051::test_lsp_row_state_stays_missing_census_pinned
+FAILED tests/test_ownership.py::test_every_module_appears_in_doc - AssertionE...
+FAILED tests/test_ownership.py::test_doc_is_fresh - AssertionError: docs/OWNE...
+FAILED tests/test_public_api.py::test_all_names_exist_and_are_public - Assert...
+FAILED tests/test_public_api.py::test_public_api_inventory_doc_is_synchronized
+FAILED tests/test_structural_rewrite.py::TestGapAuditRow::test_structural_row_stays_validator_consistent
+14 failed, 5200 passed, 1 skipped, 25 warnings, 8 errors in 260.41s (0:04:20)

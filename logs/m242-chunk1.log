@@ -1,0 +1,54 @@
+........................................................................ [  3%]
+........................................................................ [  7%]
+........................................................................ [ 10%]
+........................................................................ [ 14%]
+........................................................................ [ 18%]
+........................................................................ [ 21%]
+........................................................................ [ 25%]
+........................................................................ [ 28%]
+........................................................................ [ 32%]
+........................................................................ [ 36%]
+........................................................................ [ 39%]
+........................................................................ [ 43%]
+........................................................................ [ 46%]
+........................................................................ [ 50%]
+........................................................................ [ 54%]
+........................................................................ [ 57%]
+........................................................................ [ 61%]
+........................................................................ [ 64%]
+........................................................................ [ 68%]
+........................................................................ [ 72%]
+........................................................................ [ 75%]
+........................................................................ [ 79%]
+........................................................................ [ 83%]
+......................s................................................. [ 86%]
+........................................................................ [ 90%]
+........................................................................ [ 93%]
+........................................................................ [ 97%]
+...................................................                      [100%]
+=============================== warnings summary ===============================
+tests/test_debugger.py::test_dying_adapter_raises_in_its_own_words
+  /home/volmarr/mythic-hammer/repo/.venv-hammer/lib/python3.14/site-packages/_pytest/unraisableexception.py:63: PytestUnraisableExceptionWarning: Exception ignored while finalizing file <_io.BufferedWriter name=13>: None
+  
+  Traceback (most recent call last):
+    File "/home/volmarr/mythic-hammer/repo/tests/test_debugger.py", line 421, in test_dying_adapter_raises_in_its_own_words
+      client.close()
+      ~~~~~~~~~~~~^^
+  BrokenPipeError: [Errno 32] Broken pipe
+  
+  
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+tests/test_execution.py::test_cancelled_tool_turn_retains_partial_output_and_closes_all_calls
+tests/test_execution.py::test_background_slash_stop_reaps_execution_and_cancels_queued_command
+tests/test_fallback_chain.py::TestLiveWalk::test_walk_announces_journals_and_answers_from_the_next_door
+tests/test_fallback_chain.py::TestLiveWalk::test_walk_announces_journals_and_answers_from_the_next_door
+tests/test_fallback_chain.py::TestLiveWalk::test_walk_announces_journals_and_answers_from_the_next_door
+  /home/volmarr/mythic-hammer/repo/mythic_agent/core/secure_api.py:75: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    if asyncio.iscoroutinefunction(callback):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+SKIPPED [1] tests/test_execution.py:121: live tier: set MYTHIC_LIVE_TESTS=1 to run
+1994 passed, 1 skipped, 6 warnings in 159.79s (0:02:39)
+EXIT:0

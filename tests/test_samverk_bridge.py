@@ -434,11 +434,11 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 241
-    assert citizen["next_slice"] == "M-242"
+    assert citizen["done"] == 242
+    assert citizen["next_slice"] == "M-243"
     assert citizen["m242_title"] == "Samverk bridge"
     assert citizen["m242_part"] == 10
-    assert citizen["m242_status"] == "queued"
+    assert citizen["m242_status"] == "done"
 
 def test_exchange_record_round_trips():
     exchange = _exchange()
@@ -910,8 +910,8 @@ class TestExchangeAgentStatus:
         assert status["ledger"]["current_exchange"] == "exchange-bare-exchange"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 241
-        assert status["roadmap"]["next_slice"] == "M-242"
+        assert status["roadmap"]["done"] == 242
+        assert status["roadmap"]["next_slice"] == "M-243"
         assert status["roadmap"]["m242_title"] == "Samverk bridge"
         assert "held as data alone" in status["rule"]
         assert "exchange-bare-exchange" in status["plain_words"]
