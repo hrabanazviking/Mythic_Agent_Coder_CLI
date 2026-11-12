@@ -434,8 +434,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 236
-    assert citizen["next_slice"] == "M-237"
+    assert citizen["done"] == 237
+    assert citizen["next_slice"] == "M-238"
     assert citizen["m221_title"] == "The plain-language build log"
     assert citizen["m221_part"] == 9
     assert citizen["m221_status"] == "done"
@@ -910,8 +910,8 @@ class TestEntryAgentStatus:
         assert status["diary"]["current_entry"] == "entry-bare-entry"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 236
-        assert status["roadmap"]["next_slice"] == "M-237"
+        assert status["roadmap"]["done"] == 237
+        assert status["roadmap"]["next_slice"] == "M-238"
         assert status["roadmap"]["m221_title"] == "The plain-language build log"
         assert "held as data alone" in status["rule"]
         assert "entry-bare-entry" in status["plain_words"]

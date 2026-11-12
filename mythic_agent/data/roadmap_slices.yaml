@@ -1454,7 +1454,7 @@ slices:
   title: Custom commands
   summary: user/project slash commands as small files (prompt templates with arguments) joining the M-176
     palace.
-  status: queued
+  status: done
 - id: M-238
   part: 10
   title: Plugin bundles
