@@ -5550,6 +5550,302 @@ def parse_migrationproof_args(args: Any):
     raise ValueError(MIGRATIONPROOF_USAGE)
 
 
+#: The /strangerfleettest slash grammar (M-266, agent layer).
+STRANGERFLEETTEST_USAGE = (
+    "Usage: /strangerfleettest | /strangerfleettest exercises | "
+    "/strangerfleettest exercise <exercise> | /strangerfleettest record "
+    "<exercise> | /strangerfleettest standing "
+    "<exercise> | /strangerfleettest report | "
+    "/strangerfleettest report <book> | "
+    "/strangerfleettest index | /strangerfleettest verdict")
+
+
+def _sf_entry_dict(entry: Any) -> dict[str, Any]:
+    """One audit exercise registry entry, as plain data (M-266)."""
+    return {"id": entry.id, "doctrine": entry.doctrine,
+            "subject": entry.subject,
+            "standing": entry.standing, "reason": entry.reason}
+
+
+
+def _sf_record_dict(record: Any) -> dict[str, Any]:
+    """One fleet-proof fleet record, as plain data (M-266)."""
+    return {"exercise": record.exercise,
+            "work": record.work,
+            "date": record.date,
+            "disposition": record.disposition,
+            "owner": record.owner,
+            "proof_kind": record.proof_kind,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+
+def _sf_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived run standing, as plain data (M-266)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "grade": standing.grade,
+            "gaps": list(standing.gaps)}
+
+
+def _sf_report_dict(report: Any) -> dict[str, Any]:
+    """One fleet report, as plain data (M-266)."""
+    return {"book": report.book,
+            "entry": report.entry, "report": report.report,
+            "date": report.date,
+            "proven_count": report.proven_count,
+            "roaded_count": report.roaded_count,
+            "total_exercises": report.total_exercises,
+            "claims": list(report.claims),
+            "state": report.state, "certified": report.certified,
+            "inflated": report.inflated}
+
+
+
+def _sf_report_text(report: Any) -> str:
+    """One fleet report told in plain words (M-266)."""
+    return (f"{report.book} <- {report.entry}: "
+            f"report - {report.report} (state: "
+            f"{report.state}; a report is never "
+            "inflated here)")
+
+
+
+def _sf_coerce_record(record: Any):
+    """A fleet record from a record or a plain telling (M-266)."""
+    from ..core.stranger_fleet_test import StrangerFleetRecord
+    if isinstance(record, StrangerFleetRecord):
+        return record
+    if isinstance(record, dict):
+        return StrangerFleetRecord(
+            exercise=record["exercise"],
+            work=record["work"],
+            date=record["date"],
+            disposition=record["disposition"],
+            owner=record["owner"],
+            proof_kind=record["proof_kind"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return StrangerFleetRecord(
+        exercise=record.exercise, work=record.work,
+        date=record.date,
+        disposition=record.disposition,
+        owner=record.owner,
+        proof_kind=record.proof_kind,
+        stages=tuple(record.stages),
+        claims=tuple(record.claims))
+
+
+class StrangerFleetRegistry:
+    """Session registry for the Stranger fleet test (M-266).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.stranger_fleet_test``):
+    it holds the shipped exercise registry (one entry per
+    exercise of the road, held as data) beside the
+    fleet records held one by one for the session,
+    one record per exercise, and the privacy
+    reports held for the session, one report per book. A
+    record is validated whole by the pure layer before it
+    is held - a record naming an unknown exercise,
+    stage or evidence kind refuses by name here too, and a
+    refusal holds nothing new. A second record for a
+    exercise already held refuses likewise.
+    Reports are held only through the pure layer's report
+    road - state ready by default, may be marked shared by
+    a human, a certification claimed only when every
+    combination stands answered, and never inflated:
+    the report tells the findings exactly as they
+    stand. Holding runs no benchmark, times no start and
+    probes no network: the registry holds tellings as
+    data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.stranger_fleet_test import default_registry
+        self._exercise_registry = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._reports: dict[str, Any] = {}
+
+    def exercises(self):
+        """The shipped exercise registry held by the session."""
+        return self._exercise_registry
+
+    def register_record(self, record: Any):
+        """Hold one fleet record, validated whole.
+
+        A second record for a exercise already
+        held refuses, and a refusal holds nothing new.
+        """
+        held = _sf_coerce_record(record)
+        held.validate(self._exercise_registry)
+        key = held.exercise
+        if key in self._records:
+            raise ValueError(
+                "a care record for exercise "
+                f"{held.exercise!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, exercise: Any):
+        """The held record for one exercise."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(exercise)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no care record "
+                f"for exercise {exercise!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of fleet records, validated whole.
+
+        Every record is validated, and guideed against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _sf_coerce_record(record)
+            held.validate(self._exercise_registry)
+            key = held.exercise
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "a care record for exercise "
+                    f"{held.exercise!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[held.exercise] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The fleet records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the records and the reports."""
+        return (list(self._records.values())
+                + list(self._reports.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.stranger_fleet_test import derive_standing
+        return [derive_standing(record, self._exercise_registry)
+                for record in self._records.values()]
+
+    def hold_report(self, book: Any, entry: Any,
+                      report: Any, date: Any,
+                      proven_count: Any, roaded_count: Any,
+                      total_exercises: Any,
+                      claims: Any = (),
+                      state: Any = "ready",
+                      certified: Any = False):
+        """Prepare one fleet report, held for the session.
+
+        The report is shaped by the pure layer alone -
+        a state word outside ready/shared refuses by name
+        there, a certification short of every exercise answered
+        refuses there, and a report is never inflated. A
+        second report for a book already held refuses
+        likewise.
+        """
+        from ..core.stranger_fleet_test import prepare_report
+        report = prepare_report(book, entry, report,
+                                 date, proven_count,
+                                 roaded_count,
+                                 total_exercises,
+                                 claims=tuple(claims),
+                                 state=state, certified=certified)
+        if report.book in self._reports:
+            raise ValueError(
+                "an fleet report for book "
+                f"{report.book!r} already stands held "
+                "for the session")
+        self._reports[report.book] = report
+        return report
+
+    def get_report(self, book: Any):
+        """The held fleet report for one book."""
+        from ..core.validation import ValidationError
+        try:
+            return self._reports[book]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no fleet report for "
+                f"book {book!r}") from None
+
+    def list_reports(self) -> list:
+        """The fleet reports held, in hold order."""
+        return list(self._reports.values())
+
+    def book(self):
+        """The held pieces composed as a Stranger fleet test book.
+
+        The book is plain data: the shipped exercise
+        registry's entries beside the fleet records
+        and fleet reports held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.stranger_fleet_test import STRANGER_FLEET_TEST_SCHEMA
+        return {
+            "schema": STRANGER_FLEET_TEST_SCHEMA,
+            "exercises": [_sf_entry_dict(entry)
+                        for entry in self._exercise_registry.entries()],
+            "records": [_sf_record_dict(record)
+                        for record in self._records.values()],
+            "reports": [_sf_report_dict(verdict)
+                       for verdict in self._reports.values()],
+        }
+
+
+def parse_strangerfleettest_args(args: Any):
+    """Parse /strangerfleettest arguments (M-266).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``exercises``, ``index`` and ``verdict`` name
+    their own stance with no target; ``exercise <exercise>``
+    names one exercise; ``record <exercise>`` and
+    ``standing <exercise>`` name one exercise alone - an audit
+    record is keyed by its exercise, never by a pair;
+    ``report <book>`` names one book and the bare
+    ``report`` stance names the session's audit
+    reports. Anything else raises ValueError carrying
+    the usage line, exactly as the sibling parsers
+    refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("exercises", "index", "verdict"):
+        if rest:
+            raise ValueError(STRANGERFLEETTEST_USAGE)
+        return (head, None, (), None)
+    if head == "exercise":
+        if len(rest) != 1:
+            raise ValueError(STRANGERFLEETTEST_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 1:
+            raise ValueError(STRANGERFLEETTEST_USAGE)
+        return (head, rest[0], (), None)
+    if head == "report":
+        if not rest:
+            return ("reports", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(STRANGERFLEETTEST_USAGE)
+        return ("report", rest[0], (), None)
+    raise ValueError(STRANGERFLEETTEST_USAGE)
+
+
 #: The /docsmcp slash grammar (M-252, agent layer).
 DOCSMCP_USAGE = (
     "Usage: /docsmcp | /docsmcp projects | "
@@ -93295,6 +93591,633 @@ class Agent:
         if announced is None:
             announced = set()
             self._migrationproof_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+    def _strangerfleettest_registry(self):
+        """The held fleet-proof registry (M-266).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped exercise registry beside the session's
+        fleet records and fleet reports one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_strangerfleettest_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_strangerfleettest_store", None)
+        if registry is None:
+            registry = StrangerFleetRegistry()
+            self._strangerfleettest_store = registry
+        return registry
+
+    def strangerfleettest_exercises(self):
+        """The shipped exercise registry, as data (M-266).
+
+        One entry per exercise of the road - F-01..F-03, the three doctrine by subject exercises - held as registry entries, each naming its doctrine, its subject and its listed standing. Resolution registers and publishes
+        nothing, runs no benchmark and probes no
+        network.
+        """
+        return self._strangerfleettest_registry().exercises()
+
+    def strangerfleettest_book(self):
+        """The session's Stranger fleet test book, as data (M-266).
+
+        The held registry's book when the session holds
+        records or reports one by one - otherwise the book
+        boarded whole through
+        :meth:`record_strangerfleettest_records`, or the shipped
+        exercise registry with nothing held until a record
+        or report is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._strangerfleettest_registry()
+        if registry.list_records() or registry.list_reports():
+            held = getattr(self, "_strangerfleettest_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [r["exercise"] for r in held["records"]]
+                    == [r["exercise"] for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_strangerfleettest_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _strangerfleettest_effective_record(self, exercise: Any):
+        """The record an exercise's standing is derived from (M-266).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on, no date, no owner named - so an unheld
+        exercise derives an honest open standing naming its
+        gaps, never a dressed claim: an absent finding
+        reads as unanswered. An unknown exercise refuses by
+        name through the shipped registry first.
+        """
+        from ..core.stranger_fleet_test import StrangerFleetRecord
+        registry = self._strangerfleettest_registry()
+        registry.exercises().get(exercise)
+        try:
+            return registry.get_record(exercise)
+        except ValueError:
+            return StrangerFleetRecord(
+                exercise=exercise, work="unrecorded",
+                date="",
+                disposition="ROADED",
+                owner="",
+                proof_kind="none",
+                stages=(), claims=())
+
+    def _strangerfleettest_screen(self):
+        """The stranger-fleet-test screen, in plain words (M-266).
+
+        The shipped exercises first, then the held records
+        told by the pure layer - a held record reads
+        "held as answered" there - then each held
+        report. With no record held, the screen says
+        so plainly: an exercise counts PROVEN only on a
+        docs-only run on a clean machine resting on
+        held evidence, and every
+        other exercise ships ROADED with a named owner, in the open.
+        """
+        from ..core.stranger_fleet_test import (
+            format_exercises, format_records)
+        registry = self._strangerfleettest_registry()
+        lines = [format_exercises(registry.exercises())]
+        records = registry.list_records()
+        if records:
+            lines.append(format_records(records, registry.exercises()))
+        else:
+            lines.append(
+                "Stranger-fleet-test records: none recorded "
+                "this session - an exercise counts PROVEN "
+                "only on a docs-only run on a "
+                "clean machine resting on "
+                "held evidence, and every "
+                "other exercise ships ROADED with a named "
+                "owner, in the open, never silent.")
+        for report in registry.list_reports():
+            lines.append(_sf_report_text(report))
+        return "\n".join(lines)
+    def strangerfleettest_status(self) -> dict[str, Any]:
+        """The Stranger fleet test account, in plain data (M-266).
+
+        The shipped exercise registry's entries and the
+        fleet records and fleet reports held this session as
+        plain records (empty until held), the session
+        book's record (the shipped exercise registry with
+        nothing held - until items are held), the records
+        standing held and still open derived at call time,
+        the index and verdict derived at call time, the
+        exercises and records told in plain words through the
+        pure formatters, and the plain explanation. A
+        session holding no record for a finding derives that
+        finding's open standing. Resolution registers and
+        publishes nothing, runs no benchmark and probes
+        no network: this layer tells only.
+        """
+        from ..core import stranger_fleet_test as camp_module
+        registry = self._strangerfleettest_registry()
+        held_records = registry.list_records()
+        book = self.strangerfleettest_book()
+        index = self.strangerfleettest_index()
+        return {
+            "records": [_sf_record_dict(r)
+                        for r in held_records],
+            "exercises": [_sf_entry_dict(e)
+                        for e in registry.exercises().entries()],
+            "book": (book if held_records
+                     or registry.list_reports()
+                     or getattr(self, "_strangerfleettest_held",
+                                None) is not None else None),
+            "strangerfleettest_book": {
+                "schema": camp_module.STRANGER_FLEET_TEST_SCHEMA,
+                "exercises": book["exercises"],
+                "records": book["records"],
+                "reports": book["reports"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.strangerfleettest_verdict()["verdict"],
+            "exercises_text": camp_module.format_exercises(
+                registry.exercises()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "reports": [_sf_report_dict(d)
+                       for d in registry.list_reports()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._strangerfleettest_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": STRANGERFLEETTEST_USAGE,
+        }
+
+    def get_strangerfleettest_exercise(self, exercise: Any):
+        """The one exercise entry a exercise name names (M-266).
+
+        The shipped exercise registry answers: a exercise the
+        exercise book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._strangerfleettest_registry().exercises().get(exercise)
+
+    def get_strangerfleettest_record(self, exercise: Any):
+        """The one record a exercise names (M-266).
+
+        The session's held registry answers: a finding the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._strangerfleettest_registry().get_record(exercise)
+
+    def strangerfleettest_standing(self, exercise: Any):
+        """Derive one finding's standing (M-266).
+
+        The standing is derived at call time by the pure
+        layer from the finding's effective record - the held
+        record, or the honest empty record while none
+        stands held: held only on a full legal walk
+        resting on held finding evidence, with the
+        finding resting on held workspace evidence, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.stranger_fleet_test import derive_standing
+        registry = self._strangerfleettest_registry()
+        return derive_standing(
+            self._strangerfleettest_effective_record(exercise),
+            registry.exercises())
+
+    def exercises_for_disposition(self, disposition_word: Any):
+        """The held records carrying one disposition (M-266)."""
+        if disposition_word is None or not str(disposition_word).strip():
+            raise ValueError(
+                "a disposition must be named to list its records")
+        return [r for r in
+                self._strangerfleettest_registry().list_records()
+                if r.disposition == disposition_word]
+
+
+    def strangerfleettest_held(self):
+        """The records whose standing stands held (M-266)."""
+        registry = self._strangerfleettest_registry()
+        return [f"{r.exercise}"
+                for r in registry.list_records()
+                if self.strangerfleettest_standing(r.exercise).held]
+
+    def strangerfleettest_index(self) -> dict[str, Any]:
+        """Derive the Stranger fleet test index at call time (M-266).
+
+        The index is derived from every held record
+        alone - each held record's derived standing, the
+        held records named and the open records named in
+        its gaps. Deriving registers and publishes nothing,
+        runs no benchmark and probes no network.
+        Returns the derived index record, the rendered
+        records, the screen and the plain explanation.
+        """
+        from ..core import stranger_fleet_test as camp_module
+        registry = self._strangerfleettest_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.strangerfleettest_standing(record.exercise)
+            standings.append({
+                "exercise": record.exercise,
+                **_sf_standing_dict(standing)})
+        index = {
+            "type": "strangerfleettest_index",
+            "slice": camp_module.STRANGER_FLEET_TEST_SLICE,
+            "schema": camp_module.STRANGER_FLEET_TEST_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['exercise']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['exercise']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._strangerfleettest_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def strangerfleettest_verdict(self) -> dict[str, Any]:
+        """Derive the Stranger fleet test verdict at call time (M-266).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and every
+        held record's standing stands held on held
+        code evidence, with every finding
+        resting on held workspace evidence, ``open`` while no record stands held or any held
+        record stands short of held - with the held and
+        open records named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import stranger_fleet_test as camp_module
+        registry = self._strangerfleettest_registry()
+        records = registry.list_records()
+        held = self.strangerfleettest_held()
+        open_keys = [f"{r.exercise}"
+                     for r in records
+                     if f"{r.exercise}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Stranger fleet test stands held: every recorded "
+                "exercise rests on held workspace evidence "
+                "and stands answered - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Stranger fleet test stands open: no exercise "
+                "is recorded this session - an absent "
+                "exercise reads as unknown, never "
+                "as answered.")
+        else:
+            word = "open"
+            telling = (
+                "Stranger fleet test stands open: a exercise "
+                "is held only when it rests on held "
+                "local evidence and stands answered, "
+                "and these exercises "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "strangerfleettest_verdict",
+            "slice": camp_module.STRANGER_FLEET_TEST_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._strangerfleettest_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_strangerfleettest_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one fleet record for the session (M-266).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        exercise, stage or evidence kind refuses by
+        name on this road too, and a refusal holds nothing
+        new and publishes nothing. A held record is
+        published as its ``strangerfleettest_record``
+        session-news record through the checkpoint road.
+        Returns the held record, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a record runs no benchmark
+        and probes no network: the telling stands on
+        this layer's book, as data.
+        """
+        from ..core import stranger_fleet_test as camp_module
+        registry = self._strangerfleettest_registry()
+        held = registry.register_record(record)
+        news = {"type": "strangerfleettest_record",
+                **_sf_record_dict(held)}
+        self._publish_strangerfleettest_record(news)
+        return {
+            "record": _sf_record_dict(held),
+            "record_news": news,
+            "screen": self._strangerfleettest_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_strangerfleettest_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of fleet records for the session (M-266).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order given.
+        Returns the held records, their news records,
+        the count of records held, the screen, and the
+        explanation. Registering runs no benchmark and probes
+        no network.
+        """
+        from ..core import stranger_fleet_test as camp_module
+        registry = self._strangerfleettest_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "strangerfleettest_record", **_sf_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_strangerfleettest_record(news)
+        return {
+            "records": [_sf_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._strangerfleettest_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_strangerfleettest_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of fleet records (M-266).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its exercise key and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held book,
+        its records, their news records, the count, the
+        screen, and the explanation. Recording runs no
+        benchmark and probes no network.
+        """
+        from ..core import stranger_fleet_test as camp_module
+        validated = [_sf_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._strangerfleettest_registry().exercises())
+        fingerprint = (
+            tuple(r.exercise for r in validated),
+            camp_module.STRANGER_FLEET_TEST_SCHEMA)
+        boarded = getattr(self, "_strangerfleettest_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._strangerfleettest_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these fleet records are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._strangerfleettest_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._strangerfleettest_held = registry.book()
+        news_records = [
+            {"type": "strangerfleettest_record", **_sf_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_strangerfleettest_record(news)
+        return {
+            "book": self._strangerfleettest_held,
+            "records": [_sf_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._strangerfleettest_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_strangerfleettest(
+            self, exercise: Any) -> dict[str, Any]:
+        """Stand one finding's standing on the session book (M-266).
+
+        This is the book's own viewing road: the finding's
+        exercise entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        finding's effective record, and published as its
+        ``strangerfleettest_standing`` session news, with the held
+        record published as its ``strangerfleettest_record``
+        session news when one stands held. Returns the
+        exercise's entry, its derived standing, the held
+        record when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        findings as data alone - it runs no benchmark,
+        probes no network and inflates nothing here.
+        """
+        from ..core import stranger_fleet_test as camp_module
+        entry = self.get_strangerfleettest_exercise(exercise)
+        standing = self.strangerfleettest_standing(exercise)
+        try:
+            held = self.get_strangerfleettest_record(exercise)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "strangerfleettest_record",
+                           **_sf_record_dict(held)}
+            self._publish_strangerfleettest_record(record_news)
+        standing_news = {
+            "type": "strangerfleettest_standing", "exercise": exercise,
+            **_sf_standing_dict(standing)}
+        self._publish_strangerfleettest_record(standing_news)
+        return {
+            "exercise": _sf_entry_dict(entry),
+            "standing": {"exercise": exercise,
+                         **_sf_standing_dict(standing)},
+            "record": (_sf_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._strangerfleettest_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def prepare_strangerfleettest_report(
+            self, book: Any, entry: Any, report: Any,
+            date: Any, proven_count: Any, roaded_count: Any,
+            total_exercises: Any,
+            claims: Any = (),
+            state: Any = "ready",
+            certified: Any = False
+            ) -> dict[str, Any]:
+        """Prepare one fleet report for the session (M-266).
+
+        The report is shaped by the pure layer alone -
+        it stands at state ready by default, may be
+        marked ``shared`` by a human, and a state
+        word outside ready/shared refuses by name;
+        a report is never inflated here, a certification
+        short of every exercise answered refuses there, and
+        no finding is re-audited on this road. A held report
+        is published as its ``strangerfleettest_verdict``
+        session-news record through the checkpoint road.
+        Returns the held report, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Preparing audits nothing and
+        runs nothing here.
+        """
+        from ..core import stranger_fleet_test as camp_module
+        registry = self._strangerfleettest_registry()
+        report = registry.hold_report(book, entry, report,
+                                       date, proven_count,
+                                       roaded_count,
+                                       total_exercises,
+                                       claims=claims,
+                                       state=state,
+                                       certified=certified)
+        news = {"type": "strangerfleettest_verdict",
+                **_sf_report_dict(report)}
+        self._publish_strangerfleettest_record(news)
+        return {
+            "report": _sf_report_dict(report),
+            "report_news": news,
+            "screen": self._strangerfleettest_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+
+    def get_strangerfleettest_report(self, book: Any):
+        """The one report a book names (M-266).
+
+        The session's held registry answers: a book
+        the session holds no report for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._strangerfleettest_registry().get_report(book)
+
+
+    def strangerfleettest_reports(self) -> list:
+        """The fleet reports held for the session (M-266)."""
+        return self._strangerfleettest_registry().list_reports()
+
+
+    def report_strangerfleettest(self) -> dict[str, Any]:
+        """Render the session Stranger fleet test, as a verdict (M-266).
+
+        The shipped exercise registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, runs no benchmark and probes
+        no network. Returns the book,
+        the exercises, held records and reports as plain
+        records, the derived standings, the rendered
+        exercises and records, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import stranger_fleet_test as camp_module
+        registry = self._strangerfleettest_registry()
+        book = self.strangerfleettest_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.strangerfleettest_standing(record.exercise)
+            standings.append({
+                "exercise": record.exercise,
+                **_sf_standing_dict(standing)})
+        return {
+            "book": book,
+            "exercises": [_sf_entry_dict(e)
+                        for e in registry.exercises().entries()],
+            "records": [_sf_record_dict(r)
+                        for r in registry.list_records()],
+            "reports": [_sf_report_dict(d)
+                       for d in registry.list_reports()],
+            "standings": standings,
+            "index": self.strangerfleettest_index()["index"],
+            "verdict": self.strangerfleettest_verdict()["verdict"],
+            "exercises_text": camp_module.format_exercises(
+                registry.exercises()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._strangerfleettest_effective_record(r.exercise))
+                for r in registry.list_records()),
+            "screen": self._strangerfleettest_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_strangerfleettest_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one fleet record as session news (M-266).
+
+        The agent layer's ``strangerfleettest_record``,
+        ``strangerfleettest_standing`` and
+        ``strangerfleettest_verdict`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is granted. Each
+        record is announced at most once per telling: a
+        record under its exercise, its run, its date, its
+        disposition, its owner, its proof kind, its
+        walked stages and its claims, a standing under
+        its exercise, its held word, its stage, its grade
+        and its gaps, and a report under its book, its
+        entry, its report and its state, so a standing
+        grown by a newly held record announces again
+        as the new figure it is.
+        A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "strangerfleettest_record":
+            target = ("strangerfleettest_record",
+                      record.get("exercise"),
+                      record.get("run"),
+                      record.get("date"),
+                      record.get("disposition"),
+                      record.get("owner"),
+                      record.get("proof_kind"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "strangerfleettest_standing":
+            target = ("strangerfleettest_standing",
+                      record.get("exercise"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("grade"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "strangerfleettest_verdict":
+            target = ("strangerfleettest_verdict",
+                      record.get("book"),
+                      record.get("entry"),
+                      record.get("report"),
+                      record.get("state"))
+        else:
+            return
+        announced = getattr(self, "_strangerfleettest_announced", None)
+        if announced is None:
+            announced = set()
+            self._strangerfleettest_announced = announced
         if target in announced:
             return
         announced.add(target)
