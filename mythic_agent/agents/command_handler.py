@@ -547,6 +547,8 @@ class CommandHandler:
                 self._handle_docscompletion(args)
             elif cmd == "/readmecare":
                 self._handle_readmecare(args)
+            elif cmd == "/migrationproof":
+                self._handle_migrationproof(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -15279,6 +15281,120 @@ class CommandHandler:
                     "verdict_text"]
             else:
                 text = primary.readmecare_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+    def _handle_migrationproof(self, args: str):
+        """M-265: /migrationproof - the Migration proof as data.
+
+        ``/migrationproof`` shows the areas held this session -
+        the public sets as registry entries: one
+        entry per set, naming the word that set
+        gives a single run and the standing of its
+        gate, beside the run records
+        held this session (no run recorded yet when
+        none is held - a run is held only when a
+        reported run rests on held gate evidence);
+        ``/migrationproof areas`` shows the whole shipped
+        area registry; ``/migrationproof area <area>``
+        shows one area's registry entry; ``/migrationproof
+        record <area> <run>`` shows the record held
+        for one area and run; ``/migrationproof standing
+        <area> <run>`` shows the standing derived for
+        one run - held only on a full legal walk resting
+        on held gate evidence, with the verdict carrying
+        model, cost and date together, otherwise
+        open, naming its gaps; ``/migrationproof verdict`` shows
+        the run verdicts held this session and
+        ``/migrationproof verdict <area>`` shows one area's
+        verdict - a verdict is never inflated here and no
+        run is graded here on this road; ``/migrationproof
+        index`` shows the index derived over every held
+        record; ``/migrationproof verdict`` shows the verdict
+        derived for the session. Resolution registers and
+        publishes nothing as session news on this heading:
+        records are held only when they are given
+        through the agent's register roads, stood on the
+        book on the viewing road, or held on the book
+        roads, and every record held for the session is
+        journaled as a migrationproof_record session record,
+        every viewed standing as a migrationproof_standing
+        session record and every held verdict as
+        a migrationproof_verdict session record. This heading
+        runs no benchmark, downloads no set,
+        executes no grading test and inflates nothing here -
+        holding and telling are words only.
+        """
+        from ..core.migration_proof import (
+            format_record,
+            format_area,
+            format_areas,
+        )
+        from .llm import parse_migrationproof_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_migrationproof_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "areas":
+                text = format_areas(
+                    primary.migrationproof_areas())
+            elif stance == "area":
+                text = format_area(
+                    primary.get_migrationproof_area(target))
+            elif stance == "record":
+                text = format_record(
+                    primary.get_migrationproof_record(target))
+            elif stance == "standing":
+                standing = primary.migrationproof_standing(
+                    target)
+                text = (
+                    f"{target}: "
+                    f"{'held as answered' if standing.held else 'open'} "
+                    f"(stage: {standing.stage}; "
+                    f"grade: {standing.grade})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "reports":
+                verdicts = primary.migrationproof_reports()
+                if not verdicts:
+                    text = (
+                        "Report: none held this "
+                        "session - Migration reports move only as "
+                        "moves only as reports, and a report is "
+                        "never inflated here.")
+                else:
+                    text = "\n".join(
+                        f"{d.book} -> {d.entry}: report - "
+                        f"{d.report} (state: {d.state}; "
+                        "a report is never inflated here)"
+                        for d in verdicts)
+            elif stance == "report":
+                d = primary.get_migrationproof_report(target)
+                text = (
+                    f"{d.book} -> {d.entry}: report - "
+                    f"{d.report} (state: {d.state}; "
+                    "a report is never inflated here)")
+            elif stance == "index":
+                text = primary.migrationproof_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.migrationproof_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.migrationproof_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
