@@ -1574,7 +1574,7 @@ slices:
   title: Performance budgets
   summary: cold start, repo-map build on a 100k-file repo, TUI frame health, memory ceiling — measured
     on the VM, Mimir-class ARM, and the laptop; budgets from measurement.
-  status: queued
+  status: done
 - id: M-259
   part: 11
   title: Platform matrix final
