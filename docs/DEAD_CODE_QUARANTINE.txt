@@ -1357,3 +1357,10 @@ mythic_agent/agents/llm.py:93973:record_strangerfleettest_records:method
 mythic_agent/agents/llm.py:94022:view_strangerfleettest:method
 mythic_agent/agents/llm.py:94068:prepare_strangerfleettest_report:method
 mythic_agent/agents/llm.py:94128:report_strangerfleettest:method
+mythic_agent/agents/llm.py:94722:routes_for_disposition:method
+mythic_agent/agents/llm.py:94836:register_costofquality_record:method
+mythic_agent/agents/llm.py:94866:register_costofquality_records:method
+mythic_agent/agents/llm.py:94896:record_costofquality_records:method
+mythic_agent/agents/llm.py:94945:view_costofquality:method
+mythic_agent/agents/llm.py:94991:prepare_costofquality_report:method
+mythic_agent/agents/llm.py:95051:report_costofquality:method
