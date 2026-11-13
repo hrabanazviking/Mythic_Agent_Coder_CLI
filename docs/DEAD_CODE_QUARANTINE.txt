@@ -1301,3 +1301,10 @@ mythic_agent/agents/llm.py:86655:view_performancebudgets:method
 mythic_agent/agents/llm.py:86701:prepare_performancebudgets_report:method
 mythic_agent/agents/llm.py:86759:report_performancebudgets:method
 mythic_agent/core/performance_budgets.py:238:machine_ids:method
+mythic_agent/agents/llm.py:87350:records_for_verdict:method
+mythic_agent/agents/llm.py:87464:register_platformmatrixfinal_record:method
+mythic_agent/agents/llm.py:87494:register_platformmatrixfinal_records:method
+mythic_agent/agents/llm.py:87524:record_platformmatrixfinal_records:method
+mythic_agent/agents/llm.py:87573:view_platformmatrixfinal:method
+mythic_agent/agents/llm.py:87619:prepare_platformmatrixfinal_report:method
+mythic_agent/agents/llm.py:87679:report_platformmatrixfinal:method

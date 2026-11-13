@@ -1579,7 +1579,7 @@ slices:
   part: 11
   title: Platform matrix final
   summary: M-013's table re-proven cell by cell; unproven cells ship labelled NOT PROVEN, not silent.
-  status: queued
+  status: done
 - id: M-260
   part: 11
   title: Security audit
