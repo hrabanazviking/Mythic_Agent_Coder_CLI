@@ -435,8 +435,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 265
-    assert citizen["next_slice"] == "M-266"
+    assert citizen["done"] == 266
+    assert citizen["next_slice"] == "M-267"
     assert citizen["m211_title"] == "Memory-map upkeep"
     assert citizen["m211_part"] == 9
     assert citizen["m211_status"] == "done"
@@ -911,8 +911,8 @@ class TestUpkeepAgentStatus:
         assert status["board"]["current_upkeep"] == "upkeep-bare-update"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 265
-        assert status["roadmap"]["next_slice"] == "M-266"
+        assert status["roadmap"]["done"] == 266
+        assert status["roadmap"]["next_slice"] == "M-267"
         assert status["roadmap"]["m211_title"] == "Memory-map upkeep"
         assert "held as data alone" in status["rule"]
         assert "upkeep-bare-update" in status["plain_words"]

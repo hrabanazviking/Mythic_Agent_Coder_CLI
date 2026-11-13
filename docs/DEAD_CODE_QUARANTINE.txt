@@ -1350,3 +1350,10 @@ mythic_agent/agents/llm.py:93050:record_migrationproof_records:method
 mythic_agent/agents/llm.py:93099:view_migrationproof:method
 mythic_agent/agents/llm.py:93145:prepare_migrationproof_report:method
 mythic_agent/agents/llm.py:93205:report_migrationproof:method
+mythic_agent/agents/llm.py:93799:exercises_for_disposition:method
+mythic_agent/agents/llm.py:93913:register_strangerfleettest_record:method
+mythic_agent/agents/llm.py:93943:register_strangerfleettest_records:method
+mythic_agent/agents/llm.py:93973:record_strangerfleettest_records:method
+mythic_agent/agents/llm.py:94022:view_strangerfleettest:method
+mythic_agent/agents/llm.py:94068:prepare_strangerfleettest_report:method
+mythic_agent/agents/llm.py:94128:report_strangerfleettest:method
