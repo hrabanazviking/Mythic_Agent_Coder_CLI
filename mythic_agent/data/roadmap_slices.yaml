@@ -1556,7 +1556,7 @@ slices:
   title: The benchmark harness
   summary: M-008's pack automated — task, sandbox repo, run, grade (tests + diff review rubric) — repeatable
     per part and per release.
-  status: queued
+  status: done
 - id: M-256
   part: 11
   title: Published-yardstick runs

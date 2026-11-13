@@ -434,8 +434,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 254
-    assert citizen["next_slice"] == "M-255"
+    assert citizen["done"] == 255
+    assert citizen["next_slice"] == "M-256"
     assert citizen["m219_title"] == "Interrupts and resumes across days"
     assert citizen["m219_part"] == 9
     assert citizen["m219_status"] == "done"
@@ -910,8 +910,8 @@ class TestResumeAgentStatus:
         assert status["journal"]["current_resume"] == "resume-bare-resume"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 254
-        assert status["roadmap"]["next_slice"] == "M-255"
+        assert status["roadmap"]["done"] == 255
+        assert status["roadmap"]["next_slice"] == "M-256"
         assert status["roadmap"]["m219_title"] == "Interrupts and resumes across days"
         assert "held as data alone" in status["rule"]
         assert "resume-bare-resume" in status["plain_words"]
