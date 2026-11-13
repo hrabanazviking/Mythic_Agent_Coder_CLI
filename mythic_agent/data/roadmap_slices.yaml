@@ -1550,7 +1550,7 @@ slices:
   title: Part X gate
   summary: one campaign slice executed across bridges — issue from a host, build locally, PR raised, stand-up
     posted to Samtal — with credentials never leaving Kista.
-  status: queued
+  status: done
 - id: M-255
   part: 11
   title: The benchmark harness
