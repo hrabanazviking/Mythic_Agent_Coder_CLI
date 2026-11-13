@@ -1590,7 +1590,7 @@ slices:
   part: 11
   title: Privacy audit
   summary: no phone-home verified by network capture during a full benchmark run; the capture is the evidence.
-  status: queued
+  status: done
 - id: M-262
   part: 11
   title: Accessibility final gate
