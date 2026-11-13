@@ -3481,6 +3481,299 @@ def parse_performancebudgets_args(args: Any):
     raise ValueError(PERFORMANCEBUDGETS_USAGE)
 
 
+#: The /platformmatrixfinal slash grammar (M-259, agent layer).
+PLATFORMMATRIXFINAL_USAGE = (
+    "Usage: /platformmatrixfinal | /platformmatrixfinal cells | "
+    "/platformmatrixfinal cell <cell> | /platformmatrixfinal record "
+    "<cell> | /platformmatrixfinal standing "
+    "<cell> | /platformmatrixfinal report | "
+    "/platformmatrixfinal report <book> | "
+    "/platformmatrixfinal index | /platformmatrixfinal verdict")
+
+
+def _pm_cell_dict(entry: Any) -> dict[str, Any]:
+    """One matrix cell registry entry, as plain data (M-259)."""
+    return {"id": entry.id, "platform": entry.platform,
+            "surface": entry.surface,
+            "standing": entry.standing, "reason": entry.reason}
+
+
+
+def _pm_record_dict(record: Any) -> dict[str, Any]:
+    """One platform-matrix re-proof record, as plain data (M-259)."""
+    return {"cell": record.cell,
+            "run": record.run,
+            "date": record.date,
+            "verdict": record.verdict,
+            "proof_kind": record.proof_kind,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+
+def _pm_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived run standing, as plain data (M-259)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "grade": standing.grade,
+            "gaps": list(standing.gaps)}
+
+
+def _pm_report_dict(report: Any) -> dict[str, Any]:
+    """One matrix report, as plain data (M-259)."""
+    return {"book": report.book,
+            "entry": report.entry, "report": report.report,
+            "date": report.date,
+            "proven_count": report.proven_count,
+            "not_proven_count": report.not_proven_count,
+            "total_cells": report.total_cells,
+            "claims": list(report.claims),
+            "state": report.state, "certified": report.certified,
+            "inflated": report.inflated}
+
+
+
+def _pm_report_text(report: Any) -> str:
+    """One matrix report told in plain words (M-259)."""
+    return (f"{report.book} <- {report.entry}: "
+            f"report - {report.report} (state: "
+            f"{report.state}; a report is never "
+            "inflated here)")
+
+
+
+def _pm_coerce_record(record: Any):
+    """A re-proof record from a record or a plain telling (M-259)."""
+    from ..core.platform_matrix_final import MatrixRecord
+    if isinstance(record, MatrixRecord):
+        return record
+    if isinstance(record, dict):
+        return MatrixRecord(
+            cell=record["cell"],
+            run=record["run"],
+            date=record["date"],
+            verdict=record["verdict"],
+            proof_kind=record["proof_kind"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return MatrixRecord(
+        cell=record.cell, run=record.run,
+        date=record.date,
+        verdict=record.verdict,
+        proof_kind=record.proof_kind,
+        stages=tuple(record.stages),
+        claims=tuple(record.claims))
+
+
+class PlatformMatrixFinalRegistry:
+    """Session registry for the platform matrix final (M-259).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.platform_matrix_final``):
+    it holds the shipped cell registry (one entry per
+    cell of the road, held as data) beside the
+    measurement records held one by one for the session,
+    one record per cell, and the matrix
+    reports held for the session, one report per book. A
+    record is validated whole by the pure layer before it
+    is held - a record naming an unknown cell,
+    stage or evidence kind refuses by name here too, and a
+    refusal holds nothing new. A second record for a
+    cell already held refuses likewise.
+    Reports are held only through the pure layer's report
+    road - state ready by default, may be marked shared by
+    a human, a certification claimed only when every
+    combination stands within budget, and never inflated:
+    the report tells the measurements exactly as they
+    stand. Holding runs no benchmark, times no start and
+    probes no network: the registry holds tellings as
+    data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.platform_matrix_final import default_registry
+        self._cells = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._reports: dict[str, Any] = {}
+
+    def cells(self):
+        """The shipped cell registry held by the session."""
+        return self._cells
+
+    def register_record(self, record: Any):
+        """Hold one measurement record, validated whole.
+
+        A second record for a cell already
+        held refuses, and a refusal holds nothing new.
+        """
+        held = _pm_coerce_record(record)
+        held.validate(self._cells)
+        key = held.cell
+        if key in self._records:
+            raise ValueError(
+                "a re-proof record for cell "
+                f"{held.cell!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, cell: Any):
+        """The held record for one cell."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(cell)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no re-proof record "
+                f"for cell {cell!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of measurement records, validated whole.
+
+        Every record is validated, and checked against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _pm_coerce_record(record)
+            held.validate(self._cells)
+            key = held.cell
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "a re-proof record for cell "
+                    f"{held.cell!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[held.cell] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The measurement records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the records and the reports."""
+        return (list(self._records.values())
+                + list(self._reports.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.platform_matrix_final import derive_standing
+        return [derive_standing(record, self._cells)
+                for record in self._records.values()]
+
+    def hold_report(self, book: Any, entry: Any,
+                      report: Any, date: Any,
+                      proven_count: Any, not_proven_count: Any,
+                      total_cells: Any,
+                      claims: Any = (),
+                      state: Any = "ready",
+                      certified: Any = False):
+        """Prepare one matrix report, held for the session.
+
+        The report is shaped by the pure layer alone -
+        a state word outside ready/shared refuses by name
+        there, a certification short of every cell answered
+        refuses there, and a report is never inflated. A
+        second report for a book already held refuses
+        likewise.
+        """
+        from ..core.platform_matrix_final import prepare_report
+        report = prepare_report(book, entry, report,
+                                 date, proven_count,
+                                 not_proven_count,
+                                 total_cells,
+                                 claims=tuple(claims),
+                                 state=state, certified=certified)
+        if report.book in self._reports:
+            raise ValueError(
+                "a matrix report for book "
+                f"{report.book!r} already stands held "
+                "for the session")
+        self._reports[report.book] = report
+        return report
+
+    def get_report(self, book: Any):
+        """The held matrix report for one book."""
+        from ..core.validation import ValidationError
+        try:
+            return self._reports[book]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no matrix report for "
+                f"book {book!r}") from None
+
+    def list_reports(self) -> list:
+        """The matrix reports held, in hold order."""
+        return list(self._reports.values())
+
+    def book(self):
+        """The held pieces composed as a performance budget book.
+
+        The book is plain data: the shipped cell
+        registry's entries beside the measurement records
+        and matrix reports held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.platform_matrix_final import PLATFORM_MATRIX_FINAL_SCHEMA
+        return {
+            "schema": PLATFORM_MATRIX_FINAL_SCHEMA,
+            "cells": [_pm_cell_dict(entry)
+                        for entry in self._cells.entries()],
+            "records": [_pm_record_dict(record)
+                        for record in self._records.values()],
+            "reports": [_pm_report_dict(verdict)
+                       for verdict in self._reports.values()],
+        }
+
+
+def parse_platformmatrixfinal_args(args: Any):
+    """Parse /platformmatrixfinal arguments (M-259).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``cells``, ``index`` and ``verdict`` name
+    their own stance with no target; ``cell <cell>``
+    names one cell; ``record <cell>`` and
+    ``standing <cell>`` name one cell alone - a matrix
+    record is keyed by its cell, never by a pair;
+    ``report <book>`` names one book and the bare
+    ``report`` stance names the session's matrix
+    reports. Anything else raises ValueError carrying
+    the usage line, exactly as the sibling parsers
+    refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("cells", "index", "verdict"):
+        if rest:
+            raise ValueError(PLATFORMMATRIXFINAL_USAGE)
+        return (head, None, (), None)
+    if head == "cell":
+        if len(rest) != 1:
+            raise ValueError(PLATFORMMATRIXFINAL_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 1:
+            raise ValueError(PLATFORMMATRIXFINAL_USAGE)
+        return (head, rest[0], (), None)
+    if head == "report":
+        if not rest:
+            return ("reports", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(PLATFORMMATRIXFINAL_USAGE)
+        return ("report", rest[0], (), None)
+    raise ValueError(PLATFORMMATRIXFINAL_USAGE)
+
+
 #: The /docsmcp slash grammar (M-252, agent layer).
 DOCSMCP_USAGE = (
     "Usage: /docsmcp | /docsmcp projects | "
@@ -86852,6 +87145,628 @@ class Agent:
         if announced is None:
             announced = set()
             self._performancebudgets_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+    def _platformmatrixfinal_registry(self):
+        """The held performance-budgets registry (M-259).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped cell registry beside the session's
+        measurement records and matrix reports one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_platformmatrixfinal_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_platformmatrixfinal_store", None)
+        if registry is None:
+            registry = PlatformMatrixFinalRegistry()
+            self._platformmatrixfinal_store = registry
+        return registry
+
+    def platformmatrixfinal_cells(self):
+        """The shipped cell registry, as data (M-259).
+
+        One entry per cell of the road - P-01..P-12, the twelve platform by surface cells - held as registry entries, each naming its platform, its surface and its listed standing. Resolution registers and publishes
+        nothing, runs no benchmark and probes no
+        network.
+        """
+        return self._platformmatrixfinal_registry().cells()
+
+    def platformmatrixfinal_book(self):
+        """The session's platform matrix book, as data (M-259).
+
+        The held registry's book when the session holds
+        records or reports one by one - otherwise the book
+        boarded whole through
+        :meth:`record_platformmatrixfinal_records`, or the shipped
+        cell registry with nothing held until a record
+        or report is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._platformmatrixfinal_registry()
+        if registry.list_records() or registry.list_reports():
+            held = getattr(self, "_platformmatrixfinal_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [r["cell"] for r in held["records"]]
+                    == [r["cell"] for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_platformmatrixfinal_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _platformmatrixfinal_effective_record(self, cell: Any):
+        """The record a cell's standing is derived from (M-259).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on, no date, no verdict proven - so an unheld
+        cell derives an honest open standing naming its
+        gaps, never a dressed claim: an absent re-proof
+        reads as NOT PROVEN. An unknown cell refuses by
+        name through the shipped registry first.
+        """
+        from ..core.platform_matrix_final import MatrixRecord
+        registry = self._platformmatrixfinal_registry()
+        registry.cells().get(cell)
+        try:
+            return registry.get_record(cell)
+        except ValueError:
+            return MatrixRecord(
+                cell=cell, run="unrecorded",
+                date="",
+                verdict="NOT PROVEN",
+                proof_kind="none",
+                stages=(), claims=())
+
+    def _platformmatrixfinal_screen(self):
+        """The platform-matrix screen, in plain words (M-259).
+
+        The shipped cells first, then the held records
+        told by the pure layer - a held record reads
+        "held as answered" there - then each held
+        report. With no record held, the screen says
+        so plainly: a cell counts PROVEN only on
+        evidence measured locally, and every other
+        cell ships labelled NOT PROVEN, never silent.
+        """
+        from ..core.platform_matrix_final import (
+            format_cells, format_records)
+        registry = self._platformmatrixfinal_registry()
+        lines = [format_cells(registry.cells())]
+        records = registry.list_records()
+        if records:
+            lines.append(format_records(records, registry.cells()))
+        else:
+            lines.append(
+                "Platform-matrix records: none recorded "
+                "this session - a cell counts PROVEN only "
+                "on evidence measured locally, and every "
+                "other cell ships labelled NOT PROVEN, "
+                "never silent.")
+        for report in registry.list_reports():
+            lines.append(_pm_report_text(report))
+        return "\n".join(lines)
+
+    def platformmatrixfinal_status(self) -> dict[str, Any]:
+        """The platform matrix final account, in plain data (M-259).
+
+        The shipped cell registry's entries and the
+        measurement records and matrix reports held this session as
+        plain records (empty until held), the session
+        book's record (the shipped cell registry with
+        nothing held - until items are held), the records
+        standing held and still open derived at call time,
+        the index and verdict derived at call time, the
+        cells and records told in plain words through the
+        pure formatters, and the plain explanation. A
+        session holding no record for a measurement derives that
+        measurement's open standing. Resolution registers and
+        publishes nothing, runs no benchmark and probes
+        no network: this layer tells only.
+        """
+        from ..core import platform_matrix_final as camp_module
+        registry = self._platformmatrixfinal_registry()
+        held_records = registry.list_records()
+        book = self.platformmatrixfinal_book()
+        index = self.platformmatrixfinal_index()
+        return {
+            "records": [_pm_record_dict(r)
+                        for r in held_records],
+            "cells": [_pm_cell_dict(e)
+                        for e in registry.cells().entries()],
+            "book": (book if held_records
+                     or registry.list_reports()
+                     or getattr(self, "_platformmatrixfinal_held",
+                                None) is not None else None),
+            "platformmatrixfinal_book": {
+                "schema": camp_module.PLATFORM_MATRIX_FINAL_SCHEMA,
+                "cells": book["cells"],
+                "records": book["records"],
+                "reports": book["reports"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.platformmatrixfinal_verdict()["verdict"],
+            "cells_text": camp_module.format_cells(
+                registry.cells()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "reports": [_pm_report_dict(d)
+                       for d in registry.list_reports()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._platformmatrixfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": PLATFORMMATRIXFINAL_USAGE,
+        }
+
+    def get_platformmatrixfinal_cell(self, cell: Any):
+        """The one cell entry a cell name names (M-259).
+
+        The shipped cell registry answers: a cell the
+        cell book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._platformmatrixfinal_registry().cells().get(cell)
+
+    def get_platformmatrixfinal_record(self, cell: Any):
+        """The one record a cell names (M-259).
+
+        The session's held registry answers: a measurement the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._platformmatrixfinal_registry().get_record(cell)
+
+    def platformmatrixfinal_standing(self, cell: Any):
+        """Derive one measurement's standing (M-259).
+
+        The standing is derived at call time by the pure
+        layer from the measurement's effective record - the held
+        record, or the honest empty record while none
+        stands held: held only on a full legal walk
+        resting on held measurement evidence, with the
+        measurement standing within its budget, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.platform_matrix_final import derive_standing
+        registry = self._platformmatrixfinal_registry()
+        return derive_standing(
+            self._platformmatrixfinal_effective_record(cell),
+            registry.cells())
+
+    def records_for_verdict(self, verdict_word: Any):
+        """The held records carrying one verdict (M-259)."""
+        if verdict_word is None or not str(verdict_word).strip():
+            raise ValueError(
+                "a verdict must be named to list its records")
+        return [r for r in
+                self._platformmatrixfinal_registry().list_records()
+                if r.verdict == verdict_word]
+
+
+    def platformmatrixfinal_held(self):
+        """The records whose standing stands held (M-259)."""
+        registry = self._platformmatrixfinal_registry()
+        return [f"{r.cell}"
+                for r in registry.list_records()
+                if self.platformmatrixfinal_standing(r.cell).held]
+
+    def platformmatrixfinal_index(self) -> dict[str, Any]:
+        """Derive the platform matrix final index at call time (M-259).
+
+        The index is derived from every held record
+        alone - each held record's derived standing, the
+        held records named and the open records named in
+        its gaps. Deriving registers and publishes nothing,
+        runs no benchmark and probes no network.
+        Returns the derived index record, the rendered
+        records, the screen and the plain explanation.
+        """
+        from ..core import platform_matrix_final as camp_module
+        registry = self._platformmatrixfinal_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.platformmatrixfinal_standing(record.cell)
+            standings.append({
+                "cell": record.cell,
+                **_pm_standing_dict(standing)})
+        index = {
+            "type": "platformmatrixfinal_index",
+            "slice": camp_module.PLATFORM_MATRIX_FINAL_SLICE,
+            "schema": camp_module.PLATFORM_MATRIX_FINAL_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['cell']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['cell']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._platformmatrixfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def platformmatrixfinal_verdict(self) -> dict[str, Any]:
+        """Derive the platform matrix final verdict at call time (M-259).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and every
+        held record's standing stands held on held
+        measurement evidence, with every measurement
+        standing within its budget, ``open`` while no record stands held or any held
+        record stands short of held - with the held and
+        open records named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import platform_matrix_final as camp_module
+        registry = self._platformmatrixfinal_registry()
+        records = registry.list_records()
+        held = self.platformmatrixfinal_held()
+        open_keys = [f"{r.cell}"
+                     for r in records
+                     if f"{r.cell}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Platform matrix final stands held: every recorded "
+                "cell rests on held local evidence "
+                "and stands answered - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Platform matrix final stands open: no cell "
+                "is recorded this session - an absent "
+                "cell reads as unknown, never "
+                "as answered.")
+        else:
+            word = "open"
+            telling = (
+                "Platform matrix final stands open: a cell "
+                "is held only when it rests on held "
+                "local evidence and stands answered, "
+                "and these cells "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "platformmatrixfinal_verdict",
+            "slice": camp_module.PLATFORM_MATRIX_FINAL_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._platformmatrixfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_platformmatrixfinal_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one measurement record for the session (M-259).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        cell, stage or evidence kind refuses by
+        name on this road too, and a refusal holds nothing
+        new and publishes nothing. A held record is
+        published as its ``platformmatrixfinal_record``
+        session-news record through the checkpoint road.
+        Returns the held record, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a record runs no benchmark
+        and probes no network: the telling stands on
+        this layer's book, as data.
+        """
+        from ..core import platform_matrix_final as camp_module
+        registry = self._platformmatrixfinal_registry()
+        held = registry.register_record(record)
+        news = {"type": "platformmatrixfinal_record",
+                **_pm_record_dict(held)}
+        self._publish_platformmatrixfinal_record(news)
+        return {
+            "record": _pm_record_dict(held),
+            "record_news": news,
+            "screen": self._platformmatrixfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_platformmatrixfinal_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of measurement records for the session (M-259).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order given.
+        Returns the held records, their news records,
+        the count of records held, the screen, and the
+        explanation. Registering runs no benchmark and probes
+        no network.
+        """
+        from ..core import platform_matrix_final as camp_module
+        registry = self._platformmatrixfinal_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "platformmatrixfinal_record", **_pm_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_platformmatrixfinal_record(news)
+        return {
+            "records": [_pm_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._platformmatrixfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_platformmatrixfinal_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of measurement records (M-259).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its cell key and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held book,
+        its records, their news records, the count, the
+        screen, and the explanation. Recording runs no
+        benchmark and probes no network.
+        """
+        from ..core import platform_matrix_final as camp_module
+        validated = [_pm_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._platformmatrixfinal_registry().cells())
+        fingerprint = (
+            tuple(r.cell for r in validated),
+            camp_module.PLATFORM_MATRIX_FINAL_SCHEMA)
+        boarded = getattr(self, "_platformmatrixfinal_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._platformmatrixfinal_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these measurement records are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._platformmatrixfinal_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._platformmatrixfinal_held = registry.book()
+        news_records = [
+            {"type": "platformmatrixfinal_record", **_pm_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_platformmatrixfinal_record(news)
+        return {
+            "book": self._platformmatrixfinal_held,
+            "records": [_pm_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._platformmatrixfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_platformmatrixfinal(
+            self, cell: Any) -> dict[str, Any]:
+        """Stand one measurement's standing on the session book (M-259).
+
+        This is the book's own viewing road: the measurement's
+        cell entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        measurement's effective record, and published as its
+        ``platformmatrixfinal_standing`` session news, with the held
+        record published as its ``platformmatrixfinal_record``
+        session news when one stands held. Returns the
+        cell's entry, its derived standing, the held
+        record when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        measurements as data alone - it runs no benchmark,
+        probes no network and inflates nothing here.
+        """
+        from ..core import platform_matrix_final as camp_module
+        entry = self.get_platformmatrixfinal_cell(cell)
+        standing = self.platformmatrixfinal_standing(cell)
+        try:
+            held = self.get_platformmatrixfinal_record(cell)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "platformmatrixfinal_record",
+                           **_pm_record_dict(held)}
+            self._publish_platformmatrixfinal_record(record_news)
+        standing_news = {
+            "type": "platformmatrixfinal_standing", "cell": cell,
+            **_pm_standing_dict(standing)}
+        self._publish_platformmatrixfinal_record(standing_news)
+        return {
+            "cell": _pm_cell_dict(entry),
+            "standing": {"cell": cell,
+                         **_pm_standing_dict(standing)},
+            "record": (_pm_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._platformmatrixfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def prepare_platformmatrixfinal_report(
+            self, book: Any, entry: Any, report: Any,
+            date: Any, proven_count: Any, not_proven_count: Any,
+            total_cells: Any,
+            claims: Any = (),
+            state: Any = "ready",
+            certified: Any = False
+            ) -> dict[str, Any]:
+        """Prepare one matrix report for the session (M-259).
+
+        The report is shaped by the pure layer alone -
+        it stands at state ready by default, may be
+        marked ``shared`` by a human, and a state
+        word outside ready/shared refuses by name;
+        a report is never inflated here, a certification
+        short of every cell answered refuses there, and
+        no cell is re-proven on this road. A held report
+        is published as its ``platformmatrixfinal_verdict``
+        session-news record through the checkpoint road.
+        Returns the held report, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Preparing re-proves nothing and
+        runs nothing here.
+        """
+        from ..core import platform_matrix_final as camp_module
+        registry = self._platformmatrixfinal_registry()
+        report = registry.hold_report(book, entry, report,
+                                       date, proven_count,
+                                       not_proven_count,
+                                       total_cells,
+                                       claims=claims,
+                                       state=state,
+                                       certified=certified)
+        news = {"type": "platformmatrixfinal_verdict",
+                **_pm_report_dict(report)}
+        self._publish_platformmatrixfinal_record(news)
+        return {
+            "report": _pm_report_dict(report),
+            "report_news": news,
+            "screen": self._platformmatrixfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+
+    def get_platformmatrixfinal_report(self, book: Any):
+        """The one report a book names (M-259).
+
+        The session's held registry answers: a book
+        the session holds no report for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._platformmatrixfinal_registry().get_report(book)
+
+
+    def platformmatrixfinal_reports(self) -> list:
+        """The matrix reports held for the session (M-259)."""
+        return self._platformmatrixfinal_registry().list_reports()
+
+
+    def report_platformmatrixfinal(self) -> dict[str, Any]:
+        """Render the session platform matrix final, as a verdict (M-259).
+
+        The shipped cell registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, runs no benchmark and probes
+        no network. Returns the book,
+        the cells, held records and reports as plain
+        records, the derived standings, the rendered
+        cells and records, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import platform_matrix_final as camp_module
+        registry = self._platformmatrixfinal_registry()
+        book = self.platformmatrixfinal_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.platformmatrixfinal_standing(record.cell)
+            standings.append({
+                "cell": record.cell,
+                **_pm_standing_dict(standing)})
+        return {
+            "book": book,
+            "cells": [_pm_cell_dict(e)
+                        for e in registry.cells().entries()],
+            "records": [_pm_record_dict(r)
+                        for r in registry.list_records()],
+            "reports": [_pm_report_dict(d)
+                       for d in registry.list_reports()],
+            "standings": standings,
+            "index": self.platformmatrixfinal_index()["index"],
+            "verdict": self.platformmatrixfinal_verdict()["verdict"],
+            "cells_text": camp_module.format_cells(
+                registry.cells()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._platformmatrixfinal_effective_record(r.cell))
+                for r in registry.list_records()),
+            "screen": self._platformmatrixfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_platformmatrixfinal_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one re-proof record as session news (M-259).
+
+        The agent layer's ``platformmatrixfinal_record``,
+        ``platformmatrixfinal_standing`` and
+        ``platformmatrixfinal_verdict`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is granted. Each
+        record is announced at most once per telling: a
+        record under its cell, its run, its date, its
+        verdict, its proof kind, its walked stages and
+        its claims, a standing under its cell, its held
+        word, its stage, its grade and its gaps, and a
+        report under its book, its entry, its report and
+        its state, so a standing grown by a newly held
+        record announces again as the new figure it is.
+        A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "platformmatrixfinal_record":
+            target = ("platformmatrixfinal_record",
+                      record.get("cell"),
+                      record.get("run"),
+                      record.get("date"),
+                      record.get("verdict"),
+                      record.get("proof_kind"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "platformmatrixfinal_standing":
+            target = ("platformmatrixfinal_standing",
+                      record.get("cell"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("grade"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "platformmatrixfinal_verdict":
+            target = ("platformmatrixfinal_verdict",
+                      record.get("book"),
+                      record.get("entry"),
+                      record.get("report"),
+                      record.get("state"))
+        else:
+            return
+        announced = getattr(self, "_platformmatrixfinal_announced", None)
+        if announced is None:
+            announced = set()
+            self._platformmatrixfinal_announced = announced
         if target in announced:
             return
         announced.add(target)
