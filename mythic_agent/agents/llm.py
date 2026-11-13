@@ -2316,6 +2316,295 @@ def parse_bridgeaudit_args(args: Any):
     raise ValueError(BRIDGEAUDIT_USAGE)
 
 
+#: The /benchmarkharness slash grammar (M-255, agent layer).
+BENCHMARKHARNESS_USAGE = (
+    "Usage: /benchmarkharness | /benchmarkharness kinds | "
+    "/benchmarkharness kind <kind> | /benchmarkharness record "
+    "<kind> <run> | /benchmarkharness standing "
+    "<kind> <run> | /benchmarkharness report | "
+    "/benchmarkharness report <kind> | "
+    "/benchmarkharness index | /benchmarkharness verdict")
+
+
+def _bh_kind_dict(entry: Any) -> dict[str, Any]:
+    """One harness run kind registry entry, as plain data (M-255)."""
+    return {"id": entry.id, "label": entry.label,
+            "item_word": entry.item_word,
+            "scope": entry.scope,
+            "standing": entry.standing, "reason": entry.reason}
+
+
+def _bh_record_dict(record: Any) -> dict[str, Any]:
+    """One benchmark run record, as plain data (M-255)."""
+    return {"kind": record.kind,
+            "run": record.run,
+            "task": record.task,
+            "category": record.category,
+            "title": record.title,
+            "sandbox": record.sandbox,
+            "tests_passed": record.tests_passed,
+            "tests_total": record.tests_total,
+            "rubric_criteria": list(record.rubric_criteria),
+            "rubric_met": list(record.rubric_met),
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+def _bh_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived run standing, as plain data (M-255)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "grade": standing.grade,
+            "gaps": list(standing.gaps)}
+
+
+def _bh_report_dict(report: Any) -> dict[str, Any]:
+    """One run report, as plain data (M-255)."""
+    return {"kind": report.kind,
+            "entry": report.entry, "run": report.run,
+            "report": report.report,
+            "state": report.state, "inflated": report.inflated}
+
+
+def _bh_report_text(report: Any) -> str:
+    """One run report told in plain words (M-255)."""
+    return (f"{report.kind} <- {report.entry}/{report.run}: "
+            f"report - {report.report} (state: "
+            f"{report.state}; a report is never "
+            "inflated here)")
+
+
+def _bh_coerce_record(record: Any):
+    """A run record from a record or a plain telling (M-255)."""
+    from ..core.benchmark_harness import RunRecord
+    if isinstance(record, RunRecord):
+        return record
+    if isinstance(record, dict):
+        return RunRecord(
+            kind=record["kind"],
+            run=record["run"],
+            task=record["task"],
+            category=record["category"],
+            title=record["title"],
+            sandbox=record["sandbox"],
+            tests_passed=record["tests_passed"],
+            tests_total=record["tests_total"],
+            rubric_criteria=tuple(record.get("rubric_criteria", ())),
+            rubric_met=tuple(record.get("rubric_met", ())),
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return RunRecord(
+        kind=record.kind, run=record.run,
+        task=record.task,
+        category=record.category,
+        title=record.title,
+        sandbox=record.sandbox,
+        tests_passed=record.tests_passed,
+        tests_total=record.tests_total,
+        rubric_criteria=tuple(record.rubric_criteria),
+        rubric_met=tuple(record.rubric_met),
+        stages=tuple(record.stages),
+        claims=tuple(record.claims))
+
+class BenchmarkHarnessRegistry:
+    """Session registry for the benchmark harness (M-255).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.benchmark_harness``): it
+    holds the shipped harness registry (one entry per
+    run kind, held as data) beside the run records held
+    one by one for the session, one record per kind and
+    run, and the run reports held for the session, one
+    report per kind. A record is validated whole by the
+    pure layer before it is held - a record naming an
+    unknown run kind, task, category or evidence kind
+    refuses by name here too, and a refusal holds nothing
+    new. A second record for a kind and run already held
+    refuses likewise. Reports are held only through the
+    pure layer's report road - state ready by default,
+    may be marked shared by a human, and never inflated:
+    the harness reports runs exactly as they graded and
+    runs no task here. Holding runs no task, creates no
+    sandbox, executes no grading test and probes no
+    network: the registry holds tellings as data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.benchmark_harness import default_registry
+        self._kinds = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._reports: dict[str, Any] = {}
+
+    def kinds(self):
+        """The shipped harness registry held by the session."""
+        return self._kinds
+
+    def register_record(self, record: Any):
+        """Hold one run record, validated whole.
+
+        A second record for a kind and run already held
+        refuses, and a refusal holds nothing new.
+        """
+        held = _bh_coerce_record(record)
+        held.validate(self._kinds)
+        key = (held.kind, held.run)
+        if key in self._records:
+            raise ValueError(
+                "a run record for kind "
+                f"{held.kind!r} run "
+                f"{held.run!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, kind: Any, run: Any):
+        """The held record for one kind and run."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(kind, run)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no run record "
+                f"for kind {kind!r} run "
+                f"{run!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of run records, validated whole.
+
+        Every record is validated, and checked against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _bh_coerce_record(record)
+            held.validate(self._kinds)
+            key = (held.kind, held.run)
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "a run record for kind "
+                    f"{held.kind!r} run "
+                    f"{held.run!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[(held.kind, held.run)] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The run records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the records and the reports."""
+        return (list(self._records.values())
+                + list(self._reports.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.benchmark_harness import derive_standing
+        return [derive_standing(record, self._kinds)
+                for record in self._records.values()]
+
+    def hold_report(self, kind: Any, entry: Any,
+                      run: Any, report: Any,
+                      state: Any = "ready"):
+        """Prepare one run report, held for the session.
+
+        The report is shaped by the pure layer alone -
+        a state word outside ready/shared refuses by name
+        there, and a report is never inflated. A second
+        report for a kind already held refuses likewise.
+        """
+        from ..core.benchmark_harness import prepare_report
+        report = prepare_report(kind, entry, run,
+                                 report, state=state)
+        if report.kind in self._reports:
+            raise ValueError(
+                "a run report for kind "
+                f"{report.kind!r} already stands held "
+                "for the session")
+        self._reports[report.kind] = report
+        return report
+
+    def get_report(self, kind: Any):
+        """The held run report for one kind."""
+        from ..core.validation import ValidationError
+        try:
+            return self._reports[kind]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no run report for "
+                f"kind {kind!r}") from None
+
+    def list_reports(self) -> list:
+        """The run reports held, in report order."""
+        return list(self._reports.values())
+
+    def book(self):
+        """The held pieces composed as a benchmark harness book.
+
+        The book is plain data: the shipped harness
+        registry's entries beside the run records and
+        run reports held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.benchmark_harness import BENCHMARK_HARNESS_SCHEMA
+        return {
+            "schema": BENCHMARK_HARNESS_SCHEMA,
+            "kinds": [_bh_kind_dict(entry)
+                        for entry in self._kinds.entries()],
+            "records": [_bh_record_dict(record)
+                        for record in self._records.values()],
+            "reports": [_bh_report_dict(report)
+                       for report in self._reports.values()],
+        }
+
+
+def parse_benchmarkharness_args(args: Any):
+    """Parse /benchmarkharness arguments (M-255).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``kinds``, ``index`` and ``verdict`` name
+    their own stance with no target; ``kind <kind>``
+    names one kind; ``record <kind> <run>`` and
+    ``standing <kind> <run>`` name one kind and run
+    as a pair; ``report <kind>`` names one kind
+    and the bare ``report`` stance names the session's
+    reports. Anything else raises ValueError
+    carrying the usage line, exactly as the sibling
+    parsers refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("kinds", "index", "verdict"):
+        if rest:
+            raise ValueError(BENCHMARKHARNESS_USAGE)
+        return (head, None, (), None)
+    if head == "kind":
+        if len(rest) != 1:
+            raise ValueError(BENCHMARKHARNESS_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 2:
+            raise ValueError(BENCHMARKHARNESS_USAGE)
+        return (head, (rest[0], rest[1]), (), None)
+    if head == "report":
+        if not rest:
+            return ("reports", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(BENCHMARKHARNESS_USAGE)
+        return ("report", rest[0], (), None)
+    raise ValueError(BENCHMARKHARNESS_USAGE)
+
+
 #: The /docsmcp slash grammar (M-252, agent layer).
 DOCSMCP_USAGE = (
     "Usage: /docsmcp | /docsmcp projects | "
@@ -83176,6 +83465,641 @@ class Agent:
         announced.add(target)
         if self._session_store and self.session_id:
             self._checkpoint(record)
+    def _benchmarkharness_registry(self):
+        """The held benchmark harness registry (M-255).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped harness registry beside the session's
+        run records and run reports one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_benchmarkharness_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_benchmarkharness_store", None)
+        if registry is None:
+            registry = BenchmarkHarnessRegistry()
+            self._benchmarkharness_store = registry
+        return registry
+
+    def benchmarkharness_kinds(self):
+        """The shipped harness registry, as data (M-255).
+
+        One entry per run kind - part_run, release_run - held as registry
+        entries, each naming the word that kind gives a
+        single run. Resolution registers and publishes
+        nothing, runs no task and probes no
+        network.
+        """
+        return self._benchmarkharness_registry().kinds()
+
+    def benchmarkharness_book(self):
+        """The session's benchmark harness book, as data (M-255).
+
+        The held registry's book when the session holds
+        records or reports one by one - otherwise the book
+        boarded whole through
+        :meth:`record_benchmarkharness_records`, or the shipped
+        harness registry with nothing held until a record
+        or report is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._benchmarkharness_registry()
+        if registry.list_records() or registry.list_reports():
+            held = getattr(self, "_benchmarkharness_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [(r["kind"], r["run"])
+                     for r in held["records"]]
+                    == [(r["kind"], r["run"])
+                        for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_benchmarkharness_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _benchmarkharness_effective_record(self, kind: Any,
+                                      run: Any):
+        """The record a run's standing is derived from (M-255).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on, no tests graded and no rubric carried - so an
+        unheld run derives an honest open standing naming
+        its gaps, never a dressed claim: an absent run
+        reads as unknown. An unknown kind refuses by name
+        through the shipped registry first.
+        """
+        from ..core.benchmark_harness import RunRecord
+        registry = self._benchmarkharness_registry()
+        registry.kinds().get(kind)
+        try:
+            return registry.get_record(kind, run)
+        except ValueError:
+            return RunRecord(
+                kind=kind, run=run,
+                task="B-01", category="bugfix",
+                title="(no run recorded)",
+                sandbox="(no run recorded)",
+                tests_passed=0,
+                tests_total=0,
+                rubric_criteria=(), rubric_met=(),
+                stages=(), claims=())
+
+    def _benchmarkharness_screen(self) -> str:
+        """The /benchmarkharness screen for the session (M-255)."""
+        from ..core.benchmark_harness import (
+            format_kinds, format_record)
+        registry = self._benchmarkharness_registry()
+        lines = [format_kinds(registry.kinds())]
+        records = registry.list_records()
+        if not records:
+            lines.append(
+                "Benchmark runs: none recorded this "
+                "session - a run passes only when it "
+                "rests on held evidence and is graded by "
+                "tests and the diff review rubric "
+                "together, and no run stands as passed "
+                "until it is recorded.")
+        else:
+            lines.extend(format_record(record)
+                         for record in records)
+        lines.extend(_bh_report_text(report)
+                     for report in registry.list_reports())
+        return "\n".join(lines)
+
+    def benchmarkharness_status(self) -> dict[str, Any]:
+        """The benchmark harness account, in plain data (M-255).
+
+        The shipped harness registry's entries and the
+        run records and run reports held this session as
+        plain records (empty until held), the session
+        book's record (the shipped harness registry with
+        nothing held - until items are held), the records
+        standing held and still open derived at call time,
+        the index and verdict derived at call time, the
+        kinds and records told in plain words through the
+        pure formatters, and the plain explanation. A
+        session holding no record for a run derives that
+        run's open standing. Resolution registers and
+        publishes nothing, runs no task, creates no
+        sandbox and executes no grading test: this layer
+        tells only.
+        """
+        from ..core import benchmark_harness as camp_module
+        registry = self._benchmarkharness_registry()
+        held_records = registry.list_records()
+        book = self.benchmarkharness_book()
+        index = self.benchmarkharness_index()
+        return {
+            "records": [_bh_record_dict(r)
+                        for r in held_records],
+            "kinds": [_bh_kind_dict(e)
+                        for e in registry.kinds().entries()],
+            "book": (book if held_records
+                     or registry.list_reports()
+                     or getattr(self, "_benchmarkharness_held",
+                                None) is not None else None),
+            "benchmarkharness_book": {
+                "schema": camp_module.BENCHMARK_HARNESS_SCHEMA,
+                "kinds": book["kinds"],
+                "records": book["records"],
+                "reports": book["reports"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.benchmarkharness_verdict()["verdict"],
+            "kinds_text": camp_module.format_kinds(
+                registry.kinds()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "reports": [_bh_report_dict(d)
+                       for d in registry.list_reports()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._benchmarkharness_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": BENCHMARKHARNESS_USAGE,
+        }
+
+    def get_benchmarkharness_kind(self, kind: Any):
+        """The one kind entry a kind name names (M-255).
+
+        The shipped harness registry answers: a kind the
+        harness book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._benchmarkharness_registry().kinds().get(kind)
+
+    def get_benchmarkharness_record(self, kind: Any, run: Any):
+        """The one record a kind and run name (M-255).
+
+        The session's held registry answers: a run the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._benchmarkharness_registry().get_record(kind, run)
+
+    def benchmarkharness_standing(self, kind: Any, run: Any):
+        """Derive one run's standing (M-255).
+
+        The standing is derived at call time by the pure
+        layer from the run's effective record - the held
+        record, or the honest empty record while none
+        stands held: held only on a full legal walk
+        resting on held evidence, with tests all passing
+        and the diff review rubric fully met, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.benchmark_harness import derive_standing
+        registry = self._benchmarkharness_registry()
+        return derive_standing(
+            self._benchmarkharness_effective_record(kind, run),
+            registry.kinds())
+
+    def runs_for_category(self, category: Any):
+        """The held records resting on one category (M-255)."""
+        from ..core.benchmark_harness import CATEGORIES
+        if category is None or not str(category).strip():
+            raise ValueError(
+                "a category must be named to list its runs")
+        if category not in CATEGORIES:
+            raise ValueError(
+                f"unknown benchmark category {category!r}; the "
+                "benchmark harness book names: "
+                + ", ".join(CATEGORIES))
+        return [r for r in
+                self._benchmarkharness_registry().list_records()
+                if r.category == category]
+
+    def benchmarkharness_held(self):
+        """The records whose standing stands held (M-255)."""
+        registry = self._benchmarkharness_registry()
+        return [f"{r.kind}/{r.run}"
+                for r in registry.list_records()
+                if self.benchmarkharness_standing(
+                    r.kind, r.run).held]
+
+    def benchmarkharness_index(self) -> dict[str, Any]:
+        """Derive the benchmark index at call time (M-255).
+
+        The index is derived from every held record
+        alone - each held record's derived standing, the
+        held records named and the open records named in
+        its gaps. Deriving registers and publishes nothing,
+        runs no task and probes no network.
+        Returns the derived index record, the rendered
+        records, the screen and the plain explanation.
+        """
+        from ..core import benchmark_harness as camp_module
+        registry = self._benchmarkharness_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.benchmarkharness_standing(
+                record.kind, record.run)
+            standings.append({
+                "kind": record.kind,
+                "run": record.run,
+                **_bh_standing_dict(standing)})
+        index = {
+            "type": "benchmarkharness_index",
+            "slice": camp_module.BENCHMARK_HARNESS_SLICE,
+            "schema": camp_module.BENCHMARK_HARNESS_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['kind']}/{s['run']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['kind']}/{s['run']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._benchmarkharness_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def benchmarkharness_verdict(self) -> dict[str, Any]:
+        """Derive the benchmark verdict at call time (M-255).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and every
+        held record's standing stands held on held
+        evidence, graded by tests and the rubric together,
+        ``open`` while no record stands held or any held
+        record stands short of held - with the held and
+        open records named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import benchmark_harness as camp_module
+        registry = self._benchmarkharness_registry()
+        records = registry.list_records()
+        held = self.benchmarkharness_held()
+        open_keys = [f"{r.kind}/{r.run}"
+                     for r in records
+                     if f"{r.kind}/{r.run}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Benchmark harness stands held: every recorded "
+                "run is graded by tests and the diff review "
+                "rubric together and rests on held "
+                "evidence - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Benchmark harness stands open: no benchmark "
+                "run is recorded this session - an "
+                "absent run reads as unknown, never "
+                "as a passed result.")
+        else:
+            word = "open"
+            telling = (
+                "Benchmark harness stands open: a run is "
+                "passed only when it is graded on held "
+                "evidence by tests and the rubric together, "
+                "and these runs "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "benchmarkharness_verdict",
+            "slice": camp_module.BENCHMARK_HARNESS_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._benchmarkharness_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_benchmarkharness_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one run's record for the session (M-255).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        kind, task, category or evidence kind refuses by
+        name on this road too, and a refusal holds nothing
+        new and publishes nothing. A held record is
+        published as its ``benchmarkharness_record``
+        session-news record through the checkpoint road.
+        Returns the held record, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a record runs no task,
+        creates no sandbox and executes no grading test:
+        the telling stands on this layer's book, as data.
+        """
+        from ..core import benchmark_harness as camp_module
+        registry = self._benchmarkharness_registry()
+        held = registry.register_record(record)
+        news = {"type": "benchmarkharness_record",
+                **_bh_record_dict(held)}
+        self._publish_benchmarkharness_record(news)
+        return {
+            "record": _bh_record_dict(held),
+            "record_news": news,
+            "screen": self._benchmarkharness_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_benchmarkharness_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of run records for the session (M-255).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order given.
+        Returns the held records, their news records,
+        the count of records held, the screen, and the
+        explanation. Registering runs no task and probes
+        no network.
+        """
+        from ..core import benchmark_harness as camp_module
+        registry = self._benchmarkharness_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "benchmarkharness_record", **_bh_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_benchmarkharness_record(news)
+        return {
+            "records": [_bh_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._benchmarkharness_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_benchmarkharness_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of run records (M-255).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its kind and run keys and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held book,
+        its records, their news records, the count, the
+        screen, and the explanation. Recording runs no
+        task, creates no sandbox and executes no test.
+        """
+        from ..core import benchmark_harness as camp_module
+        validated = [_bh_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._benchmarkharness_registry().kinds())
+        fingerprint = (
+            tuple((r.kind, r.run) for r in validated),
+            camp_module.BENCHMARK_HARNESS_SCHEMA)
+        boarded = getattr(self, "_benchmarkharness_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._benchmarkharness_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these run records are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._benchmarkharness_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._benchmarkharness_held = registry.book()
+        news_records = [
+            {"type": "benchmarkharness_record", **_bh_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_benchmarkharness_record(news)
+        return {
+            "book": self._benchmarkharness_held,
+            "records": [_bh_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._benchmarkharness_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_benchmarkharness(
+            self, kind: Any, run: Any) -> dict[str, Any]:
+        """Stand one run's standing on the session book (M-255).
+
+        This is the book's own viewing road: the run's
+        kind entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        run's effective record, and published as its
+        ``benchmarkharness_standing`` session news, with the held
+        record published as its ``benchmarkharness_record``
+        session news when one stands held. Returns the
+        kind's entry, its derived standing, the held
+        record when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        runs as data alone - it runs no task, creates no
+        sandbox, executes no grading test and inflates
+        nothing here.
+        """
+        from ..core import benchmark_harness as camp_module
+        entry = self.get_benchmarkharness_kind(kind)
+        standing = self.benchmarkharness_standing(kind, run)
+        try:
+            held = self.get_benchmarkharness_record(kind, run)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "benchmarkharness_record",
+                           **_bh_record_dict(held)}
+            self._publish_benchmarkharness_record(record_news)
+        standing_news = {
+            "type": "benchmarkharness_standing", "kind": kind,
+            "run": run, **_bh_standing_dict(standing)}
+        self._publish_benchmarkharness_record(standing_news)
+        return {
+            "kind": _bh_kind_dict(entry),
+            "standing": {"kind": kind, "run": run,
+                         **_bh_standing_dict(standing)},
+            "record": (_bh_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._benchmarkharness_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def prepare_benchmarkharness_report(
+            self, kind: Any, entry: Any, run: Any,
+            report: Any, state: Any = "ready"
+            ) -> dict[str, Any]:
+        """Prepare one run report for the session (M-255).
+
+        The report is shaped by the pure layer alone -
+        it stands at state ready by default, may be
+        marked ``shared`` by a human, and a state
+        word outside ready/shared refuses by name;
+        a report is never inflated here and no
+        run is graded on this road. A held report
+        is published as its ``benchmarkharness_report``
+        session-news record through the checkpoint road.
+        Returns the held report, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Preparing runs no task and grades
+        nothing here.
+        """
+        from ..core import benchmark_harness as camp_module
+        registry = self._benchmarkharness_registry()
+        report = registry.hold_report(kind, entry, run,
+                                       report,
+                                       state=state)
+        news = {"type": "benchmarkharness_report",
+                **_bh_report_dict(report)}
+        self._publish_benchmarkharness_record(news)
+        return {
+            "report": _bh_report_dict(report),
+            "report_news": news,
+            "screen": self._benchmarkharness_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def get_benchmarkharness_report(self, kind: Any):
+        """The one report a kind names (M-255).
+
+        The session's held registry answers: a kind
+        the session holds no report for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._benchmarkharness_registry().get_report(kind)
+
+    def benchmarkharness_reports(self) -> list:
+        """The run reports held for the session (M-255)."""
+        return self._benchmarkharness_registry().list_reports()
+
+    def report_benchmarkharness(self) -> dict[str, Any]:
+        """Render the session benchmark harness, as a report (M-255).
+
+        The shipped harness registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, runs no task, creates no
+        sandbox and executes no test. Returns the book,
+        the kinds, held records and reports as plain
+        records, the derived standings, the rendered
+        kinds and records, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import benchmark_harness as camp_module
+        registry = self._benchmarkharness_registry()
+        book = self.benchmarkharness_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.benchmarkharness_standing(
+                record.kind, record.run)
+            standings.append({
+                "kind": record.kind,
+                "run": record.run,
+                **_bh_standing_dict(standing)})
+        return {
+            "book": book,
+            "kinds": [_bh_kind_dict(e)
+                        for e in registry.kinds().entries()],
+            "records": [_bh_record_dict(r)
+                        for r in registry.list_records()],
+            "reports": [_bh_report_dict(d)
+                       for d in registry.list_reports()],
+            "standings": standings,
+            "index": self.benchmarkharness_index()["index"],
+            "verdict": self.benchmarkharness_verdict()["verdict"],
+            "kinds_text": camp_module.format_kinds(
+                registry.kinds()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._benchmarkharness_effective_record(
+                        r.kind, r.run))
+                for r in registry.list_records()),
+            "screen": self._benchmarkharness_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_benchmarkharness_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one run record as session news (M-255).
+
+        The agent layer's ``benchmarkharness_record``,
+        ``benchmarkharness_standing`` and
+        ``benchmarkharness_report`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is granted. Each
+        record is announced at most once per telling: a
+        record under its kind, its run, its task, its
+        category, its title, its sandbox, its tests
+        passed and total, its rubric criteria and met,
+        its walked stages and its claims, a standing under
+        its kind, its run, its held word, its stage,
+        its grade and its gaps, and a report under
+        its kind, its entry, its run, its report
+        and its state, so a standing grown by a newly
+        held record announces again as the new figure it
+        is. A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "benchmarkharness_record":
+            target = ("benchmarkharness_record",
+                      record.get("kind"),
+                      record.get("run"),
+                      record.get("task"),
+                      record.get("category"),
+                      record.get("title"),
+                      record.get("sandbox"),
+                      record.get("tests_passed"),
+                      record.get("tests_total"),
+                      tuple(record.get("rubric_criteria", [])),
+                      tuple(record.get("rubric_met", [])),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "benchmarkharness_standing":
+            target = ("benchmarkharness_standing",
+                      record.get("kind"),
+                      record.get("run"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("grade"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "benchmarkharness_report":
+            target = ("benchmarkharness_report",
+                      record.get("kind"),
+                      record.get("entry"),
+                      record.get("run"),
+                      record.get("report"),
+                      record.get("state"))
+        else:
+            return
+        announced = getattr(self, "_benchmarkharness_announced", None)
+        if announced is None:
+            announced = set()
+            self._benchmarkharness_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
     def _mcpserver_registry(self):
         """The held service registry (M-234).
 
