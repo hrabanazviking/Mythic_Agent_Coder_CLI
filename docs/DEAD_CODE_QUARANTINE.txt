@@ -1322,3 +1322,10 @@ mythic_agent/agents/llm.py:89370:record_privacyaudit_records:method
 mythic_agent/agents/llm.py:89419:view_privacyaudit:method
 mythic_agent/agents/llm.py:89465:prepare_privacyaudit_report:method
 mythic_agent/agents/llm.py:89525:report_privacyaudit:method
+mythic_agent/agents/llm.py:90105:gates_for_disposition:method
+mythic_agent/agents/llm.py:90219:register_accessibilityfinal_record:method
+mythic_agent/agents/llm.py:90249:register_accessibilityfinal_records:method
+mythic_agent/agents/llm.py:90279:record_accessibilityfinal_records:method
+mythic_agent/agents/llm.py:90328:view_accessibilityfinal:method
+mythic_agent/agents/llm.py:90374:prepare_accessibilityfinal_report:method
+mythic_agent/agents/llm.py:90434:report_accessibilityfinal:method
