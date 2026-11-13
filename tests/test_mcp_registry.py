@@ -434,8 +434,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 253
-    assert citizen["next_slice"] == "M-254"
+    assert citizen["done"] == 254
+    assert citizen["next_slice"] == "M-255"
     assert citizen["m235_title"] == "MCP registry kindness"
     assert citizen["m235_part"] == 10
     assert citizen["m235_status"] == "done"
@@ -910,8 +910,8 @@ class TestListingAgentStatus:
         assert status["ledger"]["current_listing"] == "listing-bare-listing"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 253
-        assert status["roadmap"]["next_slice"] == "M-254"
+        assert status["roadmap"]["done"] == 254
+        assert status["roadmap"]["next_slice"] == "M-255"
         assert status["roadmap"]["m235_title"] == "MCP registry kindness"
         assert "held as data alone" in status["rule"]
         assert "listing-bare-listing" in status["plain_words"]
