@@ -1585,7 +1585,7 @@ slices:
   title: Security audit
   summary: the Part V doctrine + M-118 red-team pack + an independent read of the sandbox/jail code, findings
     fixed or roaded with owners.
-  status: queued
+  status: done
 - id: M-261
   part: 11
   title: Privacy audit

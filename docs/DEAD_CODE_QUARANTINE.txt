@@ -1308,3 +1308,10 @@ mythic_agent/agents/llm.py:87524:record_platformmatrixfinal_records:method
 mythic_agent/agents/llm.py:87573:view_platformmatrixfinal:method
 mythic_agent/agents/llm.py:87619:prepare_platformmatrixfinal_report:method
 mythic_agent/agents/llm.py:87679:report_platformmatrixfinal:method
+mythic_agent/agents/llm.py:88272:records_for_disposition:method
+mythic_agent/agents/llm.py:88386:register_securityaudit_record:method
+mythic_agent/agents/llm.py:88416:register_securityaudit_records:method
+mythic_agent/agents/llm.py:88446:record_securityaudit_records:method
+mythic_agent/agents/llm.py:88495:view_securityaudit:method
+mythic_agent/agents/llm.py:88541:prepare_securityaudit_report:method
+mythic_agent/agents/llm.py:88601:report_securityaudit:method
