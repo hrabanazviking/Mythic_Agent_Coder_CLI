@@ -2,18 +2,19 @@
 
 > **GENERATED FILE — do not edit by hand.**
 > Regenerate with: `python scripts/gen_ownership.py`
-> Generated at: 2026-11-13T03:39:12Z
+> Generated at: 2026-11-13T05:16:53Z
 
 Ownership is derived from real git history: for each module the owner is the top author by commit count touching that file (ties resolve to the most recently active author). Share is the owner's commit count divided by the total commit count on the file.
 
 ## Per-author rollup
 
-Total modules: **374**
+Total modules: **375**
 
 | Author | Modules owned | File commits | Share of modules |
 | --- | ---: | ---: | ---: |
-| Volmarr Wyrd | 213 | 1107 | 57.0% |
-| Yrsa Freydisdottir | 161 | 279 | 43.0% |
+| Volmarr Wyrd | 213 | 1111 | 56.8% |
+| Yrsa Freydisdottir | 161 | 279 | 42.9% |
+| Yrsa | 1 | 1 | 0.3% |
 
 ## Per-module ownership
 
@@ -22,9 +23,9 @@ Total modules: **374**
 | `mythic_agent/__init__.py` | Volmarr Wyrd | 100.0% | 1 / 1 | 2026-06-05 |
 | `mythic_agent/__version__.py` | Yrsa Freydisdottir | 100.0% | 1 / 1 | 2026-10-09 |
 | `mythic_agent/agents/__init__.py` | Volmarr Wyrd | 100.0% | 1 / 1 | 2026-06-06 |
-| `mythic_agent/agents/command_handler.py` | Volmarr Wyrd | 79.2% | 187 / 236 | 2026-11-12 |
+| `mythic_agent/agents/command_handler.py` | Volmarr Wyrd | 79.3% | 188 / 237 | 2026-11-12 |
 | `mythic_agent/agents/context.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
-| `mythic_agent/agents/llm.py` | Volmarr Wyrd | 80.3% | 208 / 259 | 2026-11-12 |
+| `mythic_agent/agents/llm.py` | Volmarr Wyrd | 80.4% | 209 / 260 | 2026-11-12 |
 | `mythic_agent/agents/parallel.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
 | `mythic_agent/agents/planning.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
 | `mythic_agent/agents/prompts.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
@@ -235,6 +236,7 @@ Total modules: **374**
 | `mythic_agent/core/recovery.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
 | `mythic_agent/core/red_team.py` | Volmarr Wyrd | 100.0% | 1 / 1 | 2026-11-07 |
 | `mythic_agent/core/redaction.py` | Yrsa Freydisdottir | 80.0% | 4 / 5 | 2026-10-10 |
+| `mythic_agent/core/regression_court.py` | Yrsa | 100.0% | 1 / 1 | 2026-11-12 |
 | `mythic_agent/core/remembered_approvals.py` | Volmarr Wyrd | 100.0% | 1 / 1 | 2026-11-06 |
 | `mythic_agent/core/remote_work.py` | Volmarr Wyrd | 100.0% | 1 / 1 | 2026-11-07 |
 | `mythic_agent/core/rename_move.py` | Volmarr Wyrd | 100.0% | 2 / 2 | 2026-11-06 |
@@ -351,7 +353,7 @@ Total modules: **374**
 | `mythic_agent/providers/vision.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-31 |
 | `mythic_agent/providers/vllm.py` | Yrsa Freydisdottir | 100.0% | 1 / 1 | 2026-10-10 |
 | `mythic_agent/resources.py` | Yrsa Freydisdottir | 66.7% | 2 / 3 | 2026-10-10 |
-| `mythic_agent/terminal.py` | Volmarr Wyrd | 80.5% | 186 / 231 | 2026-11-12 |
+| `mythic_agent/terminal.py` | Volmarr Wyrd | 80.6% | 187 / 232 | 2026-11-12 |
 | `mythic_agent/tools/__init__.py` | Yrsa Freydisdottir | 100.0% | 1 / 1 | 2026-10-09 |
 | `mythic_agent/tools/asset_sight.py` | Yrsa Freydisdottir | 100.0% | 1 / 1 | 2026-11-02 |
 | `mythic_agent/tools/code_index.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
@@ -386,7 +388,7 @@ Total modules: **374**
 | `mythic_agent/ui/main_app.py` | Volmarr Wyrd | 75.0% | 6 / 8 | 2026-10-10 |
 | `mythic_agent/ui/markdown.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
 | `mythic_agent/ui/screens/__init__.py` | Volmarr Wyrd | 100.0% | 1 / 1 | 2026-06-06 |
-| `mythic_agent/ui/screens/chat_screen.py` | Volmarr Wyrd | 87.9% | 211 / 240 | 2026-11-12 |
+| `mythic_agent/ui/screens/chat_screen.py` | Volmarr Wyrd | 88.0% | 212 / 241 | 2026-11-12 |
 | `mythic_agent/ui/screens/setup_screen.py` | Volmarr Wyrd | 90.9% | 10 / 11 | 2026-10-10 |
 | `mythic_agent/ui/screens/splash_screen.py` | Volmarr Wyrd | 66.7% | 2 / 3 | 2026-10-10 |
 | `mythic_agent/ui/shortcuts.py` | Yrsa Freydisdottir | 100.0% | 2 / 2 | 2026-10-10 |
@@ -428,9 +430,9 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
     {
       "module": "mythic_agent/agents/command_handler.py",
       "owner": "Volmarr Wyrd",
-      "owner_commits": 187,
-      "total_commits": 236,
-      "share": 0.7924,
+      "owner_commits": 188,
+      "total_commits": 237,
+      "share": 0.7932,
       "last_touch": "2026-11-12"
     },
     {
@@ -444,9 +446,9 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
     {
       "module": "mythic_agent/agents/llm.py",
       "owner": "Volmarr Wyrd",
-      "owner_commits": 208,
-      "total_commits": 259,
-      "share": 0.8031,
+      "owner_commits": 209,
+      "total_commits": 260,
+      "share": 0.8038,
       "last_touch": "2026-11-12"
     },
     {
@@ -2130,6 +2132,14 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
       "last_touch": "2026-10-10"
     },
     {
+      "module": "mythic_agent/core/regression_court.py",
+      "owner": "Yrsa",
+      "owner_commits": 1,
+      "total_commits": 1,
+      "share": 1.0,
+      "last_touch": "2026-11-12"
+    },
+    {
       "module": "mythic_agent/core/remembered_approvals.py",
       "owner": "Volmarr Wyrd",
       "owner_commits": 1,
@@ -3060,9 +3070,9 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
     {
       "module": "mythic_agent/terminal.py",
       "owner": "Volmarr Wyrd",
-      "owner_commits": 186,
-      "total_commits": 231,
-      "share": 0.8052,
+      "owner_commits": 187,
+      "total_commits": 232,
+      "share": 0.806,
       "last_touch": "2026-11-12"
     },
     {
@@ -3340,9 +3350,9 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
     {
       "module": "mythic_agent/ui/screens/chat_screen.py",
       "owner": "Volmarr Wyrd",
-      "owner_commits": 211,
-      "total_commits": 240,
-      "share": 0.8792,
+      "owner_commits": 212,
+      "total_commits": 241,
+      "share": 0.8797,
       "last_touch": "2026-11-12"
     },
     {
@@ -3398,14 +3408,19 @@ Tests parse this section. Do not hand-edit; regenerate with the script.
     {
       "author": "Volmarr Wyrd",
       "modules_owned": 213,
-      "file_commits": 1107
+      "file_commits": 1111
     },
     {
       "author": "Yrsa Freydisdottir",
       "modules_owned": 161,
       "file_commits": 279
+    },
+    {
+      "author": "Yrsa",
+      "modules_owned": 1,
+      "file_commits": 1
     }
   ],
-  "total_modules": 374
+  "total_modules": 375
 }
 ```
