@@ -53,7 +53,7 @@ PLAIN_EXPLANATION = (
     "PARTIAL only where the proven part rests "
     "on held evidence and the rest is owned in "
     "the open, and NOT PROVEN only with its "
-    "reason recorded - never silent, never ",
+    "reason recorded - never silent, never "
     "inflated, never dressed as proven.")
 USAGE = (
     "Record each family finding against its "
@@ -67,7 +67,7 @@ USAGE = (
     "every family answered - proven, partial "
     "or not proven, each in the open - and "
     "let a human share it. The whole changelog "
-    "book, answered family by family, as data ",
+    "book, answered family by family, as data "
     "first.")
 
 

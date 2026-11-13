@@ -6142,6 +6142,305 @@ def parse_costofquality_args(args: Any):
     raise ValueError(COSTOFQUALITY_USAGE)
 
 
+#: The /truthfulchangelog slash grammar (M-268, agent layer).
+TRUTHFULCHANGELOG_USAGE = (
+    "Usage: /truthfulchangelog | /truthfulchangelog families | "
+    "/truthfulchangelog family <family> | /truthfulchangelog record "
+    "<family> | /truthfulchangelog standing "
+    "<family> | /truthfulchangelog report | "
+    "/truthfulchangelog report <book> | "
+    "/truthfulchangelog index | /truthfulchangelog verdict")
+
+
+def _tc_entry_dict(entry: Any) -> dict[str, Any]:
+    """One audit family registry entry, as plain data (M-268)."""
+    return {"id": entry.id, "doctrine": entry.doctrine,
+            "subject": entry.subject,
+            "standing": entry.standing, "reason": entry.reason}
+
+
+
+def _tc_record_dict(record: Any) -> dict[str, Any]:
+    """One truth-proof changelog record, as plain data (M-268)."""
+    return {"family": record.family,
+            "work": record.work,
+            "date": record.date,
+            "disposition": record.disposition,
+            "owner": record.owner,
+            "proof_kind": record.proof_kind,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+
+def _tc_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived run standing, as plain data (M-268)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "grade": standing.grade,
+            "gaps": list(standing.gaps)}
+
+
+def _tc_report_dict(report: Any) -> dict[str, Any]:
+    """One changelog report, as plain data (M-268)."""
+    return {"book": report.book,
+            "entry": report.entry, "report": report.report,
+            "date": report.date,
+            "proven_count": report.proven_count,
+            "partial_count": report.partial_count,
+            "not_proven_count": report.not_proven_count,
+            "total_families": report.total_families,
+            "claims": list(report.claims),
+            "state": report.state, "certified": report.certified,
+            "inflated": report.inflated}
+
+
+
+def _tc_report_text(report: Any) -> str:
+    """One changelog report told in plain words (M-268)."""
+    return (f"{report.book} <- {report.entry}: "
+            f"report - {report.report} (state: "
+            f"{report.state}; a report is never "
+            "inflated here)")
+
+
+
+def _tc_coerce_record(record: Any):
+    """A changelog record from a record or a plain telling (M-268)."""
+    from ..core.truthful_changelog import TruthfulChangelogRecord
+    if isinstance(record, TruthfulChangelogRecord):
+        return record
+    if isinstance(record, dict):
+        return TruthfulChangelogRecord(
+            family=record["family"],
+            work=record["work"],
+            date=record["date"],
+            disposition=record["disposition"],
+            owner=record["owner"],
+            proof_kind=record["proof_kind"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return TruthfulChangelogRecord(
+        family=record.family, work=record.work,
+        date=record.date,
+        disposition=record.disposition,
+        owner=record.owner,
+        proof_kind=record.proof_kind,
+        stages=tuple(record.stages),
+        claims=tuple(record.claims))
+
+
+class TruthfulChangelogRegistry:
+    """Session registry for the Truthful changelog (M-268).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.truthful_changelog``):
+    it holds the shipped family registry (one entry per
+    family of the road, held as data) beside the
+    changelog records held one by one for the session,
+    one record per family, and the privacy
+    reports held for the session, one report per book. A
+    record is validated whole by the pure layer before it
+    is held - a record naming an unknown family,
+    stage or evidence kind refuses by name here too, and a
+    refusal holds nothing new. A second record for a
+    family already held refuses likewise.
+    Reports are held only through the pure layer's report
+    road - state ready by default, may be marked shared by
+    a human, a certification claimed only when every
+    combination stands answered, and never inflated:
+    the report tells the findings exactly as they
+    stand. Holding runs no test, times no start and
+    probes no network: the registry holds tellings as
+    data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.truthful_changelog import default_registry
+        self._family_registry = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._reports: dict[str, Any] = {}
+
+    def families(self):
+        """The shipped family registry held by the session."""
+        return self._family_registry
+
+    def register_record(self, record: Any):
+        """Hold one changelog record, validated whole.
+
+        A second record for a family already
+        held refuses, and a refusal holds nothing new.
+        """
+        held = _tc_coerce_record(record)
+        held.validate(self._family_registry)
+        key = held.family
+        if key in self._records:
+            raise ValueError(
+                "a care record for family "
+                f"{held.family!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, family: Any):
+        """The held record for one family."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(family)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no care record "
+                f"for family {family!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of changelog records, validated whole.
+
+        Every record is validated, and guideed against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _tc_coerce_record(record)
+            held.validate(self._family_registry)
+            key = held.family
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "a care record for family "
+                    f"{held.family!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[held.family] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The changelog records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the records and the reports."""
+        return (list(self._records.values())
+                + list(self._reports.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.truthful_changelog import derive_standing
+        return [derive_standing(record, self._family_registry)
+                for record in self._records.values()]
+
+    def hold_report(self, book: Any, entry: Any,
+                      report: Any, date: Any,
+                      proven_count: Any, partial_count: Any,
+                      not_proven_count: Any,
+                      total_families: Any,
+                      claims: Any = (),
+                      state: Any = "ready",
+                      certified: Any = False):
+        """Prepare one changelog report, held for the session.
+
+        The report is shaped by the pure layer alone -
+        a state word outside ready/shared refuses by name
+        there, a certification short of every family answered
+        refuses there, and a report is never inflated. A
+        second report for a book already held refuses
+        likewise.
+        """
+        from ..core.truthful_changelog import prepare_report
+        report = prepare_report(book, entry, report,
+                                 date, proven_count,
+                                 partial_count,
+                                 not_proven_count,
+                                 total_families,
+                                 claims=tuple(claims),
+                                 state=state, certified=certified)
+        if report.book in self._reports:
+            raise ValueError(
+                "an changelog report for book "
+                f"{report.book!r} already stands held "
+                "for the session")
+        self._reports[report.book] = report
+        return report
+
+    def get_report(self, book: Any):
+        """The held changelog report for one book."""
+        from ..core.validation import ValidationError
+        try:
+            return self._reports[book]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no changelog report for "
+                f"book {book!r}") from None
+
+    def list_reports(self) -> list:
+        """The changelog reports held, in hold order."""
+        return list(self._reports.values())
+
+    def book(self):
+        """The held pieces composed as a Truthful changelog book.
+
+        The book is plain data: the shipped family
+        registry's entries beside the changelog records
+        and changelog reports held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.truthful_changelog import TRUTHFUL_CHANGELOG_SCHEMA
+        return {
+            "schema": TRUTHFUL_CHANGELOG_SCHEMA,
+            "families": [_tc_entry_dict(entry)
+                        for entry in self._family_registry.entries()],
+            "records": [_tc_record_dict(record)
+                        for record in self._records.values()],
+            "reports": [_tc_report_dict(verdict)
+                       for verdict in self._reports.values()],
+        }
+
+
+def parse_truthfulchangelog_args(args: Any):
+    """Parse /truthfulchangelog arguments (M-268).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``families``, ``index`` and ``verdict`` name
+    their own stance with no target; ``family <family>``
+    names one family; ``record <family>`` and
+    ``standing <family>`` name one family alone - an audit
+    record is keyed by its family, never by a pair;
+    ``report <book>`` names one book and the bare
+    ``report`` stance names the session's audit
+    reports. Anything else raises ValueError carrying
+    the usage line, exactly as the sibling parsers
+    refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("families", "index", "verdict"):
+        if rest:
+            raise ValueError(TRUTHFULCHANGELOG_USAGE)
+        return (head, None, (), None)
+    if head == "family":
+        if len(rest) != 1:
+            raise ValueError(TRUTHFULCHANGELOG_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 1:
+            raise ValueError(TRUTHFULCHANGELOG_USAGE)
+        return (head, rest[0], (), None)
+    if head == "report":
+        if not rest:
+            return ("reports", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(TRUTHFULCHANGELOG_USAGE)
+        return ("report", rest[0], (), None)
+    raise ValueError(TRUTHFULCHANGELOG_USAGE)
+
+
 #: The /docsmcp slash grammar (M-252, agent layer).
 DOCSMCP_USAGE = (
     "Usage: /docsmcp | /docsmcp projects | "
@@ -95141,6 +95440,634 @@ class Agent:
         if announced is None:
             announced = set()
             self._costofquality_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+    def _truthfulchangelog_registry(self):
+        """The held truth-proof registry (M-268).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped family registry beside the session's
+        changelog records and changelog reports one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_truthfulchangelog_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_truthfulchangelog_store", None)
+        if registry is None:
+            registry = TruthfulChangelogRegistry()
+            self._truthfulchangelog_store = registry
+        return registry
+
+    def truthfulchangelog_families(self):
+        """The shipped family registry, as data (M-268).
+
+        One entry per family of the road - C-01..C-12, the twelve doctrine by subject families - held as registry entries, each naming its doctrine, its subject and its listed standing. Resolution registers and publishes
+        nothing, runs no test and probes no
+        network.
+        """
+        return self._truthfulchangelog_registry().families()
+
+    def truthfulchangelog_book(self):
+        """The session's Truthful changelog book, as data (M-268).
+
+        The held registry's book when the session holds
+        records or reports one by one - otherwise the book
+        boarded whole through
+        :meth:`record_truthfulchangelog_records`, or the shipped
+        family registry with nothing held until a record
+        or report is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._truthfulchangelog_registry()
+        if registry.list_records() or registry.list_reports():
+            held = getattr(self, "_truthfulchangelog_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [r["family"] for r in held["records"]]
+                    == [r["family"] for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_truthfulchangelog_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _truthfulchangelog_effective_record(self, family: Any):
+        """The record an family's standing is derived from (M-268).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on, no date, no owner named - so an unheld
+        family derives an honest open standing naming its
+        gaps, never a dressed claim: an absent finding
+        reads as unanswered. An unknown family refuses by
+        name through the shipped registry first.
+        """
+        from ..core.truthful_changelog import TruthfulChangelogRecord
+        registry = self._truthfulchangelog_registry()
+        registry.families().get(family)
+        try:
+            return registry.get_record(family)
+        except ValueError:
+            return TruthfulChangelogRecord(
+                family=family, work="unrecorded",
+                date="",
+                disposition="NOT_PROVEN",
+                owner="",
+                proof_kind="none",
+                stages=(), claims=())
+
+    def _truthfulchangelog_screen(self):
+        """The truthful changelog screen, in plain words (M-268).
+
+        The shipped families first, then the held records
+        told by the pure layer - a held record reads
+        "held as answered" there - then each held
+        report. With no record held, the screen says
+        so plainly: a family counts PROVEN only on
+        held proof measured in the release itself
+        resting on held evidence, and every
+        other family ships PARTIAL or NOT PROVEN with a named owner, in the open.
+        """
+        from ..core.truthful_changelog import (
+            format_families, format_records)
+        registry = self._truthfulchangelog_registry()
+        lines = [format_families(registry.families())]
+        records = registry.list_records()
+        if records:
+            lines.append(format_records(records, registry.families()))
+        else:
+            lines.append(
+                "Truthful changelog records: none recorded "
+                "this session - a family counts PROVEN "
+                "only on held proof measured "
+                "in the release itself resting on "
+                "held evidence, and every "
+                "other family ships PARTIAL or NOT PROVEN with a named "
+                "owner, in the open, never silent.")
+        for report in registry.list_reports():
+            lines.append(_tc_report_text(report))
+        return "\n".join(lines)
+    def truthfulchangelog_status(self) -> dict[str, Any]:
+        """The Truthful changelog account, in plain data (M-268).
+
+        The shipped family registry's entries and the
+        changelog records and changelog reports held this session as
+        plain records (empty until held), the session
+        book's record (the shipped family registry with
+        nothing held - until items are held), the records
+        standing held and still open derived at call time,
+        the index and verdict derived at call time, the
+        families and records told in plain words through the
+        pure formatters, and the plain explanation. A
+        session holding no record for a finding derives that
+        finding's open standing. Resolution registers and
+        publishes nothing, runs no test and probes
+        no network: this layer tells only.
+        """
+        from ..core import truthful_changelog as camp_module
+        registry = self._truthfulchangelog_registry()
+        held_records = registry.list_records()
+        book = self.truthfulchangelog_book()
+        index = self.truthfulchangelog_index()
+        return {
+            "records": [_tc_record_dict(r)
+                        for r in held_records],
+            "families": [_tc_entry_dict(e)
+                        for e in registry.families().entries()],
+            "book": (book if held_records
+                     or registry.list_reports()
+                     or getattr(self, "_truthfulchangelog_held",
+                                None) is not None else None),
+            "truthfulchangelog_book": {
+                "schema": camp_module.TRUTHFUL_CHANGELOG_SCHEMA,
+                "families": book["families"],
+                "records": book["records"],
+                "reports": book["reports"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.truthfulchangelog_verdict()["verdict"],
+            "families_text": camp_module.format_families(
+                registry.families()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "reports": [_tc_report_dict(d)
+                       for d in registry.list_reports()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._truthfulchangelog_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": TRUTHFULCHANGELOG_USAGE,
+        }
+
+    def get_truthfulchangelog_family(self, family: Any):
+        """The one family entry a family name names (M-268).
+
+        The shipped family registry answers: a family the
+        family book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._truthfulchangelog_registry().families().get(family)
+
+    def get_truthfulchangelog_record(self, family: Any):
+        """The one record a family names (M-268).
+
+        The session's held registry answers: a finding the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._truthfulchangelog_registry().get_record(family)
+
+    def truthfulchangelog_standing(self, family: Any):
+        """Derive one finding's standing (M-268).
+
+        The standing is derived at call time by the pure
+        layer from the finding's effective record - the held
+        record, or the honest empty record while none
+        stands held: held only on a full legal walk
+        resting on held evidence, with the
+        finding resting on held evidence, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.truthful_changelog import derive_standing
+        registry = self._truthfulchangelog_registry()
+        return derive_standing(
+            self._truthfulchangelog_effective_record(family),
+            registry.families())
+
+    def families_for_disposition(self, disposition_word: Any):
+        """The held records carrying one disposition (M-268)."""
+        if disposition_word is None or not str(disposition_word).strip():
+            raise ValueError(
+                "a disposition must be named to list its records")
+        return [r for r in
+                self._truthfulchangelog_registry().list_records()
+                if r.disposition == disposition_word]
+
+
+    def truthfulchangelog_held(self):
+        """The records whose standing stands held (M-268)."""
+        registry = self._truthfulchangelog_registry()
+        return [f"{r.family}"
+                for r in registry.list_records()
+                if self.truthfulchangelog_standing(r.family).held]
+
+    def truthfulchangelog_index(self) -> dict[str, Any]:
+        """Derive the Truthful changelog index at call time (M-268).
+
+        The index is derived from every held record
+        alone - each held record's derived standing, the
+        held records named and the open records named in
+        its gaps. Deriving registers and publishes nothing,
+        runs no test and probes no network.
+        Returns the derived index record, the rendered
+        records, the screen and the plain explanation.
+        """
+        from ..core import truthful_changelog as camp_module
+        registry = self._truthfulchangelog_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.truthfulchangelog_standing(record.family)
+            standings.append({
+                "family": record.family,
+                **_tc_standing_dict(standing)})
+        index = {
+            "type": "truthfulchangelog_index",
+            "slice": camp_module.TRUTHFUL_CHANGELOG_SLICE,
+            "schema": camp_module.TRUTHFUL_CHANGELOG_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['family']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['family']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._truthfulchangelog_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def truthfulchangelog_verdict(self) -> dict[str, Any]:
+        """Derive the Truthful changelog verdict at call time (M-268).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and every
+        held record's standing stands held on held
+        code evidence, with every finding
+        resting on held evidence, ``open`` while no record stands held or any held
+        record stands short of held - with the held and
+        open records named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import truthful_changelog as camp_module
+        registry = self._truthfulchangelog_registry()
+        records = registry.list_records()
+        held = self.truthfulchangelog_held()
+        open_keys = [f"{r.family}"
+                     for r in records
+                     if f"{r.family}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Truthful changelog stands held: every recorded "
+                "family rests on held evidence "
+                "and stands answered - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Truthful changelog stands open: no family "
+                "is recorded this session - an absent "
+                "family reads as unknown, never "
+                "as answered.")
+        else:
+            word = "open"
+            telling = (
+                "Truthful changelog stands open: a family "
+                "is held only when it rests on held "
+                "local evidence and stands answered, "
+                "and these families "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "truthfulchangelog_verdict",
+            "slice": camp_module.TRUTHFUL_CHANGELOG_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._truthfulchangelog_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_truthfulchangelog_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one changelog record for the session (M-268).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        family, stage or evidence kind refuses by
+        name on this road too, and a refusal holds nothing
+        new and publishes nothing. A held record is
+        published as its ``truthfulchangelog_record``
+        session-news record through the checkpoint road.
+        Returns the held record, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a record runs no test
+        and probes no network: the telling stands on
+        this layer's book, as data.
+        """
+        from ..core import truthful_changelog as camp_module
+        registry = self._truthfulchangelog_registry()
+        held = registry.register_record(record)
+        news = {"type": "truthfulchangelog_record",
+                **_tc_record_dict(held)}
+        self._publish_truthfulchangelog_record(news)
+        return {
+            "record": _tc_record_dict(held),
+            "record_news": news,
+            "screen": self._truthfulchangelog_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_truthfulchangelog_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of changelog records for the session (M-268).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order given.
+        Returns the held records, their news records,
+        the count of records held, the screen, and the
+        explanation. Registering runs no test and probes
+        no network.
+        """
+        from ..core import truthful_changelog as camp_module
+        registry = self._truthfulchangelog_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "truthfulchangelog_record", **_tc_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_truthfulchangelog_record(news)
+        return {
+            "records": [_tc_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._truthfulchangelog_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_truthfulchangelog_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of changelog records (M-268).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its family key and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held book,
+        its records, their news records, the count, the
+        screen, and the explanation. Recording runs no
+        test and probes no network.
+        """
+        from ..core import truthful_changelog as camp_module
+        validated = [_tc_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._truthfulchangelog_registry().families())
+        fingerprint = (
+            tuple(r.family for r in validated),
+            camp_module.TRUTHFUL_CHANGELOG_SCHEMA)
+        boarded = getattr(self, "_truthfulchangelog_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._truthfulchangelog_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these changelog records are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._truthfulchangelog_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._truthfulchangelog_held = registry.book()
+        news_records = [
+            {"type": "truthfulchangelog_record", **_tc_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_truthfulchangelog_record(news)
+        return {
+            "book": self._truthfulchangelog_held,
+            "records": [_tc_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._truthfulchangelog_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_truthfulchangelog(
+            self, family: Any) -> dict[str, Any]:
+        """Stand one finding's standing on the session book (M-268).
+
+        This is the book's own viewing road: the finding's
+        family entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        finding's effective record, and published as its
+        ``truthfulchangelog_standing`` session news, with the held
+        record published as its ``truthfulchangelog_record``
+        session news when one stands held. Returns the
+        family's entry, its derived standing, the held
+        record when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        findings as data alone - it runs no test,
+        probes no network and inflates nothing here.
+        """
+        from ..core import truthful_changelog as camp_module
+        entry = self.get_truthfulchangelog_family(family)
+        standing = self.truthfulchangelog_standing(family)
+        try:
+            held = self.get_truthfulchangelog_record(family)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "truthfulchangelog_record",
+                           **_tc_record_dict(held)}
+            self._publish_truthfulchangelog_record(record_news)
+        standing_news = {
+            "type": "truthfulchangelog_standing", "family": family,
+            **_tc_standing_dict(standing)}
+        self._publish_truthfulchangelog_record(standing_news)
+        return {
+            "family": _tc_entry_dict(entry),
+            "standing": {"family": family,
+                         **_tc_standing_dict(standing)},
+            "record": (_tc_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._truthfulchangelog_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def prepare_truthfulchangelog_report(
+            self, book: Any, entry: Any, report: Any,
+            date: Any, proven_count: Any, partial_count: Any,
+            not_proven_count: Any, total_families: Any,
+            claims: Any = (),
+            state: Any = "ready",
+            certified: Any = False
+            ) -> dict[str, Any]:
+        """Prepare one changelog report for the session (M-268).
+
+        The report is shaped by the pure layer alone -
+        it stands at state ready by default, may be
+        marked ``shared`` by a human, and a state
+        word outside ready/shared refuses by name;
+        a report is never inflated here, a certification
+        short of every family answered refuses there, and
+        no finding is re-audited on this road. A held report
+        is published as its ``truthfulchangelog_verdict``
+        session-news record through the checkpoint road.
+        Returns the held report, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Preparing audits nothing and
+        runs nothing here.
+        """
+        from ..core import truthful_changelog as camp_module
+        registry = self._truthfulchangelog_registry()
+        report = registry.hold_report(book, entry, report,
+                                       date, proven_count,
+                                       partial_count,
+                                       not_proven_count,
+                                       total_families,
+                                       claims=claims,
+                                       state=state,
+                                       certified=certified)
+        news = {"type": "truthfulchangelog_verdict",
+                **_tc_report_dict(report)}
+        self._publish_truthfulchangelog_record(news)
+        return {
+            "report": _tc_report_dict(report),
+            "report_news": news,
+            "screen": self._truthfulchangelog_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+
+    def get_truthfulchangelog_report(self, book: Any):
+        """The one report a book names (M-268).
+
+        The session's held registry answers: a book
+        the session holds no report for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._truthfulchangelog_registry().get_report(book)
+
+
+    def truthfulchangelog_reports(self) -> list:
+        """The changelog reports held for the session (M-268)."""
+        return self._truthfulchangelog_registry().list_reports()
+
+
+    def report_truthfulchangelog(self) -> dict[str, Any]:
+        """Render the session Truthful changelog, as a verdict (M-268).
+
+        The shipped family registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, runs no test and probes
+        no network. Returns the book,
+        the families, held records and reports as plain
+        records, the derived standings, the rendered
+        families and records, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import truthful_changelog as camp_module
+        registry = self._truthfulchangelog_registry()
+        book = self.truthfulchangelog_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.truthfulchangelog_standing(record.family)
+            standings.append({
+                "family": record.family,
+                **_tc_standing_dict(standing)})
+        return {
+            "book": book,
+            "families": [_tc_entry_dict(e)
+                        for e in registry.families().entries()],
+            "records": [_tc_record_dict(r)
+                        for r in registry.list_records()],
+            "reports": [_tc_report_dict(d)
+                       for d in registry.list_reports()],
+            "standings": standings,
+            "index": self.truthfulchangelog_index()["index"],
+            "verdict": self.truthfulchangelog_verdict()["verdict"],
+            "families_text": camp_module.format_families(
+                registry.families()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._truthfulchangelog_effective_record(r.family))
+                for r in registry.list_records()),
+            "screen": self._truthfulchangelog_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_truthfulchangelog_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one changelog record as session news (M-268).
+
+        The agent layer's ``truthfulchangelog_record``,
+        ``truthfulchangelog_standing`` and
+        ``truthfulchangelog_verdict`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is granted. Each
+        record is announced at most once per telling: a
+        record under its family, its run, its date, its
+        disposition, its owner, its proof kind, its
+        walked stages and its claims, a standing under
+        its family, its held word, its stage, its grade
+        and its gaps, and a report under its book, its
+        entry, its report and its state, so a standing
+        grown by a newly held record announces again
+        as the new figure it is.
+        A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "truthfulchangelog_record":
+            target = ("truthfulchangelog_record",
+                      record.get("family"),
+                      record.get("run"),
+                      record.get("date"),
+                      record.get("disposition"),
+                      record.get("owner"),
+                      record.get("proof_kind"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "truthfulchangelog_standing":
+            target = ("truthfulchangelog_standing",
+                      record.get("family"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("grade"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "truthfulchangelog_verdict":
+            target = ("truthfulchangelog_verdict",
+                      record.get("book"),
+                      record.get("entry"),
+                      record.get("report"),
+                      record.get("state"))
+        else:
+            return
+        announced = getattr(self, "_truthfulchangelog_announced", None)
+        if announced is None:
+            announced = set()
+            self._truthfulchangelog_announced = announced
         if target in announced:
             return
         announced.add(target)
