@@ -527,6 +527,8 @@ class CommandHandler:
                 self._handle_docsmcp(args)
             elif cmd == "/bridgeaudit":
                 self._handle_bridgeaudit(args)
+            elif cmd == "/benchmarkharness":
+                self._handle_benchmarkharness(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -14116,6 +14118,121 @@ class CommandHandler:
                     "verdict_text"]
             else:
                 text = primary.bridgeaudit_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+
+
+    def _handle_benchmarkharness(self, args: str):
+        """M-255: /benchmarkharness - the benchmark harness as data.
+
+        ``/benchmarkharness`` shows the harness held this session -
+        the run kinds as registry entries: one
+        entry per kind, naming the word that kind
+        gives a single run, beside the run records
+        held this session (no run recorded yet when
+        none is held - a run is passed only when a
+        graded run rests on held evidence);
+        ``/benchmarkharness kinds`` shows the whole shipped
+        harness registry; ``/benchmarkharness kind <kind>``
+        shows one kind's registry entry; ``/benchmarkharness
+        record <kind> <run>`` shows the record held
+        for one kind and run; ``/benchmarkharness standing
+        <kind> <run>`` shows the standing derived for
+        one run - held only on a full legal walk resting
+        on held evidence, with tests all passing and the
+        rubric fully met, otherwise
+        open, naming its gaps; ``/benchmarkharness report`` shows
+        the run reports held this session and
+        ``/benchmarkharness report <kind>`` shows one kind's
+        report - a report is never inflated here and no
+        run is graded here on this road; ``/benchmarkharness
+        index`` shows the index derived over every held
+        record; ``/benchmarkharness verdict`` shows the verdict
+        derived for the session. Resolution registers and
+        publishes nothing as session news on this heading:
+        records are held only when they are given
+        through the agent's register roads, stood on the
+        book on the viewing road, or held on the book
+        roads, and every record held for the session is
+        journaled as a benchmarkharness_record session record,
+        every viewed standing as a benchmarkharness_standing
+        session record and every held report as
+        a benchmarkharness_report session record. This heading
+        runs no task, creates no sandbox,
+        executes no grading test and inflates nothing here -
+        holding and telling are words only.
+        """
+        from ..core.benchmark_harness import (
+            format_record,
+            format_kind,
+            format_kinds,
+        )
+        from .llm import parse_benchmarkharness_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_benchmarkharness_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "kinds":
+                text = format_kinds(
+                    primary.benchmarkharness_kinds())
+            elif stance == "kind":
+                text = format_kind(
+                    primary.get_benchmarkharness_kind(target))
+            elif stance == "record":
+                text = format_record(
+                    primary.get_benchmarkharness_record(*target))
+            elif stance == "standing":
+                standing = primary.benchmarkharness_standing(
+                    *target)
+                text = (
+                    f"{target[0]}/{target[1]}: run "
+                    f"{'passed as graded' if standing.held else 'open'} "
+                    f"(stage: {standing.stage}; "
+                    f"grade: {standing.grade})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "reports":
+                reports = primary.benchmarkharness_reports()
+                if not reports:
+                    text = (
+                        "Run report: none held this "
+                        "session - the harness reports run "
+                        "moves only as reports, and a report is "
+                        "never inflated here.")
+                else:
+                    text = "\n".join(
+                        f"{d.kind} -> {d.run}: report - "
+                        f"{d.report} (state: {d.state}; "
+                        "report is never inflated here)"
+                        for d in reports)
+            elif stance == "report":
+                d = primary.get_benchmarkharness_report(target)
+                text = (
+                    f"{d.kind} -> {d.run}: report - "
+                    f"{d.report} (state: {d.state}; "
+                    "report is never inflated here)")
+            elif stance == "index":
+                text = primary.benchmarkharness_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.benchmarkharness_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.benchmarkharness_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
