@@ -1601,7 +1601,7 @@ slices:
   title: The docs completion
   summary: user guide, method guide, bridge guides, and per-part interface notes reconciled with shipped
     code — the Scribe's closing duty, H7-style.
-  status: queued
+  status: done
 - id: M-264
   part: 11
   title: README care
