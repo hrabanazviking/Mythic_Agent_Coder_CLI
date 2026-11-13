@@ -2605,6 +2605,296 @@ def parse_benchmarkharness_args(args: Any):
     raise ValueError(BENCHMARKHARNESS_USAGE)
 
 
+#: The /publishedyardstick slash grammar (M-256, agent layer).
+PUBLISHEDYARDSTICK_USAGE = (
+    "Usage: /publishedyardstick | /publishedyardstick yardsticks | "
+    "/publishedyardstick yardstick <yardstick> | /publishedyardstick record "
+    "<yardstick> <run> | /publishedyardstick standing "
+    "<yardstick> <run> | /publishedyardstick report | "
+    "/publishedyardstick report <yardstick> | "
+    "/publishedyardstick index | /publishedyardstick verdict")
+
+
+def _py_yardstick_dict(entry: Any) -> dict[str, Any]:
+    """One yardstick registry entry, as plain data (M-256)."""
+    return {"id": entry.id, "label": entry.label,
+            "item_word": entry.item_word,
+            "licence": entry.licence,
+            "licence_standing": entry.licence_standing,
+            "max_score": entry.max_score,
+            "standing": entry.standing, "reason": entry.reason}
+
+
+def _py_record_dict(record: Any) -> dict[str, Any]:
+    """One published-yardstick run record, as plain data (M-256)."""
+    return {"yardstick": record.yardstick,
+            "run": record.run,
+            "model": record.model,
+            "cost": record.cost,
+            "date": record.date,
+            "score": record.score,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+def _py_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived run standing, as plain data (M-256)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "grade": standing.grade,
+            "gaps": list(standing.gaps)}
+
+
+def _py_report_dict(report: Any) -> dict[str, Any]:
+    """One run report, as plain data (M-256)."""
+    return {"yardstick": report.yardstick,
+            "entry": report.entry, "run": report.run,
+            "report": report.report,
+            "model": report.model,
+            "cost": report.cost,
+            "date": report.date,
+            "score": report.score,
+            "claims": list(report.claims),
+            "state": report.state, "inflated": report.inflated}
+
+
+def _py_report_text(report: Any) -> str:
+    """One run report told in plain words (M-256)."""
+    return (f"{report.yardstick} <- {report.entry}/{report.run}: "
+            f"report - {report.report} (state: "
+            f"{report.state}; a report is never "
+            "inflated here)")
+
+
+def _py_coerce_record(record: Any):
+    """A run record from a record or a plain telling (M-256)."""
+    from ..core.published_yardstick import RunRecord
+    if isinstance(record, RunRecord):
+        return record
+    if isinstance(record, dict):
+        return RunRecord(
+            yardstick=record["yardstick"],
+            run=record["run"],
+            model=record["model"],
+            cost=record["cost"],
+            date=record["date"],
+            score=record["score"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return RunRecord(
+        yardstick=record.yardstick, run=record.run,
+        model=record.model,
+        cost=record.cost,
+        date=record.date,
+        score=record.score,
+        stages=tuple(record.stages),
+        claims=tuple(record.claims))
+
+class PublishedYardstickRegistry:
+    """Session registry for the published yardsticks (M-256).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.published_yardstick``): it
+    holds the shipped yardstick registry (one entry per
+    public set, held as data) beside the run records held
+    one by one for the session, one record per yardstick and
+    run, and the run reports held for the session, one
+    report per yardstick. A record is validated whole by the
+    pure layer before it is held - a record naming an
+    unknown yardstick, date, cost or evidence kind
+    refuses by name here too, and a refusal holds nothing
+    new. A second record for a yardstick and run already held
+    refuses likewise. Reports are held only through the
+    pure layer's report road - state ready by default,
+    may be marked shared by a human, and never inflated:
+    the yardsticks report runs exactly as they ran, with
+    model, cost and date, and run no benchmark here. Holding runs no benchmark, downloads no
+    set, executes no grading test and probes no
+    network: the registry holds tellings as data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.published_yardstick import default_registry
+        self._yardsticks = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._reports: dict[str, Any] = {}
+
+    def yardsticks(self):
+        """The shipped yardstick registry held by the session."""
+        return self._yardsticks
+
+    def register_record(self, record: Any):
+        """Hold one run record, validated whole.
+
+        A second record for a yardstick and run already held
+        refuses, and a refusal holds nothing new.
+        """
+        held = _py_coerce_record(record)
+        held.validate(self._yardsticks)
+        key = (held.yardstick, held.run)
+        if key in self._records:
+            raise ValueError(
+                "a run record for yardstick "
+                f"{held.yardstick!r} run "
+                f"{held.run!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, yardstick: Any, run: Any):
+        """The held record for one yardstick and run."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(yardstick, run)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no run record "
+                f"for yardstick {yardstick!r} run "
+                f"{run!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of run records, validated whole.
+
+        Every record is validated, and checked against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _py_coerce_record(record)
+            held.validate(self._yardsticks)
+            key = (held.yardstick, held.run)
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "a run record for yardstick "
+                    f"{held.yardstick!r} run "
+                    f"{held.run!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[(held.yardstick, held.run)] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The run records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the records and the reports."""
+        return (list(self._records.values())
+                + list(self._reports.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.published_yardstick import derive_standing
+        return [derive_standing(record, self._yardsticks)
+                for record in self._records.values()]
+
+    def hold_report(self, yardstick: Any, entry: Any,
+                      run: Any, report: Any,
+                      model: Any, cost: Any,
+                      date: Any, score: Any,
+                      claims: Any = (),
+                      state: Any = "ready"):
+        """Prepare one run report, held for the session.
+
+        The report is shaped by the pure layer alone -
+        a state word outside ready/shared refuses by name
+        there, and a report is never inflated. A second
+        report for a yardstick already held refuses likewise.
+        """
+        from ..core.published_yardstick import prepare_report
+        report = prepare_report(yardstick, entry, run,
+                                 report, model, cost,
+                                 date, score,
+                                 claims=tuple(claims),
+                                 state=state)
+        if report.yardstick in self._reports:
+            raise ValueError(
+                "a run report for yardstick "
+                f"{report.yardstick!r} already stands held "
+                "for the session")
+        self._reports[report.yardstick] = report
+        return report
+
+    def get_report(self, yardstick: Any):
+        """The held run report for one yardstick."""
+        from ..core.validation import ValidationError
+        try:
+            return self._reports[yardstick]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no run report for "
+                f"yardstick {yardstick!r}") from None
+
+    def list_reports(self) -> list:
+        """The run reports held, in report order."""
+        return list(self._reports.values())
+
+    def book(self):
+        """The held pieces composed as a published-yardstick book.
+
+        The book is plain data: the shipped yardstick
+        registry's entries beside the run records and
+        run reports held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.published_yardstick import PUBLISHED_YARDSTICK_SCHEMA
+        return {
+            "schema": PUBLISHED_YARDSTICK_SCHEMA,
+            "yardsticks": [_py_yardstick_dict(entry)
+                        for entry in self._yardsticks.entries()],
+            "records": [_py_record_dict(record)
+                        for record in self._records.values()],
+            "reports": [_py_report_dict(report)
+                       for report in self._reports.values()],
+        }
+
+
+def parse_publishedyardstick_args(args: Any):
+    """Parse /publishedyardstick arguments (M-256).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``yardsticks``, ``index`` and ``verdict`` name
+    their own stance with no target; ``yardstick <yardstick>``
+    names one yardstick; ``record <yardstick> <run>`` and
+    ``standing <yardstick> <run>`` name one yardstick and run
+    as a pair; ``report <yardstick>`` names one yardstick
+    and the bare ``report`` stance names the session's
+    reports. Anything else raises ValueError
+    carrying the usage line, exactly as the sibling
+    parsers refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("yardsticks", "index", "verdict"):
+        if rest:
+            raise ValueError(PUBLISHEDYARDSTICK_USAGE)
+        return (head, None, (), None)
+    if head == "yardstick":
+        if len(rest) != 1:
+            raise ValueError(PUBLISHEDYARDSTICK_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 2:
+            raise ValueError(PUBLISHEDYARDSTICK_USAGE)
+        return (head, (rest[0], rest[1]), (), None)
+    if head == "report":
+        if not rest:
+            return ("reports", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(PUBLISHEDYARDSTICK_USAGE)
+        return ("report", rest[0], (), None)
+    raise ValueError(PUBLISHEDYARDSTICK_USAGE)
+
+
 #: The /docsmcp slash grammar (M-252, agent layer).
 DOCSMCP_USAGE = (
     "Usage: /docsmcp | /docsmcp projects | "
@@ -84094,6 +84384,634 @@ class Agent:
         if announced is None:
             announced = set()
             self._benchmarkharness_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _publishedyardstick_registry(self):
+        """The held published-yardstick registry (M-256).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped yardstick registry beside the session's
+        run records and run reports one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_publishedyardstick_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_publishedyardstick_store", None)
+        if registry is None:
+            registry = PublishedYardstickRegistry()
+            self._publishedyardstick_store = registry
+        return registry
+
+    def publishedyardstick_yardsticks(self):
+        """The shipped yardstick registry, as data (M-256).
+
+        One entry per public set - swe_bench, swe_bench_lite,
+        swe_bench_verified, swe_bench_multimodal - held as registry
+        entries, each naming the word that set gives a
+        single run and the standing of its licence. Resolution registers and publishes
+        nothing, runs no benchmark and probes no
+        network.
+        """
+        return self._publishedyardstick_registry().yardsticks()
+
+    def publishedyardstick_book(self):
+        """The session's published-yardstick book, as data (M-256).
+
+        The held registry's book when the session holds
+        records or reports one by one - otherwise the book
+        boarded whole through
+        :meth:`record_publishedyardstick_records`, or the shipped
+        yardstick registry with nothing held until a record
+        or report is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._publishedyardstick_registry()
+        if registry.list_records() or registry.list_reports():
+            held = getattr(self, "_publishedyardstick_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [(r["yardstick"], r["run"])
+                     for r in held["records"]]
+                    == [(r["yardstick"], r["run"])
+                        for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_publishedyardstick_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _publishedyardstick_effective_record(self, yardstick: Any,
+                                      run: Any):
+        """The record a run's standing is derived from (M-256).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on, no model, cost, date or score reported - so an
+        unheld run derives an honest open standing naming
+        its gaps, never a dressed claim: an absent run
+        reads as unknown. An unknown yardstick refuses by name
+        through the shipped registry first.
+        """
+        from ..core.published_yardstick import RunRecord
+        registry = self._publishedyardstick_registry()
+        registry.yardsticks().get(yardstick)
+        try:
+            return registry.get_record(yardstick, run)
+        except ValueError:
+            return RunRecord(
+                yardstick=yardstick, run=run,
+                model="",
+                cost=None,
+                date="",
+                score=None,
+                stages=(), claims=())
+
+    def _publishedyardstick_screen(self) -> str:
+        """The /publishedyardstick screen for the session (M-256)."""
+        from ..core.published_yardstick import (
+            format_yardsticks, format_record)
+        registry = self._publishedyardstick_registry()
+        lines = [format_yardsticks(registry.yardsticks())]
+        records = registry.list_records()
+        if not records:
+            lines.append(
+                "Published-yardstick runs: none recorded this "
+                "session - a run stands held only when its "
+                "licence rests on held evidence and its "
+                "report carries model, cost and date "
+                "together, and no run stands as held "
+                "until it is recorded.")
+        else:
+            lines.extend(format_record(record)
+                         for record in records)
+        lines.extend(_py_report_text(report)
+                     for report in registry.list_reports())
+        return "\n".join(lines)
+
+    def publishedyardstick_status(self) -> dict[str, Any]:
+        """The published-yardstick account, in plain data (M-256).
+
+        The shipped yardstick registry's entries and the
+        run records and run reports held this session as
+        plain records (empty until held), the session
+        book's record (the shipped yardstick registry with
+        nothing held - until items are held), the records
+        standing held and still open derived at call time,
+        the index and verdict derived at call time, the
+        yardsticks and records told in plain words through the
+        pure formatters, and the plain explanation. A
+        session holding no record for a run derives that
+        run's open standing. Resolution registers and
+        publishes nothing, runs no benchmark, downloads
+        no set and executes no grading test: this layer
+        tells only.
+        """
+        from ..core import published_yardstick as camp_module
+        registry = self._publishedyardstick_registry()
+        held_records = registry.list_records()
+        book = self.publishedyardstick_book()
+        index = self.publishedyardstick_index()
+        return {
+            "records": [_py_record_dict(r)
+                        for r in held_records],
+            "yardsticks": [_py_yardstick_dict(e)
+                        for e in registry.yardsticks().entries()],
+            "book": (book if held_records
+                     or registry.list_reports()
+                     or getattr(self, "_publishedyardstick_held",
+                                None) is not None else None),
+            "publishedyardstick_book": {
+                "schema": camp_module.PUBLISHED_YARDSTICK_SCHEMA,
+                "yardsticks": book["yardsticks"],
+                "records": book["records"],
+                "reports": book["reports"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.publishedyardstick_verdict()["verdict"],
+            "yardsticks_text": camp_module.format_yardsticks(
+                registry.yardsticks()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "reports": [_py_report_dict(d)
+                       for d in registry.list_reports()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._publishedyardstick_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": PUBLISHEDYARDSTICK_USAGE,
+        }
+
+    def get_publishedyardstick_yardstick(self, yardstick: Any):
+        """The one yardstick entry a yardstick name names (M-256).
+
+        The shipped yardstick registry answers: a yardstick the
+        yardstick book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._publishedyardstick_registry().yardsticks().get(yardstick)
+
+    def get_publishedyardstick_record(self, yardstick: Any, run: Any):
+        """The one record a yardstick and run name (M-256).
+
+        The session's held registry answers: a run the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._publishedyardstick_registry().get_record(yardstick, run)
+
+    def publishedyardstick_standing(self, yardstick: Any, run: Any):
+        """Derive one run's standing (M-256).
+
+        The standing is derived at call time by the pure
+        layer from the run's effective record - the held
+        record, or the honest empty record while none
+        stands held: held only on a full legal walk
+        resting on held licence evidence, with the report
+        carrying model, cost and date, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.published_yardstick import derive_standing
+        registry = self._publishedyardstick_registry()
+        return derive_standing(
+            self._publishedyardstick_effective_record(yardstick, run),
+            registry.yardsticks())
+
+    def runs_for_model(self, model: Any):
+        """The held records resting on one model (M-256)."""
+        if model is None or not str(model).strip():
+            raise ValueError(
+                "a model must be named to list its runs")
+        return [r for r in
+                self._publishedyardstick_registry().list_records()
+                if r.model == model]
+
+    def publishedyardstick_held(self):
+        """The records whose standing stands held (M-256)."""
+        registry = self._publishedyardstick_registry()
+        return [f"{r.yardstick}/{r.run}"
+                for r in registry.list_records()
+                if self.publishedyardstick_standing(
+                    r.yardstick, r.run).held]
+
+    def publishedyardstick_index(self) -> dict[str, Any]:
+        """Derive the published-yardstick index at call time (M-256).
+
+        The index is derived from every held record
+        alone - each held record's derived standing, the
+        held records named and the open records named in
+        its gaps. Deriving registers and publishes nothing,
+        runs no benchmark and probes no network.
+        Returns the derived index record, the rendered
+        records, the screen and the plain explanation.
+        """
+        from ..core import published_yardstick as camp_module
+        registry = self._publishedyardstick_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.publishedyardstick_standing(
+                record.yardstick, record.run)
+            standings.append({
+                "yardstick": record.yardstick,
+                "run": record.run,
+                **_py_standing_dict(standing)})
+        index = {
+            "type": "publishedyardstick_index",
+            "slice": camp_module.PUBLISHED_YARDSTICK_SLICE,
+            "schema": camp_module.PUBLISHED_YARDSTICK_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['yardstick']}/{s['run']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['yardstick']}/{s['run']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._publishedyardstick_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def publishedyardstick_verdict(self) -> dict[str, Any]:
+        """Derive the published-yardstick verdict at call time (M-256).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and every
+        held record's standing stands held on held
+        licence evidence, reported with model, cost and
+        date together, ``open`` while no record stands held or any held
+        record stands short of held - with the held and
+        open records named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import published_yardstick as camp_module
+        registry = self._publishedyardstick_registry()
+        records = registry.list_records()
+        held = self.publishedyardstick_held()
+        open_keys = [f"{r.yardstick}/{r.run}"
+                     for r in records
+                     if f"{r.yardstick}/{r.run}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Published yardsticks stand held: every recorded "
+                "run rests on held licence evidence and is "
+                "reported with model, cost and date "
+                "together - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Published yardsticks stand open: no published-yardstick "
+                "run is recorded this session - an "
+                "absent run reads as unknown, never "
+                "as a reported result.")
+        else:
+            word = "open"
+            telling = (
+                "Published yardsticks stand open: a run is "
+                "held only when it rests on held licence "
+                "evidence and reports model, cost and date, "
+                "and these runs "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "publishedyardstick_verdict",
+            "slice": camp_module.PUBLISHED_YARDSTICK_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._publishedyardstick_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_publishedyardstick_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one run's record for the session (M-256).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        yardstick, date, cost or evidence kind refuses by
+        name on this road too, and a refusal holds nothing
+        new and publishes nothing. A held record is
+        published as its ``publishedyardstick_record``
+        session-news record through the checkpoint road.
+        Returns the held record, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a record runs no benchmark,
+        downloads no set and executes no grading test:
+        the telling stands on this layer's book, as data.
+        """
+        from ..core import published_yardstick as camp_module
+        registry = self._publishedyardstick_registry()
+        held = registry.register_record(record)
+        news = {"type": "publishedyardstick_record",
+                **_py_record_dict(held)}
+        self._publish_publishedyardstick_record(news)
+        return {
+            "record": _py_record_dict(held),
+            "record_news": news,
+            "screen": self._publishedyardstick_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_publishedyardstick_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of run records for the session (M-256).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order given.
+        Returns the held records, their news records,
+        the count of records held, the screen, and the
+        explanation. Registering runs no benchmark and probes
+        no network.
+        """
+        from ..core import published_yardstick as camp_module
+        registry = self._publishedyardstick_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "publishedyardstick_record", **_py_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_publishedyardstick_record(news)
+        return {
+            "records": [_py_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._publishedyardstick_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_publishedyardstick_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of run records (M-256).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its yardstick and run keys and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held book,
+        its records, their news records, the count, the
+        screen, and the explanation. Recording runs no
+        benchmark, downloads no set and executes no test.
+        """
+        from ..core import published_yardstick as camp_module
+        validated = [_py_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._publishedyardstick_registry().yardsticks())
+        fingerprint = (
+            tuple((r.yardstick, r.run) for r in validated),
+            camp_module.PUBLISHED_YARDSTICK_SCHEMA)
+        boarded = getattr(self, "_publishedyardstick_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._publishedyardstick_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these run records are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._publishedyardstick_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._publishedyardstick_held = registry.book()
+        news_records = [
+            {"type": "publishedyardstick_record", **_py_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_publishedyardstick_record(news)
+        return {
+            "book": self._publishedyardstick_held,
+            "records": [_py_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._publishedyardstick_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_publishedyardstick(
+            self, yardstick: Any, run: Any) -> dict[str, Any]:
+        """Stand one run's standing on the session book (M-256).
+
+        This is the book's own viewing road: the run's
+        yardstick entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        run's effective record, and published as its
+        ``publishedyardstick_standing`` session news, with the held
+        record published as its ``publishedyardstick_record``
+        session news when one stands held. Returns the
+        yardstick's entry, its derived standing, the held
+        record when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        runs as data alone - it runs no benchmark, downloads
+        no set, executes no grading test and inflates
+        nothing here.
+        """
+        from ..core import published_yardstick as camp_module
+        entry = self.get_publishedyardstick_yardstick(yardstick)
+        standing = self.publishedyardstick_standing(yardstick, run)
+        try:
+            held = self.get_publishedyardstick_record(yardstick, run)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "publishedyardstick_record",
+                           **_py_record_dict(held)}
+            self._publish_publishedyardstick_record(record_news)
+        standing_news = {
+            "type": "publishedyardstick_standing", "yardstick": yardstick,
+            "run": run, **_py_standing_dict(standing)}
+        self._publish_publishedyardstick_record(standing_news)
+        return {
+            "yardstick": _py_yardstick_dict(entry),
+            "standing": {"yardstick": yardstick, "run": run,
+                         **_py_standing_dict(standing)},
+            "record": (_py_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._publishedyardstick_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def prepare_publishedyardstick_report(
+            self, yardstick: Any, entry: Any, run: Any,
+            report: Any, model: Any, cost: Any,
+            date: Any, score: Any,
+            claims: Any = (),
+            state: Any = "ready"
+            ) -> dict[str, Any]:
+        """Prepare one run report for the session (M-256).
+
+        The report is shaped by the pure layer alone -
+        it stands at state ready by default, may be
+        marked ``shared`` by a human, and a state
+        word outside ready/shared refuses by name;
+        a report is never inflated here and no
+        run is graded on this road. A held report
+        is published as its ``publishedyardstick_report``
+        session-news record through the checkpoint road.
+        Returns the held report, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Preparing runs no benchmark and grades
+        nothing here.
+        """
+        from ..core import published_yardstick as camp_module
+        registry = self._publishedyardstick_registry()
+        report = registry.hold_report(yardstick, entry, run,
+                                       report,
+                                       model, cost,
+                                       date, score,
+                                       claims=claims,
+                                       state=state)
+        news = {"type": "publishedyardstick_report",
+                **_py_report_dict(report)}
+        self._publish_publishedyardstick_record(news)
+        return {
+            "report": _py_report_dict(report),
+            "report_news": news,
+            "screen": self._publishedyardstick_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def get_publishedyardstick_report(self, yardstick: Any):
+        """The one report a yardstick names (M-256).
+
+        The session's held registry answers: a yardstick
+        the session holds no report for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._publishedyardstick_registry().get_report(yardstick)
+
+    def publishedyardstick_reports(self) -> list:
+        """The run reports held for the session (M-256)."""
+        return self._publishedyardstick_registry().list_reports()
+
+    def report_publishedyardstick(self) -> dict[str, Any]:
+        """Render the session published yardsticks, as a report (M-256).
+
+        The shipped yardstick registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, runs no benchmark, downloads
+        no set and executes no test. Returns the book,
+        the yardsticks, held records and reports as plain
+        records, the derived standings, the rendered
+        yardsticks and records, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import published_yardstick as camp_module
+        registry = self._publishedyardstick_registry()
+        book = self.publishedyardstick_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.publishedyardstick_standing(
+                record.yardstick, record.run)
+            standings.append({
+                "yardstick": record.yardstick,
+                "run": record.run,
+                **_py_standing_dict(standing)})
+        return {
+            "book": book,
+            "yardsticks": [_py_yardstick_dict(e)
+                        for e in registry.yardsticks().entries()],
+            "records": [_py_record_dict(r)
+                        for r in registry.list_records()],
+            "reports": [_py_report_dict(d)
+                       for d in registry.list_reports()],
+            "standings": standings,
+            "index": self.publishedyardstick_index()["index"],
+            "verdict": self.publishedyardstick_verdict()["verdict"],
+            "yardsticks_text": camp_module.format_yardsticks(
+                registry.yardsticks()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._publishedyardstick_effective_record(
+                        r.yardstick, r.run))
+                for r in registry.list_records()),
+            "screen": self._publishedyardstick_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_publishedyardstick_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one run record as session news (M-256).
+
+        The agent layer's ``publishedyardstick_record``,
+        ``publishedyardstick_standing`` and
+        ``publishedyardstick_report`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is granted. Each
+        record is announced at most once per telling: a
+        record under its yardstick, its run, its model, its
+        cost, its date, its score, its walked stages and its claims, a standing under
+        its yardstick, its run, its held word, its stage,
+        its grade and its gaps, and a report under
+        its yardstick, its entry, its run, its report
+        and its state, so a standing grown by a newly
+        held record announces again as the new figure it
+        is. A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "publishedyardstick_record":
+            target = ("publishedyardstick_record",
+                      record.get("yardstick"),
+                      record.get("run"),
+                      record.get("model"),
+                      record.get("cost"),
+                      record.get("date"),
+                      record.get("score"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "publishedyardstick_standing":
+            target = ("publishedyardstick_standing",
+                      record.get("yardstick"),
+                      record.get("run"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("grade"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "publishedyardstick_report":
+            target = ("publishedyardstick_report",
+                      record.get("yardstick"),
+                      record.get("entry"),
+                      record.get("run"),
+                      record.get("report"),
+                      record.get("state"))
+        else:
+            return
+        announced = getattr(self, "_publishedyardstick_announced", None)
+        if announced is None:
+            announced = set()
+            self._publishedyardstick_announced = announced
         if target in announced:
             return
         announced.add(target)

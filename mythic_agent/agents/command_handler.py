@@ -529,6 +529,8 @@ class CommandHandler:
                 self._handle_bridgeaudit(args)
             elif cmd == "/benchmarkharness":
                 self._handle_benchmarkharness(args)
+            elif cmd == "/publishedyardstick":
+                self._handle_publishedyardstick(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -14242,6 +14244,120 @@ class CommandHandler:
             text=f"\n[bold cyan]{text}[/bold cyan]\n")
 
 
+    def _handle_publishedyardstick(self, args: str):
+        """M-256: /publishedyardstick - the published yardsticks as data.
+
+        ``/publishedyardstick`` shows the yardsticks held this session -
+        the public sets as registry entries: one
+        entry per set, naming the word that set
+        gives a single run and the standing of its
+        licence, beside the run records
+        held this session (no run recorded yet when
+        none is held - a run is held only when a
+        reported run rests on held licence evidence);
+        ``/publishedyardstick yardsticks`` shows the whole shipped
+        yardstick registry; ``/publishedyardstick yardstick <yardstick>``
+        shows one yardstick's registry entry; ``/publishedyardstick
+        record <yardstick> <run>`` shows the record held
+        for one yardstick and run; ``/publishedyardstick standing
+        <yardstick> <run>`` shows the standing derived for
+        one run - held only on a full legal walk resting
+        on held licence evidence, with the report carrying
+        model, cost and date together, otherwise
+        open, naming its gaps; ``/publishedyardstick report`` shows
+        the run reports held this session and
+        ``/publishedyardstick report <yardstick>`` shows one yardstick's
+        report - a report is never inflated here and no
+        run is graded here on this road; ``/publishedyardstick
+        index`` shows the index derived over every held
+        record; ``/publishedyardstick verdict`` shows the verdict
+        derived for the session. Resolution registers and
+        publishes nothing as session news on this heading:
+        records are held only when they are given
+        through the agent's register roads, stood on the
+        book on the viewing road, or held on the book
+        roads, and every record held for the session is
+        journaled as a publishedyardstick_record session record,
+        every viewed standing as a publishedyardstick_standing
+        session record and every held report as
+        a publishedyardstick_report session record. This heading
+        runs no benchmark, downloads no set,
+        executes no grading test and inflates nothing here -
+        holding and telling are words only.
+        """
+        from ..core.published_yardstick import (
+            format_record,
+            format_yardstick,
+            format_yardsticks,
+        )
+        from .llm import parse_publishedyardstick_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_publishedyardstick_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "yardsticks":
+                text = format_yardsticks(
+                    primary.publishedyardstick_yardsticks())
+            elif stance == "yardstick":
+                text = format_yardstick(
+                    primary.get_publishedyardstick_yardstick(target))
+            elif stance == "record":
+                text = format_record(
+                    primary.get_publishedyardstick_record(*target))
+            elif stance == "standing":
+                standing = primary.publishedyardstick_standing(
+                    *target)
+                text = (
+                    f"{target[0]}/{target[1]}: run "
+                    f"{'held as reported' if standing.held else 'open'} "
+                    f"(stage: {standing.stage}; "
+                    f"grade: {standing.grade})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "reports":
+                reports = primary.publishedyardstick_reports()
+                if not reports:
+                    text = (
+                        "Run report: none held this "
+                        "session - the yardsticks report run "
+                        "moves only as reports, and a report is "
+                        "never inflated here.")
+                else:
+                    text = "\n".join(
+                        f"{d.yardstick} -> {d.run}: report - "
+                        f"{d.report} (state: {d.state}; "
+                        "report is never inflated here)"
+                        for d in reports)
+            elif stance == "report":
+                d = primary.get_publishedyardstick_report(target)
+                text = (
+                    f"{d.yardstick} -> {d.run}: report - "
+                    f"{d.report} (state: {d.state}; "
+                    "report is never inflated here)")
+            elif stance == "index":
+                text = primary.publishedyardstick_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.publishedyardstick_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.publishedyardstick_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
     def _handle_docsmcp(self, args: str):
         """M-252: /docsmcp - the docs MCP pattern as data.
 
