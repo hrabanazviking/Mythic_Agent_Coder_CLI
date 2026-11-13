@@ -1272,3 +1272,10 @@ mythic_agent/agents/llm.py:82930:record_bridgeaudit_records:method
 mythic_agent/agents/llm.py:82980:view_bridgeaudit:method
 mythic_agent/agents/llm.py:83027:prepare_bridgeaudit_report:method
 mythic_agent/agents/llm.py:83075:report_bridgeaudit:method
+mythic_agent/agents/llm.py:83667:runs_for_category:method
+mythic_agent/agents/llm.py:83790:register_benchmarkharness_record:method
+mythic_agent/agents/llm.py:83820:register_benchmarkharness_records:method
+mythic_agent/agents/llm.py:83850:record_benchmarkharness_records:method
+mythic_agent/agents/llm.py:83899:view_benchmarkharness:method
+mythic_agent/agents/llm.py:83946:prepare_benchmarkharness_report:method
+mythic_agent/agents/llm.py:83994:report_benchmarkharness:method

@@ -87,7 +87,7 @@ def test_slices_cover_part10_in_order(gate):
         d for d in done_ids if "M-233" <= d <= "M-253"]
     nxt = road.next_slice()
     assert nxt is not None
-    assert nxt.id == "M-255"
+    assert nxt.id == "M-256"
 
 
 def test_baseline_is_the_m253_confirmation_suite(gate):
