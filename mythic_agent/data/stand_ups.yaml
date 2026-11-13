@@ -1,0 +1,58 @@
+schema: mythic.stand_ups/1
+slice: M-134
+part: 6
+part_title: Agents as files
+standup_note: |
+  Stand-ups: the coordinator's progress digest in
+  plain words, as data. A stand-up report holds
+  progress entries - one item of work per entry:
+  its title, the item in plain words, the member
+  who holds it, and the state the item stands in
+  (done, doing, blocked, or waiting on the human's
+  word). The digest is derived from the entries
+  alone: its four sections - done, doing, blocked
+  and needs-you - group the entries by the state
+  each one stands in, in report order, so the
+  digest can never disagree with the entries it
+  digests, and a stored digest that does disagree
+  is refused. This file is ONE EXAMPLE STAND-UP
+  in the shape a real stand-up file takes: the
+  stand-up at the M-133 slice boundary, with the
+  crew memory banked, the stand-ups slice itself
+  being built, the full suite held by the known
+  PortAudio environment case, and one question
+  that needs Volmarr's word held open. A real
+  stand-up is a new file in this same shape - it
+  is never this file edited in place. This layer
+  holds the stand-up as data only: it schedules
+  nothing, sends nothing, posts nothing, persists
+  nothing and calls no model.
+report:
+  title: "Stand-up at the M-133 slice boundary"
+  boundary: M-133
+entries:
+- entry_id: m-133-memory-banked
+  member: scribe
+  title: "M-133 crew memory banked"
+  detail: "Crew memory shipped and banked in roadmap order; the roadmap stands at 133 of 272 slices."
+  status: done
+- entry_id: m-134-stand-ups-building
+  member: architect
+  title: "M-134 stand-ups pure layer being built"
+  detail: "The stand-ups pure layer is being built now in its own worktree: the data file, the derivation and the tests."
+  status: doing
+- entry_id: m-132-panels-banked
+  member: auditor
+  title: "M-132 review panels banked"
+  detail: "Review panels shipped and banked ahead of the crew memory; disagreements are surfaced, never averaged away."
+  status: done
+- entry_id: full-suite-portaudio-held
+  member: guardian
+  title: "Full suite held by the PortAudio environment case"
+  detail: "The full suite stops on the long-classified PortAudio import failure, an environment case on this machine and not a code defect, so the banking gate waits on the targeted suites."
+  status: blocked
+- entry_id: hall-posting-needs-word
+  member: cartographer
+  title: "Posting stand-ups to the hall needs your word"
+  detail: "Whether a stand-up should also be posted to the Samtal hall is held open: posting there is speaking outward, so the coordinator holds it until Volmarr says."
+  status: needs_you

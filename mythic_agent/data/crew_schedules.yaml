@@ -1,0 +1,170 @@
+schema: mythic.crew_schedules/1
+slice: M-145
+part: 6
+part_title: The Crew
+schedules_note: |
+  Crew on schedule: formations can be attached to
+  Part V's scheduled jobs. A crew schedule book
+  holds one attachment record per joining, in held
+  order: each record names the formation in plain
+  words - by the name the crew template book
+  (M-143) summons it by - and the scheduled job it
+  stands on, held whole as Part V (M-105) data:
+  what the job runs (a list of words, never a
+  shell string), when it runs, whether it is
+  enabled, and its approval posture. A record
+  names no standing and no action, because both
+  are derived from its job: an enabled unattended
+  job's formation is armed to run when its moment
+  comes, an enabled needs-approval job's formation
+  waits for approval at that moment, and a disabled
+  job's formation is owed nothing. An attachment
+  report of one joining is derived from its job -
+  its checks, its standing, its action and its
+  account read off the record - and a stored
+  report that disagrees with the derived one is
+  refused. The attachment index is derived from
+  the whole book: its rows are the per-attachment
+  reports in held order, its totals are the
+  records' own counts (every attachment held,
+  those armed, those waiting, those on disabled
+  jobs, and every distinct formation standing on
+  a job) and its account is read off the rows and
+  totals; a stored index that disagrees refuses.
+  One job stands under one formation in a book.
+  This file is ONE EXAMPLE CREW SCHEDULE BOOK, in
+  the shape a real crew schedules file takes: the
+  M-144 slice boundary - the roadmap's own dawn
+  Auditor sweep over yesterday's commits first,
+  with a weekly Full Six review that waits for
+  approval, a Research Swarm upstream watch, and
+  one honest paused Duo attachment on a disabled
+  job, with the one attachment index of it. A real
+  schedule book is a new file in this same shape -
+  it is never this file edited in place. This
+  layer holds attachments as data only: it starts
+  no timer, runs no job, summons no crew, spawns
+  no agent and persists nothing.
+guide:
+  title: "Crew schedule book at the M-144 slice boundary"
+entries:
+- attachment_id: att-dawn-auditor-sweep
+  template: review_panel
+  template_id: tpl-review-panel
+  title: Dawn Auditor sweep
+  detail: At dawn the Review Panel sweeps yesterday's commits - the Auditor's eyes over every commit since yesterday, surfaced by the job's own command.
+  job:
+    job_id: dawn-auditor-sweep
+    label: Auditor sweep over yesterday's commits
+    argv: [git, log, "--since=yesterday", "--oneline"]
+    schedule: {kind: daily, time: "06:00"}
+    enabled: true
+    approval: unattended
+- attachment_id: att-weekly-full-six
+  template: full_six
+  template_id: tpl-full-six
+  title: Weekly Full Six review
+  detail: Once a week the Full Six stands over the test suite's state - every office of the crew on the week's work - and because the run is the full suite, it waits for approval.
+  job:
+    job_id: weekly-full-six
+    label: Full Six weekly test review
+    argv: [python, "-m", pytest, "-q"]
+    schedule: {kind: weekly, weekday: monday, time: "09:00"}
+    enabled: true
+    approval: needs_approval
+- attachment_id: att-research-swarm-watch
+  template: research_swarm
+  template_id: tpl-research-swarm
+  title: Research Swarm upstream watch
+  detail: Every twelve hours the Research Swarm reads the upstream commits - several members reading at once, their findings coming back as one digested answer.
+  job:
+    job_id: research-swarm-watch
+    label: Research Swarm upstream watch
+    argv: [git, log, "--oneline", "-20"]
+    schedule: {kind: interval, every_hours: 12, anchor: "2026-01-01T00:00:00"}
+    enabled: true
+    approval: unattended
+- attachment_id: att-weekend-duo-paused
+  template: duo
+  template_id: tpl-duo
+  title: Weekend Duo sweep (paused)
+  detail: An honest paused attachment - the Duo would sweep the weekend diff on Saturday, but the job stands disabled, so nothing is owed until it is enabled.
+  job:
+    job_id: weekend-duo-sweep
+    label: Duo weekend diff sweep
+    argv: [git, diff, "--stat"]
+    schedule: {kind: weekly, weekday: saturday, time: "08:00"}
+    enabled: false
+    approval: unattended
+indexes:
+- index_id: index-m144-boundary
+  rows:
+  - attachment_id: att-dawn-auditor-sweep
+    template: review_panel
+    template_id: tpl-review-panel
+    job_id: dawn-auditor-sweep
+    schedule_text: "daily at 06:00"
+    checks:
+    - "formation review_panel: attached by name"
+    - "schedule daily at 06:00: stated"
+    - "approval unattended: runs when its moment comes"
+    standing: armed
+    action: run
+    account:
+    - "Formation review_panel is attached to scheduled job dawn-auditor-sweep: daily at 06:00, running when its moment comes."
+    - "The attachment keeps the scheduled job's own approval line: unattended work runs when due, exactly as live work would."
+    - "This record runs nothing: it is data only, and no crew is summoned by this layer."
+  - attachment_id: att-weekly-full-six
+    template: full_six
+    template_id: tpl-full-six
+    job_id: weekly-full-six
+    schedule_text: "weekly on monday at 09:00"
+    checks:
+    - "formation full_six: attached by name"
+    - "schedule weekly on monday at 09:00: stated"
+    - "approval needs approval: waits when its moment comes"
+    standing: waiting_for_approval
+    action: await_approval
+    account:
+    - "Formation full_six is attached to scheduled job weekly-full-six: weekly on monday at 09:00, waiting for approval when its moment comes."
+    - "The attachment keeps the scheduled job's own approval line: a job that needs approval is recorded as due and waiting, never run unattended."
+    - "This record runs nothing: it is data only, and no crew is summoned by this layer."
+  - attachment_id: att-research-swarm-watch
+    template: research_swarm
+    template_id: tpl-research-swarm
+    job_id: research-swarm-watch
+    schedule_text: "every 12 hours"
+    checks:
+    - "formation research_swarm: attached by name"
+    - "schedule every 12 hours: stated"
+    - "approval unattended: runs when its moment comes"
+    standing: armed
+    action: run
+    account:
+    - "Formation research_swarm is attached to scheduled job research-swarm-watch: every 12 hours, running when its moment comes."
+    - "The attachment keeps the scheduled job's own approval line: unattended work runs when due, exactly as live work would."
+    - "This record runs nothing: it is data only, and no crew is summoned by this layer."
+  - attachment_id: att-weekend-duo-paused
+    template: duo
+    template_id: tpl-duo
+    job_id: weekend-duo-sweep
+    schedule_text: "weekly on saturday at 08:00"
+    checks:
+    - "formation duo: attached by name"
+    - "schedule weekly on saturday at 08:00: stated"
+    - "job disabled: does not run"
+    standing: disabled
+    action: none
+    account:
+    - "Formation duo is attached to scheduled job weekend-duo-sweep: weekly on saturday at 08:00, and the job is disabled, so nothing is owed."
+    - "A disabled job does not run; the attachment stands as data until the job is enabled."
+    - "This record runs nothing: it is data only, and no crew is summoned by this layer."
+  total_attachments: 4
+  total_armed: 2
+  total_waiting: 1
+  total_disabled: 1
+  total_templates: 4
+  account:
+  - "The book holds 4 crew schedule attachment(s): 2 armed to run when due, 1 waiting for approval, 1 on disabled jobs."
+  - "Every standing word here is derived from the held records' jobs - enabled and approval read off the Part V job each attachment names - never stored loose."
+  - "An attachment here joins a formation to a scheduled job as data; nothing in this book runs a job or summons a crew."

@@ -823,769 +823,769 @@ slices:
   title: Heterogeneous crews
   summary: members on different models/providers (a Claude Architect, a local-LLM Forge Worker) — routing
     from Part II, budgets from Part V.
-  status: queued
+  status: done
 - id: M-130
   part: 6
   title: The Auditor's veto
   summary: no slice is "done" until the Auditor's checks pass; the veto is a real gate in the engine,
     not a custom.
-  status: queued
+  status: done
 - id: M-131
   part: 6
   title: Research swarms
   summary: Cartographer-led fan-out for questions (docs, options, comparisons) returning one digested
     answer with sources — the deep-research pattern as a crew formation.
-  status: queued
+  status: done
 - id: M-132
   part: 6
   title: Review panels
   summary: two Auditors with different models review the same change; disagreements are surfaced, not
     averaged away.
-  status: queued
+  status: done
 - id: M-133
   part: 6
   title: Crew memory
   summary: shared project memory (Part VII) with per-member notebooks; a member's hard-won fact is findable
     by all.
-  status: queued
+  status: done
 - id: M-134
   part: 6
   title: Stand-ups
   summary: the coordinator's progress digest in plain words (done, doing, blocked, needs-you) on demand
     and at slice boundaries.
-  status: queued
+  status: done
 - id: M-135
   part: 6
   title: Crew sizing honesty
   summary: the app recommends crew size by task shape and says when one pair of hands beats six.
-  status: queued
+  status: done
 - id: M-136
   part: 6
   title: Agent character voices
   summary: cast members keep their written characters (the house cast) in how they report — flavour in
     the reporting, never in the code or the facts.
-  status: queued
+  status: done
 - id: M-137
   part: 6
   title: External agents as crew
   summary: an outside agent (over MCP, Part X) can hold a seat with the same contracts and budgets.
-  status: queued
+  status: done
 - id: M-138
   part: 6
   title: Crew replay
   summary: a crew run's hand-offs replayable from the journal — how a decision happened is auditable.
-  status: queued
+  status: done
 - id: M-139
   part: 6
   title: Failure fostering
   summary: a failed member's task is re-dealt with its failure report attached; the same failure twice
     escalates to the human with both reports.
-  status: queued
+  status: done
 - id: M-140
   part: 6
   title: Cost court
   summary: crew runs report cost per member per slice; the Scribe keeps the ledger that Part XI's efficiency
     work reads.
-  status: queued
+  status: done
 - id: M-141
   part: 6
   title: The Mythic Coder building itself
   summary: the standing dogfood — each part of this road is built by the crew it improves, under the coordinator's
     discipline (as the October forge proved it can).
-  status: queued
+  status: done
 - id: M-142
   part: 6
   title: Solo mode dignity
   summary: with the crew off, the single coder loses nothing — crew is an amplifier, never a requirement.
-  status: queued
+  status: done
 - id: M-143
   part: 6
   title: Crew templates
   summary: saved formations (Duo, Full Six, Research Swarm, Review Panel) summonable by name.
-  status: queued
+  status: done
 - id: M-144
   part: 6
   title: Interrupts with grace
   summary: pausing one member, the whole crew, or one slice — each leaves its worktree and journal consistent.
-  status: queued
+  status: done
 - id: M-145
   part: 6
   title: Crew on schedule
   summary: formations can be attached to Part V's scheduled jobs (a dawn Auditor sweep over yesterday's
     commits).
-  status: queued
+  status: done
 - id: M-146
   part: 6
   title: Part VI gate
   summary: a six-slice feature built by a three-member crew in parallel worktrees — merged clean, Auditor-approved,
     cost ledger complete. ---
-  status: queued
+  status: done
 - id: M-147
   part: 7
   title: Context budget made visible
   summary: a live meter and a "what's in the context and why" panel — every file, note, and map section
     accounted for in tokens.
-  status: queued
+  status: done
 - id: M-148
   part: 7
   title: The @-mention canon
   summary: '`@file`, `@folder`, `@symbol`, `@url`, `@image`, `@session`, `@issue` — one grammar for pulling
     anything into context, in TUI and headless alike.'
-  status: queued
+  status: done
 - id: M-149
   part: 7
   title: Instruction files unified
   summary: AGENTS.md (the AAIF standard), RULES.AI.md (ours), CLAUDE.md and kin read in one precedence
     order, shown in the panel with their sources — foreign projects' files are honoured on their own turf.
-  status: queued
+  status: done
 - id: M-150
   part: 7
   title: Project Memory Map (Mythic law)
   summary: every project grows a living map — architecture, decisions, gotchas, where things live — maintained
     by the Scribe as work proceeds, diffs reviewable.
-  status: queued
+  status: done
 - id: M-151
   part: 7
   title: Compaction v2, glass-box
   summary: when context compacts, the summary is shown, editable, and kept in the journal beside what
     it replaced; nothing the coder "forgets" is unrecoverable.
-  status: queued
+  status: done
 - id: M-152
   part: 7
   title: Retrieval over the code graph
   summary: vector RAG (existing) married to Part III's symbol graph — retrieval returns *connected* code,
     not confetti.
-  status: queued
+  status: done
 - id: M-153
   part: 7
   title: Session memory across days
   summary: resumable sessions carry their memory map, open slices, and standing decisions; `--resume`
     restores the *situation*, not just the transcript.
-  status: queued
+  status: done
 - id: M-154
   part: 7
   title: Cross-project memory
   summary: lessons learned in one repo (a flaky test's true cause, a library's trap) are offerable to
     other projects — with provenance, never as silent contamination.
-  status: queued
+  status: done
 - id: M-155
   part: 7
   title: The Self-Improving ledger
   summary: after significant work, durable lessons and reusable patterns are captured as candidate memories;
     the human (or standing rule) promotes them — Part IX's learning loop.
-  status: queued
+  status: done
 - id: M-156
   part: 7
   title: Decision records
   summary: choices made in session (library picked, road not taken, why) written as small ADRs into the
     project docs by the Scribe.
-  status: queued
+  status: done
 - id: M-157
   part: 7
   title: Forget and quarantine
   summary: any memory can be inspected, edited, or forgotten on the user's word, with the forgetting itself
     journaled (what class of thing, never its content).
-  status: queued
+  status: done
 - id: M-158
   part: 7
   title: Context recipes
   summary: saved bundles ("the auth stack", "the Mojo build") summonable by name into any session.
-  status: queued
+  status: done
 - id: M-159
   part: 7
   title: Pinning and protection
   summary: files/facts the compaction may never drop (the task, the laws, the failing test) — pins are
     visible.
-  status: queued
+  status: done
 - id: M-160
   part: 7
   title: Token thrift
   summary: diff-first reading, map-first loading, and hash-anchored edits measured as a cost line in `mythic
     costs` — thrift is a reported virtue.
-  status: queued
+  status: done
 - id: M-161
   part: 7
   title: Long-session endurance
   summary: a 500-turn session stays responsive; journal and retrieval performance budgets set and measured.
-  status: queued
+  status: done
 - id: M-162
   part: 7
   title: Multi-session per project
   summary: parallel sessions on one repo (different branches) with shared memory map and no journal crosstalk.
-  status: queued
+  status: done
 - id: M-163
   part: 7
   title: Handoff summaries
   summary: ending a session writes "where things stand" for the next session or the next human — the stand-up
     (M-134) in durable form.
-  status: queued
+  status: done
 - id: M-164
   part: 7
   title: Memory import/export
   summary: a project's memory map + ledger as portable files (they ride with the repo if the user wishes).
-  status: queued
+  status: done
 - id: M-165
   part: 7
   title: The subconscious v2
   summary: the dual-layer vector memory gains provenance (where each memory came from), confidence, and
     decay — stale memories fade unless re-earned.
-  status: queued
+  status: done
 - id: M-166
   part: 7
   title: Contradiction watch
   summary: when new evidence contradicts a stored memory, the newer truth wins *visibly* — the map shows
     the correction.
-  status: queued
+  status: done
 - id: M-167
   part: 7
   title: Private by architecture
   summary: memories live in the workspace/ user stores; nothing syncs anywhere unless Part X's bridges
     are explicitly opened by the user.
-  status: queued
+  status: done
 - id: M-168
   part: 7
   title: Memory Doctor
   summary: '`mythic doctor` gains memory checks (corrupt stores, orphaned vectors, map drift) with safe
     repairs.'
-  status: queued
+  status: done
 - id: M-169
   part: 7
   title: Cold-start kindness
   summary: opening a huge, old project rebuilds its map in the background while the coder is already useful.
-  status: queued
+  status: done
 - id: M-170
   part: 7
   title: Part VII gate
   summary: a week-old benchmark session resumed — the coder states the situation correctly from memory
     alone, then finishes the task; compaction glass-box verified mid-run.
-  status: queued
+  status: done
 - id: M-171
   part: 8
   title: The TUI redesign charter
   summary: every screen re-judged against M-004's kindness rules and the Visual Design Lawbook; a written
     verdict per screen before code moves.
-  status: queued
+  status: done
 - id: M-172
   part: 8
   title: Streaming work view
   summary: the coder's actions stream as a calm narrative (reading…, editing `auth.py`…, running tests…)
     with tool detail one keystroke away, never in the face.
-  status: queued
+  status: done
 - id: M-173
   part: 8
   title: The Slice Board
   summary: plans and roadmaps as a visible board (queued / building / verifying / banked) — the Mythic
     way of working *seen*; the human can re-order, pause, or strike a slice by hand.
-  status: queued
+  status: done
 - id: M-174
   part: 8
   title: Approval cards perfected
   summary: one decision per card, full context on the card, remembered-scope offered precisely, keyboard
     and mouse equal.
-  status: queued
+  status: done
 - id: M-175
   part: 8
   title: The fuzzy everything picker
   summary: files, symbols, commands, sessions, models, themes — one fuzzy finder grammar everywhere.
-  status: queued
+  status: done
 - id: M-176
   part: 8
   title: Slash-command palace
   summary: every command discoverable from `/` with plain-language descriptions and examples; custom commands
     (Part X skills) join the same palace.
-  status: queued
+  status: done
 - id: M-177
   part: 8
   title: Prompt craft
   summary: multi-line editing, history per project, image paste, file drop, dictation (M-180) — the input
     box is a small editor, not a slot.
-  status: queued
+  status: done
 - id: M-178
   part: 8
   title: Status line of truth
   summary: model, posture, context meter, cost so far, crew state, sandbox state — six facts, always visible,
     each opening its panel on a keypress.
-  status: queued
+  status: done
 - id: M-179
   part: 8
   title: Themes grown up
   summary: the theme system gains the Design Lawbook's discipline (darkness ladders, accent budgets),
     plus a high-contrast and a no-colour theme that lose nothing.
-  status: queued
+  status: done
 - id: M-180
   part: 8
   title: Voice in and out
   summary: push-to-talk dictation for prompts, and spoken stand-ups via the existing TTS (direct catalog
     casting, the house voice law) — voice is an extra door, never the only door.
-  status: queued
+  status: done
 - id: M-181
   part: 8
   title: Notifications with manners
   summary: long jobs announce completion (terminal bell/OS notification, once), failures announce once
     with the one action that matters; silence is the default posture.
-  status: queued
+  status: done
 - id: M-182
   part: 8
   title: The plain-language skin
   summary: a "Jarl mode" register — reports, approvals, and stand-ups in plain everyday words, technical
     detail folded behind a keypress. (Volmarr's standing law for his own Muse, built into his own coder.)
-  status: queued
+  status: done
 - id: M-183
   part: 8
   title: Error kindness
   summary: every error states what happened, what it means, and the most likely fix in plain words — technical
     trace one key away; no raw stack ever lands on a user unaccompanied.
-  status: queued
+  status: done
 - id: M-184
   part: 8
   title: Onboarding in five minutes
   summary: first run detects providers, offers Kista key-keeping, walks one tiny real task — success before
     configuration, always.
-  status: queued
+  status: done
 - id: M-185
   part: 8
   title: The tutorial grown
   summary: interactive lessons per feature family, runnable inside a scratch repo; `mythic tutorial` becomes
     the manual you play.
-  status: queued
+  status: done
 - id: M-186
   part: 8
   title: Help that answers
   summary: '`?` anywhere gives help *for that screen*; a question box ("how do I undo a commit?") answered
     from the local docs by the coder itself.'
-  status: queued
+  status: done
 - id: M-187
   part: 8
   title: Keyboard sovereignty
   summary: every act reachable by keyboard; a printable keymap; vim-mode prompt option for those whose
     hands speak it.
-  status: queued
+  status: done
 - id: M-188
   part: 8
   title: Mouse manners
   summary: click, drag-select, scroll, and links that open files at line numbers in the user's editor.
-  status: queued
+  status: done
 - id: M-189
   part: 8
   title: Session gallery
   summary: past sessions as browsable cards (task, outcome, cost, duration) with resume/fork/export —
     history as a library, not a log file.
-  status: queued
+  status: done
 - id: M-190
   part: 8
   title: The costs face
   summary: live spend per session and per slice, with the honesty rule kept (unknown = unknown) and budgets
     from M-107 as gentle warnings before walls.
-  status: queued
+  status: done
 - id: M-191
   part: 8
   title: Diff theatre final form (with M-091)
   summary: the review screen a user would *choose* to read code in — folding, intra-line colour, jump-to-file,
     comment-on-hunk feeding back to the coder.
-  status: queued
+  status: done
 - id: M-192
   part: 8
   title: Multi-pane working
   summary: chat, board, files, and terminal panes in the layouts the field loves — plus the Mythic layout
     (board left, work centre, crew right).
-  status: queued
+  status: done
 - id: M-193
   part: 8
   title: Splash and ceremony, restrained
   summary: the forge's face keeps its beauty inside the Lawbook's budgets — ceremony at start and at a
     roadmap's completion, quiet the rest of the time.
-  status: queued
+  status: done
 - id: M-194
   part: 8
   title: Small-terminal grace
   summary: the TUI folds gracefully to 80×24 and to a phone-over-SSH width without losing the work.
-  status: queued
+  status: done
 - id: M-195
   part: 8
   title: Copy and share
   summary: any answer, diff, or report copyable as clean markdown; a shareable session summary generated
     on command.
-  status: queued
+  status: done
 - id: M-196
   part: 8
   title: Settings as one room
   summary: every setting in one searchable screen, each with its plain-language meaning and its current
     source (default/project/user/session) shown.
-  status: queued
+  status: done
 - id: M-197
   part: 8
   title: Command palette
   summary: Ctrl-K over everything — commands, actions, navigation, settings — the one door frequent hands
     use.
-  status: queued
+  status: done
 - id: M-198
   part: 8
   title: Undo of UI itself
   summary: closing a pane or clearing a view is never destructive to work; view state per session persists.
-  status: queued
+  status: done
 - id: M-199
   part: 8
   title: Accessibility verification
   summary: M-016's tests re-run as gates — keyboard-only completion, contrast, reduced motion, no-colour
     play.
-  status: queued
+  status: done
 - id: M-200
   part: 8
   title: Part VIII gate
   summary: the Stranger Test — a new user, docs only, completes a real task in the TUI inside thirty minutes;
     every stumble is a fix or a doc correction before the gate passes.
-  status: queued
+  status: done
 - id: M-201
   part: 9
   title: Campaigns as data
   summary: a roadmap/campaign file (parts, slices, acceptance checks, state) the app reads, displays (M-173),
     executes, and keeps current — this roadmap is its first citizen (M-017).
-  status: queued
+  status: done
 - id: M-202
   part: 9
   title: Intent capture (PROJECT_FORGE form)
   summary: a new project opens with what/why/success in the user's plain words, stored verbatim; the coder's
     plan must cite it.
-  status: queued
+  status: done
 - id: M-203
   part: 9
   title: The slicing engine
   summary: from an approved intent, the Architect drafts slices sized to the house grain (one verifiable
     outcome each) with dependencies — the human approves the *shape*, not every step.
-  status: queued
+  status: done
 - id: M-204
   part: 9
   title: The Juggernaut loop as runtime
   summary: inspect → build → test → repair → continue, per slice, without asking file/framework questions
     the code can answer; the loop's state machine is explicit and visible.
-  status: queued
+  status: done
 - id: M-205
   part: 9
   title: Acceptance gates per slice
   summary: each slice carries its checks; the Auditor (M-130) runs them; a slice banks only green — "banked"
     is a state with evidence, not a feeling.
-  status: queued
+  status: done
 - id: M-206
   part: 9
   title: Banking discipline
   summary: banked slices commit (M-078) and, where the user has so ruled, push with remote verification
     — the app knows the house git laws and recites them in its plan.
-  status: queued
+  status: done
 - id: M-207
   part: 9
   title: Keeper runtime
   summary: Part V's keeper specialised — a campaign's keeper restarts stalled slices, deals the next slice
     when one banks, and only ever reports milestones, blockers, and completion.
-  status: queued
+  status: done
 - id: M-208
   part: 9
   title: The pause-lines wired
   summary: destruction, irreversible infra, cost, publishing, sending-as-user, secrets, security — the
     loop *cannot* cross them unapproved; the lines are data with the user's own wording preserved.
-  status: queued
+  status: done
 - id: M-209
   part: 9
   title: Question law
   summary: when the human asks a question mid-campaign, the campaign pauses and the question is answered
     first, plainly and fully — then work resumes (Volmarr's supreme law, as a feature).
-  status: queued
+  status: done
 - id: M-210
   part: 9
   title: Scope sentry
   summary: work drifting beyond the named target (wrong repo, wrong branch, extra features unasked) is
     caught against the campaign file and stopped with a report.
-  status: queued
+  status: done
 - id: M-211
   part: 9
   title: Memory-map upkeep
   summary: the Scribe updates the Project Memory Map in the same session as each banked slice (Mythic
     law) — the map is never a later chore.
-  status: queued
+  status: done
 - id: M-212
   part: 9
   title: The never-leave-a-bug rule
   summary: a bug discovered mid-slice is fixed in scope or commissioned as a new slice on the spot — the
     loop has no "note it and move on" state.
-  status: queued
+  status: done
 - id: M-213
   part: 9
   title: Retrospectives
   summary: at part and campaign close, the crew writes what was learned; lessons flow to the Self-Improving
     ledger (M-155).
-  status: queued
+  status: done
 - id: M-214
   part: 9
   title: Pattern extraction
   summary: repeated successful manoeuvres become candidate skills (Part X) drafted by the Scribe for approval.
-  status: queued
+  status: done
 - id: M-215
   part: 9
   title: Estimate honesty
   summary: slice forecasts (time/tokens) recorded against outcomes; the app shows its own calibration,
     improving visibly or not at all.
-  status: queued
+  status: done
 - id: M-216
   part: 9
   title: Multi-campaign hall
   summary: several campaigns across repos with one board; keepers per campaign; the human sees the whole
     forge at a glance.
-  status: queued
+  status: done
 - id: M-217
   part: 9
   title: Campaign templates
   summary: house shapes (feature build, bug hunt, migration, hardening, docs) as starting campaign files.
-  status: queued
+  status: done
 - id: M-218
   part: 9
   title: The 500-slice road as a campaign
   summary: Volmarr's Mimisbrunnr roadmap loadable as a campaign file (via the M-002 concordance) — his
     own road, runnable.
-  status: queued
+  status: done
 - id: M-219
   part: 9
   title: Interrupts and resumes across days
   summary: a campaign paused mid-slice resumes from journal + map with the situation restated in plain
     words before work continues.
-  status: queued
+  status: done
 - id: M-220
   part: 9
   title: Milestone reports
   summary: at part boundaries the coordinator reports plainly — done with evidence, partial with its road,
     blocked with what it needs.
-  status: queued
+  status: done
 - id: M-221
   part: 9
   title: The plain-language build log
   summary: the campaign's diary in the user's words (their domain terms preserved, per the Plain-Language
     Protocol) — readable by the human it was built for.
-  status: queued
+  status: done
 - id: M-222
   part: 9
   title: Guarded self-modification
   summary: Mythic improving *itself* under campaign rules (M-141) with the Auditor doubled — the forge
     may sharpen its own hammer only on the record.
-  status: queued
+  status: done
 - id: M-223
   part: 9
   title: Failure taxonomy
   summary: slice failures classified (code, test, environment, provider, scope) with the remedy each class
     has earned historically — the loop learns its own weather.
-  status: queued
+  status: done
 - id: M-224
   part: 9
   title: Dry-run campaigns
   summary: a campaign can be rehearsed (plan, dealing, gates) with models mocked — the shape proven before
     money moves.
-  status: queued
+  status: done
 - id: M-225
   part: 9
   title: Campaign export
   summary: the whole campaign (file, journal, map, evidence) as a portable bundle — a project's memory,
     ownable.
-  status: queued
+  status: done
 - id: M-226
   part: 9
   title: Standing orders
   summary: user-level laws (no-Docker, README guardian, manual-only workflows, keeper law) stored once
     and binding every campaign — the app keeps the user's laws so the user needn't repeat them. **Never
     make the user say it twice** is a feature.
-  status: queued
+  status: done
 - id: M-227
   part: 9
   title: Workflow default honoured
   summary: repositories' CI is proposed as manual-dispatch by default on Volmarr's projects (his standing
     ruling), and the coder says so when it writes a workflow.
-  status: queued
+  status: done
 - id: M-228
   part: 9
   title: Team-of-one scaling
   summary: the same machinery serves a hobby repo and a 500-slice epic without ceremony change — grain
     follows the work, not the tool's ego.
-  status: queued
+  status: done
 - id: M-229
   part: 9
   title: The method, teachable
   summary: '`mythic tutorial` gains the Method course — a newcomer learns campaigns by running a tiny
     one.'
-  status: queued
+  status: done
 - id: M-230
   part: 9
   title: Method metrics
   summary: slices banked, gate pass rate, repair rounds, calibration — the method's own health on the
     metrics board.
-  status: queued
+  status: done
 - id: M-231
   part: 9
   title: Cross-app method
   summary: campaigns can name slices that live in other tools (a Samtal slice, a Sagnaskemma slice) as
     tracked externals — the forge sees Volmarr's whole workshop.
-  status: queued
+  status: done
 - id: M-232
   part: 9
   title: Part IX gate
   summary: this roadmap's own Part II executed *by the Method Engine itself* from campaign file to banked
     slices — the method proves itself on its own birth. ---
-  status: queued
+  status: done
 - id: M-233
   part: 10
   title: MCP client
   summary: Mythic *consumes* MCP servers (tools, resources, prompts) with per-server permissions under
     the same policy system — the missing half of its MCP face.
-  status: queued
+  status: done
 - id: M-234
   part: 10
   title: MCP server v2
   summary: the existing `mythic-mcp` gains campaign, board, and memory-map services with versioned contracts;
     external agents (Hermes-class) can be dealt slices.
-  status: queued
+  status: done
 - id: M-235
   part: 10
   title: MCP registry kindness
   summary: known servers browsable and addable from the TUI with their tools listed before trust is granted.
-  status: queued
+  status: done
 - id: M-236
   part: 10
   title: Skills standard
   summary: reusable skill packs (the Agent Skills form) loadable per project and per user; Volmarr's own
     skill library is the first citizen.
-  status: queued
+  status: done
 - id: M-237
   part: 10
   title: Custom commands
   summary: user/project slash commands as small files (prompt templates with arguments) joining the M-176
     palace.
-  status: queued
+  status: done
 - id: M-238
   part: 10
   title: Plugin bundles
   summary: skills + commands + hooks + agents in one installable bundle with a manifest and provenance;
     local-first, no store required.
-  status: queued
+  status: done
 - id: M-239
   part: 10
   title: IDE companions I — VS Code family
   summary: open-file-at-line, selection-into-context, and diff-in-editor bridges.
-  status: queued
+  status: done
 - id: M-240
   part: 10
   title: IDE companions II — JetBrains and the generic road
   summary: an editor-agnostic protocol any IDE plugin can speak; terminal-first remains complete without
     any IDE.
-  status: queued
+  status: done
 - id: M-241
   part: 10
   title: Rival importers
   summary: settings, commands, instruction files, and MCP configs imported from Claude Code, Codex, OpenCode,
     Aider, and Gemini/Antigravity layouts (per M-014's study) — arriving users keep their habits.
-  status: queued
+  status: done
 - id: M-242
   part: 10
   title: Samverk bridge
   summary: repos, issues, and PRs on Volmarr's own forge with the same craft as GitHub's (Part IV), once
     Samverk's own road provides the surfaces.
-  status: queued
+  status: done
 - id: M-243
   part: 10
   title: Samtal bridge
   summary: a seat in a hall can summon the coder; stand-ups and milestone reports post to the hall; approvals
     can be given in the hall under the same scope rules.
-  status: queued
+  status: done
 - id: M-244
   part: 10
   title: Kista as the key-keeper (with M-032)
   summary: every bridge's credential resolves through Kista; a bridge without a key asks once.
-  status: queued
+  status: done
 - id: M-245
   part: 10
   title: Aesir deepening (with M-025)
   summary: Aesir sessions selectable per role; its honest capability reports shape what the router asks
     of it.
-  status: queued
+  status: done
 - id: M-246
   part: 10
   title: GitHub/GitLab/Bitbucket parity
   summary: the forge's git craft is host-agnostic; hosts are registry entries like providers.
-  status: queued
+  status: done
 - id: M-247
   part: 10
   title: CI bridges
   summary: read CI results as facts into the session; propose workflow changes only as drafts (and manual-dispatch
     by default on Volmarr's repos, M-227).
-  status: queued
+  status: done
 - id: M-248
   part: 10
   title: Issue trackers beyond git hosts
   summary: Linear/Jira-class bridges as MCP-first integrations, read-mostly, write by approval.
-  status: queued
+  status: done
 - id: M-249
   part: 10
   title: The WYRD seam
   summary: world-state from Volmarr's WYRD engine can inform long campaigns (which machine is free, which
     forge is hot) — the workshop aware of itself.
-  status: queued
+  status: done
 - id: M-250
   part: 10
   title: Webhook doors
   summary: inbound events (a PR opened, an issue filed) can *propose* campaigns — proposals only; nothing
     builds unbidden.
-  status: queued
+  status: done
 - id: M-251
   part: 10
   title: Export everything
   summary: sessions, campaigns, memories, and configs export in open formats; leaving is as easy as arriving
     (the Interoperability Principle).
-  status: queued
+  status: done
 - id: M-252
   part: 10
   title: Docs MCP pattern generalised
   summary: any project's docs MCP (like the Mojo one) attachable as a knowledge bridge in one step.
-  status: queued
+  status: done
 - id: M-253
   part: 10
   title: Bridge permissions audit
   summary: one screen listing every bridge, its keys' home (Kista refs), its scopes, its last use.
-  status: queued
+  status: done
 - id: M-254
   part: 10
   title: Part X gate
   summary: one campaign slice executed across bridges — issue from a host, build locally, PR raised, stand-up
     posted to Samtal — with credentials never leaving Kista.
-  status: queued
+  status: done
 - id: M-255
   part: 11
   title: The benchmark harness
   summary: M-008's pack automated — task, sandbox repo, run, grade (tests + diff review rubric) — repeatable
     per part and per release.
-  status: queued
+  status: done
 - id: M-256
   part: 11
   title: Published-yardstick runs
   summary: SWE-bench-style public sets run where licences allow, results reported with model, cost, and
     date — comparable to the field's claims, never inflated.
-  status: queued
+  status: done
 - id: M-257
   part: 11
   title: Regression court
   summary: every part's gate results re-run as one battery; a red anywhere stops the release, not just
     the part.
-  status: queued
+  status: done
 - id: M-258
   part: 11
   title: Performance budgets
   summary: cold start, repo-map build on a 100k-file repo, TUI frame health, memory ceiling — measured
     on the VM, Mimir-class ARM, and the laptop; budgets from measurement.
-  status: queued
+  status: done
 - id: M-259
   part: 11
   title: Platform matrix final
   summary: M-013's table re-proven cell by cell; unproven cells ship labelled NOT PROVEN, not silent.
-  status: queued
+  status: done
 - id: M-260
   part: 11
   title: Security audit
   summary: the Part V doctrine + M-118 red-team pack + an independent read of the sandbox/jail code, findings
     fixed or roaded with owners.
-  status: queued
+  status: done
 - id: M-261
   part: 11
   title: Privacy audit

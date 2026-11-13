@@ -1,0 +1,195 @@
+schema: mythic.status_line/1
+slice: M-178
+part: 8
+part_title: The Beautiful Face
+canon_note: 'Status Line of Truth: six facts, always visible - the model, the posture,
+  the context meter, the cost so far, the crew state and the sandbox state - gathered
+  into one status line of truth, each held as data. A fact is one of those six held
+  whole - its kind (model, posture, context, cost, crew or sandbox, in the roadmap''s
+  own order), its title, its value and its detail, the panel and the keypress it
+  opens (its kind''s own), each held with its provenance whole. The M-171 charter''s
+  S-03 direction is honoured live: gather model, context, cost and crew state into
+  one status line of truth - no structural rebuild of the screen - and the roadmap''s
+  six facts complete the gathering with posture and sandbox state. A view is the
+  one kind a panel looks at, or every kind at once, and the status line itself is
+  derived from the six facts, one segment per kind in the roadmap''s order - never
+  stored, never written by hand. A fact that is not measured stands honestly unknown,
+  and a kind holding no fact stands unknown in the line: no live value is invented
+  in this book. Each panel and keypress is named as data only: no live key is bound,
+  no live panel is opened and the live chat screen is not rebuilt here. This file
+  is ONE EXAMPLE BOOK, in the shape a real status-line file takes: the M-177 slice
+  boundary - six facts, five standing measured and the cost fact standing honestly
+  unknown, two views, and the one pinned panel of the every-kind view, whose shown
+  facts span all six kinds with five measured, so the book''s verdict under it stands
+  partial; under the cost view, whose one shown fact stands unknown, the verdict
+  stands empty. A real book is a new file in this same shape - it is never this file
+  edited in place. This layer holds facts and views as data only - it measures nothing
+  live, reads no live model, context, cost, crew or sandbox state, renders no live
+  UI, binds no key, opens no panel, calls no model and persists nothing: a fact held
+  here is a finding, never the live state of the screen it describes.'
+guide:
+  title: Status Line at the M-177 slice boundary
+facts:
+- fact_id: fact-model
+  kind: model
+  title: Model
+  value: Example coder model
+  detail: The model named in the example book, held as data - this layer measures
+    no live model.
+  panel: model panel
+  keypress: '1'
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: status line
+  origin_session: session-m178
+- fact_id: fact-posture
+  kind: posture
+  title: Posture
+  value: Trusted Forge
+  detail: The posture named in the example book, held as data - the shipped default
+    posture, named here and not read live.
+  panel: posture panel
+  keypress: '2'
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: status line
+  origin_session: session-m178
+- fact_id: fact-context
+  kind: context
+  title: Context
+  value: 5,660 of 8,000 tokens
+  detail: The context meter standing in the example book, held as data - the example
+    context panel's own standing, not a live meter reading.
+  panel: context panel
+  keypress: '3'
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: status line
+  origin_session: session-m178
+- fact_id: fact-cost
+  kind: cost
+  title: Cost so far
+  value: unknown
+  detail: No cost reading stands held in the example book - the fact is honestly
+    unknown, not invented.
+  panel: cost panel
+  keypress: '4'
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: status line
+  origin_session: session-m178
+- fact_id: fact-crew
+  kind: crew
+  title: Crew
+  value: coordinator alone
+  detail: The crew state named in the example book, held as data - no live crew is
+    read here.
+  panel: crew panel
+  keypress: '5'
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: status line
+  origin_session: session-m178
+- fact_id: fact-sandbox
+  kind: sandbox
+  title: Sandbox
+  value: on, held as data
+  detail: The sandbox state named in the example book, held as data - no live sandbox
+    is read here.
+  panel: sandbox panel
+  keypress: '6'
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: status line
+  origin_session: session-m178
+views:
+- view_id: view-all
+  seq: 1
+  kind_filter: all
+  detail: See the whole status line, every kind at once.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: status line
+  origin_session: session-m178
+- view_id: view-cost
+  seq: 2
+  kind_filter: cost
+  detail: See only the cost fact of the line.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: status line
+  origin_session: session-m178
+panels:
+- panel_id: panel-m177-boundary
+  view_id: view-all
+  kind_filter: all
+  rows:
+  - fact_id: fact-model
+    kind: model
+    title: Model
+    segment: 'Model: Example coder model'
+    panel: model panel
+    keypress: '1'
+    recorded_on: '2026-11-09'
+  - fact_id: fact-posture
+    kind: posture
+    title: Posture
+    segment: 'Posture: Trusted Forge'
+    panel: posture panel
+    keypress: '2'
+    recorded_on: '2026-11-09'
+  - fact_id: fact-context
+    kind: context
+    title: Context
+    segment: 'Context: 5,660 of 8,000 tokens'
+    panel: context panel
+    keypress: '3'
+    recorded_on: '2026-11-09'
+  - fact_id: fact-cost
+    kind: cost
+    title: Cost so far
+    segment: 'Cost so far: unknown'
+    panel: cost panel
+    keypress: '4'
+    recorded_on: '2026-11-09'
+  - fact_id: fact-crew
+    kind: crew
+    title: Crew
+    segment: 'Crew: coordinator alone'
+    panel: crew panel
+    keypress: '5'
+    recorded_on: '2026-11-09'
+  - fact_id: fact-sandbox
+    kind: sandbox
+    title: Sandbox
+    segment: 'Sandbox: on, held as data'
+    panel: sandbox panel
+    keypress: '6'
+    recorded_on: '2026-11-09'
+  total_facts: 6
+  total_shown: 6
+  kind_counts:
+  - kind: model
+    facts: 1
+  - kind: posture
+    facts: 1
+  - kind: context
+    facts: 1
+  - kind: cost
+    facts: 1
+  - kind: crew
+    facts: 1
+  - kind: sandbox
+    facts: 1
+  as_of: '2026-11-09'
+  account:
+  - 'The status line holds 6 facts as of 2026-11-09: the view ''all'' shows 6 of
+    them: model 1, posture 1, context 1, cost 1, crew 1, sandbox 1; 5 of the shown
+    facts stand measured.'
+  - Rows stand in the roadmap's kind order, the order the line itself stands in,
+    so two panels of one view diff cleanly, segment by segment.
+  - Every segment and the status line itself are derived from the facts' own titles
+    and values - no segment is stored on any fact, and no order is chosen by hand.
+  - 'The status line is gathered as data only: it measures nothing live, binds no
+    key, opens no panel and rebuilds no live screen - an unmeasured fact stands honestly
+    unknown.'

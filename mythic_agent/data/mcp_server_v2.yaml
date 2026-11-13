@@ -1,0 +1,229 @@
+schema: mythic.mcp_server_v2/1
+service: M-234
+mcp_server_v2:
+  title: MCP service v2 at the M-234 slice run
+services:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-exposure book
+  origin_session: session-m234
+  service_id: service-campaign
+  seq: 1
+  title: Campaign service
+  state: live
+  detail: 'The slice the tracker looks back on first: banked at M-230, standing active in the cross-app
+    method honesty''s hands.'
+  contract: v2
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-exposure book
+  origin_session: session-m234
+  service_id: service-board
+  seq: 2
+  title: Board service
+  state: live
+  detail: 'This very slice, standing active: the mcpserver book holding its own service as data.'
+  contract: v2
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-exposure book
+  origin_session: session-m234
+  service_id: service-memorymap
+  seq: 3
+  title: Memory-map service
+  state: dormant
+  detail: A queued slice the tracker has not taken yet; an exposure naming it refuses by name.
+  contract: v1
+exposure_records:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-exposure book
+  origin_session: session-m234
+  exposure_id: exposure-held-exposure
+  seq: 1
+  service_id: service-campaign
+  title: The held exposure
+  stages: &id001
+  - declared
+  - contracted
+  - authorised
+  - served
+  - held
+  claims:
+  - campaign_ref
+  detail: 'The opening exposure: a slice declared for the service in its home tool, contracted across
+    the workshop, authorised where it lives, served to the tracker at hand and held honestly, held with
+    the tool held as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-exposure book
+  origin_session: session-m234
+  exposure_id: exposure-retried-exposure
+  seq: 2
+  service_id: service-campaign
+  title: The retried exposure
+  stages:
+  - declared
+  - contracted
+  - authorised
+  - served
+  - declared
+  - contracted
+  - authorised
+  - served
+  - held
+  claims: []
+  detail: 'The retried exposure: a first served step sent the standing back, the slice was declared and
+    contracted again and the tracking held a second time before the holding stood.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-exposure book
+  origin_session: session-m234
+  exposure_id: exposure-own-exposure
+  seq: 3
+  service_id: service-board
+  title: The tracker's own exposure
+  stages: *id001
+  claims:
+  - policy_ref
+  detail: 'The tracker''s own exposure: this slice''s own exposure, holding its exposure ref as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-exposure book
+  origin_session: session-m234
+  exposure_id: exposure-bare-exposure
+  seq: 4
+  service_id: service-board
+  title: The bare claim exposure
+  stages: *id001
+  claims:
+  - feeling
+  detail: An exposure that held a feeling in place of held proof, standing open.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-exposure book
+  origin_session: session-m234
+  exposure_id: exposure-leaping-exposure
+  seq: 5
+  service_id: service-board
+  title: The leaping exposure
+  stages:
+  - declared
+  - contracted
+  - held
+  claims: []
+  detail: An exposure that stepped from contracted straight to held, outside the exposure sequence, standing
+    open.
+views:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-exposure book
+  origin_session: session-m234
+  view_id: view-exposures
+  seq: 1
+  view_filter: all
+  detail: Every held exposure, complete or not.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-exposure book
+  origin_session: session-m234
+  view_id: view-held
+  seq: 2
+  view_filter: complete
+  detail: Only the exposures standing complete.
+notes:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-exposure book
+  origin_session: session-m234
+  note_id: note-note-first
+  seq: 1
+  exposure_id: exposure-held-exposure
+  stance: note
+  target: the opening exposure
+  title: Exposures first
+  detail: The tracker opens by naming the slice first, told honestly.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-exposure book
+  origin_session: session-m234
+  note_id: note-concern-bare
+  seq: 2
+  exposure_id: exposure-bare-exposure
+  stance: concern
+  target: the bare claim exposure
+  title: Claim declared
+  detail: An exposure that held a feeling claim is not the tracker's way, and stands declared.
+traces:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-exposure book
+  origin_session: session-m234
+  trace_id: trace-first
+  seq: 1
+  exposure_id: exposure-held-exposure
+  trace: declared > contracted > authorised > served > held
+  detail: 'The opening exposure''s walk, held exactly as walked: the trace is the walk itself.'
+panels:
+- panel_id: panel-campaign
+  view_id: view-exposures
+  view_filter: all
+  rows:
+  - item_id: exposure-held-exposure
+    standing: complete
+    label: The held exposure
+    segment: 'exposure-held-exposure: The held exposure - service: ''service-campaign'' - stage: ''held''
+      - stages: 5 - claims: ''campaign_ref'' - detail: ''The opening exposure: a slice declared for the
+      service in its home tool, contracted across the workshop, authorised where it lives, served to the
+      tracker at hand and held honestly, held with the tool held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: exposure-retried-exposure
+    standing: complete
+    label: The retried exposure
+    segment: 'exposure-retried-exposure: The retried exposure - service: ''service-campaign'' - stage:
+      ''held'' - stages: 9 - claims: ''none'' - detail: ''The retried exposure: a first served step sent
+      the standing back, the slice was declared and contracted again and the tracking held a second time
+      before the holding stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: exposure-own-exposure
+    standing: complete
+    label: The tracker's own exposure
+    segment: 'exposure-own-exposure: The tracker''s own exposure - service: ''service-board'' - stage:
+      ''held'' - stages: 5 - claims: ''policy_ref'' - detail: ''The tracker''s own exposure: this slice''s
+      own exposure, holding its exposure ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: exposure-bare-exposure
+    standing: open
+    label: The bare claim exposure
+    segment: 'exposure-bare-exposure: The bare claim exposure - service: ''service-board'' - stage: ''held''
+      - stages: 5 - claims: ''feeling'' - detail: ''An exposure that held a feeling in place of held proof,
+      standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof: complete stands
+      on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: exposure-leaping-exposure
+    standing: open
+    label: The leaping exposure
+    segment: 'exposure-leaping-exposure: The leaping exposure - service: ''service-board'' - stage: ''held''
+      - stages: 3 - claims: ''none'' - detail: ''An exposure that stepped from contracted straight to
+      held, outside the exposure sequence, standing open.'' - gaps: steps from contracted to held, which
+      the exposure sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The exposure book holds 5 exposures as of 2026-11-11: the view ''all'' shows 5 of them: complete
+    3, open 2; 3 of the shown exposures stand complete.'
+  - Rows stand in held exposure, the exposure the book itself stands in, so two panels of one view diff
+    cleanly, segment by segment.
+  - Every segment is derived from its exposure's own fields - the service it answers for, the steps it
+    walked in the open and the evidence it honestly carries - and no judgement is stored on any exposure.
+  - 'Completeness is authorised from the held records alone: a exposure that steps outside the exposure
+    sequence, carries a bare claim in place of held evidence, or has not declared held stands open, declared
+    in its gaps, and the exposure index is derived from the held exposures, never stored where it could
+    drift.'

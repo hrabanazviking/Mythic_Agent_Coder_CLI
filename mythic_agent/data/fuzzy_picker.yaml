@@ -1,0 +1,194 @@
+schema: mythic.fuzzy_picker/1
+slice: M-175
+part: 8
+part_title: The Beautiful Face
+canon_note: 'The Fuzzy Everything Picker: files, symbols, commands, sessions, models and themes under
+  one fuzzy finder grammar everywhere. A query is read into word tokens by the one token road whatever
+  kind it ranges over, and a candidate''s score is derived from those tokens against the candidate''s
+  own label, tags and detail - never stored, never ranked by hand. A kind filter narrows which candidates
+  stand in a search, never how they are judged. Candidates are composed from the shipped rooms the picker
+  ranges over - an instruction file, a charter screen''s symbol, a capability-table model, a multi-session
+  session, a baseline-named theme - each held with its provenance whole. The M-171 charter judged the
+  subagent picker modal (its S-06 row) KEEP and names M-175 as an owning slice: the heading takes plain
+  words first (its K-01 judgement strains), and the auto-dismiss on change is re-judged here (its K-09
+  judgement strains) - in the picker''s own shape a search commits no choice at all, so there is nothing
+  a browsing keystroke can commit by accident. This file is ONE EXAMPLE BOOK, in the shape a real picker
+  file takes: the M-174 slice boundary - eight candidates, one of every room the picker ranges over and
+  two more besides, two searches, and the one pinned panel of the approval search, whose matches span
+  four kinds, so the book''s verdict under it stands matched; under the viking search the verdict stands
+  focused. A real book is a new file in this same shape - it is never this file edited in place. This
+  layer holds candidates and searches as data only - it opens nothing, executes nothing, renders no live
+  UI, sends nothing, posts nothing, schedules nothing, calls no model and persists nothing: a match held
+  here is a finding, never the act of opening the thing found.'
+guide:
+  title: Fuzzy Picker at the M-174 slice boundary
+candidates:
+- candidate_id: cand-approval-file
+  kind: file
+  label: mythic_agent/core/approval_cards.py
+  detail: 'The M-174 approval cards pure layer: one decision per card, the target and the consequence
+    each as their own lines.'
+  tags:
+  - approval
+  - cards
+  - file
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: fuzzy picker
+  origin_session: session-m175
+- candidate_id: cand-approval-symbol
+  kind: symbol
+  label: ApprovalCardRegistry
+  detail: 'The approval cards registry symbol: cards and decision records held one by one, each judged
+    whole before it is held.'
+  tags:
+  - approval
+  - registry
+  - symbol
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: fuzzy picker
+  origin_session: session-m175
+- candidate_id: cand-approval-command
+  kind: command
+  label: /approvalcards
+  detail: 'The approval cards command: shows the book, one card, one decision record, the panel or the
+    verdict.'
+  tags:
+  - approval
+  - command
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: fuzzy picker
+  origin_session: session-m175
+- candidate_id: cand-approval-tests
+  kind: file
+  label: tests/test_approval_cards.py
+  detail: 'The approval cards tests: the pure layer and the agent layer pinned whole, in the M-173 shape.'
+  tags:
+  - approval
+  - tests
+  - file
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: fuzzy picker
+  origin_session: session-m175
+- candidate_id: cand-sliceboard-command
+  kind: command
+  label: /sliceboard
+  detail: 'The slice board command: shows the board, one card, one column, one hand action, the panel
+    or the verdict.'
+  tags:
+  - board
+  - command
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: fuzzy picker
+  origin_session: session-m175
+- candidate_id: cand-m174-session
+  kind: session
+  label: M-174 approval cards session
+  detail: A session on mythic-hammer, working branch team-10 and standing banked, held under session-m174.
+  tags:
+  - session
+  - approval
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: fuzzy picker
+  origin_session: session-m175
+- candidate_id: cand-sonnet-model
+  kind: model
+  label: claude-3-5-sonnet
+  detail: 'A model listed under anthropic in the shipped capability table: the campaign''s everyday builder.'
+  tags:
+  - model
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: fuzzy picker
+  origin_session: session-m175
+- candidate_id: cand-viking-theme
+  kind: theme
+  label: viking_dark
+  detail: The shipped viking_dark theme, audited in the M-016 accessibility baseline.
+  tags:
+  - theme
+  - viking
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: fuzzy picker
+  origin_session: session-m175
+searches:
+- search_id: search-approval
+  seq: 1
+  text: approval
+  kind_filter: all
+  detail: Find everything the picker holds about approval.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: fuzzy picker
+  origin_session: session-m175
+- search_id: search-viking-theme
+  seq: 2
+  text: viking
+  kind_filter: theme
+  detail: Find the viking theme alone.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: fuzzy picker
+  origin_session: session-m175
+panels:
+- panel_id: panel-m174-boundary
+  search_id: search-approval
+  query_text: approval
+  kind_filter: all
+  rows:
+  - candidate_id: cand-approval-symbol
+    kind: symbol
+    label: ApprovalCardRegistry
+    score: 75
+    line: ApprovalCardRegistry - symbol
+    recorded_on: '2026-11-09'
+  - candidate_id: cand-approval-file
+    kind: file
+    label: mythic_agent/core/approval_cards.py
+    score: 55
+    line: mythic_agent/core/approval_cards.py - file
+    recorded_on: '2026-11-09'
+  - candidate_id: cand-approval-tests
+    kind: file
+    label: tests/test_approval_cards.py
+    score: 55
+    line: tests/test_approval_cards.py - file
+    recorded_on: '2026-11-09'
+  - candidate_id: cand-approval-command
+    kind: command
+    label: /approvalcards
+    score: 55
+    line: /approvalcards - command
+    recorded_on: '2026-11-09'
+  - candidate_id: cand-m174-session
+    kind: session
+    label: M-174 approval cards session
+    score: 50
+    line: M-174 approval cards session - session
+    recorded_on: '2026-11-09'
+  total_candidates: 8
+  total_matched: 5
+  kind_counts:
+  - kind: file
+    items: 2
+  - kind: symbol
+    items: 1
+  - kind: command
+    items: 1
+  - kind: session
+    items: 1
+  as_of: '2026-11-09'
+  account:
+  - 'The fuzzy picker holds 8 candidates as of 2026-11-09: the search ''approval'' under the all filter
+    matches 5 of them: file 2, symbol 1, command 1, session 1.'
+  - Rows stand in ranked order, best match first, so two panels of one search diff cleanly, line by line.
+  - Every score is derived from the query's tokens against the candidate's own label, tags and detail
+    - no score is stored on any candidate, and no rank is chosen.
+  - 'The panel''s words are plain words first, and a search only ever looks: it opens no file, runs no
+    command, loads no model, applies no theme and joins no session.'

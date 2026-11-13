@@ -28,6 +28,7 @@ __all__ = [
     "HealthStatus",
     "Path",
     "check_config",
+    "check_memory_stores",
     "check_dependencies",
     "check_provider",
     "check_provider_live",
@@ -160,6 +161,76 @@ def check_sessions() -> HealthResult:
         return HealthResult("sessions", HealthStatus.WARNING,
                             f"Session store issue: {e}",
                             fix_hint="Sessions may not persist across restarts.")
+
+
+@health_check("memory")
+def check_memory_stores() -> HealthResult:
+    """Memory stores load whole: no corrupt shipped store (M-168).
+
+    The memory doctor's corrupt-store check over
+    the shipped memory store files: every shipped
+    memory book - the project memory map, session
+    memory, cross-project memory, the
+    self-improving ledger, crew memory, the
+    subconscious v2, the contradiction watch,
+    private by architecture and the memory doctor's
+    own example book - is loaded through its own
+    layer's loader, which judges every piece by
+    its own layer's validation. A store that
+    refuses to load is a corrupt store and fails
+    plainly, naming the store. This check reports
+    corruption; it repairs nothing - repairs are
+    derived per finding on the memory doctor's
+    session roads, never applied to live stores
+    here.
+    """
+    roads = []
+    try:
+        from mythic_agent.core.project_memory_map import (
+            load_project_memory_map)
+        from mythic_agent.core.session_memory import load_session_memory
+        from mythic_agent.core.cross_project_memory import (
+            load_cross_project_memory)
+        from mythic_agent.core.self_improving_ledger import (
+            load_self_improving_ledger)
+        from mythic_agent.core.crew_memory import load_crew_memory
+        from mythic_agent.core.subconscious_v2 import load_subconscious_v2
+        from mythic_agent.core.contradiction_watch import (
+            load_contradiction_watch)
+        from mythic_agent.core.private_by_architecture import (
+            load_private_by_architecture)
+        from mythic_agent.core.memory_doctor import load_memory_doctor
+        roads = [
+            ("project memory map", load_project_memory_map),
+            ("session memory", load_session_memory),
+            ("cross-project memory", load_cross_project_memory),
+            ("self-improving ledger", load_self_improving_ledger),
+            ("crew memory", load_crew_memory),
+            ("subconscious v2", load_subconscious_v2),
+            ("contradiction watch", load_contradiction_watch),
+            ("private by architecture", load_private_by_architecture),
+            ("memory doctor", load_memory_doctor),
+        ]
+    except Exception as e:
+        return HealthResult("memory", HealthStatus.FAIL,
+                            f"Memory store loaders failed to import: {e}")
+    broken = []
+    for name, road in roads:
+        try:
+            road()
+        except Exception as e:
+            broken.append(f"{name}: {e}")
+    if broken:
+        return HealthResult(
+            "memory", HealthStatus.FAIL,
+            f"Corrupt memory store(s): {'; '.join(broken)}",
+            fix_hint=("Run /memorydoctor in a session for the "
+                      "per-finding checks and derived safe repairs; "
+                      "store-wide corruption is referred, never "
+                      "auto-repaired."))
+    return HealthResult(
+        "memory", HealthStatus.OK,
+        f"{len(roads)} memory stores load whole, no corruption")
 
 
 @health_check("dependencies")

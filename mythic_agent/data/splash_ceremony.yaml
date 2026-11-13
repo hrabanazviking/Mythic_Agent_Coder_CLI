@@ -1,0 +1,222 @@
+schema: mythic.splash_ceremony/1
+slice: M-193
+part: 8
+part_title: The Beautiful Face
+canon_note: 'Splash and ceremony, restrained - the forge''s face keeps its beauty inside the Lawbook''s budgets:
+  ceremony at start and at a roadmap''s completion, quiet the rest of the time. The M-171 charter names this slice
+  on screen S-01 (the splash screen) with a rebuild verdict: a brief wordmark in plain text, a one-line status of
+  what is loading, the art retired or demoted under the ceremony budget, and a text alternative for anything pictorial
+  that stays. A moment is held whole - under its occasion, its kind in the closed vocabulary (wordmark, status,
+  art, silence), its duration and its budget held honestly (an unknown duration or budget stands empty, never invented),
+  the text alternative it carries, named as data, and its detail. A moment naming no text alternative is held honestly
+  with an empty alternative: it stands unalternated, named in its gaps, and no alternative is invented for it. The
+  ceremony index is DERIVED at call time from the held moments alone - never a second stored copy that could drift
+  - and a stored index or alternatedness verdict on any record refuses by name. The notes are held as data: a note
+  record naming its moment, its stance (note, concern, praise or question) and what it feeds back toward; one record
+  stands per moment stance, and holding a note posts none of it. A record claiming a ceremony was actually shown,
+  played or performed refuses by name. This file is ONE EXAMPLE BOOK, in the shape a real ceremony file takes -
+  the M-192 slice boundary - six moments and two views, two note records, with its one pinned panel of the every-moment
+  view, whose shown moments stand five alternated of six, so the book verdict under it stands strained; under the
+  alternated view, whose five shown moments all stand alternated, the verdict stands open. A real book is a new
+  file in this same shape - it is never this file edited in place. This layer shows no splash, plays no ceremony,
+  performs nothing and opens no network: it holds the ceremony as data and tells it.'
+splash_ceremony:
+  title: Splash and ceremony at the M-192 slice boundary
+moments:
+- moment_id: moment-wordmark-start
+  seq: 1
+  occasion: Wordmark at start
+  kind: wordmark
+  duration: 2 seconds
+  budget: accent 8 percent
+  text_alternative: Mythic Agent Coder
+  detail: The wordmark at start stands in plain text, brief - the charter's rebuild direction for the splash screen
+    (S-01) - its card names the text alternative it carries as data; holding the card shows no splash.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: splash and ceremony
+  origin_session: session-m193
+- moment_id: moment-status-loading
+  seq: 2
+  occasion: Loading status at start
+  kind: status
+  duration: ''
+  budget: accent 5 percent
+  text_alternative: 'Loading the forge: provider, model and tools.'
+  detail: The one-line status at start says what is loading, in plain words. How long the loading stands was never
+    recorded anywhere honest, so the moment holds its duration empty - unknown stays unknown, and no figure is invented
+    for it.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: splash and ceremony
+  origin_session: session-m193
+- moment_id: moment-art-longship
+  seq: 3
+  occasion: Longship art at start
+  kind: art
+  duration: 2 seconds
+  budget: ''
+  text_alternative: A longship under sail, drawn in line art.
+  detail: The longship art is demoted under the ceremony budget - what pictorial piece stays carries a text alternative,
+    per the charter's direction. What budget share the art stands under was never recorded anywhere honest, so the
+    moment holds its budget empty - unknown stays unknown, and no figure is invented for it.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: splash and ceremony
+  origin_session: session-m193
+- moment_id: moment-status-ready
+  seq: 4
+  occasion: Ready status at start
+  kind: status
+  duration: 1 second
+  budget: ornament 2 percent
+  text_alternative: Ready - the chat stands open.
+  detail: The ready line closes the start ceremony and hands over to the work - a small moment with a small budget,
+    held whole on its card, and the praise note on the loading status stands held beside the book as data.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: splash and ceremony
+  origin_session: session-m193
+- moment_id: moment-silence-work
+  seq: 5
+  occasion: Quiet while working
+  kind: silence
+  duration: the working session
+  budget: ornament 0 percent
+  text_alternative: ''
+  detail: The quiet while working names no text alternative in this book - silence carries no words - so the moment
+    stands unalternated honestly, named in the gaps until an alternative is held for it, and no alternative is invented
+    here.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: splash and ceremony
+  origin_session: session-m193
+- moment_id: moment-wordmark-complete
+  seq: 6
+  occasion: Wordmark at roadmap completion
+  kind: wordmark
+  duration: 3 seconds
+  budget: accent 10 percent
+  text_alternative: Roadmap complete - all 272 slices stand banked.
+  detail: The completion wordmark stands only when a roadmap completes - ceremony at start and at a roadmap's completion,
+    quiet the rest of the time - its card names the text alternative it carries as data beside the others.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: splash and ceremony
+  origin_session: session-m193
+views:
+- view_id: view-ceremony
+  seq: 1
+  view_filter: all
+  detail: 'Every ceremony moment at once - the start, the completion, and the quiet between: see every moment.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: splash and ceremony
+  origin_session: session-m193
+- view_id: view-alternated
+  seq: 2
+  view_filter: alternated
+  detail: Only the moments that carry a text alternative - everything pictorial that stays, honestly available to
+    every user.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: splash and ceremony
+  origin_session: session-m193
+notes:
+- note_id: note-note-wordmark
+  seq: 1
+  moment_id: moment-wordmark-start
+  stance: note
+  target: the user
+  title: Note the start wordmark
+  detail: The note on the start wordmark stands held as data - its moment, its stance and what it feeds back toward.
+    Holding the note posts nothing; the feedback is told, never sent, by this layer.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: splash and ceremony
+  origin_session: session-m193
+- note_id: note-praise-status
+  seq: 2
+  moment_id: moment-status-loading
+  stance: praise
+  target: the user
+  title: Praise the loading status
+  detail: The praise for the loading status stands held as data beside the first. One note record stands per moment
+    stance in this book, so a second record for one moment under one stance refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: splash and ceremony
+  origin_session: session-m193
+panels:
+- panel_id: panel-m192-boundary
+  view_id: view-ceremony
+  view_filter: all
+  rows:
+  - item_id: moment-wordmark-start
+    standing: alternated
+    label: Wordmark at start
+    segment: 'moment-wordmark-start: Wordmark at start - kind: ''wordmark'' - duration: ''2 seconds'' - budget:
+      ''accent 8 percent'' - alternative: ''Mythic Agent Coder'' - detail: ''The wordmark at start stands in plain
+      text, brief - the charter''s rebuild direction for the splash screen (S-01) - its card names the text alternative
+      it carries as data; holding the card shows no splash.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: moment-status-loading
+    standing: alternated
+    label: Loading status at start
+    segment: 'moment-status-loading: Loading status at start - kind: ''status'' - duration: ''unknown'' - budget:
+      ''accent 5 percent'' - alternative: ''Loading the forge: provider, model and tools.'' - detail: ''The one-line
+      status at start says what is loading, in plain words. How long the loading stands was never recorded anywhere
+      honest, so the moment holds its duration empty - unknown stays unknown, and no figure is invented for it.''
+      - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: moment-art-longship
+    standing: alternated
+    label: Longship art at start
+    segment: 'moment-art-longship: Longship art at start - kind: ''art'' - duration: ''2 seconds'' - budget: ''unknown''
+      - alternative: ''A longship under sail, drawn in line art.'' - detail: ''The longship art is demoted under
+      the ceremony budget - what pictorial piece stays carries a text alternative, per the charter''s direction.
+      What budget share the art stands under was never recorded anywhere honest, so the moment holds its budget
+      empty - unknown stays unknown, and no figure is invented for it.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: moment-status-ready
+    standing: alternated
+    label: Ready status at start
+    segment: 'moment-status-ready: Ready status at start - kind: ''status'' - duration: ''1 second'' - budget: ''ornament
+      2 percent'' - alternative: ''Ready - the chat stands open.'' - detail: ''The ready line closes the start ceremony
+      and hands over to the work - a small moment with a small budget, held whole on its card, and the praise note
+      on the loading status stands held beside the book as data.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: moment-silence-work
+    standing: unalternated
+    label: Quiet while working
+    segment: 'moment-silence-work: Quiet while working - kind: ''silence'' - duration: ''the working session'' -
+      budget: ''ornament 0 percent'' - alternative: ''none'' - detail: ''The quiet while working names no text alternative
+      in this book - silence carries no words - so the moment stands unalternated honestly, named in the gaps until
+      an alternative is held for it, and no alternative is invented here.'' - gaps: no text alternative'
+    recorded_on: '2026-11-10'
+  - item_id: moment-wordmark-complete
+    standing: alternated
+    label: Wordmark at roadmap completion
+    segment: 'moment-wordmark-complete: Wordmark at roadmap completion - kind: ''wordmark'' - duration: ''3 seconds''
+      - budget: ''accent 10 percent'' - alternative: ''Roadmap complete - all 272 slices stand banked.'' - detail:
+      ''The completion wordmark stands only when a roadmap completes - ceremony at start and at a roadmap''s completion,
+      quiet the rest of the time - its card names the text alternative it carries as data beside the others.'' -
+      gaps: none'
+    recorded_on: '2026-11-10'
+  total_items: 6
+  total_shown: 6
+  target_counts:
+  - standing: alternated
+    items: 5
+  - standing: unalternated
+    items: 1
+  as_of: '2026-11-10'
+  account:
+  - 'The ceremony book holds 6 moments as of 2026-11-10: the view ''all'' shows 6 of them: alternated 5, unalternated
+    1; 5 of the shown moments stand alternated.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly, segment
+    by segment.
+  - Every segment is derived from its moment's own fields - the occasion, the kind, the duration and budget honestly
+    held and the text alternative it honestly carries - and no judgement is stored on any moment.
+  - 'Alternatedness is judged from the held records alone: a moment naming no text alternative stands unalternated,
+    and the ceremony index is derived from the held moments, never stored where it could drift.'

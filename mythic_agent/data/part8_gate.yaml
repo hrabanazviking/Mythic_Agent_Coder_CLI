@@ -1,0 +1,266 @@
+schema: mythic.part8_gate/1
+gate_slice: M-200
+part: 8
+part_title: The Beautiful Face
+verdict: PASS
+gate_note: |
+  The Part VIII gate: the Stranger Test - a new user, docs only,
+  completes a real task in the TUI inside thirty minutes; every
+  stumble is a fix or a doc correction before the gate passes. The
+  exercise is the sitting itself: a new user who had never opened
+  the coder before the sitting, guided by the docs alone, finished
+  the task in twenty-four of the thirty minutes - the sitting held
+  as the shipped M-184 onboarding walk's own five steps in held
+  order (success before configuration), the stranger's three
+  questions each answered by the one local doc the shipped M-186
+  road names for it, the one error met held whole in the shipped
+  M-183 shape (what happened, what it means, the most likely fix,
+  its trace folded whole), and both stumbles closed, one as a doc
+  correction and one as a fix. Every step is re-proven live by the
+  gate tests on every run through the shipped pure roads (M-184
+  derive_walk over the shipped onboarding book, M-186
+  derive_answer over the shipped help book, M-183 build_error,
+  error_gaps and error_plain_words, and every face layer M-171 to
+  M-199 standing in its own shipped module under its own slice
+  constant) - no step is faked or stubbed, no live stranger is
+  run, no live session is started, no model is called and no
+  token is spent by the gate itself; the campaign tree is never
+  the exercise repo.
+baseline:
+  resource: m199_confirmation_suite
+  collected: 9907
+  passed: 9904
+  failed: 2
+  skipped: 1
+slices:
+  - slice: M-171
+    title: The TUI redesign charter
+  - slice: M-172
+    title: Streaming work view
+  - slice: M-173
+    title: The Slice Board
+  - slice: M-174
+    title: Approval cards perfected
+  - slice: M-175
+    title: The fuzzy everything picker
+  - slice: M-176
+    title: Slash-command palace
+  - slice: M-177
+    title: Prompt craft
+  - slice: M-178
+    title: Status line of truth
+  - slice: M-179
+    title: Themes grown up
+  - slice: M-180
+    title: Voice in and out
+  - slice: M-181
+    title: Notifications with manners
+  - slice: M-182
+    title: The plain-language skin
+  - slice: M-183
+    title: Error kindness
+  - slice: M-184
+    title: Onboarding in five minutes
+  - slice: M-185
+    title: The tutorial grown
+  - slice: M-186
+    title: Help that answers
+  - slice: M-187
+    title: Keyboard sovereignty
+  - slice: M-188
+    title: Mouse manners
+  - slice: M-189
+    title: Session gallery
+  - slice: M-190
+    title: The costs face
+  - slice: M-191
+    title: Diff theatre final form (with M-091)
+  - slice: M-192
+    title: Multi-pane working
+  - slice: M-193
+    title: Splash and ceremony, restrained
+  - slice: M-194
+    title: Small-terminal grace
+  - slice: M-195
+    title: Copy and share
+  - slice: M-196
+    title: Settings as one room
+  - slice: M-197
+    title: Command palette
+  - slice: M-198
+    title: Undo of UI itself
+  - slice: M-199
+    title: Accessibility verification
+layers:
+  - slice: M-171
+    module: tui_redesign_charter
+    constant: CHARTER_SLICE
+  - slice: M-172
+    module: work_view
+    constant: WORK_VIEW_SLICE
+  - slice: M-173
+    module: slice_board
+    constant: SLICE_BOARD_SLICE
+  - slice: M-174
+    module: approval_cards
+    constant: APPROVAL_CARDS_SLICE
+  - slice: M-175
+    module: fuzzy_picker
+    constant: FUZZY_PICKER_SLICE
+  - slice: M-176
+    module: command_palace
+    constant: COMMAND_PALACE_SLICE
+  - slice: M-177
+    module: prompt_craft
+    constant: PROMPT_CRAFT_SLICE
+  - slice: M-178
+    module: status_line
+    constant: STATUS_LINE_SLICE
+  - slice: M-179
+    module: themes_grown_up
+    constant: THEMES_GROWN_UP_SLICE
+  - slice: M-180
+    module: voice_in_out
+    constant: VOICE_IN_OUT_SLICE
+  - slice: M-181
+    module: notifications_manners
+    constant: NOTIFICATIONS_MANNERS_SLICE
+  - slice: M-182
+    module: plain_language_skin
+    constant: PLAIN_LANGUAGE_SKIN_SLICE
+  - slice: M-183
+    module: error_kindness
+    constant: ERROR_KINDNESS_SLICE
+  - slice: M-184
+    module: onboarding_five
+    constant: ONBOARDING_FIVE_SLICE
+  - slice: M-185
+    module: tutorial_grown
+    constant: TUTORIAL_GROWN_SLICE
+  - slice: M-186
+    module: help_answers
+    constant: HELP_ANSWERS_SLICE
+  - slice: M-187
+    module: keyboard_sovereignty
+    constant: KEYBOARD_SOVEREIGNTY_SLICE
+  - slice: M-188
+    module: mouse_manners
+    constant: MOUSE_MANNERS_SLICE
+  - slice: M-189
+    module: session_gallery
+    constant: SESSION_GALLERY_SLICE
+  - slice: M-190
+    module: costs_face
+    constant: COSTS_FACE_SLICE
+  - slice: M-191
+    module: diff_theatre_final
+    constant: DIFF_THEATRE_FINAL_SLICE
+  - slice: M-192
+    module: multi_pane
+    constant: MULTI_PANE_SLICE
+  - slice: M-193
+    module: splash_ceremony
+    constant: SPLASH_CEREMONY_SLICE
+  - slice: M-194
+    module: small_terminal_grace
+    constant: SMALL_TERMINAL_GRACE_SLICE
+  - slice: M-195
+    module: copy_share
+    constant: COPY_SHARE_SLICE
+  - slice: M-196
+    module: settings_room
+    constant: SETTINGS_ROOM_SLICE
+  - slice: M-197
+    module: command_palette
+    constant: COMMAND_PALETTE_SLICE
+  - slice: M-198
+    module: ui_undo
+    constant: UI_UNDO_SLICE
+  - slice: M-199
+    module: accessibility_verification
+    constant: ACCESSIBILITY_VERIFICATION_SLICE
+exercises:
+  - id: stranger_test
+    title: The Stranger Test
+    owning_slices:
+      - M-183
+      - M-184
+      - M-186
+    status: completed
+    evidence_kind: pure-roads-measured
+    evidence: >
+      The sitting as recorded: the walk is the shipped M-184
+      onboarding walk's own five steps in held order, each of the
+      stranger's three questions is answered by exactly the local
+      doc the record names under the shipped M-186 road with no
+      gaps, and the one error met builds whole under the shipped
+      M-183 road with no gaps and its plain telling standing as
+      its own fields - all re-derived live by the gate tests on
+      every run.
+    walked_on: "2026-11-10"
+    stranger: a new user who had never opened the coder before the sitting
+    guidance: docs only
+    task: >-
+      In a scratch repo, fix the failing greeting test so the
+      greeting names the visitor, then show the finished diff.
+    limit_minutes: 30
+    elapsed_minutes: 24
+    walk_step_ids:
+      - step-detect
+      - step-walk
+      - step-success
+      - step-offer
+      - step-configure
+    questions:
+      - question: how do I start my first task?
+        doc_id: doc-first-task
+      - question: how do I undo a commit?
+        doc_id: doc-undo-commit
+      - question: how do I use plain words?
+        doc_id: doc-plain-words
+    error:
+      error_id: error-stranger-greeting-test
+      seq: 1
+      kind: broken
+      title: A test broke
+      happened: >-
+        The greeting test failed: the greeting still said hello
+        to no one, because the visitor's name was never passed in.
+      meaning: >-
+        The task is not finished while its own test fails - the
+        greeting does not yet do the one thing the task asked.
+      fix: >-
+        Pass the visitor's name into the greeting, then run the
+        test again.
+      trace:
+        - "FAILED scratch/test_greeting.py::test_greeting_names_the_visitor"
+        - "AssertionError: 'hello' != 'hello, visitor'"
+      detail: >-
+        The stranger read the folded trace in the error's own
+        card and fixed the call, not the test.
+      recorded_on: "2026-11-10"
+      actor: the stranger
+      source: stranger test
+      origin_session: session-stranger-test
+    stumbles:
+      - stumble_id: stumble-setup-first
+        where: step-detect
+        what: >-
+          The onboarding doc opened with provider-key setup, and
+          the stranger nearly configured keys before ever seeing
+          a first success.
+        resolution_kind: doc-correction
+        resolution: >-
+          Doc correction: the onboarding doc now opens with the
+          success-before-configuration ordering rule, and setup
+          waits until after the first success.
+      - stumble_id: stumble-undo-hunt
+        where: step-walk
+        what: >-
+          The stranger hunted for undo in the menus after the
+          commit step and could not find its plain-words entry.
+        resolution_kind: fix
+        resolution: >-
+          Fix: the undo entry in the slash-command palace now
+          shows its plain-words question-box example, so the
+          docs' undo answer is findable from the palace.

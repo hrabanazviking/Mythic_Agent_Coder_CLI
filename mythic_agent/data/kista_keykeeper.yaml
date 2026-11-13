@@ -1,0 +1,230 @@
+schema: mythic.kista_keykeeper/1
+repo: M-244
+kista_keykeeper:
+  title: Kista key-keeper at the M-244 slice run
+bridges:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-resolution book
+  origin_session: session-m244
+  bridge_id: bridge-samverk
+  seq: 1
+  title: Samverk bridge
+  state: live
+  detail: 'The slice the tracker looks back on first: banked at M-230, standing active in the cross-app
+    method honesty''s hands.'
+  custody: kista
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-resolution book
+  origin_session: session-m244
+  bridge_id: bridge-samtal
+  seq: 2
+  title: Samtal bridge
+  state: live
+  detail: 'This very slice, standing active: the kistakeykeeper book holding its own bridge as data.'
+  custody: environment
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-resolution book
+  origin_session: session-m244
+  bridge_id: bridge-github
+  seq: 3
+  title: GitHub bridge
+  state: dormant
+  detail: A queued slice the tracker has not taken yet; an resolution naming it refuses by name.
+  custody: missing
+resolution_records:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-resolution book
+  origin_session: session-m244
+  resolution_id: resolution-held-resolution
+  seq: 1
+  bridge_id: bridge-samverk
+  title: The held resolution
+  stages: &id001
+  - named
+  - sought
+  - resolved
+  - confirmed
+  - held
+  claims:
+  - bridge_ref
+  detail: 'The opening resolution: a slice named for the bridge in its home tool, sought across the workshop,
+    resolved where it lives, confirmed to the tracker at hand and held honestly, held with the tool held
+    as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-resolution book
+  origin_session: session-m244
+  resolution_id: resolution-retried-resolution
+  seq: 2
+  bridge_id: bridge-samverk
+  title: The retried resolution
+  stages:
+  - named
+  - sought
+  - resolved
+  - confirmed
+  - named
+  - sought
+  - resolved
+  - confirmed
+  - held
+  claims: []
+  detail: 'The retried resolution: a first confirmed step sent the standing back, the slice was named
+    and sought again and the tracking held a second time before the holding stood.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-resolution book
+  origin_session: session-m244
+  resolution_id: resolution-own-resolution
+  seq: 3
+  bridge_id: bridge-samtal
+  title: The tracker's own resolution
+  stages: *id001
+  claims:
+  - custody_ref
+  detail: 'The tracker''s own resolution: this slice''s own resolution, holding its resolution ref as
+    proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-resolution book
+  origin_session: session-m244
+  resolution_id: resolution-bare-resolution
+  seq: 4
+  bridge_id: bridge-samtal
+  title: The bare claim resolution
+  stages: *id001
+  claims:
+  - feeling
+  detail: An resolution that held a feeling in place of held proof, standing open.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-resolution book
+  origin_session: session-m244
+  resolution_id: resolution-leaping-resolution
+  seq: 5
+  bridge_id: bridge-samtal
+  title: The leaping resolution
+  stages:
+  - named
+  - sought
+  - held
+  claims: []
+  detail: An resolution that stepped from sought straight to held, outside the resolution sequence, standing
+    open.
+views:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-resolution book
+  origin_session: session-m244
+  view_id: view-resolutions
+  seq: 1
+  view_filter: all
+  detail: Every held resolution, complete or not.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-resolution book
+  origin_session: session-m244
+  view_id: view-held
+  seq: 2
+  view_filter: complete
+  detail: Only the resolutions standing complete.
+notes:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-resolution book
+  origin_session: session-m244
+  note_id: note-note-first
+  seq: 1
+  resolution_id: resolution-held-resolution
+  stance: note
+  target: the opening resolution
+  title: Resolutions first
+  detail: The tracker opens by naming the slice first, told honestly.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-resolution book
+  origin_session: session-m244
+  note_id: note-concern-bare
+  seq: 2
+  resolution_id: resolution-bare-resolution
+  stance: concern
+  target: the bare claim resolution
+  title: Claim named
+  detail: An resolution that held a feeling claim is not the tracker's way, and stands named.
+traces:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-resolution book
+  origin_session: session-m244
+  trace_id: trace-first
+  seq: 1
+  resolution_id: resolution-held-resolution
+  trace: named > sought > resolved > confirmed > held
+  detail: 'The opening resolution''s walk, held exactly as walked: the trace is the walk itself.'
+panels:
+- panel_id: panel-kista
+  view_id: view-resolutions
+  view_filter: all
+  rows:
+  - item_id: resolution-held-resolution
+    standing: complete
+    label: The held resolution
+    segment: 'resolution-held-resolution: The held resolution - bridge: ''bridge-samverk'' - stage: ''held''
+      - stages: 5 - claims: ''bridge_ref'' - detail: ''The opening resolution: a slice named for the bridge
+      in its home tool, sought across the workshop, resolved where it lives, confirmed to the tracker
+      at hand and held honestly, held with the tool held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: resolution-retried-resolution
+    standing: complete
+    label: The retried resolution
+    segment: 'resolution-retried-resolution: The retried resolution - bridge: ''bridge-samverk'' - stage:
+      ''held'' - stages: 9 - claims: ''none'' - detail: ''The retried resolution: a first confirmed step
+      sent the standing back, the slice was named and sought again and the tracking held a second time
+      before the holding stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: resolution-own-resolution
+    standing: complete
+    label: The tracker's own resolution
+    segment: 'resolution-own-resolution: The tracker''s own resolution - bridge: ''bridge-samtal'' - stage:
+      ''held'' - stages: 5 - claims: ''custody_ref'' - detail: ''The tracker''s own resolution: this slice''s
+      own resolution, holding its resolution ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: resolution-bare-resolution
+    standing: open
+    label: The bare claim resolution
+    segment: 'resolution-bare-resolution: The bare claim resolution - bridge: ''bridge-samtal'' - stage:
+      ''held'' - stages: 5 - claims: ''feeling'' - detail: ''An resolution that held a feeling in place
+      of held proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof:
+      complete stands on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: resolution-leaping-resolution
+    standing: open
+    label: The leaping resolution
+    segment: 'resolution-leaping-resolution: The leaping resolution - bridge: ''bridge-samtal'' - stage:
+      ''held'' - stages: 3 - claims: ''none'' - detail: ''An resolution that stepped from sought straight
+      to held, outside the resolution sequence, standing open.'' - gaps: steps from sought to held, which
+      the resolution sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The resolution book holds 5 resolutions as of 2026-11-11: the view ''all'' shows 5 of them: complete
+    3, open 2; 3 of the shown resolutions stand complete.'
+  - Rows stand in held resolution, the resolution the book itself stands in, so two panels of one view
+    diff cleanly, segment by segment.
+  - Every segment is derived from its resolution's own fields - the bridge it answers for, the steps it
+    walked in the open and the evidence it honestly carries - and no judgement is stored on any resolution.
+  - 'Completeness is resolved from the held records alone: a resolution that steps outside the resolution
+    sequence, carries a bare claim in place of held evidence, or has not named held stands open, named
+    in its gaps, and the resolution index is derived from the held resolutions, never stored where it
+    could drift.'

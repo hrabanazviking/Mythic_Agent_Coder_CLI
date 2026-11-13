@@ -1,0 +1,142 @@
+schema: mythic.token_thrift/1
+slice: M-160
+part: 7
+part_title: Memory & Context
+canon_note: |
+  Token thrift: diff-first reading, map-first
+  loading, and hash-anchored edits measured as a
+  cost line in mythic costs - thrift is a reported
+  virtue. A thrift record is one read, load or edit
+  taken by a thrift road, carried with its
+  provenance whole: what was read, loaded or
+  edited, the road used, the reference it stands
+  under, the baseline tokens the plain road would
+  have cost against the actual tokens it cost, who
+  recorded it, the day it was recorded on, and
+  where it was read from. One thing is counted once
+  per road in a book: the same road and reference
+  named twice refuses. The THRIFT PANEL is derived
+  from the whole book: its rows are the records
+  carried whole, by road - diff-first reading
+  first, then map-first loading, then hash-anchored
+  edits - then by subject, then record id, and its
+  totals are the records' own sums and its road
+  counts the records' own tallies, and a stored
+  panel that disagrees with its derived shape is
+  refused. The THRIFT COST LINE prices the panel's
+  totals through the shared rate table - the line
+  mythic costs reports. This file is ONE EXAMPLE
+  BOOK, in the shape a real book file takes: the
+  M-159 slice boundary - four records standing at
+  the close of the pinning-and-protection day, a
+  diff-first read of the pinning module, a map-first
+  load of the session context, a hash-anchored edit
+  of the /pins wiring and a diff-first read of the
+  pinning tests, with the one panel of the book. A
+  real book is a new file in this same shape - it
+  is never this file edited in place. This layer
+  holds thrift as data only: it reads no files
+  itself, edits no code, calls no model, intercepts
+  no live read and persists nothing - a record
+  declares a measured saving, it does not itself
+  change what any live road spends.
+guide:
+  title: Token thrift at the M-159 slice boundary
+records:
+- record_id: thrift-diff-pinning
+  subject: mythic_agent/core/pinning_protection.py, read diff-first
+  road: diff-first
+  ref: file-pinning-protection
+  baseline_tokens: 18400
+  actual_tokens: 2100
+  recorded_by: Volmarr
+  recorded_on: '2026-11-08'
+  source: session transcript
+- record_id: thrift-map-context
+  subject: the session context, loaded map-first
+  road: map-first
+  ref: map-session-context
+  baseline_tokens: 9600
+  actual_tokens: 2400
+  recorded_by: Volmarr
+  recorded_on: '2026-11-08'
+  source: context budget
+- record_id: thrift-hash-edit
+  subject: the /pins wiring edit, hash-anchored
+  road: hash-anchored
+  ref: edit-pins-wiring
+  baseline_tokens: 3200
+  actual_tokens: 640
+  recorded_by: Volmarr
+  recorded_on: '2026-11-08'
+  source: workspace diff
+- record_id: thrift-diff-tests
+  subject: tests/test_pinning_protection.py, read diff-first
+  road: diff-first
+  ref: file-pinning-tests
+  baseline_tokens: 7200
+  actual_tokens: 1800
+  recorded_by: Volmarr
+  recorded_on: '2026-11-08'
+  source: test runner
+panels:
+- panel_id: panel-m159-boundary
+  rows:
+  - record_id: thrift-diff-pinning
+    subject: mythic_agent/core/pinning_protection.py, read diff-first
+    road: diff-first
+    ref: file-pinning-protection
+    baseline_tokens: 18400
+    actual_tokens: 2100
+    tokens_saved: 16300
+    recorded_by: Volmarr
+    recorded_on: '2026-11-08'
+  - record_id: thrift-diff-tests
+    subject: tests/test_pinning_protection.py, read diff-first
+    road: diff-first
+    ref: file-pinning-tests
+    baseline_tokens: 7200
+    actual_tokens: 1800
+    tokens_saved: 5400
+    recorded_by: Volmarr
+    recorded_on: '2026-11-08'
+  - record_id: thrift-map-context
+    subject: the session context, loaded map-first
+    road: map-first
+    ref: map-session-context
+    baseline_tokens: 9600
+    actual_tokens: 2400
+    tokens_saved: 7200
+    recorded_by: Volmarr
+    recorded_on: '2026-11-08'
+  - record_id: thrift-hash-edit
+    subject: the /pins wiring edit, hash-anchored
+    road: hash-anchored
+    ref: edit-pins-wiring
+    baseline_tokens: 3200
+    actual_tokens: 640
+    tokens_saved: 2560
+    recorded_by: Volmarr
+    recorded_on: '2026-11-08'
+  total_records: 4
+  total_baseline: 38400
+  total_actual: 6940
+  total_saved: 31460
+  road_counts:
+  - road: diff-first
+    records: 2
+    saved_tokens: 21700
+  - road: map-first
+    records: 1
+    saved_tokens: 7200
+  - road: hash-anchored
+    records: 1
+    saved_tokens: 2560
+  account:
+  - 'The thrift panel holds 4 records saving 31460 of 38400 tokens: diff-first 21700, hash-anchored 2560,
+    map-first 7200.'
+  - Records stand by road - diff-first reading first, then map-first loading, then hash-anchored edits
+    - then by subject, then record id, so two panels of one book diff cleanly, line by line.
+  - 'Every saving is measured: each record names its baseline and its actual, and the saving is read off
+    the two, never claimed.'
+  - The panel is read off the book at call time - it is derived, never stored loose.

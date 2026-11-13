@@ -1,0 +1,224 @@
+schema: mythic.method_course/1
+campaign: M-229
+method_course:
+  title: The method, teachable at the M-229 slice run
+campaigns:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-lesson book
+  origin_session: session-m229
+  campaign_id: campaign-m228-scaling
+  seq: 1
+  title: Team-of-one scaling
+  state: live
+  detail: 'The slice the mentor looks back on first: banked at M-228, standing active in the method course
+    honesty''s hands.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-lesson book
+  origin_session: session-m229
+  campaign_id: campaign-m229-teachable
+  seq: 2
+  title: The method, teachable
+  state: live
+  detail: 'This very slice, standing active: the course book holding its own campaign as data.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-lesson book
+  origin_session: session-m229
+  campaign_id: campaign-m230-metrics
+  seq: 3
+  title: Method metrics
+  state: dormant
+  detail: A queued slice the mentor has not begun yet; a lesson naming it refuses by name.
+lesson_records:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-lesson book
+  origin_session: session-m229
+  lesson_id: lesson-held-lesson
+  seq: 1
+  campaign_id: campaign-m228-scaling
+  title: The held lesson
+  stages: &id001
+  - begun
+  - guided
+  - practised
+  - proven
+  - taught
+  claims:
+  - course_ref
+  detail: 'The opening lesson: work begun for the campaign, its learner guided before the practice was
+    practised, proven to the mentor at hand and taught honestly, taught with the course held as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-lesson book
+  origin_session: session-m229
+  lesson_id: lesson-retried-lesson
+  seq: 2
+  campaign_id: campaign-m228-scaling
+  title: The retried lesson
+  stages:
+  - begun
+  - guided
+  - practised
+  - proven
+  - begun
+  - guided
+  - practised
+  - proven
+  - taught
+  claims: []
+  detail: 'The retried lesson: a first proven step sent the standing back, the work was begun and guided
+    again and the proving held a second time before the teaching stood.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-lesson book
+  origin_session: session-m229
+  lesson_id: lesson-own-lesson
+  seq: 3
+  campaign_id: campaign-m229-teachable
+  title: The mentor's own lesson
+  stages: *id001
+  claims:
+  - lesson_ref
+  detail: 'The mentor''s own lesson: this slice''s own lesson, teaching its lesson ref as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-lesson book
+  origin_session: session-m229
+  lesson_id: lesson-bare-lesson
+  seq: 4
+  campaign_id: campaign-m229-teachable
+  title: The bare claim lesson
+  stages: *id001
+  claims:
+  - feeling
+  detail: A lesson that taught a feeling in place of held proof, standing open.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-lesson book
+  origin_session: session-m229
+  lesson_id: lesson-leaping-lesson
+  seq: 5
+  campaign_id: campaign-m229-teachable
+  title: The leaping lesson
+  stages:
+  - begun
+  - guided
+  - taught
+  claims: []
+  detail: A lesson that stepped from guided straight to taught, outside the lesson sequence, standing
+    open.
+views:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-lesson book
+  origin_session: session-m229
+  view_id: view-lessons
+  seq: 1
+  view_filter: all
+  detail: Every held lesson, complete or not.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-lesson book
+  origin_session: session-m229
+  view_id: view-taught
+  seq: 2
+  view_filter: complete
+  detail: Only the lessons standing complete.
+notes:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-lesson book
+  origin_session: session-m229
+  note_id: note-note-first
+  seq: 1
+  lesson_id: lesson-held-lesson
+  stance: note
+  target: the opening lesson
+  title: Lessons first
+  detail: The mentor opens by beginning the work first, told honestly.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-lesson book
+  origin_session: session-m229
+  note_id: note-concern-bare
+  seq: 2
+  lesson_id: lesson-bare-lesson
+  stance: concern
+  target: the bare claim lesson
+  title: Claim named
+  detail: A lesson that taught a feeling claim is not the mentor's way, and stands named.
+traces:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-lesson book
+  origin_session: session-m229
+  trace_id: trace-first
+  seq: 1
+  lesson_id: lesson-held-lesson
+  trace: begun > guided > practised > proven > taught
+  detail: 'The opening lesson''s walk, held exactly as walked: the trace is the walk itself.'
+panels:
+- panel_id: panel-m228-campaign
+  view_id: view-lessons
+  view_filter: all
+  rows:
+  - item_id: lesson-held-lesson
+    standing: complete
+    label: The held lesson
+    segment: 'lesson-held-lesson: The held lesson - campaign: ''campaign-m228-scaling'' - stage: ''taught''
+      - stages: 5 - claims: ''course_ref'' - detail: ''The opening lesson: work begun for the campaign,
+      its learner guided before the practice was practised, proven to the mentor at hand and taught honestly,
+      taught with the course held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: lesson-retried-lesson
+    standing: complete
+    label: The retried lesson
+    segment: 'lesson-retried-lesson: The retried lesson - campaign: ''campaign-m228-scaling'' - stage:
+      ''taught'' - stages: 9 - claims: ''none'' - detail: ''The retried lesson: a first proven step sent
+      the standing back, the work was begun and guided again and the proving held a second time before
+      the teaching stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: lesson-own-lesson
+    standing: complete
+    label: The mentor's own lesson
+    segment: 'lesson-own-lesson: The mentor''s own lesson - campaign: ''campaign-m229-teachable'' - stage:
+      ''taught'' - stages: 5 - claims: ''lesson_ref'' - detail: ''The mentor''s own lesson: this slice''s
+      own lesson, teaching its lesson ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: lesson-bare-lesson
+    standing: open
+    label: The bare claim lesson
+    segment: 'lesson-bare-lesson: The bare claim lesson - campaign: ''campaign-m229-teachable'' - stage:
+      ''taught'' - stages: 5 - claims: ''feeling'' - detail: ''A lesson that taught a feeling in place
+      of held proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof:
+      complete stands on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: lesson-leaping-lesson
+    standing: open
+    label: The leaping lesson
+    segment: 'lesson-leaping-lesson: The leaping lesson - campaign: ''campaign-m229-teachable'' - stage:
+      ''taught'' - stages: 3 - claims: ''none'' - detail: ''A lesson that stepped from guided straight
+      to taught, outside the lesson sequence, standing open.'' - gaps: steps from guided to taught, which
+      the lesson sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The lesson book holds 5 lessons as of 2026-11-11: the view ''all'' shows 5 of them: complete 3, open
+    2; 3 of the shown lessons stand complete.'
+  - Rows stand in held lesson, the lesson the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its lesson's own fields - the campaign it answers for, the steps it
+    walked in the open and the evidence it honestly carries - and no judgement is stored on any lesson.
+  - 'Completeness is practised from the held records alone: a lesson that steps outside the lesson sequence,
+    carries a bare claim in place of held evidence, or has not begun taught stands open, named in its
+    gaps, and the lesson index is derived from the held lessons, never stored where it could drift.'

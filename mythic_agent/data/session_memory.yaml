@@ -1,0 +1,135 @@
+schema: mythic.session_memory/1
+slice: M-153
+part: 7
+part_title: Memory & Context
+canon_note: |
+  Session memory across days: resumable sessions
+  carry their memory map, open slices, and standing
+  decisions - --resume restores the situation, not
+  just the transcript. A session memory book holds
+  one situation per resumable session, in held
+  order: each situation names the stored session it
+  belongs to, the workspace it lives in, the day it
+  was saved, its stored status, and the count of
+  transcript messages it also held - counted, never
+  carried, so the situation is never the transcript.
+  Its memory is the shipped project memory map's
+  entries carried across the days, its open slices
+  are the roadmap work standing open when the day
+  ended, and its standing decisions are the settled
+  words the next day stands under. The PANEL is
+  derived from a situation: its rows are the pieces
+  carried whole, memory first in map order, then
+  open slices in roadmap order, then standing
+  decisions by title, and its totals are the pieces'
+  own counts, and a stored panel that disagrees
+  with its derived shape is refused. This file is
+  ONE EXAMPLE BOOK, in the shape a real book file
+  takes: the M-152 slice boundary - one session
+  paused at the end of its day with the graph
+  retrieval landed, three facts of the map carried,
+  the next two roadmap slices standing open, and
+  two standing decisions, with the one panel of the
+  book. A real book is a new file in this same
+  shape - it is never this file edited in place.
+  This layer holds situations as data only: it
+  calls no model, attaches or resumes no live
+  session, assembles no live context and persists
+  nothing.
+guide:
+  title: "Session memory across days at the M-152 slice boundary"
+situations:
+- situation_id: situation-m152-boundary
+  session_ref: session-m152-graph-retrieval
+  workspace: "purplelongship:/home/volmarr/mythic-hammer"
+  title: "Graph retrieval landed; the situation carried home"
+  saved_on: "2026-11-08"
+  status: idle
+  transcript_messages: 42
+  memory:
+  - note_id: note-connected-code
+    section: architecture
+    title: "Retrieval returns connected code"
+    detail: "Graph retrieval (M-152) marries the semantic and vector seeds to the symbol graph, so a search returns the code connected to a hit, with provenance, not confetti."
+    source: "M-152 TEAM_LOG"
+    ref: mythic_agent/core/graph_retrieval.py
+  - note_id: note-reap-at-bank
+    section: gotcha
+    title: "Verify copies are reaped at bank"
+    detail: "A verify copy's purpose ends the moment its slice is banked and the remote is verified; the evidence is kept and the copy is deleted in the same step."
+    source: PROJECT_MEMORY_MAP.md
+    ref: workspace/.verify-tmp/
+  - note_id: note-campaign-home
+    section: location
+    title: "The campaign home"
+    detail: "The Mythic Coder campaign lives on purplelongship under mythic-hammer, with ten team worktrees and the campaign checkout; the VM coordinates only."
+    source: WAVE_PLAN.md
+    ref: /home/volmarr/mythic-hammer
+  open_slices:
+  - slice_id: M-153
+    title: "Session memory across days"
+    state: in-progress
+    note: "This slice itself: the pure situation layer first, then the agent layer, in the M-152 pattern."
+  - slice_id: M-154
+    title: "Cross-project memory"
+    state: open
+    note: "Lessons from one repo offered to others, with provenance, never as silent contamination."
+  decisions:
+  - decision_id: decision-banking-order
+    title: "Banking is the coordinator's step"
+    decision: "Slices bank only in roadmap order, after the merged-tree full suite on the laptop; team worktrees commit locally and never push."
+    source: WAVE_PLAN.md
+  - decision_id: decision-no-docker
+    title: "No Docker, ever"
+    decision: "Nothing is installed or run through Docker on any of Volmarr's machines; native installs only."
+    source: "standing law"
+  total_memory: 3
+  total_slices: 2
+  total_decisions: 2
+panels:
+- panel_id: panel-m152-boundary
+  rows:
+  - kind: memory
+    item_id: note-connected-code
+    title: "Retrieval returns connected code"
+    detail: "Graph retrieval (M-152) marries the semantic and vector seeds to the symbol graph, so a search returns the code connected to a hit, with provenance, not confetti."
+  - kind: memory
+    item_id: note-reap-at-bank
+    title: "Verify copies are reaped at bank"
+    detail: "A verify copy's purpose ends the moment its slice is banked and the remote is verified; the evidence is kept and the copy is deleted in the same step."
+  - kind: memory
+    item_id: note-campaign-home
+    title: "The campaign home"
+    detail: "The Mythic Coder campaign lives on purplelongship under mythic-hammer, with ten team worktrees and the campaign checkout; the VM coordinates only."
+  - kind: slice
+    item_id: M-153
+    title: "Session memory across days"
+    detail: "This slice itself: the pure situation layer first, then the agent layer, in the M-152 pattern."
+  - kind: slice
+    item_id: M-154
+    title: "Cross-project memory"
+    detail: "Lessons from one repo offered to others, with provenance, never as silent contamination."
+  - kind: decision
+    item_id: decision-banking-order
+    title: "Banking is the coordinator's step"
+    detail: "Slices bank only in roadmap order, after the merged-tree full suite on the laptop; team worktrees commit locally and never push."
+  - kind: decision
+    item_id: decision-no-docker
+    title: "No Docker, ever"
+    detail: "Nothing is installed or run through Docker on any of Volmarr's machines; native installs only."
+  total_items: 7
+  total_memory: 3
+  total_slices: 2
+  total_decisions: 2
+  kind_counts:
+  - kind: memory
+    items: 3
+  - kind: slice
+    items: 2
+  - kind: decision
+    items: 2
+  account:
+  - "The panel holds 7 carried pieces: memory 3, open slices 2, standing decisions 2."
+  - "Pieces stand memory first (in map order), then open slices in roadmap order, then standing decisions by title - so two panels of one situation diff cleanly, line by line."
+  - "Restoring a situation returns these pieces as structured data - the memory map, the open slices and the standing decisions - not a replay of the transcript."
+  - "The panel is read off the situation at call time - it is derived, never stored loose."

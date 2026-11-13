@@ -1,0 +1,235 @@
+schema: mythic.themes_grown_up/1
+slice: M-179
+part: 8
+part_title: The Beautiful Face
+canon_note: 'Themes Grown Up: the theme system judged under the Design Lawbook discipline
+  - darkness ladders of at least four distinct surface values, accents held to 5-12%
+  of area and ambient ornament to 1-5%, and colour never the only signal - plus a
+  high-contrast and a no-colour theme that lose nothing. A theme is held whole: its
+  name, its mode (full colour, high contrast or no colour), its colours role by role
+  in the shipped role order, the non-colour cue each state it names carries, and its
+  declared accent and ornament shares, each held with its provenance whole. Every
+  judgement - the ladder count, the budget word, whether colour stands alone, and
+  what the theme loses when colour falls away - is derived from the theme own colours,
+  cues and shares, never stored. No row of the M-171 TUI redesign charter names M-179,
+  so the slice is built to the roadmap words alone, as M-177 was. The three shipped
+  themes of mythic_agent/ui/themes.py (tokyo_night, viking_dark, light) stand judged
+  here as data, their colours copied whole from the shipped tables: their ladders
+  hold at four distinct surface values, and tokyo_night loses nothing in grayscale,
+  while viking_dark loses the apartness of secondary and success (the two roles share
+  one colour, #7a9b4a, in the shipped table) and light loses the apartness of primary
+  and secondary (their values stand closer than the smallest telling gap). The shipped
+  colour tables record no state cues and no area shares, so the shipped themes stand
+  with colour alone for their states and their budgets honestly unknown - no cue and
+  no share is invented for them. The two new themes this slice authors - high_contrast
+  and no_colour - carry told-apart cues for every state and declared shares within
+  budget, and each is derived to lose nothing: every role and state of the full-colour
+  themes stands present in them and distinguishable by value, text or shape, not by
+  hue. This file is ONE EXAMPLE BOOK, in the shape a real theme file takes: the M-178
+  slice boundary - five themes, two views, and the one pinned panel of the every-mode
+  view, whose shown themes span all three modes with two standing disciplined, so the
+  book verdict under it stands strained; under the no-colour view, whose one shown
+  theme stands disciplined, the verdict stands disciplined; under a full-colour
+  reading, whose shown themes stand undisciplined, the verdict stands bare. A real
+  book is a new file in this same shape - it is never this file edited in place. This
+  layer holds themes and views as data only - it repaints no live UI, applies no theme
+  live, renders no live UI and measures no running screen: a theme held here is a
+  finding, never the live face of the app it describes.'
+guide:
+  title: Themes at the M-178 slice boundary
+themes:
+- theme_id: theme-tokyo-night
+  name: tokyo_night
+  mode: full_colour
+  colours:
+    background: '#1a1b26'
+    surface: '#24283b'
+    primary: '#7aa2f7'
+    secondary: '#bb9af7'
+    accent: '#7dcfff'
+    text: '#c0caf5'
+    muted: '#565f89'
+    success: '#9ece6a'
+    warning: '#e0af68'
+    error: '#f7768e'
+  signals: []
+  detail: The shipped tokyo_night table, judged as data - its colours copied whole
+    from mythic_agent/ui/themes.py. The table records no state cues and no area
+    shares, so its states stand named by colour alone here and its budget stands
+    honestly unknown.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: themes grown up
+  origin_session: session-m179
+- theme_id: theme-viking-dark
+  name: viking_dark
+  mode: full_colour
+  colours:
+    background: '#14120e'
+    surface: '#1f1b14'
+    primary: '#c98f2e'
+    secondary: '#7a9b4a'
+    accent: '#4a8b9b'
+    text: '#d8cfae'
+    muted: '#5c5646'
+    success: '#7a9b4a'
+    warning: '#d19a2e'
+    error: '#a33b2e'
+  signals: []
+  detail: The shipped viking_dark table, judged as data - its colours copied whole
+    from mythic_agent/ui/themes.py. In the shipped table secondary and success
+    carry one and the same colour, so the two roles share one value when colour
+    falls away. The table records no state cues and no area shares.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: themes grown up
+  origin_session: session-m179
+- theme_id: theme-light
+  name: light
+  mode: full_colour
+  colours:
+    background: '#f5f3ee'
+    surface: '#ffffff'
+    primary: '#2f5fa3'
+    secondary: '#6a4fa3'
+    accent: '#1f7a8c'
+    text: '#1f1f24'
+    muted: '#7d7a72'
+    success: '#3d7a34'
+    warning: '#a06a1c'
+    error: '#a3231d'
+  signals: []
+  detail: The shipped light table, judged as data - its colours copied whole from
+    mythic_agent/ui/themes.py. Its primary and secondary values stand closer than
+    the smallest telling gap, so the two roles read as one value in grayscale. The
+    table records no state cues and no area shares.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: themes grown up
+  origin_session: session-m179
+- theme_id: theme-high-contrast
+  name: high_contrast
+  mode: high_contrast
+  colours:
+    background: '#000000'
+    surface: '#262626'
+    primary: '#ffcc00'
+    secondary: '#33ccff'
+    accent: '#ff6600'
+    text: '#ffffff'
+    muted: '#9a9a9a'
+    success: '#00cc44'
+    warning: '#ff8800'
+    error: '#ff2244'
+  signals:
+    success: check mark and the word OK
+    warning: triangle and the word Caution
+    error: cross and the word Stop
+  accent_percent: 10
+  ornament_percent: 2
+  detail: The high-contrast theme authored by this slice, held as data. Its values
+    stand far apart rung by rung, every state carries a told-apart cue in text and
+    shape beside its colour, and its declared shares stand within the Lawbook
+    budgets - derived, it loses nothing when colour falls away.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: themes grown up
+  origin_session: session-m179
+- theme_id: theme-no-colour
+  name: no_colour
+  mode: no_colour
+  colours:
+    background: '#0a0a0a'
+    surface: '#1f1f1f'
+    primary: '#bdbdbd'
+    secondary: '#8f8f8f'
+    accent: '#d9d9d9'
+    text: '#f5f5f5'
+    muted: '#6e6e6e'
+    success: '#a3a3a3'
+    warning: '#7a7a7a'
+    error: '#4d4d4d'
+  signals:
+    success: check mark and the word OK
+    warning: triangle and the word Caution
+    error: cross and the word Stop
+  accent_percent: 8
+  ornament_percent: 3
+  detail: The no-colour theme authored by this slice, held as data. Every colour
+    is a plain grey, so the theme is its own grayscale - roles read apart by value
+    alone, every state carries a told-apart cue, and its declared shares stand
+    within the Lawbook budgets - derived, it loses nothing.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: themes grown up
+  origin_session: session-m179
+views:
+- view_id: view-all
+  seq: 1
+  mode_filter: all
+  detail: See the whole theme book, every mode at once.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: themes grown up
+  origin_session: session-m179
+- view_id: view-nocolour
+  seq: 2
+  mode_filter: no_colour
+  detail: See only the no-colour theme of the book.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: themes grown up
+  origin_session: session-m179
+panels:
+- panel_id: panel-m178-boundary
+  view_id: view-all
+  mode_filter: all
+  rows:
+  - theme_id: theme-tokyo-night
+    name: tokyo_night
+    mode: full_colour
+    segment: 'tokyo_night: ladder 4 rungs, budget unknown, colour alone for success, warning,
+      error, loses nothing'
+    recorded_on: '2026-11-09'
+  - theme_id: theme-viking-dark
+    name: viking_dark
+    mode: full_colour
+    segment: 'viking_dark: ladder 4 rungs, budget unknown, colour alone for success, warning,
+      error, loses secondary and success share one value'
+    recorded_on: '2026-11-09'
+  - theme_id: theme-light
+    name: light
+    mode: full_colour
+    segment: 'light: ladder 4 rungs, budget unknown, colour alone for success, warning, error,
+      loses primary and secondary share one value'
+    recorded_on: '2026-11-09'
+  - theme_id: theme-high-contrast
+    name: high_contrast
+    mode: high_contrast
+    segment: 'high_contrast: ladder 4 rungs, budget within, colour never alone, loses nothing'
+    recorded_on: '2026-11-09'
+  - theme_id: theme-no-colour
+    name: no_colour
+    mode: no_colour
+    segment: 'no_colour: ladder 4 rungs, budget within, colour never alone, loses nothing'
+    recorded_on: '2026-11-09'
+  total_themes: 5
+  total_shown: 5
+  mode_counts:
+  - mode: full_colour
+    themes: 3
+  - mode: high_contrast
+    themes: 1
+  - mode: no_colour
+    themes: 1
+  as_of: '2026-11-09'
+  account:
+  - 'The theme book holds 5 themes as of 2026-11-09: the view ''all'' shows 5 of them: full_colour
+    3, high_contrast 1, no_colour 1; 2 of the shown themes stand disciplined whole.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view
+    diff cleanly, segment by segment.
+  - Every segment is derived from its theme's own colours, cues and shares - the ladder counted
+    from the surface values, the budget read off the declared shares, what falls away read
+    off the values and cues - and no judgement is stored on any theme.
+  - 'The book is judged as data only: it repaints no live UI, applies no theme live and measures
+    no running screen - an unmeasured share stands honestly unknown.'

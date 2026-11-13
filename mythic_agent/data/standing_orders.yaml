@@ -1,0 +1,223 @@
+schema: mythic.standing_orders/1
+campaign: M-226
+standing_orders:
+  title: Standing orders at the M-226 slice run
+campaigns:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-order book
+  origin_session: session-m226
+  campaign_id: campaign-m225-export
+  seq: 1
+  title: Campaign export
+  state: live
+  detail: 'The slice the lawkeeper looks back on first: banked at M-225, standing active in the standing
+    orders honesty''s hands.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-order book
+  origin_session: session-m226
+  campaign_id: campaign-m226-orders
+  seq: 2
+  title: Standing orders
+  state: live
+  detail: 'This very slice, standing active: the orders book holding its own campaign as data.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-order book
+  origin_session: session-m226
+  campaign_id: campaign-m227-workflow
+  seq: 3
+  title: Workflow default honoured
+  state: dormant
+  detail: A queued slice the lawkeeper has not stated yet; an order naming it refuses by name.
+order_records:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-order book
+  origin_session: session-m226
+  order_id: order-held-order
+  seq: 1
+  campaign_id: campaign-m225-export
+  title: The held order
+  stages: &id001
+  - stated
+  - recorded
+  - bound
+  - honoured
+  - kept
+  claims:
+  - word_ref
+  detail: 'The opening order: a law stated for the work, recorded before it bound, bound against the shape
+    and honoured honestly, kept with the word held as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-order book
+  origin_session: session-m226
+  order_id: order-retried-order
+  seq: 2
+  campaign_id: campaign-m225-export
+  title: The retried order
+  stages:
+  - stated
+  - recorded
+  - bound
+  - honoured
+  - stated
+  - recorded
+  - bound
+  - honoured
+  - kept
+  claims: []
+  detail: 'The retried order: a first honouring sent the standing back, the law was stated and recorded
+    again and the binding honoured a second time before the keeping stood.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-order book
+  origin_session: session-m226
+  order_id: order-own-order
+  seq: 3
+  campaign_id: campaign-m226-orders
+  title: The lawkeeper's own order
+  stages: *id001
+  claims:
+  - order_ref
+  detail: 'The lawkeeper''s own order: this slice''s own order, keeping its order ref as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-order book
+  origin_session: session-m226
+  order_id: order-bare-order
+  seq: 4
+  campaign_id: campaign-m226-orders
+  title: The bare claim order
+  stages: *id001
+  claims:
+  - feeling
+  detail: An order that kept a feeling in place of held proof, standing open.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-order book
+  origin_session: session-m226
+  order_id: order-leaping-order
+  seq: 5
+  campaign_id: campaign-m226-orders
+  title: The leaping order
+  stages:
+  - stated
+  - recorded
+  - kept
+  claims: []
+  detail: An order that stepped from recorded straight to kept, outside the order sequence, standing open.
+views:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-order book
+  origin_session: session-m226
+  view_id: view-orders
+  seq: 1
+  view_filter: all
+  detail: Every held order, complete or not.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-order book
+  origin_session: session-m226
+  view_id: view-kept
+  seq: 2
+  view_filter: complete
+  detail: Only the orders standing complete.
+notes:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-order book
+  origin_session: session-m226
+  note_id: note-note-first
+  seq: 1
+  order_id: order-held-order
+  stance: note
+  target: the opening order
+  title: Orders first
+  detail: The lawkeeper opens by stating the order first, told honestly.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-order book
+  origin_session: session-m226
+  note_id: note-concern-bare
+  seq: 2
+  order_id: order-bare-order
+  stance: concern
+  target: the bare claim order
+  title: Claim named
+  detail: An order that kept a feeling claim is not the lawkeeper's way, and stands named.
+traces:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-order book
+  origin_session: session-m226
+  trace_id: trace-first
+  seq: 1
+  order_id: order-held-order
+  trace: stated > recorded > bound > honoured > kept
+  detail: 'The opening order''s walk, held exactly as walked: the trace is the walk itself.'
+panels:
+- panel_id: panel-m225-campaign
+  view_id: view-orders
+  view_filter: all
+  rows:
+  - item_id: order-held-order
+    standing: complete
+    label: The held order
+    segment: 'order-held-order: The held order - campaign: ''campaign-m225-export'' - stage: ''kept''
+      - stages: 5 - claims: ''word_ref'' - detail: ''The opening order: a law stated for the work, recorded
+      before it bound, bound against the shape and honoured honestly, kept with the word held as proof.''
+      - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: order-retried-order
+    standing: complete
+    label: The retried order
+    segment: 'order-retried-order: The retried order - campaign: ''campaign-m225-export'' - stage: ''kept''
+      - stages: 9 - claims: ''none'' - detail: ''The retried order: a first honouring sent the standing
+      back, the law was stated and recorded again and the binding honoured a second time before the keeping
+      stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: order-own-order
+    standing: complete
+    label: The lawkeeper's own order
+    segment: 'order-own-order: The lawkeeper''s own order - campaign: ''campaign-m226-orders'' - stage:
+      ''kept'' - stages: 5 - claims: ''order_ref'' - detail: ''The lawkeeper''s own order: this slice''s
+      own order, keeping its order ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: order-bare-order
+    standing: open
+    label: The bare claim order
+    segment: 'order-bare-order: The bare claim order - campaign: ''campaign-m226-orders'' - stage: ''kept''
+      - stages: 5 - claims: ''feeling'' - detail: ''An order that kept a feeling in place of held proof,
+      standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof: complete stands
+      on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: order-leaping-order
+    standing: open
+    label: The leaping order
+    segment: 'order-leaping-order: The leaping order - campaign: ''campaign-m226-orders'' - stage: ''kept''
+      - stages: 3 - claims: ''none'' - detail: ''An order that stepped from recorded straight to kept,
+      outside the order sequence, standing open.'' - gaps: steps from recorded to kept, which the order
+      sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The order book holds 5 orders as of 2026-11-11: the view ''all'' shows 5 of them: complete 3, open
+    2; 3 of the shown orders stand complete.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its order's own fields - the campaign it answers for, the steps it walked
+    in the open and the evidence it honestly carries - and no judgement is stored on any order.
+  - 'Completeness is bound from the held records alone: a order that steps outside the order sequence,
+    carries a bare claim in place of held evidence, or has not stated kept stands open, named in its gaps,
+    and the order index is derived from the held orders, never stored where it could drift.'

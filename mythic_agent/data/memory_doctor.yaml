@@ -1,0 +1,169 @@
+schema: mythic.memory_doctor/1
+slice: M-168
+part: 7
+part_title: Memory & Context
+canon_note: 'Memory Doctor: mythic doctor gains memory checks (corrupt stores, orphaned vectors, map
+  drift) with safe repairs. A finding stands over one stored memory, named by the kind of holding
+  it stands in (the project memory map, session memory, cross-project memory, the self-improving ledger,
+  crew memory, the subconscious v2, the contradiction watch, a vector record, or a memory held by
+  hand) and the shipped piece id alone - the piece own words never cross into the finding. The finding
+  names the check that raised it, the store the memory lives in, the workspace store or the user store,
+  what the check saw, and how far the trouble reaches - one contained piece, or the store as a whole
+  - with who ran the check and the session it ran in. The repair is derived, never chosen: quarantine
+  a contained corrupt piece, drop an orphaned vector, realign a drifted map entry - and a store-wide
+  trouble derives no repair at all and stands referred to the user. One check stands once over one
+  stored memory in a book, so a check word never forks. The DOCTOR PANEL is derived from the whole
+  book: its rows are the findings carried whole, by check - corrupt stores first, then orphaned vectors,
+  then map drift - then title, then finding id, each showing its derived repair, and a stored panel
+  that disagrees with its derived shape is refused. The DOCTOR VERDICT is derived for the whole book:
+  sound while nothing stands referred, ailing when one or two stand referred, and critical when three
+  or more stand referred. This file is ONE EXAMPLE BOOK, in the shape a real book file takes: the
+  M-167 slice boundary - five findings over the campaign own stored memories at the close of the private-by-architecture
+  day, four safely repairable and one store-wide corruption referred to the user, with the one panel
+  of the book read as of that day. A real book is a new file in this same shape - it is never this
+  file edited in place. A repair applied here marks a held finding repaired in the session own book:
+  this layer holds findings as data only - it rewrites no live store, deletes no memory, sends nothing,
+  posts nothing, schedules nothing, calls no model and persists nothing.'
+guide:
+  title: Memory Doctor at the M-167 slice boundary
+findings:
+- finding_id: finding-verify-remote-corrupt
+  title: the verify-remote candidate fails its own ledger validation
+  check: corrupt-store
+  memory_kind: ledger-candidate
+  memory_ref: candidate-verify-remote
+  store: workspace
+  detail: the ledger candidate's stored record names two different candidate ids, so the ledger's
+    own validation refuses it whole
+  extent: contained
+  found_on: '2026-11-09'
+  recorded_by: Volmarr
+  source: memory doctor
+  origin_session: session-m167-privacy
+- finding_id: finding-archival-alpha-orphan
+  title: the archival alpha vector names no held memory
+  check: orphaned-vector
+  memory_kind: vector-record
+  memory_ref: archival-alpha
+  store: workspace
+  detail: the vector record's metadata names archival-alpha, and no held memory book carries a memory
+    under that ref
+  extent: contained
+  found_on: '2026-11-09'
+  recorded_by: Volmarr
+  source: memory doctor
+  origin_session: session-m167-privacy
+- finding_id: finding-no-docker-drift
+  title: the no-Docker map entry points at a path that moved
+  check: map-drift
+  memory_kind: memory-map
+  memory_ref: map-no-docker
+  store: workspace
+  detail: the map entry names docs/no-docker-law.md, and no held store path carries that path any
+    longer
+  extent: contained
+  found_on: '2026-11-07'
+  recorded_by: Volmarr
+  source: memory doctor
+  origin_session: session-m167-privacy
+- finding_id: finding-samtal-wal-store
+  title: the samtal WAL memory store fails as a whole
+  check: corrupt-store
+  memory_kind: subconscious-memory
+  memory_ref: memory-samtal-wal
+  store: user
+  detail: every record in the subconscious store fails its own validation the same way, so the store
+    itself - not one memory - is what is corrupt
+  extent: store-wide
+  found_on: '2026-11-08'
+  recorded_by: Volmarr
+  source: memory doctor
+  origin_session: session-m167-privacy
+- finding_id: finding-campaign-home-drift
+  title: the campaign home note drifted from the map
+  check: map-drift
+  memory_kind: session-note
+  memory_ref: note-campaign-home
+  store: user
+  detail: the session note is carried under note-campaign-home, while the map still names it under
+    its older ref
+  extent: contained
+  found_on: '2026-11-09'
+  recorded_by: Volmarr
+  source: memory doctor
+  origin_session: session-m167-privacy
+panels:
+- panel_id: panel-m167-boundary
+  rows:
+  - finding_id: finding-samtal-wal-store
+    title: the samtal WAL memory store fails as a whole
+    check: corrupt-store
+    memory_kind: subconscious-memory
+    memory_ref: memory-samtal-wal
+    store: user
+    extent: store-wide
+    disposition: referred
+    action: none-referred
+    found_on: '2026-11-08'
+  - finding_id: finding-verify-remote-corrupt
+    title: the verify-remote candidate fails its own ledger validation
+    check: corrupt-store
+    memory_kind: ledger-candidate
+    memory_ref: candidate-verify-remote
+    store: workspace
+    extent: contained
+    disposition: repair-ready
+    action: quarantine-piece
+    found_on: '2026-11-09'
+  - finding_id: finding-archival-alpha-orphan
+    title: the archival alpha vector names no held memory
+    check: orphaned-vector
+    memory_kind: vector-record
+    memory_ref: archival-alpha
+    store: workspace
+    extent: contained
+    disposition: repair-ready
+    action: drop-orphan-vector
+    found_on: '2026-11-09'
+  - finding_id: finding-campaign-home-drift
+    title: the campaign home note drifted from the map
+    check: map-drift
+    memory_kind: session-note
+    memory_ref: note-campaign-home
+    store: user
+    extent: contained
+    disposition: repair-ready
+    action: realign-map-entry
+    found_on: '2026-11-09'
+  - finding_id: finding-no-docker-drift
+    title: the no-Docker map entry points at a path that moved
+    check: map-drift
+    memory_kind: memory-map
+    memory_ref: map-no-docker
+    store: workspace
+    extent: contained
+    disposition: repair-ready
+    action: realign-map-entry
+    found_on: '2026-11-07'
+  total_findings: 5
+  total_ready: 4
+  total_referred: 1
+  distinct_memories: 5
+  check_counts:
+  - check: corrupt-store
+    items: 2
+  - check: orphaned-vector
+    items: 1
+  - check: map-drift
+    items: 2
+  as_of: '2026-11-09'
+  account:
+  - 'The memory doctor panel holds 5 findings as of 2026-11-09: 4 safely repairable and 1 referred
+    beyond the doctor over 5 stored memories: corrupt-store 2, map-drift 2, orphaned-vector 1.'
+  - Rows stand by check - corrupt stores first, then orphaned vectors, then map drift - then title,
+    then finding id, so two panels of one book diff cleanly, line by line.
+  - 'Every row shows its repair: a contained finding names its one derived safe repair, and a store-wide
+    finding names none - it is referred to the user, and the doctor will not repair it.'
+  - 'The panel is read off the book at call time - it is derived, never stored loose - and a repair
+    applied here marks a held finding repaired in this book only: no live store is rewritten by standing
+    on this panel.'

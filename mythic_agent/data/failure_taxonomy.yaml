@@ -1,0 +1,219 @@
+schema: mythic.failure_taxonomy/1
+run: M-223
+failure_taxonomy:
+  title: Failure taxonomy at the M-223 slice run
+runs:
+- run_id: run-m222-selfmod
+  seq: 1
+  title: Guarded self-modification
+  state: live
+  detail: 'The slice the taxonomist looks back on first: banked at M-223, standing active in the failure honesty''s
+    hands.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-failure book
+  origin_session: session-m223
+- run_id: run-m223-taxonomy
+  seq: 2
+  title: Failure taxonomy
+  state: live
+  detail: 'This very slice, standing active: the multi-failure book holding its own failure as data.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-failure book
+  origin_session: session-m223
+- run_id: run-m224-dryrun
+  seq: 3
+  title: Dry-run campaigns
+  state: dormant
+  detail: A queued slice the taxonomist has not dealt with; a failure naming it refuses by name.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-failure book
+  origin_session: session-m223
+failure_records:
+- failure_id: failure-held-failure
+  seq: 1
+  run_id: run-m222-selfmod
+  title: The held failure
+  stages: &id001
+  - spotted
+  - tagged
+  - classed
+  - remedied
+  - learned
+  claims:
+  - run_ref
+  detail: 'The opening failure: a failure spotted in the work, tagged before it spread, classed against the remedy
+    and remedied honestly, learned with the run held as proof.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-failure book
+  origin_session: session-m223
+- failure_id: failure-retried-failure
+  seq: 2
+  run_id: run-m222-selfmod
+  title: The retried failure
+  stages:
+  - spotted
+  - tagged
+  - classed
+  - remedied
+  - spotted
+  - tagged
+  - classed
+  - remedied
+  - learned
+  claims: []
+  detail: 'The retried failure: a first remedy sent the standing back, the failure was spotted and tagged again
+    and the remedy classed a second time before the lesson stood.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-failure book
+  origin_session: session-m223
+- failure_id: failure-own-failure
+  seq: 3
+  run_id: run-m223-taxonomy
+  title: The taxonomist's own failure
+  stages: *id001
+  claims:
+  - failure_ref
+  detail: 'The taxonomist''s own failure: this slice''s own failure, carrying its failure ref as proof.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-failure book
+  origin_session: session-m223
+- failure_id: failure-bare-failure
+  seq: 4
+  run_id: run-m223-taxonomy
+  title: The bare claim failure
+  stages: *id001
+  claims:
+  - feeling
+  detail: A failure that carried a feeling in place of held proof, standing open.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-failure book
+  origin_session: session-m223
+- failure_id: failure-leaping-failure
+  seq: 5
+  run_id: run-m223-taxonomy
+  title: The leaping failure
+  stages:
+  - spotted
+  - tagged
+  - learned
+  claims: []
+  detail: A failure that stepped from tagged straight to learned, outside the failure sequence, standing open.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-failure book
+  origin_session: session-m223
+views:
+- view_id: view-failures
+  seq: 1
+  view_filter: all
+  detail: Every held failure, complete or not.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-failure book
+  origin_session: session-m223
+- view_id: view-learned
+  seq: 2
+  view_filter: complete
+  detail: Only the failures standing complete.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-failure book
+  origin_session: session-m223
+notes:
+- note_id: note-note-first
+  seq: 1
+  failure_id: failure-held-failure
+  stance: note
+  target: the opening failure
+  title: Failures first
+  detail: The taxonomist opens by predicting the failure first, told honestly.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-failure book
+  origin_session: session-m223
+- note_id: note-concern-bare
+  seq: 2
+  failure_id: failure-bare-failure
+  stance: concern
+  target: the bare claim failure
+  title: Claim named
+  detail: A failure that carried a feeling claim is not the taxonomist's way, and stands named.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-failure book
+  origin_session: session-m223
+traces:
+- trace_id: trace-first
+  seq: 1
+  failure_id: failure-held-failure
+  trace: spotted > tagged > classed > remedied > learned
+  detail: 'The opening failure''s walk, held exactly as walked: the trace is the walk itself.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-failure book
+  origin_session: session-m223
+panels:
+- panel_id: panel-m222-run
+  view_id: view-failures
+  view_filter: all
+  rows:
+  - item_id: failure-held-failure
+    standing: complete
+    label: The held failure
+    segment: 'failure-held-failure: The held failure - run: ''run-m222-selfmod'' - stage: ''learned'' - stages:
+      5 - claims: ''run_ref'' - detail: ''The opening failure: a failure spotted in the work, tagged before it spread,
+      classed against the remedy and remedied honestly, learned with the run held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: failure-retried-failure
+    standing: complete
+    label: The retried failure
+    segment: 'failure-retried-failure: The retried failure - run: ''run-m222-selfmod'' - stage: ''learned'' - stages:
+      9 - claims: ''none'' - detail: ''The retried failure: a first remedy sent the standing back, the failure was
+      spotted and tagged again and the remedy classed a second time before the lesson stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: failure-own-failure
+    standing: complete
+    label: The taxonomist's own failure
+    segment: 'failure-own-failure: The taxonomist''s own failure - run: ''run-m223-taxonomy'' - stage: ''learned''
+      - stages: 5 - claims: ''failure_ref'' - detail: ''The taxonomist''s own failure: this slice''s own failure,
+      carrying its failure ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: failure-bare-failure
+    standing: open
+    label: The bare claim failure
+    segment: 'failure-bare-failure: The bare claim failure - run: ''run-m223-taxonomy'' - stage: ''learned'' - stages:
+      5 - claims: ''feeling'' - detail: ''A failure that carried a feeling in place of held proof, standing open.''
+      - gaps: carries a feeling claim, a bare claim with no held proof: complete stands on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: failure-leaping-failure
+    standing: open
+    label: The leaping failure
+    segment: 'failure-leaping-failure: The leaping failure - run: ''run-m223-taxonomy'' - stage: ''learned'' - stages:
+      3 - claims: ''none'' - detail: ''A failure that stepped from tagged straight to learned, outside the failure
+      sequence, standing open.'' - gaps: steps from tagged to learned, which the failure sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The failure book holds 5 failures as of 2026-11-11: the view ''all'' shows 5 of them: complete 3, open 2; 3
+    of the shown failures stand complete.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly, segment
+    by segment.
+  - Every segment is derived from its failure's own fields - the run it answers for, the steps it walked in the
+    open and the evidence it honestly carries - and no judgement is stored on any failure.
+  - 'Completeness is classed from the held records alone: a failure that steps outside the failure sequence, carries
+    a bare claim in place of held evidence, or has not spotted learned stands open, named in its gaps, and the failure
+    index is derived from the held failures, never stored where it could drift.'

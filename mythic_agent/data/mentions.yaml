@@ -1,0 +1,191 @@
+schema: mythic.mentions/1
+slice: M-148
+part: 7
+part_title: Memory & Context
+canon_note: |
+  The @-mention canon: one grammar for pulling
+  anything into context - @file, @folder, @symbol,
+  @url, @image, @session, @issue. A mention canon
+  book holds one mention per pull named in text,
+  in held order: each mention names its kind in
+  the closed set the roadmap itself names (file,
+  folder, symbol, url, image, session, issue),
+  its target judged against its kind, the exact
+  text that named it, its source, and the
+  plain-words reason WHY it is pulled. A mention
+  names no plan of its own, because the PLAN is
+  DERIVED from the mention: the shipped road that
+  would pull that kind into context, what that
+  road does, and what it would pull - named,
+  never run. The INDEX is likewise derived from
+  the whole book: its rows are the mentions'
+  plans and its totals are the mentions' own
+  counts, and a stored plan or index that
+  disagrees with its derived shape is refused.
+  The bare form (@src/main.py, the form the
+  shipped explicit-files road already resolves)
+  parses as a file mention; every other kind is
+  named in its typed form, @kind:target, and an
+  unknown kind refuses plainly. This file is ONE
+  EXAMPLE CANON, in the shape a real canon file
+  takes: the M-147 slice boundary - one mention
+  of every kind, with the one plan of each and
+  the one index of the book. A real canon is a
+  new file in this same shape - it is never this
+  file edited in place. This layer holds the
+  grammar as data only: it reads no file, fetches
+  no page, compiles no context and persists
+  nothing - parsing and planning pull nothing in.
+guide:
+  title: "Mention canon at the M-147 slice boundary"
+entries:
+- mention_id: mention-file-context-budget
+  kind: file
+  target: mythic_agent/core/context_budget.py
+  raw: "@file:mythic_agent/core/context_budget.py"
+  source: M-148 slice note
+  reason: "The M-147 pure layer is this slice's template; its true text steers the build."
+- mention_id: mention-folder-context
+  kind: folder
+  target: mythic_agent/context
+  raw: "@folder:mythic_agent/context"
+  source: M-148 slice note
+  reason: "The shipped context package's shape - files, symbols, repo map and compiler - is the ground this grammar stands on."
+- mention_id: mention-symbol-token-estimator
+  kind: symbol
+  target: TokenEstimator
+  raw: "@symbol:TokenEstimator"
+  source: M-148 slice note
+  reason: The shipped token counter the M-147 measurement road composes; named here as the symbol example.
+- mention_id: mention-url-ast-docs
+  kind: url
+  target: https://docs.python.org/3/library/ast.html
+  raw: "@url:https://docs.python.org/3/library/ast.html"
+  source: M-148 slice note
+  reason: The standard library ast page the symbol road's own docs rest on.
+- mention_id: mention-image-kiosk-snapshot
+  kind: image
+  target: assets/kiosk-snapshot.png
+  raw: "@image:assets/kiosk-snapshot.png"
+  source: M-148 slice note
+  reason: A kiosk snapshot image, named as the image example of the canon.
+- mention_id: mention-session-m147
+  kind: session
+  target: session-m147-keeper
+  raw: "@session:session-m147-keeper"
+  source: M-148 slice note
+  reason: The keeper session that banked M-147, named as the session example.
+- mention_id: mention-issue-148
+  kind: issue
+  target: "#148"
+  raw: "@issue:#148"
+  source: M-148 slice note
+  reason: This slice's own roadmap issue word, named as the issue example.
+plans:
+- mention_id: mention-file-context-budget
+  kind: file
+  target: mythic_agent/core/context_budget.py
+  road: "mythic_agent.context.files.resolve_mentions (ExplicitFilesSource, Slice 056)"
+  action: Resolve the named file against the workspace and read its text
+  pulls: The file's text, as one context block
+- mention_id: mention-folder-context
+  kind: folder
+  target: mythic_agent/context
+  road: "mythic_agent.context.repo_map.build_repo_map (RepoMapSource)"
+  action: Map the named folder through the repo map
+  pulls: "The folder's repo-map section: its files and their definitions"
+- mention_id: mention-symbol-token-estimator
+  kind: symbol
+  target: TokenEstimator
+  road: "mythic_agent.context.symbols.select_by_symbols (SymbolFilesSource, Slice 058)"
+  action: Index the workspace symbols and select the files defining the named symbol
+  pulls: The files that define the named symbol
+- mention_id: mention-url-ast-docs
+  kind: url
+  target: https://docs.python.org/3/library/ast.html
+  road: "mythic_agent.tools.web_search fetch road (Agent.web_fetch, M-059)"
+  action: Fetch the named page and extract its readable text
+  pulls: "The page's readable text, cited into the journal"
+- mention_id: mention-image-kiosk-snapshot
+  kind: image
+  target: assets/kiosk-snapshot.png
+  road: "mythic_agent.core.vision_routing (/vision road)"
+  action: Attach the named image through the vision road
+  pulls: "The image itself, for a vision-capable model"
+- mention_id: mention-session-m147
+  kind: session
+  target: session-m147-keeper
+  road: "mythic_agent.core.sessions.SessionStore (session journal export)"
+  action: Read the named session from the session store
+  pulls: "The named session's recorded turns and events"
+- mention_id: mention-issue-148
+  kind: issue
+  target: "#148"
+  road: "mythic_agent.core.issue_slice planning road over integrations/github.py (M-083, Slice 36)"
+  action: Fetch the named issue through the issue road
+  pulls: "The issue's title and body, as planned context"
+indexes:
+- index_id: index-m147-boundary
+  rows:
+  - mention_id: mention-file-context-budget
+    kind: file
+    target: mythic_agent/core/context_budget.py
+    road: "mythic_agent.context.files.resolve_mentions (ExplicitFilesSource, Slice 056)"
+    action: Resolve the named file against the workspace and read its text
+    pulls: The file's text, as one context block
+  - mention_id: mention-folder-context
+    kind: folder
+    target: mythic_agent/context
+    road: "mythic_agent.context.repo_map.build_repo_map (RepoMapSource)"
+    action: Map the named folder through the repo map
+    pulls: "The folder's repo-map section: its files and their definitions"
+  - mention_id: mention-symbol-token-estimator
+    kind: symbol
+    target: TokenEstimator
+    road: "mythic_agent.context.symbols.select_by_symbols (SymbolFilesSource, Slice 058)"
+    action: Index the workspace symbols and select the files defining the named symbol
+    pulls: The files that define the named symbol
+  - mention_id: mention-url-ast-docs
+    kind: url
+    target: https://docs.python.org/3/library/ast.html
+    road: "mythic_agent.tools.web_search fetch road (Agent.web_fetch, M-059)"
+    action: Fetch the named page and extract its readable text
+    pulls: "The page's readable text, cited into the journal"
+  - mention_id: mention-image-kiosk-snapshot
+    kind: image
+    target: assets/kiosk-snapshot.png
+    road: "mythic_agent.core.vision_routing (/vision road)"
+    action: Attach the named image through the vision road
+    pulls: "The image itself, for a vision-capable model"
+  - mention_id: mention-session-m147
+    kind: session
+    target: session-m147-keeper
+    road: "mythic_agent.core.sessions.SessionStore (session journal export)"
+    action: Read the named session from the session store
+    pulls: "The named session's recorded turns and events"
+  - mention_id: mention-issue-148
+    kind: issue
+    target: "#148"
+    road: "mythic_agent.core.issue_slice planning road over integrations/github.py (M-083, Slice 36)"
+    action: Fetch the named issue through the issue road
+    pulls: "The issue's title and body, as planned context"
+  total_mentions: 7
+  kind_counts:
+  - kind: file
+    mentions: 1
+  - kind: folder
+    mentions: 1
+  - kind: symbol
+    mentions: 1
+  - kind: url
+    mentions: 1
+  - kind: image
+    mentions: 1
+  - kind: session
+    mentions: 1
+  - kind: issue
+    mentions: 1
+  account:
+  - "The canon holds 7 mention(s): file 1, folder 1, symbol 1, url 1, image 1, session 1, issue 1."
+  - "Every mention names the shipped road that would pull it into context; parsing and planning pull nothing in by themselves."
+  - "The index is read off the held mentions at call time - it is derived, never stored loose."

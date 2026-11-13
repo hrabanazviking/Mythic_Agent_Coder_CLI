@@ -1,0 +1,106 @@
+schema: mythic.forget_quarantine/1
+slice: M-157
+part: 7
+part_title: Memory & Context
+canon_note: |
+  Forget and quarantine: any memory can be inspected,
+  edited, or forgotten on the user's word, and the
+  forgetting itself is journaled - what class of thing,
+  never its content. A forget entry is one act carried
+  with the class of memory it names (a shipped holding's
+  own name), the reference the thing stood under, the
+  word the act was done on, the day, and where the memory
+  stood, standing forgotten, quarantined or restored. A
+  restored entry answers a quarantined entry for the same
+  memory: what was forgotten is gone, and what was never
+  quarantined cannot be restored. The FORGET PANEL is
+  derived from the whole book: its rows are the entries
+  carried whole, forgotten first, then quarantined, then
+  restored, and its totals are the entries' own counts,
+  and a stored panel that disagrees with its derived
+  shape is refused. This file is ONE EXAMPLE BOOK, in the
+  shape a real book file takes: the M-156 slice boundary -
+  four acts standing at the close of the decision-records
+  day, two memories forgotten, one held apart in
+  quarantine and then stood again on the user's word, with
+  the one panel of the book. No entry in this book - or in
+  any book of this shape - carries a forgotten thing's
+  title, detail or words. A real book is a new file in
+  this same shape - it is never this file edited in place.
+  This layer journals acts of forgetting as data only: it
+  calls no model, mutates no live memory in any holding
+  and persists nothing.
+guide:
+  title: "Forget and quarantine at the M-156 slice boundary"
+entries:
+- entry_id: entry-lesson-forgotten
+  action: forgotten
+  memory_class: cross-project
+  memory_ref: lesson-flaky-test
+  reason: "The user asked for this lesson to be forgotten."
+  requested_by: user
+  acted_on: "2026-11-08"
+  source: "cross-project memory"
+- entry_id: entry-note-quarantined
+  action: quarantined
+  memory_class: session-memory
+  memory_ref: note-provider-key
+  reason: "The user asked for this memory to be held apart until its standing is decided."
+  requested_by: user
+  acted_on: "2026-11-08"
+  source: "session memory"
+- entry_id: entry-note-restored
+  action: restored
+  memory_class: session-memory
+  memory_ref: note-provider-key
+  reason: "The user asked for this quarantined memory to stand again."
+  requested_by: user
+  acted_on: "2026-11-08"
+  source: "session memory"
+- entry_id: entry-record-forgotten
+  action: forgotten
+  memory_class: decision-record
+  memory_ref: record-stdlib-http
+  reason: "The user asked for this record to be forgotten."
+  requested_by: user
+  acted_on: "2026-11-08"
+  source: "decision records"
+panels:
+- panel_id: panel-m156-boundary
+  rows:
+  - action: forgotten
+    entry_id: entry-lesson-forgotten
+    memory_class: cross-project
+    memory_ref: lesson-flaky-test
+    requested_by: user
+  - action: forgotten
+    entry_id: entry-record-forgotten
+    memory_class: decision-record
+    memory_ref: record-stdlib-http
+    requested_by: user
+  - action: quarantined
+    entry_id: entry-note-quarantined
+    memory_class: session-memory
+    memory_ref: note-provider-key
+    requested_by: user
+  - action: restored
+    entry_id: entry-note-restored
+    memory_class: session-memory
+    memory_ref: note-provider-key
+    requested_by: user
+  total_items: 4
+  total_forgotten: 2
+  total_quarantined: 1
+  total_restored: 1
+  action_counts:
+  - action: forgotten
+    items: 2
+  - action: quarantined
+    items: 1
+  - action: restored
+    items: 1
+  account:
+  - "The forget panel holds 4 entries: forgotten 2, quarantined 1, restored 1."
+  - "Entries stand forgotten first, then quarantined, then restored; within an action, by memory class, then memory reference - so two panels of one book diff cleanly, line by line."
+  - "Every entry journals what class of thing was forgotten, quarantined or restored, and the reference it stood under - never its content: no title, detail or fact of the thing stands anywhere in this book."
+  - "The panel is read off the book at call time - it is derived, never stored loose."

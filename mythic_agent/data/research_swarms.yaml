@@ -1,0 +1,60 @@
+schema: mythic.research_swarms/1
+slice: M-131
+part: 6
+part_title: Agents as files
+leader: cartographer
+swarm_note: |
+  Research swarms: a Cartographer-led fan-out for
+  questions, as data. One question is led by the
+  cartographer and dealt out as assignments - one
+  member, one focus (the docs, the options, or the
+  comparison the question needs) - and each member
+  returns one finding: a plain summary of what
+  their focus found, with the sources it stands
+  on. The digest is derived from the findings
+  alone: one digested answer holding every source
+  the findings cite, in the order the findings
+  cite them, and the swarm is complete exactly
+  when every assignment holds a finding - an
+  assignment with no finding is named in the
+  digest as still out, never quietly dropped.
+  This file is ONE EXAMPLE SWARM in the shape a
+  real swarm's file takes: the cartographer leads
+  a three-member fan-out on which local-model
+  provider road the crew should ride, the
+  cartographer reading the docs, the architect
+  weighing the options and the scribe holding the
+  comparison, and every assignment holds its
+  finding, so the example digest is complete.
+  A real swarm is a new file in this same shape -
+  it is never this file edited in place. This
+  layer holds the swarm as data only: it runs no
+  research, calls no model, opens no page and
+  spawns no crew itself; the members' findings
+  arrive through later roads, and the digested
+  answer is visible through this slice's own
+  /swarm screen - the Part VIII board the roadmap
+  names does not exist yet.
+question:
+  text: "Which local-model provider road should the crew ride, and how do the roads compare?"
+  leader: cartographer
+assignments:
+- member: cartographer
+  focus: docs
+  brief: "Read the provider registry and the capability notes: which local roads exist at all?"
+- member: architect
+  focus: options
+  brief: "Weigh the local roads as options: what does each one ask of the machine that runs it?"
+- member: scribe
+  focus: comparison
+  brief: "Hold the comparison: lay the local roads side by side so the human can choose."
+findings:
+- member: cartographer
+  summary: "The registry names the local roads plainly: the Ollama road and the Project Aesir road both stand as shipped providers, each with its own capability record."
+  sources: ["mythic_agent/data/provider_registry.yaml", "mythic_agent/core/model_capabilities.py"]
+- member: architect
+  summary: "As options the two roads differ in what they ask: the Ollama road asks for its own running service, while the Aesir road asks for the Aesir runner and the machine room it needs."
+  sources: ["mythic_agent/data/provider_registry.yaml"]
+- member: scribe
+  summary: "Side by side: both roads are local and both are shipped; the choice turns on which runner the machine already keeps, not on a road being missing."
+  sources: ["mythic_agent/core/model_capabilities.py", "mythic_agent/data/roadmap_slices.yaml"]

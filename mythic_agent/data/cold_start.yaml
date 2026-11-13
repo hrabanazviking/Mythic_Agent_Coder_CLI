@@ -1,0 +1,149 @@
+schema: mythic.cold_start/1
+slice: M-169
+part: 7
+part_title: Memory & Context
+canon_note: 'Cold-Start Kindness: opening a huge, old project rebuilds its map in the background
+  while the coder is already useful. A record stands over one opening, named by the project id
+  and the map id alone - the map own facts never cross into the record. The record carries the
+  map evidence whole: the map age in days, its entry count, the project file count, how many of
+  those files the map covers, and the map counted by area - the shipped map own sections - each
+  area naming how many of its entries stand stale, with who opened the project and the session
+  it opened in. The rebuild plan is derived, never chosen: no map at all derives a rebuild from
+  scratch, old, stale or short evidence derives a background rebuild while the coder works from
+  the stale-but-usable map, and fresh, whole evidence derives no rebuild at all - and the stages
+  stand in derived order, the stalest area first. The READINESS PANEL is derived from the whole
+  book: its rows are the records carried whole, by derived mode - from-scratch rebuilds first,
+  then background rebuilds, then fresh servings - then title, then record id, each showing what
+  is usable now beside what is still rebuilding, and a stored panel that disagrees with its
+  derived shape is refused. The COLD-START VERDICT is derived for the whole book: cold while any
+  project stands with no map at all, warming while any map rebuilds in the background, and kind
+  while every opening serves a fresh map. Progress walks the derived plan stage by stage, in
+  order, on the held book alone. This file is ONE EXAMPLE BOOK, in the shape a real book file
+  takes: the M-168 slice boundary - three openings at the close of the memory doctor day, one
+  huge old project warming in the background, one project with no map at all, and one small
+  fresh project served as it stands, with the one panel of the book read as of that day. A real
+  book is a new file in this same shape - it is never this file edited in place. This layer holds
+  openings as data only - it starts no thread, rebuilds no live map, opens no live project, sends
+  nothing, posts nothing, schedules nothing, calls no model and persists nothing.'
+guide:
+  title: Cold-Start Kindness at the M-168 slice boundary
+records:
+- record_id: opening-mythic-hammer
+  title: the mythic hammer campaign home opens cold
+  project_ref: mythic-hammer
+  map_ref: map-mythic-hammer
+  map_age_days: 74
+  map_entries: 113
+  project_files: 4200
+  covered_files: 3900
+  areas:
+  - section: architecture
+    entries: 40
+    stale_entries: 12
+  - section: decision
+    entries: 25
+    stale_entries: 5
+  - section: gotcha
+    entries: 18
+    stale_entries: 9
+  - section: location
+    entries: 30
+    stale_entries: 0
+  opened_on: '2026-11-09'
+  opened_by: Volmarr
+  source: cold start
+  origin_session: session-m168-doctor
+- record_id: opening-old-sagas
+  title: the old sagas project has no map at all
+  project_ref: old-sagas
+  map_ref: map-old-sagas
+  map_age_days: 400
+  map_entries: 0
+  project_files: 860
+  covered_files: 0
+  areas: []
+  opened_on: '2026-11-08'
+  opened_by: Volmarr
+  source: cold start
+  origin_session: session-m168-doctor
+- record_id: opening-fresh-notes
+  title: the fresh notes project opens warm
+  project_ref: fresh-notes
+  map_ref: map-fresh-notes
+  map_age_days: 2
+  map_entries: 18
+  project_files: 120
+  covered_files: 120
+  areas:
+  - section: architecture
+    entries: 6
+    stale_entries: 0
+  - section: decision
+    entries: 4
+    stale_entries: 0
+  - section: gotcha
+    entries: 3
+    stale_entries: 0
+  - section: location
+    entries: 5
+    stale_entries: 0
+  opened_on: '2026-11-09'
+  opened_by: Volmarr
+  source: cold start
+  origin_session: session-m168-doctor
+panels:
+- panel_id: panel-m168-boundary
+  rows:
+  - record_id: opening-old-sagas
+    title: the old sagas project has no map at all
+    project_ref: old-sagas
+    mode: rebuild-from-scratch
+    usable_entries: 0
+    total_stale: 0
+    rebuilding_areas: 1
+    stage_count: 2
+    first_stage: rebuild-whole-map
+    opened_on: '2026-11-08'
+  - record_id: opening-mythic-hammer
+    title: the mythic hammer campaign home opens cold
+    project_ref: mythic-hammer
+    mode: background-rebuild
+    usable_entries: 87
+    total_stale: 26
+    rebuilding_areas: 3
+    stage_count: 5
+    first_stage: serve-stale-map
+    opened_on: '2026-11-09'
+  - record_id: opening-fresh-notes
+    title: the fresh notes project opens warm
+    project_ref: fresh-notes
+    mode: serve-fresh
+    usable_entries: 18
+    total_stale: 0
+    rebuilding_areas: 0
+    stage_count: 1
+    first_stage: serve-fresh-map
+    opened_on: '2026-11-09'
+  total_records: 3
+  total_fresh: 1
+  total_warming: 1
+  total_cold: 1
+  distinct_projects: 3
+  mode_counts:
+  - mode: rebuild-from-scratch
+    items: 1
+  - mode: background-rebuild
+    items: 1
+  - mode: serve-fresh
+    items: 1
+  as_of: '2026-11-09'
+  account:
+  - 'The cold-start panel holds 3 openings as of 2026-11-09: 1 served fresh, 1 rebuilding in the
+    background and 1 rebuilding from scratch over 3 projects: rebuild-from-scratch 1, background-rebuild
+    1, serve-fresh 1.'
+  - Rows stand by mode - from-scratch rebuilds first, then background rebuilds, then fresh servings
+    - then title, then record id, so two panels of one book diff cleanly, line by line.
+  - 'Every row shows what is usable now beside what is still rebuilding: a background opening serves
+    its stale-but-usable map at once while its plan rebuilds the stalest areas first.'
+  - 'The panel is read off the book at call time - it is derived, never stored loose - and standing
+    on this panel starts no rebuild: stages are marked done on the held book alone.'

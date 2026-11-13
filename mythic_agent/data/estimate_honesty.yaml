@@ -1,0 +1,226 @@
+schema: mythic.estimate_honesty/1
+slice: M-215
+estimate_honesty:
+  title: Estimate honesty at the M-214 slice boundary
+slices:
+- slice_id: slice-m214-pattern
+  seq: 1
+  title: Pattern extraction
+  state: active
+  detail: 'The slice the estimator looks back on first: banked at M-214, standing active in the estimate
+    honesty''s hands.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: estimate honesty
+  origin_session: session-m215
+- slice_id: slice-m215-estimate
+  seq: 2
+  title: Estimate honesty
+  state: active
+  detail: 'This very slice, standing active: the estimate honesty holding its own forecast as data.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: estimate honesty
+  origin_session: session-m215
+- slice_id: slice-m216-hall
+  seq: 3
+  title: Multi-campaign hall
+  state: queued
+  detail: A queued slice the estimator has not dealt with; an estimate naming it refuses by name.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: estimate honesty
+  origin_session: session-m215
+estimate_records:
+- estimate_id: estimate-held-forecast
+  seq: 1
+  slice_id: slice-m214-pattern
+  title: The held forecast
+  checks: &id001
+  - predicted
+  - recorded
+  - measured
+  - compared
+  - calibrated
+  claims:
+  - slice_ref
+  detail: 'The opening forecast: a forecast predicted for the work, recorded before it ran, measured against
+    the outcome and compared honestly, calibrated with the slice held as proof.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: estimate honesty
+  origin_session: session-m215
+- estimate_id: estimate-remeasured-forecast
+  seq: 2
+  slice_id: slice-m214-pattern
+  title: The remeasured forecast
+  checks:
+  - predicted
+  - recorded
+  - measured
+  - compared
+  - predicted
+  - recorded
+  - measured
+  - compared
+  - calibrated
+  claims: []
+  detail: 'The remeasured forecast: a first comparison sent the standing back, the forecast was predicted
+    and recorded again and the outcome measured a second time before the calibration stood.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: estimate honesty
+  origin_session: session-m215
+- estimate_id: estimate-own-forecast
+  seq: 3
+  slice_id: slice-m215-estimate
+  title: The estimator's own forecast
+  checks: *id001
+  claims:
+  - calibration_ref
+  detail: 'The estimator''s own forecast: this slice''s own forecast, carrying its calibration ref as
+    proof.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: estimate honesty
+  origin_session: session-m215
+- estimate_id: estimate-bare-forecast
+  seq: 4
+  slice_id: slice-m215-estimate
+  title: The bare claim forecast
+  checks: *id001
+  claims:
+  - feeling
+  detail: A forecast that carried a feeling in place of held proof, standing open.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: estimate honesty
+  origin_session: session-m215
+- estimate_id: estimate-leaping-forecast
+  seq: 5
+  slice_id: slice-m215-estimate
+  title: The leaping forecast
+  checks:
+  - predicted
+  - recorded
+  - calibrated
+  claims: []
+  detail: A forecast that stepped from recorded straight to calibrated, outside the estimate sequence,
+    standing open.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: estimate honesty
+  origin_session: session-m215
+views:
+- view_id: view-estimates
+  seq: 1
+  view_filter: all
+  detail: Every held forecast, complete or not.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: estimate honesty
+  origin_session: session-m215
+- view_id: view-calibrated
+  seq: 2
+  view_filter: complete
+  detail: Only the forecasts standing complete.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: estimate honesty
+  origin_session: session-m215
+notes:
+- note_id: note-note-first
+  seq: 1
+  estimate_id: estimate-held-forecast
+  stance: note
+  target: the opening forecast
+  title: Forecasts first
+  detail: The estimator opens by predicting the forecast first, told honestly.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: estimate honesty
+  origin_session: session-m215
+- note_id: note-concern-bare
+  seq: 2
+  estimate_id: estimate-bare-forecast
+  stance: concern
+  target: the bare claim forecast
+  title: Claim named
+  detail: A forecast that carried a feeling claim is not the estimator's way, and stands named.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: estimate honesty
+  origin_session: session-m215
+traces:
+- trace_id: trace-first
+  seq: 1
+  estimate_id: estimate-held-forecast
+  trace: predicted > recorded > measured > compared > calibrated
+  detail: 'The opening forecast''s walk, held exactly as walked: the trace is the walk itself.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: estimate honesty
+  origin_session: session-m215
+panels:
+- panel_id: panel-m214-boundary
+  view_id: view-estimates
+  view_filter: all
+  rows:
+  - item_id: estimate-held-forecast
+    standing: complete
+    label: The held forecast
+    segment: 'estimate-held-forecast: The held forecast - slice: ''slice-m214-pattern'' - check: ''calibrated''
+      - checks: 5 - claims: ''slice_ref'' - detail: ''The opening forecast: a forecast predicted for the
+      work, recorded before it ran, measured against the outcome and compared honestly, calibrated with
+      the slice held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: estimate-remeasured-forecast
+    standing: complete
+    label: The remeasured forecast
+    segment: 'estimate-remeasured-forecast: The remeasured forecast - slice: ''slice-m214-pattern'' -
+      check: ''calibrated'' - checks: 9 - claims: ''none'' - detail: ''The remeasured forecast: a first
+      comparison sent the standing back, the forecast was predicted and recorded again and the outcome
+      measured a second time before the calibration stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: estimate-own-forecast
+    standing: complete
+    label: The estimator's own forecast
+    segment: 'estimate-own-forecast: The estimator''s own forecast - slice: ''slice-m215-estimate'' -
+      check: ''calibrated'' - checks: 5 - claims: ''calibration_ref'' - detail: ''The estimator''s own
+      forecast: this slice''s own forecast, carrying its calibration ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: estimate-bare-forecast
+    standing: open
+    label: The bare claim forecast
+    segment: 'estimate-bare-forecast: The bare claim forecast - slice: ''slice-m215-estimate'' - check:
+      ''calibrated'' - checks: 5 - claims: ''feeling'' - detail: ''A forecast that carried a feeling in
+      place of held proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held
+      proof: complete stands on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: estimate-leaping-forecast
+    standing: open
+    label: The leaping forecast
+    segment: 'estimate-leaping-forecast: The leaping forecast - slice: ''slice-m215-estimate'' - check:
+      ''calibrated'' - checks: 3 - claims: ''none'' - detail: ''A forecast that stepped from recorded
+      straight to calibrated, outside the estimate sequence, standing open.'' - gaps: steps from recorded
+      to calibrated, which the estimate sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The estimate book holds 5 estimates as of 2026-11-11: the view ''all'' shows 5 of them: complete
+    3, open 2; 3 of the shown estimates stand complete.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its estimate's own fields - the slice it answers for, the steps it walked
+    in the open and the evidence it honestly carries - and no judgement is stored on any estimate.
+  - 'Completeness is measured from the held records alone: a estimate that steps outside the estimate
+    sequence, carries a bare claim in place of held evidence, or has not reached calibrated stands open,
+    named in its gaps, and the estimate index is derived from the held estimates, never stored where it
+    could drift.'

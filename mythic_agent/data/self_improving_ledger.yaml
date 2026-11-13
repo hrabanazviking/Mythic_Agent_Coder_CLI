@@ -1,0 +1,115 @@
+schema: mythic.self_improving_ledger/1
+slice: M-155
+part: 7
+part_title: Memory & Context
+canon_note: |
+  The self-improving ledger: after significant
+  work, durable lessons and reusable patterns are
+  captured as candidate memories - with provenance
+  whole: the work each was learned in, the context
+  it was learned in, the evidence it stands on, and
+  where it was read from. A candidate stands as a
+  candidate until an explicit promotion decision
+  promotes it: promoted, declined or quarantined,
+  and a decided state names its decider - the human
+  or a named standing rule. A candidate becomes a
+  standing memory only through a promoted decision,
+  never silently, and it stands there with its
+  provenance still whole. The LEDGER PANEL is
+  derived from the whole book: its rows are the
+  candidates with their standings carried whole,
+  promoted first, then candidate, then declined,
+  then quarantined, and its totals are the
+  candidates' own counts, and a stored panel that
+  disagrees with its derived shape is refused. This
+  file is ONE EXAMPLE BOOK, in the shape a real
+  book file takes: the M-154 slice boundary - three
+  candidates standing at the close of the
+  cross-project day, one of them promoted into
+  standing memory under a named standing rule, one
+  still a candidate awaiting its word, and one
+  declined, with the one panel of the book. A real
+  book is a new file in this same shape - it is
+  never this file edited in place. This layer holds
+  candidates and decisions as data only: it calls
+  no model, writes no project files, updates no
+  live memory and persists nothing.
+guide:
+  title: "Self-improving ledger at the M-154 slice boundary"
+candidates:
+- candidate_id: candidate-commit-before-answer
+  kind: lesson
+  title: "Commit before the answer is read"
+  detail: "Under WAL with synchronous=FULL, a handler that answers from inside its with db() block answers before the commit is visible to other connections, so a fast client using a just-issued credential races its own grant and gets refused."
+  source_work: samtal-gatekeeper
+  context: "Samtal's Gatekeeper morning: four credential-issuing handlers (exchange, login/2fa, ip-ban, device/deny) raced their own grants in one morning."
+  evidence: "The canonical suite's intermittent 401/403/'pending' failures on just-issued credentials, traced to the commit boundary on 2026-10-22."
+  source: "Samtal forge law"
+  ref: samtal-mvp/server.py
+- candidate_id: candidate-reap-at-bank
+  kind: pattern
+  title: "Verify copies are reaped at bank"
+  detail: "A verify copy's purpose ends the moment its slice is banked and the remote is verified; the evidence is kept and the copy is deleted in the same step."
+  source_work: mythic-coder-campaign
+  context: "The verify store reached 111 GB across thousands of copies kept 'just in case' before the reap-at-bank rule was set."
+  evidence: "The clearing ledger of 2026-11-06: the store went from 6,809 entries to 162, with 10,062 evidence files preserved and verified."
+  source: PROJECT_MEMORY_MAP.md
+  ref: workspace/.verify-tmp/
+- candidate_id: candidate-bank-incrementally
+  kind: pattern
+  title: "Bank incrementally, verify the remote moved"
+  detail: "Each slice banks with an explicit-refspec push and an ls-remote check that the remote HEAD moved; the ship slice is then an audit with behind_by=0, not a merge event."
+  source_work: aesir-wave
+  context: "Project Aesir's wave merges: base-diff patches silently reverted a banked hotfix twice before the rule was set."
+  evidence: "The Aesir Part II retrospective (S-051): every divergence carries a written verdict class or a named road, verified from git objects."
+  source: "Aesir retrospective"
+  ref: AGENTS.md
+decisions:
+- decision_id: decision-reap-promoted
+  candidate_id: candidate-reap-at-bank
+  state: promoted
+  decided_by: "standing-rule:reap-at-bank"
+  note: "Promoted under the reap-at-bank standing rule the day the clearing ledger closed; the pattern now stands as standing memory."
+- decision_id: decision-bank-declined
+  candidate_id: candidate-bank-incrementally
+  state: declined
+  decided_by: human
+  note: "Declined for the ledger by the human: the rule already stands as campaign law in AGENTS.md, so it is not carried twice."
+panels:
+- panel_id: panel-m154-boundary
+  rows:
+  - state: promoted
+    candidate_id: candidate-reap-at-bank
+    kind: pattern
+    title: "Verify copies are reaped at bank"
+    detail: "A verify copy's purpose ends the moment its slice is banked and the remote is verified; the evidence is kept and the copy is deleted in the same step."
+    source_work: mythic-coder-campaign
+  - state: candidate
+    candidate_id: candidate-commit-before-answer
+    kind: lesson
+    title: "Commit before the answer is read"
+    detail: "Under WAL with synchronous=FULL, a handler that answers from inside its with db() block answers before the commit is visible to other connections, so a fast client using a just-issued credential races its own grant and gets refused."
+    source_work: samtal-gatekeeper
+  - state: declined
+    candidate_id: candidate-bank-incrementally
+    kind: pattern
+    title: "Bank incrementally, verify the remote moved"
+    detail: "Each slice banks with an explicit-refspec push and an ls-remote check that the remote HEAD moved; the ship slice is then an audit with behind_by=0, not a merge event."
+    source_work: aesir-wave
+  total_items: 3
+  total_promoted: 1
+  total_candidate: 1
+  total_declined: 1
+  total_quarantined: 0
+  state_counts:
+  - state: promoted
+    items: 1
+  - state: candidate
+    items: 1
+  - state: declined
+    items: 1
+  account:
+  - "The ledger panel holds 3 candidates: promoted 1, candidate 1, declined 1, quarantined 0."
+  - "Candidates stand promoted first, then candidate, then declined, then quarantined; within a state, by source work, then candidate title - so two panels of one book diff cleanly, line by line."
+  - "A candidate stands as a standing memory only through an explicit promotion by the human or a named standing rule, and it stands there with its provenance whole - where it was learned, in what context, and on what evidence."
+  - "The panel is read off the book at call time - it is derived, never stored loose."

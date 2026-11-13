@@ -1,0 +1,230 @@
+schema: mythic.mcp_client/1
+server: M-233
+mcp_client:
+  title: MCP client at the M-233 slice run
+servers:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-connection book
+  origin_session: session-m233
+  server_id: server-filesystem
+  seq: 1
+  title: Filesystem server
+  state: live
+  detail: 'The slice the tracker looks back on first: banked at M-230, standing active in the cross-app
+    method honesty''s hands.'
+  permission: trusted
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-connection book
+  origin_session: session-m233
+  server_id: server-search
+  seq: 2
+  title: Search server
+  state: live
+  detail: 'This very slice, standing active: the mcpclient book holding its own server as data.'
+  permission: trusted
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-connection book
+  origin_session: session-m233
+  server_id: server-remote
+  seq: 3
+  title: Remote server
+  state: dormant
+  detail: A queued slice the tracker has not taken yet; an connection naming it refuses by name.
+  permission: ask
+connection_records:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-connection book
+  origin_session: session-m233
+  connection_id: connection-held-connection
+  seq: 1
+  server_id: server-filesystem
+  title: The held connection
+  stages: &id001
+  - discovered
+  - inspected
+  - permitted
+  - connected
+  - held
+  claims:
+  - tools_ref
+  detail: 'The opening connection: a slice discovered for the server in its home tool, inspected across
+    the workshop, permitted where it lives, connected to the tracker at hand and held honestly, held with
+    the tool held as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-connection book
+  origin_session: session-m233
+  connection_id: connection-retried-connection
+  seq: 2
+  server_id: server-filesystem
+  title: The retried connection
+  stages:
+  - discovered
+  - inspected
+  - permitted
+  - connected
+  - discovered
+  - inspected
+  - permitted
+  - connected
+  - held
+  claims: []
+  detail: 'The retried connection: a first connected step sent the standing back, the slice was discovered
+    and inspected again and the tracking held a second time before the holding stood.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-connection book
+  origin_session: session-m233
+  connection_id: connection-own-connection
+  seq: 3
+  server_id: server-search
+  title: The tracker's own connection
+  stages: *id001
+  claims:
+  - policy_ref
+  detail: 'The tracker''s own connection: this slice''s own connection, holding its connection ref as
+    proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-connection book
+  origin_session: session-m233
+  connection_id: connection-bare-connection
+  seq: 4
+  server_id: server-search
+  title: The bare claim connection
+  stages: *id001
+  claims:
+  - feeling
+  detail: An connection that held a feeling in place of held proof, standing open.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-connection book
+  origin_session: session-m233
+  connection_id: connection-leaping-connection
+  seq: 5
+  server_id: server-search
+  title: The leaping connection
+  stages:
+  - discovered
+  - inspected
+  - held
+  claims: []
+  detail: An connection that stepped from inspected straight to held, outside the connection sequence,
+    standing open.
+views:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-connection book
+  origin_session: session-m233
+  view_id: view-connections
+  seq: 1
+  view_filter: all
+  detail: Every held connection, complete or not.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-connection book
+  origin_session: session-m233
+  view_id: view-held
+  seq: 2
+  view_filter: complete
+  detail: Only the connections standing complete.
+notes:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-connection book
+  origin_session: session-m233
+  note_id: note-note-first
+  seq: 1
+  connection_id: connection-held-connection
+  stance: note
+  target: the opening connection
+  title: Connections first
+  detail: The tracker opens by naming the slice first, told honestly.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-connection book
+  origin_session: session-m233
+  note_id: note-concern-bare
+  seq: 2
+  connection_id: connection-bare-connection
+  stance: concern
+  target: the bare claim connection
+  title: Claim discovered
+  detail: An connection that held a feeling claim is not the tracker's way, and stands discovered.
+traces:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-connection book
+  origin_session: session-m233
+  trace_id: trace-first
+  seq: 1
+  connection_id: connection-held-connection
+  trace: discovered > inspected > permitted > connected > held
+  detail: 'The opening connection''s walk, held exactly as walked: the trace is the walk itself.'
+panels:
+- panel_id: panel-filesystem
+  view_id: view-connections
+  view_filter: all
+  rows:
+  - item_id: connection-held-connection
+    standing: complete
+    label: The held connection
+    segment: 'connection-held-connection: The held connection - server: ''server-filesystem'' - stage:
+      ''held'' - stages: 5 - claims: ''tools_ref'' - detail: ''The opening connection: a slice discovered
+      for the server in its home tool, inspected across the workshop, permitted where it lives, connected
+      to the tracker at hand and held honestly, held with the tool held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: connection-retried-connection
+    standing: complete
+    label: The retried connection
+    segment: 'connection-retried-connection: The retried connection - server: ''server-filesystem'' -
+      stage: ''held'' - stages: 9 - claims: ''none'' - detail: ''The retried connection: a first connected
+      step sent the standing back, the slice was discovered and inspected again and the tracking held
+      a second time before the holding stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: connection-own-connection
+    standing: complete
+    label: The tracker's own connection
+    segment: 'connection-own-connection: The tracker''s own connection - server: ''server-search'' - stage:
+      ''held'' - stages: 5 - claims: ''policy_ref'' - detail: ''The tracker''s own connection: this slice''s
+      own connection, holding its connection ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: connection-bare-connection
+    standing: open
+    label: The bare claim connection
+    segment: 'connection-bare-connection: The bare claim connection - server: ''server-search'' - stage:
+      ''held'' - stages: 5 - claims: ''feeling'' - detail: ''An connection that held a feeling in place
+      of held proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof:
+      complete stands on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: connection-leaping-connection
+    standing: open
+    label: The leaping connection
+    segment: 'connection-leaping-connection: The leaping connection - server: ''server-search'' - stage:
+      ''held'' - stages: 3 - claims: ''none'' - detail: ''An connection that stepped from inspected straight
+      to held, outside the connection sequence, standing open.'' - gaps: steps from inspected to held,
+      which the connection sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The connection book holds 5 connections as of 2026-11-11: the view ''all'' shows 5 of them: complete
+    3, open 2; 3 of the shown connections stand complete.'
+  - Rows stand in held connection, the connection the book itself stands in, so two panels of one view
+    diff cleanly, segment by segment.
+  - Every segment is derived from its connection's own fields - the server it answers for, the steps it
+    walked in the open and the evidence it honestly carries - and no judgement is stored on any connection.
+  - 'Completeness is permitted from the held records alone: a connection that steps outside the connection
+    sequence, carries a bare claim in place of held evidence, or has not discovered held stands open,
+    discovered in its gaps, and the connection index is derived from the held connections, never stored
+    where it could drift.'

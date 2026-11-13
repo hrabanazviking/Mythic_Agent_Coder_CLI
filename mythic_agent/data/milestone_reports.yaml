@@ -1,0 +1,212 @@
+schema: mythic.milestone_reports/1
+slice: M-220
+milestone_reports:
+  title: Milestone reports at the M-220 slice boundary
+boundaries:
+- boundary_id: boundary-m219-resumes
+  seq: 1
+  title: Interrupts and resumes across days
+  state: live
+  detail: 'The slice the reportkeeper looks back on first: banked at M-220, standing active in the report
+    honesty''s hands.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-report milestone
+  origin_session: session-m220
+- boundary_id: boundary-m220-milestones
+  seq: 2
+  title: Milestone reports
+  state: live
+  detail: 'This very slice, standing active: the multi-report milestone holding its own report as data.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-report milestone
+  origin_session: session-m220
+- boundary_id: boundary-m221-log
+  seq: 3
+  title: The plain-language build log
+  state: dormant
+  detail: A queued slice the reportkeeper has not dealt with; an report naming it refuses by name.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-report milestone
+  origin_session: session-m220
+report_records:
+- report_id: report-held-report
+  seq: 1
+  boundary_id: boundary-m219-resumes
+  title: The held report
+  checks: &id001
+  - reached
+  - gathered
+  - weighed
+  - stated
+  - reported
+  claims:
+  - boundary_ref
+  detail: 'The opening report: a report reached for the work, gathered before it ran, weighed against
+    the outcome and stated honestly, reported with the slice held as proof.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-report milestone
+  origin_session: session-m220
+- report_id: report-remeasured-report
+  seq: 2
+  boundary_id: boundary-m219-resumes
+  title: The remeasured report
+  checks:
+  - reached
+  - gathered
+  - weighed
+  - stated
+  - reached
+  - gathered
+  - weighed
+  - stated
+  - reported
+  claims: []
+  detail: 'The remeasured report: a first comparison sent the standing back, the report was reached
+    and gathered again and the outcome weighed a second time before the run stood.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-report milestone
+  origin_session: session-m220
+- report_id: report-own-report
+  seq: 3
+  boundary_id: boundary-m220-milestones
+  title: The reportkeeper's own report
+  checks: *id001
+  claims:
+  - report_ref
+  detail: 'The reportkeeper''s own report: this slice''s own report, carrying its run ref as
+    proof.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-report milestone
+  origin_session: session-m220
+- report_id: report-bare-report
+  seq: 4
+  boundary_id: boundary-m220-milestones
+  title: The bare claim report
+  checks: *id001
+  claims:
+  - feeling
+  detail: A report that carried a feeling in place of held proof, standing open.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-report milestone
+  origin_session: session-m220
+- report_id: report-leaping-report
+  seq: 5
+  boundary_id: boundary-m220-milestones
+  title: The leaping report
+  checks:
+  - reached
+  - gathered
+  - reported
+  claims: []
+  detail: A report that stepped from gathered straight to reported, outside the report sequence,
+    standing open.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-report milestone
+  origin_session: session-m220
+views:
+- view_id: view-reports
+  seq: 1
+  view_filter: all
+  detail: Every held report, complete or not.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-report milestone
+  origin_session: session-m220
+- view_id: view-reported
+  seq: 2
+  view_filter: complete
+  detail: Only the reports standing complete.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-report milestone
+  origin_session: session-m220
+notes:
+- note_id: note-note-first
+  seq: 1
+  report_id: report-held-report
+  stance: note
+  target: the opening report
+  title: Reports first
+  detail: The reportkeeper opens by predicting the report first, told honestly.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-report milestone
+  origin_session: session-m220
+- note_id: note-concern-bare
+  seq: 2
+  report_id: report-bare-report
+  stance: concern
+  target: the bare claim report
+  title: Claim named
+  detail: A report that carried a feeling claim is not the reportkeeper's way, and stands named.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-report milestone
+  origin_session: session-m220
+traces:
+- trace_id: trace-first
+  seq: 1
+  report_id: report-held-report
+  trace: reached > gathered > weighed > stated > reported
+  detail: 'The opening report''s walk, held exactly as walked: the trace is the walk itself.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-report milestone
+  origin_session: session-m220
+panels:
+- panel_id: panel-m219-boundary
+  view_id: view-reports
+  view_filter: all
+  rows:
+  - item_id: report-held-report
+    standing: complete
+    label: The held report
+    segment: 'report-held-report: The held report - slice: ''boundary-m219-resumes'' - check: ''reported'' - checks: 5 - claims: ''boundary_ref'' - detail: ''The opening report: a report reached for
+      the work, gathered before it ran, weighed against the outcome and stated honestly, reported with the slice held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: report-remeasured-report
+    standing: complete
+    label: The remeasured report
+    segment: 'report-remeasured-report: The remeasured report - slice: ''boundary-m219-resumes'' - check: ''reported'' - checks: 9 - claims: ''none'' - detail: ''The remeasured report: a first comparison
+      sent the standing back, the report was reached and gathered again and the outcome weighed a second time before the run stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: report-own-report
+    standing: complete
+    label: The reportkeeper's own report
+    segment: 'report-own-report: The reportkeeper''s own report - slice: ''boundary-m220-milestones'' - check: ''reported'' - checks: 5 - claims: ''report_ref'' - detail: ''The reportkeeper''s own report:
+      this slice''s own report, carrying its run ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: report-bare-report
+    standing: open
+    label: The bare claim report
+    segment: 'report-bare-report: The bare claim report - slice: ''boundary-m220-milestones'' - check: ''reported'' - checks: 5 - claims: ''feeling'' - detail: ''A report that carried a feeling in place
+      of held proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof: complete stands on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: report-leaping-report
+    standing: open
+    label: The leaping report
+    segment: 'report-leaping-report: The leaping report - slice: ''boundary-m220-milestones'' - check: ''reported'' - checks: 3 - claims: ''none'' - detail: ''A report that stepped from gathered straight
+      to reported, outside the report sequence, standing open.'' - gaps: steps from gathered to reported, which the report sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The report book holds 5 reports as of 2026-11-11: the view ''all'' shows 5 of them: complete 3, open 2; 3 of the shown reports stand complete.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly, segment by segment.
+  - Every segment is derived from its report's own fields - the slice it answers for, the steps it walked in the open and the evidence it honestly carries - and no judgement is stored on any report.
+  - 'Completeness is weighed from the held records alone: a report that steps outside the report sequence, carries a bare claim in place of held evidence, or has not reached reported stands open, named
+    in its gaps, and the report index is derived from the held reports, never stored where it could drift.'

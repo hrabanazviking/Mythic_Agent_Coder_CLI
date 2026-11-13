@@ -1,0 +1,84 @@
+schema: mythic.crew_replay/1
+slice: M-138
+part: 6
+part_title: Agents as files
+replay_note: |
+  Crew replay: a crew run's hand-offs, replayable
+  from the journal - how a decision happened is
+  auditable. A replay book holds one journal step
+  per hand-off of the run, in journal order: the
+  hand-off itself - an M-126 hand-off, sender,
+  recipient, kind, slice, title and body,
+  validated by the crew comms layer itself - and
+  its journal position. The replay is derived
+  from the journal in order, never stored loose:
+  a step naming a position other than its place
+  in the book is refused. A decision trace is
+  derived from the hand-offs that led to it:
+  every hand-off of the decision's slice, in
+  journal order, up to and including the decision
+  itself, its account read off those steps - a
+  stored trace that disagrees with the derived
+  trace is refused. This file is ONE EXAMPLE
+  REPLAY BOOK in the shape a real replay file
+  takes: one finished run of five hand-offs
+  among the shipped M-121 casting, four of them
+  on M-138 and one kept note on M-137, and one
+  example trace - the closing decision at step 4,
+  its account derived from steps 1 to 4, the
+  M-137 note no part of it. A real replay book
+  is a new file in this same shape - it is never
+  this file edited in place. This layer holds
+  replays as data only: it reads no live journal,
+  re-runs no step and runs no model.
+guide:
+  title: "Crew replay at the M-137 slice boundary"
+steps:
+- step_id: step-map
+  position: 1
+  handoff:
+    sender: cartographer
+    recipient: architect
+    kind: findings
+    slice_id: M-138
+    title: Run traffic mapped
+    body: "The finished run's hand-offs sit in the journal in order, but nothing yet reads them back as one replay: how the closing decision was reached cannot be shown."
+- step_id: step-diff
+  position: 2
+  handoff:
+    sender: architect
+    recipient: forge_worker
+    kind: diff
+    slice_id: M-138
+    title: Replay shape diff
+    body: "crew_replay holds a run's hand-offs as journal steps in order and derives the replay from them; a stored replay that disagrees with the journal order refuses."
+- step_id: step-ask
+  position: 3
+  handoff:
+    sender: forge_worker
+    recipient: human
+    kind: question
+    slice_id: M-138
+    title: Replay kept whole
+    body: "Should the replay show every hand-off of the run, or only the hand-offs that led to the decision under audit?"
+- step_id: step-decision
+  position: 4
+  handoff:
+    sender: auditor
+    recipient: scribe
+    kind: findings
+    slice_id: M-138
+    title: "Decision - replay derived, never stored"
+    body: "The replay is derived from the journal in order and a decision's trace shows the hand-offs that led to it, so how the decision happened stays auditable."
+- step_id: step-note
+  position: 5
+  handoff:
+    sender: scribe
+    recipient: skald
+    kind: findings
+    slice_id: M-137
+    title: Earlier seat note
+    body: "The external seats of the earlier run stand on the same terms as the crew; the note is kept with this run's journal but belongs to the earlier slice."
+traces:
+- trace_id: trace-replay-decision
+  decision_step: step-decision
