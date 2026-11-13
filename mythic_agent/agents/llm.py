@@ -4662,6 +4662,302 @@ def parse_accessibilityfinal_args(args: Any):
     raise ValueError(ACCESSIBILITYFINAL_USAGE)
 
 
+#: The /docscompletion slash grammar (M-263, agent layer).
+DOCSCOMPLETION_USAGE = (
+    "Usage: /docscompletion | /docscompletion guides | "
+    "/docscompletion guide <guide> | /docscompletion record "
+    "<guide> | /docscompletion standing "
+    "<guide> | /docscompletion report | "
+    "/docscompletion report <book> | "
+    "/docscompletion index | /docscompletion verdict")
+
+
+def _dc_guide_dict(entry: Any) -> dict[str, Any]:
+    """One audit guide registry entry, as plain data (M-263)."""
+    return {"id": entry.id, "doctrine": entry.doctrine,
+            "subject": entry.subject,
+            "standing": entry.standing, "reason": entry.reason}
+
+
+
+def _dc_record_dict(record: Any) -> dict[str, Any]:
+    """One privacy-audit capture record, as plain data (M-263)."""
+    return {"guide": record.guide,
+            "work": record.work,
+            "date": record.date,
+            "disposition": record.disposition,
+            "owner": record.owner,
+            "proof_kind": record.proof_kind,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+
+def _dc_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived run standing, as plain data (M-263)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "grade": standing.grade,
+            "gaps": list(standing.gaps)}
+
+
+def _dc_report_dict(report: Any) -> dict[str, Any]:
+    """One audit report, as plain data (M-263)."""
+    return {"book": report.book,
+            "entry": report.entry, "report": report.report,
+            "date": report.date,
+            "reconciled_count": report.reconciled_count,
+            "roaded_count": report.roaded_count,
+            "total_guides": report.total_guides,
+            "claims": list(report.claims),
+            "state": report.state, "certified": report.certified,
+            "inflated": report.inflated}
+
+
+
+def _dc_report_text(report: Any) -> str:
+    """One audit report told in plain words (M-263)."""
+    return (f"{report.book} <- {report.entry}: "
+            f"report - {report.report} (state: "
+            f"{report.state}; a report is never "
+            "inflated here)")
+
+
+
+def _dc_coerce_record(record: Any):
+    """A capture record from a record or a plain telling (M-263)."""
+    from ..core.docs_completion import DocRecord
+    if isinstance(record, DocRecord):
+        return record
+    if isinstance(record, dict):
+        return DocRecord(
+            guide=record["guide"],
+            work=record["work"],
+            date=record["date"],
+            disposition=record["disposition"],
+            owner=record["owner"],
+            proof_kind=record["proof_kind"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return DocRecord(
+        guide=record.guide, work=record.work,
+        date=record.date,
+        disposition=record.disposition,
+        owner=record.owner,
+        proof_kind=record.proof_kind,
+        stages=tuple(record.stages),
+        claims=tuple(record.claims))
+
+
+class DocsCompletionRegistry:
+    """Session registry for the docs completion (M-263).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.docs_completion``):
+    it holds the shipped guide registry (one entry per
+    guide of the road, held as data) beside the
+    capture records held one by one for the session,
+    one record per guide, and the privacy
+    reports held for the session, one report per book. A
+    record is validated whole by the pure layer before it
+    is held - a record naming an unknown guide,
+    stage or evidence kind refuses by name here too, and a
+    refusal holds nothing new. A second record for a
+    guide already held refuses likewise.
+    Reports are held only through the pure layer's report
+    road - state ready by default, may be marked shared by
+    a human, a certification claimed only when every
+    combination stands answered, and never inflated:
+    the report tells the findings exactly as they
+    stand. Holding runs no benchmark, times no start and
+    probes no network: the registry holds tellings as
+    data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.docs_completion import default_registry
+        self._surfaces = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._reports: dict[str, Any] = {}
+
+    def guides(self):
+        """The shipped guide registry held by the session."""
+        return self._surfaces
+
+    def register_record(self, record: Any):
+        """Hold one capture record, validated whole.
+
+        A second record for a guide already
+        held refuses, and a refusal holds nothing new.
+        """
+        held = _dc_coerce_record(record)
+        held.validate(self._surfaces)
+        key = held.guide
+        if key in self._records:
+            raise ValueError(
+                "a capture record for guide "
+                f"{held.guide!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, guide: Any):
+        """The held record for one guide."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(guide)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no capture record "
+                f"for guide {guide!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of capture records, validated whole.
+
+        Every record is validated, and guideed against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _dc_coerce_record(record)
+            held.validate(self._surfaces)
+            key = held.guide
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "a capture record for guide "
+                    f"{held.guide!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[held.guide] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The capture records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the records and the reports."""
+        return (list(self._records.values())
+                + list(self._reports.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.docs_completion import derive_standing
+        return [derive_standing(record, self._surfaces)
+                for record in self._records.values()]
+
+    def hold_report(self, book: Any, entry: Any,
+                      report: Any, date: Any,
+                      reconciled_count: Any, roaded_count: Any,
+                      total_guides: Any,
+                      claims: Any = (),
+                      state: Any = "ready",
+                      certified: Any = False):
+        """Prepare one audit report, held for the session.
+
+        The report is shaped by the pure layer alone -
+        a state word outside ready/shared refuses by name
+        there, a certification short of every guide answered
+        refuses there, and a report is never inflated. A
+        second report for a book already held refuses
+        likewise.
+        """
+        from ..core.docs_completion import prepare_report
+        report = prepare_report(book, entry, report,
+                                 date, reconciled_count,
+                                 roaded_count,
+                                 total_guides,
+                                 claims=tuple(claims),
+                                 state=state, certified=certified)
+        if report.book in self._reports:
+            raise ValueError(
+                "an audit report for book "
+                f"{report.book!r} already stands held "
+                "for the session")
+        self._reports[report.book] = report
+        return report
+
+    def get_report(self, book: Any):
+        """The held audit report for one book."""
+        from ..core.validation import ValidationError
+        try:
+            return self._reports[book]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no audit report for "
+                f"book {book!r}") from None
+
+    def list_reports(self) -> list:
+        """The audit reports held, in hold order."""
+        return list(self._reports.values())
+
+    def book(self):
+        """The held pieces composed as a docs completion book.
+
+        The book is plain data: the shipped guide
+        registry's entries beside the capture records
+        and audit reports held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.docs_completion import DOCS_COMPLETION_SCHEMA
+        return {
+            "schema": DOCS_COMPLETION_SCHEMA,
+            "guides": [_dc_guide_dict(entry)
+                        for entry in self._surfaces.entries()],
+            "records": [_dc_record_dict(record)
+                        for record in self._records.values()],
+            "reports": [_dc_report_dict(verdict)
+                       for verdict in self._reports.values()],
+        }
+
+
+def parse_docscompletion_args(args: Any):
+    """Parse /docscompletion arguments (M-263).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``guides``, ``index`` and ``verdict`` name
+    their own stance with no target; ``guide <guide>``
+    names one guide; ``record <guide>`` and
+    ``standing <guide>`` name one guide alone - an audit
+    record is keyed by its guide, never by a pair;
+    ``report <book>`` names one book and the bare
+    ``report`` stance names the session's audit
+    reports. Anything else raises ValueError carrying
+    the usage line, exactly as the sibling parsers
+    refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("guides", "index", "verdict"):
+        if rest:
+            raise ValueError(DOCSCOMPLETION_USAGE)
+        return (head, None, (), None)
+    if head == "guide":
+        if len(rest) != 1:
+            raise ValueError(DOCSCOMPLETION_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 1:
+            raise ValueError(DOCSCOMPLETION_USAGE)
+        return (head, rest[0], (), None)
+    if head == "report":
+        if not rest:
+            return ("reports", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(DOCSCOMPLETION_USAGE)
+        return ("report", rest[0], (), None)
+    raise ValueError(DOCSCOMPLETION_USAGE)
+
+
 #: The /docsmcp slash grammar (M-252, agent layer).
 DOCSMCP_USAGE = (
     "Usage: /docsmcp | /docsmcp projects | "
@@ -90524,6 +90820,634 @@ class Agent:
         if announced is None:
             announced = set()
             self._accessibilityfinal_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+    def _docscompletion_registry(self):
+        """The held privacy-audit registry (M-263).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped guide registry beside the session's
+        capture records and audit reports one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_docscompletion_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_docscompletion_store", None)
+        if registry is None:
+            registry = DocsCompletionRegistry()
+            self._docscompletion_store = registry
+        return registry
+
+    def docscompletion_guides(self):
+        """The shipped guide registry, as data (M-263).
+
+        One entry per guide of the road - P-01..P-12, the twelve doctrine by subject guides - held as registry entries, each naming its doctrine, its subject and its listed standing. Resolution registers and publishes
+        nothing, runs no benchmark and probes no
+        network.
+        """
+        return self._docscompletion_registry().guides()
+
+    def docscompletion_book(self):
+        """The session's docs completion book, as data (M-263).
+
+        The held registry's book when the session holds
+        records or reports one by one - otherwise the book
+        boarded whole through
+        :meth:`record_docscompletion_records`, or the shipped
+        guide registry with nothing held until a record
+        or report is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._docscompletion_registry()
+        if registry.list_records() or registry.list_reports():
+            held = getattr(self, "_docscompletion_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [r["guide"] for r in held["records"]]
+                    == [r["guide"] for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_docscompletion_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _docscompletion_effective_record(self, guide: Any):
+        """The record an guide's standing is derived from (M-263).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on, no date, no owner named - so an unheld
+        guide derives an honest open standing naming its
+        gaps, never a dressed claim: an absent finding
+        reads as unanswered. An unknown guide refuses by
+        name through the shipped registry first.
+        """
+        from ..core.docs_completion import DocRecord
+        registry = self._docscompletion_registry()
+        registry.guides().get(guide)
+        try:
+            return registry.get_record(guide)
+        except ValueError:
+            return DocRecord(
+                guide=guide, work="unrecorded",
+                date="",
+                disposition="ROADED",
+                owner="",
+                proof_kind="none",
+                stages=(), claims=())
+
+    def _docscompletion_screen(self):
+        """The docs-completion screen, in plain words (M-263).
+
+        The shipped guides first, then the held records
+        told by the pure layer - a held record reads
+        "held as answered" there - then each held
+        report. With no record held, the screen says
+        so plainly: a guide counts RECONCILED only on
+        reconciliation against the shipped code itself
+        resting on held code evidence, and every other
+        guide ships ROADED with a named owner, in the open.
+        """
+        from ..core.docs_completion import (
+            format_guides, format_records)
+        registry = self._docscompletion_registry()
+        lines = [format_guides(registry.guides())]
+        records = registry.list_records()
+        if records:
+            lines.append(format_records(records, registry.guides()))
+        else:
+            lines.append(
+                "Docs-completion records: none recorded "
+                "this session - a guide counts RECONCILED "
+                "only on reconciliation against the "
+                "shipped code itself resting on held code "
+                "evidence, and every other guide "
+                "ships ROADED with a named owner, in "
+                "the open, never silent.")
+        for report in registry.list_reports():
+            lines.append(_dc_report_text(report))
+        return "\n".join(lines)
+
+    def docscompletion_status(self) -> dict[str, Any]:
+        """The docs completion account, in plain data (M-263).
+
+        The shipped guide registry's entries and the
+        capture records and audit reports held this session as
+        plain records (empty until held), the session
+        book's record (the shipped guide registry with
+        nothing held - until items are held), the records
+        standing held and still open derived at call time,
+        the index and verdict derived at call time, the
+        guides and records told in plain words through the
+        pure formatters, and the plain explanation. A
+        session holding no record for a finding derives that
+        finding's open standing. Resolution registers and
+        publishes nothing, runs no benchmark and probes
+        no network: this layer tells only.
+        """
+        from ..core import docs_completion as camp_module
+        registry = self._docscompletion_registry()
+        held_records = registry.list_records()
+        book = self.docscompletion_book()
+        index = self.docscompletion_index()
+        return {
+            "records": [_dc_record_dict(r)
+                        for r in held_records],
+            "guides": [_dc_guide_dict(e)
+                        for e in registry.guides().entries()],
+            "book": (book if held_records
+                     or registry.list_reports()
+                     or getattr(self, "_docscompletion_held",
+                                None) is not None else None),
+            "docscompletion_book": {
+                "schema": camp_module.DOCS_COMPLETION_SCHEMA,
+                "guides": book["guides"],
+                "records": book["records"],
+                "reports": book["reports"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.docscompletion_verdict()["verdict"],
+            "guides_text": camp_module.format_guides(
+                registry.guides()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "reports": [_dc_report_dict(d)
+                       for d in registry.list_reports()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._docscompletion_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": DOCSCOMPLETION_USAGE,
+        }
+
+    def get_docscompletion_guide(self, guide: Any):
+        """The one guide entry a guide name names (M-263).
+
+        The shipped guide registry answers: a guide the
+        guide book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._docscompletion_registry().guides().get(guide)
+
+    def get_docscompletion_record(self, guide: Any):
+        """The one record a guide names (M-263).
+
+        The session's held registry answers: a finding the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._docscompletion_registry().get_record(guide)
+
+    def docscompletion_standing(self, guide: Any):
+        """Derive one finding's standing (M-263).
+
+        The standing is derived at call time by the pure
+        layer from the finding's effective record - the held
+        record, or the honest empty record while none
+        stands held: held only on a full legal walk
+        resting on held finding evidence, with the
+        finding resting on held code evidence, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.docs_completion import derive_standing
+        registry = self._docscompletion_registry()
+        return derive_standing(
+            self._docscompletion_effective_record(guide),
+            registry.guides())
+
+    def docs_for_disposition(self, disposition_word: Any):
+        """The held records carrying one disposition (M-263)."""
+        if disposition_word is None or not str(disposition_word).strip():
+            raise ValueError(
+                "a disposition must be named to list its records")
+        return [r for r in
+                self._docscompletion_registry().list_records()
+                if r.disposition == disposition_word]
+
+
+    def docscompletion_held(self):
+        """The records whose standing stands held (M-263)."""
+        registry = self._docscompletion_registry()
+        return [f"{r.guide}"
+                for r in registry.list_records()
+                if self.docscompletion_standing(r.guide).held]
+
+    def docscompletion_index(self) -> dict[str, Any]:
+        """Derive the docs completion index at call time (M-263).
+
+        The index is derived from every held record
+        alone - each held record's derived standing, the
+        held records named and the open records named in
+        its gaps. Deriving registers and publishes nothing,
+        runs no benchmark and probes no network.
+        Returns the derived index record, the rendered
+        records, the screen and the plain explanation.
+        """
+        from ..core import docs_completion as camp_module
+        registry = self._docscompletion_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.docscompletion_standing(record.guide)
+            standings.append({
+                "guide": record.guide,
+                **_dc_standing_dict(standing)})
+        index = {
+            "type": "docscompletion_index",
+            "slice": camp_module.DOCS_COMPLETION_SLICE,
+            "schema": camp_module.DOCS_COMPLETION_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['guide']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['guide']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._docscompletion_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def docscompletion_verdict(self) -> dict[str, Any]:
+        """Derive the docs completion verdict at call time (M-263).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and every
+        held record's standing stands held on held
+        code evidence, with every finding
+        resting on held code evidence, ``open`` while no record stands held or any held
+        record stands short of held - with the held and
+        open records named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import docs_completion as camp_module
+        registry = self._docscompletion_registry()
+        records = registry.list_records()
+        held = self.docscompletion_held()
+        open_keys = [f"{r.guide}"
+                     for r in records
+                     if f"{r.guide}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Docs completion stands held: every recorded "
+                "guide rests on held code evidence "
+                "and stands answered - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Docs completion stands open: no guide "
+                "is recorded this session - an absent "
+                "guide reads as unknown, never "
+                "as answered.")
+        else:
+            word = "open"
+            telling = (
+                "Docs completion stands open: a guide "
+                "is held only when it rests on held "
+                "local evidence and stands answered, "
+                "and these guides "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "docscompletion_verdict",
+            "slice": camp_module.DOCS_COMPLETION_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._docscompletion_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_docscompletion_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one capture record for the session (M-263).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        guide, stage or evidence kind refuses by
+        name on this road too, and a refusal holds nothing
+        new and publishes nothing. A held record is
+        published as its ``docscompletion_record``
+        session-news record through the checkpoint road.
+        Returns the held record, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a record runs no benchmark
+        and probes no network: the telling stands on
+        this layer's book, as data.
+        """
+        from ..core import docs_completion as camp_module
+        registry = self._docscompletion_registry()
+        held = registry.register_record(record)
+        news = {"type": "docscompletion_record",
+                **_dc_record_dict(held)}
+        self._publish_docscompletion_record(news)
+        return {
+            "record": _dc_record_dict(held),
+            "record_news": news,
+            "screen": self._docscompletion_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_docscompletion_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of capture records for the session (M-263).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order given.
+        Returns the held records, their news records,
+        the count of records held, the screen, and the
+        explanation. Registering runs no benchmark and probes
+        no network.
+        """
+        from ..core import docs_completion as camp_module
+        registry = self._docscompletion_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "docscompletion_record", **_dc_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_docscompletion_record(news)
+        return {
+            "records": [_dc_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._docscompletion_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_docscompletion_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of capture records (M-263).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its guide key and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held book,
+        its records, their news records, the count, the
+        screen, and the explanation. Recording runs no
+        benchmark and probes no network.
+        """
+        from ..core import docs_completion as camp_module
+        validated = [_dc_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._docscompletion_registry().guides())
+        fingerprint = (
+            tuple(r.guide for r in validated),
+            camp_module.DOCS_COMPLETION_SCHEMA)
+        boarded = getattr(self, "_docscompletion_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._docscompletion_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these capture records are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._docscompletion_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._docscompletion_held = registry.book()
+        news_records = [
+            {"type": "docscompletion_record", **_dc_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_docscompletion_record(news)
+        return {
+            "book": self._docscompletion_held,
+            "records": [_dc_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._docscompletion_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_docscompletion(
+            self, guide: Any) -> dict[str, Any]:
+        """Stand one finding's standing on the session book (M-263).
+
+        This is the book's own viewing road: the finding's
+        guide entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        finding's effective record, and published as its
+        ``docscompletion_standing`` session news, with the held
+        record published as its ``docscompletion_record``
+        session news when one stands held. Returns the
+        guide's entry, its derived standing, the held
+        record when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        findings as data alone - it runs no benchmark,
+        probes no network and inflates nothing here.
+        """
+        from ..core import docs_completion as camp_module
+        entry = self.get_docscompletion_guide(guide)
+        standing = self.docscompletion_standing(guide)
+        try:
+            held = self.get_docscompletion_record(guide)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "docscompletion_record",
+                           **_dc_record_dict(held)}
+            self._publish_docscompletion_record(record_news)
+        standing_news = {
+            "type": "docscompletion_standing", "guide": guide,
+            **_dc_standing_dict(standing)}
+        self._publish_docscompletion_record(standing_news)
+        return {
+            "guide": _dc_guide_dict(entry),
+            "standing": {"guide": guide,
+                         **_dc_standing_dict(standing)},
+            "record": (_dc_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._docscompletion_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def prepare_docscompletion_report(
+            self, book: Any, entry: Any, report: Any,
+            date: Any, reconciled_count: Any, roaded_count: Any,
+            total_guides: Any,
+            claims: Any = (),
+            state: Any = "ready",
+            certified: Any = False
+            ) -> dict[str, Any]:
+        """Prepare one audit report for the session (M-263).
+
+        The report is shaped by the pure layer alone -
+        it stands at state ready by default, may be
+        marked ``shared`` by a human, and a state
+        word outside ready/shared refuses by name;
+        a report is never inflated here, a certification
+        short of every guide answered refuses there, and
+        no finding is re-audited on this road. A held report
+        is published as its ``docscompletion_verdict``
+        session-news record through the checkpoint road.
+        Returns the held report, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Preparing audits nothing and
+        runs nothing here.
+        """
+        from ..core import docs_completion as camp_module
+        registry = self._docscompletion_registry()
+        report = registry.hold_report(book, entry, report,
+                                       date, reconciled_count,
+                                       roaded_count,
+                                       total_guides,
+                                       claims=claims,
+                                       state=state,
+                                       certified=certified)
+        news = {"type": "docscompletion_verdict",
+                **_dc_report_dict(report)}
+        self._publish_docscompletion_record(news)
+        return {
+            "report": _dc_report_dict(report),
+            "report_news": news,
+            "screen": self._docscompletion_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+
+    def get_docscompletion_report(self, book: Any):
+        """The one report a book names (M-263).
+
+        The session's held registry answers: a book
+        the session holds no report for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._docscompletion_registry().get_report(book)
+
+
+    def docscompletion_reports(self) -> list:
+        """The audit reports held for the session (M-263)."""
+        return self._docscompletion_registry().list_reports()
+
+
+    def report_docscompletion(self) -> dict[str, Any]:
+        """Render the session docs completion, as a verdict (M-263).
+
+        The shipped guide registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, runs no benchmark and probes
+        no network. Returns the book,
+        the guides, held records and reports as plain
+        records, the derived standings, the rendered
+        guides and records, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import docs_completion as camp_module
+        registry = self._docscompletion_registry()
+        book = self.docscompletion_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.docscompletion_standing(record.guide)
+            standings.append({
+                "guide": record.guide,
+                **_dc_standing_dict(standing)})
+        return {
+            "book": book,
+            "guides": [_dc_guide_dict(e)
+                        for e in registry.guides().entries()],
+            "records": [_dc_record_dict(r)
+                        for r in registry.list_records()],
+            "reports": [_dc_report_dict(d)
+                       for d in registry.list_reports()],
+            "standings": standings,
+            "index": self.docscompletion_index()["index"],
+            "verdict": self.docscompletion_verdict()["verdict"],
+            "guides_text": camp_module.format_guides(
+                registry.guides()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._docscompletion_effective_record(r.guide))
+                for r in registry.list_records()),
+            "screen": self._docscompletion_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_docscompletion_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one capture record as session news (M-263).
+
+        The agent layer's ``docscompletion_record``,
+        ``docscompletion_standing`` and
+        ``docscompletion_verdict`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is granted. Each
+        record is announced at most once per telling: a
+        record under its guide, its run, its date, its
+        disposition, its owner, its proof kind, its
+        walked stages and its claims, a standing under
+        its guide, its held word, its stage, its grade
+        and its gaps, and a report under its book, its
+        entry, its report and its state, so a standing
+        grown by a newly held record announces again
+        as the new figure it is.
+        A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "docscompletion_record":
+            target = ("docscompletion_record",
+                      record.get("guide"),
+                      record.get("run"),
+                      record.get("date"),
+                      record.get("disposition"),
+                      record.get("owner"),
+                      record.get("proof_kind"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "docscompletion_standing":
+            target = ("docscompletion_standing",
+                      record.get("guide"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("grade"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "docscompletion_verdict":
+            target = ("docscompletion_verdict",
+                      record.get("book"),
+                      record.get("entry"),
+                      record.get("report"),
+                      record.get("state"))
+        else:
+            return
+        announced = getattr(self, "_docscompletion_announced", None)
+        if announced is None:
+            announced = set()
+            self._docscompletion_announced = announced
         if target in announced:
             return
         announced.add(target)
