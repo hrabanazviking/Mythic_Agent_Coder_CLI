@@ -434,8 +434,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 264
-    assert citizen["next_slice"] == "M-265"
+    assert citizen["done"] == 265
+    assert citizen["next_slice"] == "M-266"
     assert citizen["m241_title"] == "Rival importers"
     assert citizen["m241_part"] == 10
     assert citizen["m241_status"] == "done"
@@ -910,8 +910,8 @@ class TestImporterAgentStatus:
         assert status["ledger"]["current_importer"] == "importer-bare-importer"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 264
-        assert status["roadmap"]["next_slice"] == "M-265"
+        assert status["roadmap"]["done"] == 265
+        assert status["roadmap"]["next_slice"] == "M-266"
         assert status["roadmap"]["m241_title"] == "Rival importers"
         assert "held as data alone" in status["rule"]
         assert "importer-bare-importer" in status["plain_words"]

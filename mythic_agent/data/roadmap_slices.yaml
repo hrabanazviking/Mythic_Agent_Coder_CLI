@@ -1613,7 +1613,7 @@ slices:
   title: Migration proof
   summary: a workspace from the current release opens in the new one — sessions, journals, configs, memories
     intact — proven by the M-010 forward-compat tests grown teeth.
-  status: queued
+  status: done
 - id: M-266
   part: 11
   title: The Stranger Fleet Test
