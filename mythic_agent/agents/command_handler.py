@@ -531,6 +531,8 @@ class CommandHandler:
                 self._handle_benchmarkharness(args)
             elif cmd == "/publishedyardstick":
                 self._handle_publishedyardstick(args)
+            elif cmd == "/regressioncourt":
+                self._handle_regressioncourt(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -14351,6 +14353,120 @@ class CommandHandler:
                     "verdict_text"]
             else:
                 text = primary.publishedyardstick_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+    def _handle_regressioncourt(self, args: str):
+        """M-257: /regressioncourt - the regression court as data.
+
+        ``/regressioncourt`` shows the parts held this session -
+        the public sets as registry entries: one
+        entry per set, naming the word that set
+        gives a single run and the standing of its
+        gate, beside the run records
+        held this session (no run recorded yet when
+        none is held - a run is held only when a
+        reported run rests on held gate evidence);
+        ``/regressioncourt parts`` shows the whole shipped
+        part registry; ``/regressioncourt part <part>``
+        shows one part's registry entry; ``/regressioncourt
+        record <part> <run>`` shows the record held
+        for one part and run; ``/regressioncourt standing
+        <part> <run>`` shows the standing derived for
+        one run - held only on a full legal walk resting
+        on held gate evidence, with the verdict carrying
+        model, cost and date together, otherwise
+        open, naming its gaps; ``/regressioncourt verdict`` shows
+        the run verdicts held this session and
+        ``/regressioncourt verdict <part>`` shows one part's
+        verdict - a verdict is never inflated here and no
+        run is graded here on this road; ``/regressioncourt
+        index`` shows the index derived over every held
+        record; ``/regressioncourt verdict`` shows the verdict
+        derived for the session. Resolution registers and
+        publishes nothing as session news on this heading:
+        records are held only when they are given
+        through the agent's register roads, stood on the
+        book on the viewing road, or held on the book
+        roads, and every record held for the session is
+        journaled as a regressioncourt_record session record,
+        every viewed standing as a regressioncourt_standing
+        session record and every held verdict as
+        a regressioncourt_verdict session record. This heading
+        runs no benchmark, downloads no set,
+        executes no grading test and inflates nothing here -
+        holding and telling are words only.
+        """
+        from ..core.regression_court import (
+            format_record,
+            format_part,
+            format_parts,
+        )
+        from .llm import parse_regressioncourt_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_regressioncourt_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "parts":
+                text = format_parts(
+                    primary.regressioncourt_parts())
+            elif stance == "part":
+                text = format_part(
+                    primary.get_regressioncourt_part(target))
+            elif stance == "record":
+                text = format_record(
+                    primary.get_regressioncourt_record(*target))
+            elif stance == "standing":
+                standing = primary.regressioncourt_standing(
+                    *target)
+                text = (
+                    f"{target[0]}/{target[1]}: run "
+                    f"{'held as re-run' if standing.held else 'open'} "
+                    f"(stage: {standing.stage}; "
+                    f"grade: {standing.grade})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "drafts":
+                verdicts = primary.regressioncourt_drafts()
+                if not verdicts:
+                    text = (
+                        "Run verdict: none held this "
+                        "session - the parts verdict run "
+                        "moves only as verdicts, and a verdict is "
+                        "never inflated here.")
+                else:
+                    text = "\n".join(
+                        f"{d.battery} -> {d.entry}: verdict - "
+                        f"{d.verdict} (state: {d.state}; "
+                        "verdict is never inflated here)"
+                        for d in verdicts)
+            elif stance == "draft":
+                d = primary.get_regressioncourt_draft(target)
+                text = (
+                    f"{d.battery} -> {d.entry}: verdict - "
+                    f"{d.verdict} (state: {d.state}; "
+                    "verdict is never inflated here)")
+            elif stance == "index":
+                text = primary.regressioncourt_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.regressioncourt_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.regressioncourt_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")

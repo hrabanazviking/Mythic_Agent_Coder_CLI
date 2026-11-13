@@ -2895,6 +2895,297 @@ def parse_publishedyardstick_args(args: Any):
     raise ValueError(PUBLISHEDYARDSTICK_USAGE)
 
 
+#: The /regressioncourt slash grammar (M-257, agent layer).
+REGRESSIONCOURT_USAGE = (
+    "Usage: /regressioncourt | /regressioncourt parts | "
+    "/regressioncourt part <part> | /regressioncourt record "
+    "<part> <run> | /regressioncourt standing "
+    "<part> <run> | /regressioncourt draft | "
+    "/regressioncourt draft <battery> | "
+    "/regressioncourt index | /regressioncourt verdict")
+
+
+def _rc_part_dict(entry: Any) -> dict[str, Any]:
+    """One part registry entry, as plain data (M-257)."""
+    return {"id": entry.id, "number": entry.number,
+            "roman": entry.roman,
+            "label": entry.label,
+            "first_slice": entry.first_slice,
+            "last_slice": entry.last_slice,
+            "standing": entry.standing, "reason": entry.reason}
+
+
+def _rc_record_dict(record: Any) -> dict[str, Any]:
+    """One regression-court re-run record, as plain data (M-257)."""
+    return {"part": record.part,
+            "run": record.run,
+            "date": record.date,
+            "outcome": record.outcome,
+            "passed": record.passed,
+            "total": record.total,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+def _rc_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived run standing, as plain data (M-257)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "grade": standing.grade,
+            "gaps": list(standing.gaps)}
+
+
+def _rc_verdict_dict(verdict: Any) -> dict[str, Any]:
+    """One court verdict draft, as plain data (M-257)."""
+    return {"battery": verdict.battery,
+            "entry": verdict.entry, "verdict": verdict.verdict,
+            "date": verdict.date,
+            "green_parts": verdict.green_parts,
+            "total_parts": verdict.total_parts,
+            "claims": list(verdict.claims),
+            "state": verdict.state, "released": verdict.released,
+            "inflated": verdict.inflated}
+
+
+def _rc_verdict_text(verdict: Any) -> str:
+    """One court verdict told in plain words (M-257)."""
+    return (f"{verdict.battery} <- {verdict.entry}: "
+            f"verdict - {verdict.verdict} (state: "
+            f"{verdict.state}; a verdict is never "
+            "inflated here)")
+
+
+def _rc_coerce_record(record: Any):
+    """A re-run record from a record or a plain telling (M-257)."""
+    from ..core.regression_court import CourtRecord
+    if isinstance(record, CourtRecord):
+        return record
+    if isinstance(record, dict):
+        return CourtRecord(
+            part=record["part"],
+            run=record["run"],
+            date=record["date"],
+            outcome=record["outcome"],
+            passed=record["passed"],
+            total=record["total"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return CourtRecord(
+        part=record.part, run=record.run,
+        date=record.date,
+        outcome=record.outcome,
+        passed=record.passed,
+        total=record.total,
+        stages=tuple(record.stages),
+        claims=tuple(record.claims))
+
+class RegressionCourtRegistry:
+    """Session registry for the regression court (M-257).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.regression_court``): it
+    holds the shipped part registry (one entry per part
+    of the road, held as data) beside the re-run records
+    held one by one for the session, one record per part
+    and run, and the court verdict drafts held for the
+    session, one verdict per battery. A record is
+    validated whole by the pure layer before it is held -
+    a record naming an unknown part, date, outcome, gate
+    count or evidence kind refuses by name here too, and
+    a refusal holds nothing new. A second record for a
+    part and run already held refuses likewise. Verdicts
+    are held only through the pure layer's verdict road -
+    state ready by default, may be marked shared by a
+    human, a release claimed only when every part stands
+    green, and never inflated: the court reports the
+    battery exactly as it re-ran. Holding re-runs no
+    gate, executes no test and probes no network: the
+    registry holds tellings as data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.regression_court import default_registry
+        self._parts = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._verdicts: dict[str, Any] = {}
+
+    def parts(self):
+        """The shipped part registry held by the session."""
+        return self._parts
+
+    def register_record(self, record: Any):
+        """Hold one re-run record, validated whole.
+
+        A second record for a part and run already held
+        refuses, and a refusal holds nothing new.
+        """
+        held = _rc_coerce_record(record)
+        held.validate(self._parts)
+        key = (held.part, held.run)
+        if key in self._records:
+            raise ValueError(
+                "a re-run record for part "
+                f"{held.part!r} run "
+                f"{held.run!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, part: Any, run: Any):
+        """The held record for one part and run."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(part, run)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no re-run record "
+                f"for part {part!r} run "
+                f"{run!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of re-run records, validated whole.
+
+        Every record is validated, and checked against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _rc_coerce_record(record)
+            held.validate(self._parts)
+            key = (held.part, held.run)
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "a re-run record for part "
+                    f"{held.part!r} run "
+                    f"{held.run!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[(held.part, held.run)] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The re-run records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the records and the verdicts."""
+        return (list(self._records.values())
+                + list(self._verdicts.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.regression_court import derive_standing
+        return [derive_standing(record, self._parts)
+                for record in self._records.values()]
+
+    def hold_verdict(self, battery: Any, entry: Any,
+                      verdict: Any, date: Any,
+                      green_parts: Any, total_parts: Any,
+                      claims: Any = (),
+                      state: Any = "ready",
+                      released: Any = False):
+        """Prepare one court verdict, held for the session.
+
+        The verdict is shaped by the pure layer alone -
+        a state word outside ready/shared refuses by name
+        there, a release short of every part green refuses
+        there, and a verdict is never inflated. A second
+        verdict for a battery already held refuses
+        likewise.
+        """
+        from ..core.regression_court import prepare_verdict
+        verdict = prepare_verdict(battery, entry, verdict,
+                                 date, green_parts,
+                                 total_parts,
+                                 claims=tuple(claims),
+                                 state=state, released=released)
+        if verdict.battery in self._verdicts:
+            raise ValueError(
+                "a court verdict for battery "
+                f"{verdict.battery!r} already stands held "
+                "for the session")
+        self._verdicts[verdict.battery] = verdict
+        return verdict
+
+    def get_verdict(self, battery: Any):
+        """The held court verdict for one battery."""
+        from ..core.validation import ValidationError
+        try:
+            return self._verdicts[battery]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no court verdict for "
+                f"battery {battery!r}") from None
+
+    def list_verdicts(self) -> list:
+        """The court verdicts held, in verdict order."""
+        return list(self._verdicts.values())
+
+    def book(self):
+        """The held pieces composed as a regression-court book.
+
+        The book is plain data: the shipped part
+        registry's entries beside the re-run records and
+        court verdicts held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.regression_court import REGRESSION_COURT_SCHEMA
+        return {
+            "schema": REGRESSION_COURT_SCHEMA,
+            "parts": [_rc_part_dict(entry)
+                        for entry in self._parts.entries()],
+            "records": [_rc_record_dict(record)
+                        for record in self._records.values()],
+            "verdicts": [_rc_verdict_dict(verdict)
+                       for verdict in self._verdicts.values()],
+        }
+
+
+def parse_regressioncourt_args(args: Any):
+    """Parse /regressioncourt arguments (M-257).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``parts``, ``index`` and ``verdict`` name
+    their own stance with no target; ``part <part>``
+    names one part; ``record <part> <run>`` and
+    ``standing <part> <run>`` name one part and run
+    as a pair; ``draft <battery>`` names one battery
+    and the bare ``draft`` stance names the session's
+    verdict drafts. Anything else raises ValueError
+    carrying the usage line, exactly as the sibling
+    parsers refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("parts", "index", "verdict"):
+        if rest:
+            raise ValueError(REGRESSIONCOURT_USAGE)
+        return (head, None, (), None)
+    if head == "part":
+        if len(rest) != 1:
+            raise ValueError(REGRESSIONCOURT_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 2:
+            raise ValueError(REGRESSIONCOURT_USAGE)
+        return (head, (rest[0], rest[1]), (), None)
+    if head == "draft":
+        if not rest:
+            return ("drafts", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(REGRESSIONCOURT_USAGE)
+        return ("draft", rest[0], (), None)
+    raise ValueError(REGRESSIONCOURT_USAGE)
+
 #: The /docsmcp slash grammar (M-252, agent layer).
 DOCSMCP_USAGE = (
     "Usage: /docsmcp | /docsmcp projects | "
@@ -85012,6 +85303,635 @@ class Agent:
         if announced is None:
             announced = set()
             self._publishedyardstick_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+
+    def _regressioncourt_registry(self):
+        """The held regression-court registry (M-257).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped part registry beside the session's
+        run records and run verdicts one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_regressioncourt_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_regressioncourt_store", None)
+        if registry is None:
+            registry = RegressionCourtRegistry()
+            self._regressioncourt_store = registry
+        return registry
+
+    def regressioncourt_parts(self):
+        """The shipped part registry, as data (M-257).
+
+        One entry per part of the road - part_01..part_11, Parts I..XI - held as registry entries, each naming its slices and its listed standing. Resolution registers and publishes
+        nothing, runs no benchmark and probes no
+        network.
+        """
+        return self._regressioncourt_registry().parts()
+
+    def regressioncourt_book(self):
+        """The session's regression-court book, as data (M-257).
+
+        The held registry's book when the session holds
+        records or verdicts one by one - otherwise the book
+        boarded whole through
+        :meth:`record_regressioncourt_records`, or the shipped
+        part registry with nothing held until a record
+        or verdict is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._regressioncourt_registry()
+        if registry.list_records() or registry.list_verdicts():
+            held = getattr(self, "_regressioncourt_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [(r["part"], r["run"])
+                     for r in held["records"]]
+                    == [(r["part"], r["run"])
+                        for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_regressioncourt_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _regressioncourt_effective_record(self, part: Any,
+                                      run: Any):
+        """The record a run's standing is derived from (M-257).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on, no date, outcome or gate counts reported - so an
+        unheld run derives an honest open standing naming
+        its gaps, never a dressed claim: an absent run
+        reads as unknown. An unknown part refuses by name
+        through the shipped registry first.
+        """
+        from ..core.regression_court import CourtRecord
+        registry = self._regressioncourt_registry()
+        registry.parts().get(part)
+        try:
+            return registry.get_record(part, run)
+        except ValueError:
+            return CourtRecord(
+                part=part, run=run,
+                date="",
+                outcome=None,
+                passed=None,
+                total=None,
+                stages=(), claims=())
+
+    def _regressioncourt_screen(self) -> str:
+        """The /regressioncourt screen for the session (M-257)."""
+        from ..core.regression_court import (
+            format_parts, format_record)
+        registry = self._regressioncourt_registry()
+        lines = [format_parts(registry.parts())]
+        records = registry.list_records()
+        if not records:
+            lines.append(
+                "Regression-court runs: none recorded this "
+                "session - a run stands held only when its "
+                "gate rests on held evidence and its "
+                "verdict carries model, cost and date "
+                "together, and no run stands as held "
+                "until it is recorded.")
+        else:
+            lines.extend(format_record(record)
+                         for record in records)
+        lines.extend(_rc_verdict_text(verdict)
+                     for verdict in registry.list_verdicts())
+        return "\n".join(lines)
+
+    def regressioncourt_status(self) -> dict[str, Any]:
+        """The regression-court account, in plain data (M-257).
+
+        The shipped part registry's entries and the
+        run records and run verdicts held this session as
+        plain records (empty until held), the session
+        book's record (the shipped part registry with
+        nothing held - until items are held), the records
+        standing held and still open derived at call time,
+        the index and verdict derived at call time, the
+        parts and records told in plain words through the
+        pure formatters, and the plain explanation. A
+        session holding no record for a run derives that
+        run's open standing. Resolution registers and
+        publishes nothing, runs no benchmark, downloads
+        no set and executes no grading test: this layer
+        tells only.
+        """
+        from ..core import regression_court as camp_module
+        registry = self._regressioncourt_registry()
+        held_records = registry.list_records()
+        book = self.regressioncourt_book()
+        index = self.regressioncourt_index()
+        return {
+            "records": [_rc_record_dict(r)
+                        for r in held_records],
+            "parts": [_rc_part_dict(e)
+                        for e in registry.parts().entries()],
+            "book": (book if held_records
+                     or registry.list_verdicts()
+                     or getattr(self, "_regressioncourt_held",
+                                None) is not None else None),
+            "regressioncourt_book": {
+                "schema": camp_module.REGRESSION_COURT_SCHEMA,
+                "parts": book["parts"],
+                "records": book["records"],
+                "verdicts": book["verdicts"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.regressioncourt_verdict()["verdict"],
+            "parts_text": camp_module.format_parts(
+                registry.parts()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "verdicts": [_rc_verdict_dict(d)
+                       for d in registry.list_verdicts()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._regressioncourt_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": REGRESSIONCOURT_USAGE,
+        }
+
+    def get_regressioncourt_part(self, part: Any):
+        """The one part entry a part name names (M-257).
+
+        The shipped part registry answers: a part the
+        part book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._regressioncourt_registry().parts().get(part)
+
+    def get_regressioncourt_record(self, part: Any, run: Any):
+        """The one record a part and run name (M-257).
+
+        The session's held registry answers: a run the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._regressioncourt_registry().get_record(part, run)
+
+    def regressioncourt_standing(self, part: Any, run: Any):
+        """Derive one run's standing (M-257).
+
+        The standing is derived at call time by the pure
+        layer from the run's effective record - the held
+        record, or the honest empty record while none
+        stands held: held only on a full legal walk
+        resting on held gate evidence, with the verdict
+        carrying model, cost and date, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.regression_court import derive_standing
+        registry = self._regressioncourt_registry()
+        return derive_standing(
+            self._regressioncourt_effective_record(part, run),
+            registry.parts())
+
+    def records_for_outcome(self, outcome: Any):
+        """The held records resting on one outcome (M-257)."""
+        if outcome is None or not str(outcome).strip():
+            raise ValueError(
+                "an outcome must be named to list its re-runs")
+        return [r for r in
+                self._regressioncourt_registry().list_records()
+                if r.outcome == outcome]
+
+
+    def regressioncourt_held(self):
+        """The records whose standing stands held (M-257)."""
+        registry = self._regressioncourt_registry()
+        return [f"{r.part}/{r.run}"
+                for r in registry.list_records()
+                if self.regressioncourt_standing(
+                    r.part, r.run).held]
+
+    def regressioncourt_index(self) -> dict[str, Any]:
+        """Derive the regression-court index at call time (M-257).
+
+        The index is derived from every held record
+        alone - each held record's derived standing, the
+        held records named and the open records named in
+        its gaps. Deriving registers and publishes nothing,
+        runs no benchmark and probes no network.
+        Returns the derived index record, the rendered
+        records, the screen and the plain explanation.
+        """
+        from ..core import regression_court as camp_module
+        registry = self._regressioncourt_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.regressioncourt_standing(
+                record.part, record.run)
+            standings.append({
+                "part": record.part,
+                "run": record.run,
+                **_rc_standing_dict(standing)})
+        index = {
+            "type": "regressioncourt_index",
+            "slice": camp_module.REGRESSION_COURT_SLICE,
+            "schema": camp_module.REGRESSION_COURT_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['part']}/{s['run']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['part']}/{s['run']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._regressioncourt_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def regressioncourt_verdict(self) -> dict[str, Any]:
+        """Derive the regression-court verdict at call time (M-257).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and every
+        held record's standing stands held on held
+        gate evidence, reported with model, cost and
+        date together, ``open`` while no record stands held or any held
+        record stands short of held - with the held and
+        open records named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import regression_court as camp_module
+        registry = self._regressioncourt_registry()
+        records = registry.list_records()
+        held = self.regressioncourt_held()
+        open_keys = [f"{r.part}/{r.run}"
+                     for r in records
+                     if f"{r.part}/{r.run}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Regression court stand held: every recorded "
+                "run rests on held gate evidence and is "
+                "reported with model, cost and date "
+                "together - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Regression court stand open: no regression-court "
+                "run is recorded this session - an "
+                "absent run reads as unknown, never "
+                "as a reported result.")
+        else:
+            word = "open"
+            telling = (
+                "Regression court stand open: a run is "
+                "held only when it rests on held gate "
+                "evidence and verdicts model, cost and date, "
+                "and these runs "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "regressioncourt_verdict",
+            "slice": camp_module.REGRESSION_COURT_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._regressioncourt_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_regressioncourt_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one run's record for the session (M-257).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        part, date, cost or evidence kind refuses by
+        name on this road too, and a refusal holds nothing
+        new and publishes nothing. A held record is
+        published as its ``regressioncourt_record``
+        session-news record through the checkpoint road.
+        Returns the held record, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a record runs no benchmark,
+        downloads no set and executes no grading test:
+        the telling stands on this layer's book, as data.
+        """
+        from ..core import regression_court as camp_module
+        registry = self._regressioncourt_registry()
+        held = registry.register_record(record)
+        news = {"type": "regressioncourt_record",
+                **_rc_record_dict(held)}
+        self._publish_regressioncourt_record(news)
+        return {
+            "record": _rc_record_dict(held),
+            "record_news": news,
+            "screen": self._regressioncourt_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_regressioncourt_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of run records for the session (M-257).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order given.
+        Returns the held records, their news records,
+        the count of records held, the screen, and the
+        explanation. Registering runs no benchmark and probes
+        no network.
+        """
+        from ..core import regression_court as camp_module
+        registry = self._regressioncourt_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "regressioncourt_record", **_rc_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_regressioncourt_record(news)
+        return {
+            "records": [_rc_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._regressioncourt_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_regressioncourt_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of run records (M-257).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its part and run keys and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held book,
+        its records, their news records, the count, the
+        screen, and the explanation. Recording runs no
+        benchmark, downloads no set and executes no test.
+        """
+        from ..core import regression_court as camp_module
+        validated = [_rc_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._regressioncourt_registry().parts())
+        fingerprint = (
+            tuple((r.part, r.run) for r in validated),
+            camp_module.REGRESSION_COURT_SCHEMA)
+        boarded = getattr(self, "_regressioncourt_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._regressioncourt_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these run records are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._regressioncourt_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._regressioncourt_held = registry.book()
+        news_records = [
+            {"type": "regressioncourt_record", **_rc_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_regressioncourt_record(news)
+        return {
+            "book": self._regressioncourt_held,
+            "records": [_rc_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._regressioncourt_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_regressioncourt(
+            self, part: Any, run: Any) -> dict[str, Any]:
+        """Stand one run's standing on the session book (M-257).
+
+        This is the book's own viewing road: the run's
+        part entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        run's effective record, and published as its
+        ``regressioncourt_standing`` session news, with the held
+        record published as its ``regressioncourt_record``
+        session news when one stands held. Returns the
+        part's entry, its derived standing, the held
+        record when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        runs as data alone - it runs no benchmark, downloads
+        no set, executes no grading test and inflates
+        nothing here.
+        """
+        from ..core import regression_court as camp_module
+        entry = self.get_regressioncourt_part(part)
+        standing = self.regressioncourt_standing(part, run)
+        try:
+            held = self.get_regressioncourt_record(part, run)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "regressioncourt_record",
+                           **_rc_record_dict(held)}
+            self._publish_regressioncourt_record(record_news)
+        standing_news = {
+            "type": "regressioncourt_standing", "part": part,
+            "run": run, **_rc_standing_dict(standing)}
+        self._publish_regressioncourt_record(standing_news)
+        return {
+            "part": _rc_part_dict(entry),
+            "standing": {"part": part, "run": run,
+                         **_rc_standing_dict(standing)},
+            "record": (_rc_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._regressioncourt_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def prepare_regressioncourt_draft(
+            self, battery: Any, entry: Any, verdict: Any,
+            date: Any, green_parts: Any, total_parts: Any,
+            claims: Any = (),
+            state: Any = "ready",
+            released: Any = False
+            ) -> dict[str, Any]:
+        """Prepare one court verdict for the session (M-257).
+
+        The verdict is shaped by the pure layer alone -
+        it stands at state ready by default, may be
+        marked ``shared`` by a human, and a state
+        word outside ready/shared refuses by name;
+        a verdict is never inflated here, a release
+        short of every part green refuses there, and
+        no gate is re-run on this road. A held verdict
+        is published as its ``regressioncourt_verdict``
+        session-news record through the checkpoint road.
+        Returns the held verdict, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Preparing re-runs no gate and
+        executes no test here.
+        """
+        from ..core import regression_court as camp_module
+        registry = self._regressioncourt_registry()
+        verdict = registry.hold_verdict(battery, entry, verdict,
+                                       date, green_parts,
+                                       total_parts,
+                                       claims=claims,
+                                       state=state,
+                                       released=released)
+        news = {"type": "regressioncourt_verdict",
+                **_rc_verdict_dict(verdict)}
+        self._publish_regressioncourt_record(news)
+        return {
+            "draft": _rc_verdict_dict(verdict),
+            "draft_news": news,
+            "screen": self._regressioncourt_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+
+    def get_regressioncourt_draft(self, battery: Any):
+        """The one verdict a battery names (M-257).
+
+        The session's held registry answers: a battery
+        the session holds no verdict for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._regressioncourt_registry().get_verdict(battery)
+
+
+    def regressioncourt_drafts(self) -> list:
+        """The court verdicts held for the session (M-257)."""
+        return self._regressioncourt_registry().list_verdicts()
+
+
+    def report_regressioncourt(self) -> dict[str, Any]:
+        """Render the session regression court, as a verdict (M-257).
+
+        The shipped part registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, runs no benchmark, downloads
+        no set and executes no test. Returns the book,
+        the parts, held records and verdicts as plain
+        records, the derived standings, the rendered
+        parts and records, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import regression_court as camp_module
+        registry = self._regressioncourt_registry()
+        book = self.regressioncourt_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.regressioncourt_standing(
+                record.part, record.run)
+            standings.append({
+                "part": record.part,
+                "run": record.run,
+                **_rc_standing_dict(standing)})
+        return {
+            "book": book,
+            "parts": [_rc_part_dict(e)
+                        for e in registry.parts().entries()],
+            "records": [_rc_record_dict(r)
+                        for r in registry.list_records()],
+            "verdicts": [_rc_verdict_dict(d)
+                       for d in registry.list_verdicts()],
+            "standings": standings,
+            "index": self.regressioncourt_index()["index"],
+            "verdict": self.regressioncourt_verdict()["verdict"],
+            "parts_text": camp_module.format_parts(
+                registry.parts()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._regressioncourt_effective_record(
+                        r.part, r.run))
+                for r in registry.list_records()),
+            "screen": self._regressioncourt_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_regressioncourt_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one re-run record as session news (M-257).
+
+        The agent layer's ``regressioncourt_record``,
+        ``regressioncourt_standing`` and
+        ``regressioncourt_verdict`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is granted. Each
+        record is announced at most once per telling: a
+        record under its part, its run, its date, its
+        outcome, its gate counts, its walked stages and
+        its claims, a standing under its part, its run,
+        its held word, its stage, its grade and its gaps,
+        and a verdict under its battery, its entry, its
+        verdict and its state, so a standing grown by a
+        newly held record announces again as the new
+        figure it is. A foreign record type is never
+        published on this road.
+        """
+        if record.get("type") == "regressioncourt_record":
+            target = ("regressioncourt_record",
+                      record.get("part"),
+                      record.get("run"),
+                      record.get("date"),
+                      record.get("outcome"),
+                      record.get("passed"),
+                      record.get("total"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "regressioncourt_standing":
+            target = ("regressioncourt_standing",
+                      record.get("part"),
+                      record.get("run"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("grade"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "regressioncourt_verdict":
+            target = ("regressioncourt_verdict",
+                      record.get("battery"),
+                      record.get("entry"),
+                      record.get("verdict"),
+                      record.get("state"))
+        else:
+            return
+        announced = getattr(self, "_regressioncourt_announced", None)
+        if announced is None:
+            announced = set()
+            self._regressioncourt_announced = announced
         if target in announced:
             return
         announced.add(target)
