@@ -5846,6 +5846,302 @@ def parse_strangerfleettest_args(args: Any):
     raise ValueError(STRANGERFLEETTEST_USAGE)
 
 
+#: The /costofquality slash grammar (M-267, agent layer).
+COSTOFQUALITY_USAGE = (
+    "Usage: /costofquality | /costofquality routes | "
+    "/costofquality route <route> | /costofquality record "
+    "<route> | /costofquality standing "
+    "<route> | /costofquality report | "
+    "/costofquality report <book> | "
+    "/costofquality index | /costofquality verdict")
+
+
+def _cq_entry_dict(entry: Any) -> dict[str, Any]:
+    """One audit route registry entry, as plain data (M-267)."""
+    return {"id": entry.id, "doctrine": entry.doctrine,
+            "subject": entry.subject,
+            "standing": entry.standing, "reason": entry.reason}
+
+
+
+def _cq_record_dict(record: Any) -> dict[str, Any]:
+    """One cost-proof cost record, as plain data (M-267)."""
+    return {"route": record.route,
+            "work": record.work,
+            "date": record.date,
+            "disposition": record.disposition,
+            "owner": record.owner,
+            "proof_kind": record.proof_kind,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+
+def _cq_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived run standing, as plain data (M-267)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "grade": standing.grade,
+            "gaps": list(standing.gaps)}
+
+
+def _cq_report_dict(report: Any) -> dict[str, Any]:
+    """One cost report, as plain data (M-267)."""
+    return {"book": report.book,
+            "entry": report.entry, "report": report.report,
+            "date": report.date,
+            "proven_count": report.proven_count,
+            "roaded_count": report.roaded_count,
+            "total_routes": report.total_routes,
+            "claims": list(report.claims),
+            "state": report.state, "certified": report.certified,
+            "inflated": report.inflated}
+
+
+
+def _cq_report_text(report: Any) -> str:
+    """One cost report told in plain words (M-267)."""
+    return (f"{report.book} <- {report.entry}: "
+            f"report - {report.report} (state: "
+            f"{report.state}; a report is never "
+            "inflated here)")
+
+
+
+def _cq_coerce_record(record: Any):
+    """A cost record from a record or a plain telling (M-267)."""
+    from ..core.cost_of_quality import CostOfQualityRecord
+    if isinstance(record, CostOfQualityRecord):
+        return record
+    if isinstance(record, dict):
+        return CostOfQualityRecord(
+            route=record["route"],
+            work=record["work"],
+            date=record["date"],
+            disposition=record["disposition"],
+            owner=record["owner"],
+            proof_kind=record["proof_kind"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return CostOfQualityRecord(
+        route=record.route, work=record.work,
+        date=record.date,
+        disposition=record.disposition,
+        owner=record.owner,
+        proof_kind=record.proof_kind,
+        stages=tuple(record.stages),
+        claims=tuple(record.claims))
+
+
+class CostOfQualityRegistry:
+    """Session registry for the Cost-of-quality report (M-267).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.cost_of_quality``):
+    it holds the shipped route registry (one entry per
+    route of the road, held as data) beside the
+    cost records held one by one for the session,
+    one record per route, and the privacy
+    reports held for the session, one report per book. A
+    record is validated whole by the pure layer before it
+    is held - a record naming an unknown route,
+    stage or evidence kind refuses by name here too, and a
+    refusal holds nothing new. A second record for a
+    route already held refuses likewise.
+    Reports are held only through the pure layer's report
+    road - state ready by default, may be marked shared by
+    a human, a certification claimed only when every
+    combination stands answered, and never inflated:
+    the report tells the findings exactly as they
+    stand. Holding runs no benchmark, times no start and
+    probes no network: the registry holds tellings as
+    data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.cost_of_quality import default_registry
+        self._route_registry = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._reports: dict[str, Any] = {}
+
+    def routes(self):
+        """The shipped route registry held by the session."""
+        return self._route_registry
+
+    def register_record(self, record: Any):
+        """Hold one cost record, validated whole.
+
+        A second record for a route already
+        held refuses, and a refusal holds nothing new.
+        """
+        held = _cq_coerce_record(record)
+        held.validate(self._route_registry)
+        key = held.route
+        if key in self._records:
+            raise ValueError(
+                "a care record for route "
+                f"{held.route!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, route: Any):
+        """The held record for one route."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(route)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no care record "
+                f"for route {route!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of cost records, validated whole.
+
+        Every record is validated, and guideed against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _cq_coerce_record(record)
+            held.validate(self._route_registry)
+            key = held.route
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "a care record for route "
+                    f"{held.route!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[held.route] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The cost records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the records and the reports."""
+        return (list(self._records.values())
+                + list(self._reports.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.cost_of_quality import derive_standing
+        return [derive_standing(record, self._route_registry)
+                for record in self._records.values()]
+
+    def hold_report(self, book: Any, entry: Any,
+                      report: Any, date: Any,
+                      proven_count: Any, roaded_count: Any,
+                      total_routes: Any,
+                      claims: Any = (),
+                      state: Any = "ready",
+                      certified: Any = False):
+        """Prepare one cost report, held for the session.
+
+        The report is shaped by the pure layer alone -
+        a state word outside ready/shared refuses by name
+        there, a certification short of every route answered
+        refuses there, and a report is never inflated. A
+        second report for a book already held refuses
+        likewise.
+        """
+        from ..core.cost_of_quality import prepare_report
+        report = prepare_report(book, entry, report,
+                                 date, proven_count,
+                                 roaded_count,
+                                 total_routes,
+                                 claims=tuple(claims),
+                                 state=state, certified=certified)
+        if report.book in self._reports:
+            raise ValueError(
+                "an cost report for book "
+                f"{report.book!r} already stands held "
+                "for the session")
+        self._reports[report.book] = report
+        return report
+
+    def get_report(self, book: Any):
+        """The held cost report for one book."""
+        from ..core.validation import ValidationError
+        try:
+            return self._reports[book]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no cost report for "
+                f"book {book!r}") from None
+
+    def list_reports(self) -> list:
+        """The cost reports held, in hold order."""
+        return list(self._reports.values())
+
+    def book(self):
+        """The held pieces composed as a Cost-of-quality report book.
+
+        The book is plain data: the shipped route
+        registry's entries beside the cost records
+        and cost reports held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.cost_of_quality import COST_OF_QUALITY_SCHEMA
+        return {
+            "schema": COST_OF_QUALITY_SCHEMA,
+            "routes": [_cq_entry_dict(entry)
+                        for entry in self._route_registry.entries()],
+            "records": [_cq_record_dict(record)
+                        for record in self._records.values()],
+            "reports": [_cq_report_dict(verdict)
+                       for verdict in self._reports.values()],
+        }
+
+
+def parse_costofquality_args(args: Any):
+    """Parse /costofquality arguments (M-267).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``routes``, ``index`` and ``verdict`` name
+    their own stance with no target; ``route <route>``
+    names one route; ``record <route>`` and
+    ``standing <route>`` name one route alone - an audit
+    record is keyed by its route, never by a pair;
+    ``report <book>`` names one book and the bare
+    ``report`` stance names the session's audit
+    reports. Anything else raises ValueError carrying
+    the usage line, exactly as the sibling parsers
+    refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("routes", "index", "verdict"):
+        if rest:
+            raise ValueError(COSTOFQUALITY_USAGE)
+        return (head, None, (), None)
+    if head == "route":
+        if len(rest) != 1:
+            raise ValueError(COSTOFQUALITY_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 1:
+            raise ValueError(COSTOFQUALITY_USAGE)
+        return (head, rest[0], (), None)
+    if head == "report":
+        if not rest:
+            return ("reports", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(COSTOFQUALITY_USAGE)
+        return ("report", rest[0], (), None)
+    raise ValueError(COSTOFQUALITY_USAGE)
+
+
 #: The /docsmcp slash grammar (M-252, agent layer).
 DOCSMCP_USAGE = (
     "Usage: /docsmcp | /docsmcp projects | "
@@ -94218,6 +94514,633 @@ class Agent:
         if announced is None:
             announced = set()
             self._strangerfleettest_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+    def _costofquality_registry(self):
+        """The held cost-proof registry (M-267).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped route registry beside the session's
+        cost records and cost reports one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_costofquality_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_costofquality_store", None)
+        if registry is None:
+            registry = CostOfQualityRegistry()
+            self._costofquality_store = registry
+        return registry
+
+    def costofquality_routes(self):
+        """The shipped route registry, as data (M-267).
+
+        One entry per route of the road - Q-01..Q-12, the twelve doctrine by subject routes - held as registry entries, each naming its doctrine, its subject and its listed standing. Resolution registers and publishes
+        nothing, runs no benchmark and probes no
+        network.
+        """
+        return self._costofquality_registry().routes()
+
+    def costofquality_book(self):
+        """The session's Cost-of-quality report book, as data (M-267).
+
+        The held registry's book when the session holds
+        records or reports one by one - otherwise the book
+        boarded whole through
+        :meth:`record_costofquality_records`, or the shipped
+        route registry with nothing held until a record
+        or report is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._costofquality_registry()
+        if registry.list_records() or registry.list_reports():
+            held = getattr(self, "_costofquality_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [r["route"] for r in held["records"]]
+                    == [r["route"] for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_costofquality_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _costofquality_effective_record(self, route: Any):
+        """The record an route's standing is derived from (M-267).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on, no date, no owner named - so an unheld
+        route derives an honest open standing naming its
+        gaps, never a dressed claim: an absent finding
+        reads as unanswered. An unknown route refuses by
+        name through the shipped registry first.
+        """
+        from ..core.cost_of_quality import CostOfQualityRecord
+        registry = self._costofquality_registry()
+        registry.routes().get(route)
+        try:
+            return registry.get_record(route)
+        except ValueError:
+            return CostOfQualityRecord(
+                route=route, work="unrecorded",
+                date="",
+                disposition="ROADED",
+                owner="",
+                proof_kind="none",
+                stages=(), claims=())
+
+    def _costofquality_screen(self):
+        """The cost-of-quality screen, in plain words (M-267).
+
+        The shipped routes first, then the held records
+        told by the pure layer - a held record reads
+        "held as answered" there - then each held
+        report. With no record held, the screen says
+        so plainly: a route counts PROVEN only on
+        benchmark scores measured against spend
+        actually paid resting on held evidence, and every
+        other route ships ROADED with a named owner, in the open.
+        """
+        from ..core.cost_of_quality import (
+            format_routes, format_records)
+        registry = self._costofquality_registry()
+        lines = [format_routes(registry.routes())]
+        records = registry.list_records()
+        if records:
+            lines.append(format_records(records, registry.routes()))
+        else:
+            lines.append(
+                "Cost-of-quality records: none recorded "
+                "this session - a route counts PROVEN "
+                "only on benchmark scores measured "
+                "against spend actually paid resting on "
+                "held evidence, and every "
+                "other route ships ROADED with a named "
+                "owner, in the open, never silent.")
+        for report in registry.list_reports():
+            lines.append(_cq_report_text(report))
+        return "\n".join(lines)
+    def costofquality_status(self) -> dict[str, Any]:
+        """The Cost-of-quality report account, in plain data (M-267).
+
+        The shipped route registry's entries and the
+        cost records and cost reports held this session as
+        plain records (empty until held), the session
+        book's record (the shipped route registry with
+        nothing held - until items are held), the records
+        standing held and still open derived at call time,
+        the index and verdict derived at call time, the
+        routes and records told in plain words through the
+        pure formatters, and the plain explanation. A
+        session holding no record for a finding derives that
+        finding's open standing. Resolution registers and
+        publishes nothing, runs no benchmark and probes
+        no network: this layer tells only.
+        """
+        from ..core import cost_of_quality as camp_module
+        registry = self._costofquality_registry()
+        held_records = registry.list_records()
+        book = self.costofquality_book()
+        index = self.costofquality_index()
+        return {
+            "records": [_cq_record_dict(r)
+                        for r in held_records],
+            "routes": [_cq_entry_dict(e)
+                        for e in registry.routes().entries()],
+            "book": (book if held_records
+                     or registry.list_reports()
+                     or getattr(self, "_costofquality_held",
+                                None) is not None else None),
+            "costofquality_book": {
+                "schema": camp_module.COST_OF_QUALITY_SCHEMA,
+                "routes": book["routes"],
+                "records": book["records"],
+                "reports": book["reports"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.costofquality_verdict()["verdict"],
+            "routes_text": camp_module.format_routes(
+                registry.routes()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "reports": [_cq_report_dict(d)
+                       for d in registry.list_reports()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._costofquality_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": COSTOFQUALITY_USAGE,
+        }
+
+    def get_costofquality_route(self, route: Any):
+        """The one route entry a route name names (M-267).
+
+        The shipped route registry answers: a route the
+        route book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._costofquality_registry().routes().get(route)
+
+    def get_costofquality_record(self, route: Any):
+        """The one record a route names (M-267).
+
+        The session's held registry answers: a finding the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._costofquality_registry().get_record(route)
+
+    def costofquality_standing(self, route: Any):
+        """Derive one finding's standing (M-267).
+
+        The standing is derived at call time by the pure
+        layer from the finding's effective record - the held
+        record, or the honest empty record while none
+        stands held: held only on a full legal walk
+        resting on held evidence, with the
+        finding resting on held evidence, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.cost_of_quality import derive_standing
+        registry = self._costofquality_registry()
+        return derive_standing(
+            self._costofquality_effective_record(route),
+            registry.routes())
+
+    def routes_for_disposition(self, disposition_word: Any):
+        """The held records carrying one disposition (M-267)."""
+        if disposition_word is None or not str(disposition_word).strip():
+            raise ValueError(
+                "a disposition must be named to list its records")
+        return [r for r in
+                self._costofquality_registry().list_records()
+                if r.disposition == disposition_word]
+
+
+    def costofquality_held(self):
+        """The records whose standing stands held (M-267)."""
+        registry = self._costofquality_registry()
+        return [f"{r.route}"
+                for r in registry.list_records()
+                if self.costofquality_standing(r.route).held]
+
+    def costofquality_index(self) -> dict[str, Any]:
+        """Derive the Cost-of-quality report index at call time (M-267).
+
+        The index is derived from every held record
+        alone - each held record's derived standing, the
+        held records named and the open records named in
+        its gaps. Deriving registers and publishes nothing,
+        runs no benchmark and probes no network.
+        Returns the derived index record, the rendered
+        records, the screen and the plain explanation.
+        """
+        from ..core import cost_of_quality as camp_module
+        registry = self._costofquality_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.costofquality_standing(record.route)
+            standings.append({
+                "route": record.route,
+                **_cq_standing_dict(standing)})
+        index = {
+            "type": "costofquality_index",
+            "slice": camp_module.COST_OF_QUALITY_SLICE,
+            "schema": camp_module.COST_OF_QUALITY_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['route']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['route']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._costofquality_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def costofquality_verdict(self) -> dict[str, Any]:
+        """Derive the Cost-of-quality report verdict at call time (M-267).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and every
+        held record's standing stands held on held
+        code evidence, with every finding
+        resting on held evidence, ``open`` while no record stands held or any held
+        record stands short of held - with the held and
+        open records named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import cost_of_quality as camp_module
+        registry = self._costofquality_registry()
+        records = registry.list_records()
+        held = self.costofquality_held()
+        open_keys = [f"{r.route}"
+                     for r in records
+                     if f"{r.route}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Cost-of-quality report stands held: every recorded "
+                "route rests on held evidence "
+                "and stands answered - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Cost-of-quality report stands open: no route "
+                "is recorded this session - an absent "
+                "route reads as unknown, never "
+                "as answered.")
+        else:
+            word = "open"
+            telling = (
+                "Cost-of-quality report stands open: a route "
+                "is held only when it rests on held "
+                "local evidence and stands answered, "
+                "and these routes "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "costofquality_verdict",
+            "slice": camp_module.COST_OF_QUALITY_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._costofquality_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_costofquality_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one cost record for the session (M-267).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        route, stage or evidence kind refuses by
+        name on this road too, and a refusal holds nothing
+        new and publishes nothing. A held record is
+        published as its ``costofquality_record``
+        session-news record through the checkpoint road.
+        Returns the held record, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a record runs no benchmark
+        and probes no network: the telling stands on
+        this layer's book, as data.
+        """
+        from ..core import cost_of_quality as camp_module
+        registry = self._costofquality_registry()
+        held = registry.register_record(record)
+        news = {"type": "costofquality_record",
+                **_cq_record_dict(held)}
+        self._publish_costofquality_record(news)
+        return {
+            "record": _cq_record_dict(held),
+            "record_news": news,
+            "screen": self._costofquality_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_costofquality_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of cost records for the session (M-267).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order given.
+        Returns the held records, their news records,
+        the count of records held, the screen, and the
+        explanation. Registering runs no benchmark and probes
+        no network.
+        """
+        from ..core import cost_of_quality as camp_module
+        registry = self._costofquality_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "costofquality_record", **_cq_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_costofquality_record(news)
+        return {
+            "records": [_cq_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._costofquality_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_costofquality_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of cost records (M-267).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its route key and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held book,
+        its records, their news records, the count, the
+        screen, and the explanation. Recording runs no
+        benchmark and probes no network.
+        """
+        from ..core import cost_of_quality as camp_module
+        validated = [_cq_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._costofquality_registry().routes())
+        fingerprint = (
+            tuple(r.route for r in validated),
+            camp_module.COST_OF_QUALITY_SCHEMA)
+        boarded = getattr(self, "_costofquality_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._costofquality_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these cost records are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._costofquality_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._costofquality_held = registry.book()
+        news_records = [
+            {"type": "costofquality_record", **_cq_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_costofquality_record(news)
+        return {
+            "book": self._costofquality_held,
+            "records": [_cq_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._costofquality_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_costofquality(
+            self, route: Any) -> dict[str, Any]:
+        """Stand one finding's standing on the session book (M-267).
+
+        This is the book's own viewing road: the finding's
+        route entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        finding's effective record, and published as its
+        ``costofquality_standing`` session news, with the held
+        record published as its ``costofquality_record``
+        session news when one stands held. Returns the
+        route's entry, its derived standing, the held
+        record when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        findings as data alone - it runs no benchmark,
+        probes no network and inflates nothing here.
+        """
+        from ..core import cost_of_quality as camp_module
+        entry = self.get_costofquality_route(route)
+        standing = self.costofquality_standing(route)
+        try:
+            held = self.get_costofquality_record(route)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "costofquality_record",
+                           **_cq_record_dict(held)}
+            self._publish_costofquality_record(record_news)
+        standing_news = {
+            "type": "costofquality_standing", "route": route,
+            **_cq_standing_dict(standing)}
+        self._publish_costofquality_record(standing_news)
+        return {
+            "route": _cq_entry_dict(entry),
+            "standing": {"route": route,
+                         **_cq_standing_dict(standing)},
+            "record": (_cq_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._costofquality_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def prepare_costofquality_report(
+            self, book: Any, entry: Any, report: Any,
+            date: Any, proven_count: Any, roaded_count: Any,
+            total_routes: Any,
+            claims: Any = (),
+            state: Any = "ready",
+            certified: Any = False
+            ) -> dict[str, Any]:
+        """Prepare one cost report for the session (M-267).
+
+        The report is shaped by the pure layer alone -
+        it stands at state ready by default, may be
+        marked ``shared`` by a human, and a state
+        word outside ready/shared refuses by name;
+        a report is never inflated here, a certification
+        short of every route answered refuses there, and
+        no finding is re-audited on this road. A held report
+        is published as its ``costofquality_verdict``
+        session-news record through the checkpoint road.
+        Returns the held report, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Preparing audits nothing and
+        runs nothing here.
+        """
+        from ..core import cost_of_quality as camp_module
+        registry = self._costofquality_registry()
+        report = registry.hold_report(book, entry, report,
+                                       date, proven_count,
+                                       roaded_count,
+                                       total_routes,
+                                       claims=claims,
+                                       state=state,
+                                       certified=certified)
+        news = {"type": "costofquality_verdict",
+                **_cq_report_dict(report)}
+        self._publish_costofquality_record(news)
+        return {
+            "report": _cq_report_dict(report),
+            "report_news": news,
+            "screen": self._costofquality_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+
+    def get_costofquality_report(self, book: Any):
+        """The one report a book names (M-267).
+
+        The session's held registry answers: a book
+        the session holds no report for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._costofquality_registry().get_report(book)
+
+
+    def costofquality_reports(self) -> list:
+        """The cost reports held for the session (M-267)."""
+        return self._costofquality_registry().list_reports()
+
+
+    def report_costofquality(self) -> dict[str, Any]:
+        """Render the session Cost-of-quality report, as a verdict (M-267).
+
+        The shipped route registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, runs no benchmark and probes
+        no network. Returns the book,
+        the routes, held records and reports as plain
+        records, the derived standings, the rendered
+        routes and records, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import cost_of_quality as camp_module
+        registry = self._costofquality_registry()
+        book = self.costofquality_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.costofquality_standing(record.route)
+            standings.append({
+                "route": record.route,
+                **_cq_standing_dict(standing)})
+        return {
+            "book": book,
+            "routes": [_cq_entry_dict(e)
+                        for e in registry.routes().entries()],
+            "records": [_cq_record_dict(r)
+                        for r in registry.list_records()],
+            "reports": [_cq_report_dict(d)
+                       for d in registry.list_reports()],
+            "standings": standings,
+            "index": self.costofquality_index()["index"],
+            "verdict": self.costofquality_verdict()["verdict"],
+            "routes_text": camp_module.format_routes(
+                registry.routes()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._costofquality_effective_record(r.route))
+                for r in registry.list_records()),
+            "screen": self._costofquality_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_costofquality_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one cost record as session news (M-267).
+
+        The agent layer's ``costofquality_record``,
+        ``costofquality_standing`` and
+        ``costofquality_verdict`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is granted. Each
+        record is announced at most once per telling: a
+        record under its route, its run, its date, its
+        disposition, its owner, its proof kind, its
+        walked stages and its claims, a standing under
+        its route, its held word, its stage, its grade
+        and its gaps, and a report under its book, its
+        entry, its report and its state, so a standing
+        grown by a newly held record announces again
+        as the new figure it is.
+        A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "costofquality_record":
+            target = ("costofquality_record",
+                      record.get("route"),
+                      record.get("run"),
+                      record.get("date"),
+                      record.get("disposition"),
+                      record.get("owner"),
+                      record.get("proof_kind"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "costofquality_standing":
+            target = ("costofquality_standing",
+                      record.get("route"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("grade"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "costofquality_verdict":
+            target = ("costofquality_verdict",
+                      record.get("book"),
+                      record.get("entry"),
+                      record.get("report"),
+                      record.get("state"))
+        else:
+            return
+        announced = getattr(self, "_costofquality_announced", None)
+        if announced is None:
+            announced = set()
+            self._costofquality_announced = announced
         if target in announced:
             return
         announced.add(target)
