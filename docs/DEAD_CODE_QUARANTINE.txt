@@ -1286,3 +1286,10 @@ mythic_agent/agents/llm.py:84768:record_publishedyardstick_records:method
 mythic_agent/agents/llm.py:84817:view_publishedyardstick:method
 mythic_agent/agents/llm.py:84864:prepare_publishedyardstick_report:method
 mythic_agent/agents/llm.py:84918:report_publishedyardstick:method
+mythic_agent/agents/llm.py:85507:records_for_outcome:method
+mythic_agent/agents/llm.py:85625:register_regressioncourt_record:method
+mythic_agent/agents/llm.py:85655:register_regressioncourt_records:method
+mythic_agent/agents/llm.py:85685:record_regressioncourt_records:method
+mythic_agent/agents/llm.py:85734:view_regressioncourt:method
+mythic_agent/agents/llm.py:85781:prepare_regressioncourt_draft:method
+mythic_agent/agents/llm.py:85839:report_regressioncourt:method

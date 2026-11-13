@@ -1568,7 +1568,7 @@ slices:
   title: Regression court
   summary: every part's gate results re-run as one battery; a red anywhere stops the release, not just
     the part.
-  status: queued
+  status: done
 - id: M-258
   part: 11
   title: Performance budgets
