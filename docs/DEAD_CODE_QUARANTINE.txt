@@ -1329,3 +1329,10 @@ mythic_agent/agents/llm.py:90279:record_accessibilityfinal_records:method
 mythic_agent/agents/llm.py:90328:view_accessibilityfinal:method
 mythic_agent/agents/llm.py:90374:prepare_accessibilityfinal_report:method
 mythic_agent/agents/llm.py:90434:report_accessibilityfinal:method
+mythic_agent/agents/llm.py:91029:docs_for_disposition:method
+mythic_agent/agents/llm.py:91143:register_docscompletion_record:method
+mythic_agent/agents/llm.py:91173:register_docscompletion_records:method
+mythic_agent/agents/llm.py:91203:record_docscompletion_records:method
+mythic_agent/agents/llm.py:91252:view_docscompletion:method
+mythic_agent/agents/llm.py:91298:prepare_docscompletion_report:method
+mythic_agent/agents/llm.py:91358:report_docscompletion:method

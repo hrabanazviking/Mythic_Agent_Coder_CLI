@@ -435,8 +435,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 262
-    assert citizen["next_slice"] == "M-263"
+    assert citizen["done"] == 263
+    assert citizen["next_slice"] == "M-264"
     assert citizen["m215_title"] == "Estimate honesty"
     assert citizen["m215_part"] == 9
     assert citizen["m215_status"] == "done"
@@ -911,8 +911,8 @@ class TestEstimateAgentStatus:
         assert status["board"]["current_estimate"] == "estimate-bare-forecast"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 262
-        assert status["roadmap"]["next_slice"] == "M-263"
+        assert status["roadmap"]["done"] == 263
+        assert status["roadmap"]["next_slice"] == "M-264"
         assert status["roadmap"]["m215_title"] == "Estimate honesty"
         assert "held as data alone" in status["rule"]
         assert "estimate-bare-forecast" in status["plain_words"]
