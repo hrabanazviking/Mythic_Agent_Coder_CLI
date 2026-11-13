@@ -1,0 +1,14 @@
+schema: mythic.git_host_parity/1
+hosts:
+- host: github
+  label: GitHub
+  request_word: pull request
+  reason: The host the forge's git craft first landed on; its parity still has to be evidenced craft by craft like every other host, never assumed from being first.
+- host: gitlab
+  label: GitLab
+  request_word: merge request
+  reason: The same host-agnostic craft under GitLab's own names; the request craft is a merge request here, and parity stands only on held evidence per craft.
+- host: bitbucket
+  label: Bitbucket
+  request_word: pull request
+  reason: The same host-agnostic craft on Bitbucket; the request craft is a pull request here, and parity stands only on held evidence per craft.

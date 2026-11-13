@@ -1,0 +1,128 @@
+schema: mythic.context_recipes/1
+slice: M-158
+part: 7
+part_title: Memory & Context
+canon_note: |
+  Context recipes: saved bundles of context - "the
+  auth stack", "the Mojo build" - summonable by name
+  into any session. A recipe is one named bundle
+  carried with its provenance whole: the session it
+  was saved in, the day it was saved on, and where it
+  was read from. Its pieces are the shipped memory
+  holdings' own pieces, named by kind and reference
+  with the plain-words reason each belongs - the
+  piece itself is never copied into the recipe, and
+  no piece is named twice in one bundle, while the
+  same piece may stand in many bundles. No name in a
+  book names two recipes: a name summons one bundle,
+  never two, so a name spoken in a session is never
+  ambiguous. The RECIPE PANEL is derived from the
+  whole book: its rows are the recipes carried whole,
+  by name, then recipe id, and its totals are the
+  recipes' own counts and its kind counts the pieces'
+  own tallies, and a stored panel that disagrees with
+  its derived shape is refused. This file is ONE
+  EXAMPLE BOOK, in the shape a real book file takes:
+  the M-157 slice boundary - three bundles standing
+  at the close of the forget-and-quarantine day, the
+  auth stack, the Mojo build and the provider ocean,
+  with the one panel of the book. A real book is a
+  new file in this same shape - it is never this file
+  edited in place. This layer holds recipes as data
+  only: it calls no model, assembles no live context,
+  edits no code and persists nothing.
+guide:
+  title: "Context recipes at the M-157 slice boundary"
+recipes:
+- recipe_id: recipe-auth-stack
+  name: "the auth stack"
+  purpose: "Everything a session needs to work on signing in: the provider call road, the connected-code note and the two-roads map fact."
+  items:
+  - kind: decision-record
+    ref: record-httpx-client
+    why: "Provider calls ride httpx - the accepted road every auth call stands on."
+  - kind: session-memory
+    ref: note-connected-code
+    why: "The carried note on how the codebase's pieces connect around the auth seam."
+  - kind: memory-map
+    ref: map-two-roads
+    why: "The map's two-roads architecture fact, so both auth roads stay in view."
+  session_ref: session-auth-work
+  created_on: "2026-11-08"
+  source: "session transcript"
+- recipe_id: recipe-mojo-build
+  name: "the Mojo build"
+  purpose: "Everything a session needs to work on the Mojo build: where the tests stand, and the banking lessons the build keeps relearning."
+  items:
+  - kind: memory-map
+    ref: map-tests
+    why: "The map's fact of where the tests stand, so the build's checks are found first."
+  - kind: ledger-candidate
+    ref: candidate-bank-incrementally
+    why: "The candidate lesson on banking incrementally, which the build proves slice by slice."
+  - kind: cross-project
+    ref: lesson-bank-incrementally
+    why: "The shared lesson on banking incrementally, carried in from the Aesir retrospective."
+  session_ref: session-mojo-build
+  created_on: "2026-11-08"
+  source: "session transcript"
+- recipe_id: recipe-provider-ocean
+  name: "the provider ocean"
+  purpose: "Everything a session needs to widen the Provider Ocean: the drafted index choice and the commit-before-answer law."
+  items:
+  - kind: decision-record
+    ref: record-rune-index
+    why: "The proposed SQLite FTS index choice, still awaiting its word, which provider search stands on."
+  - kind: cross-project
+    ref: lesson-commit-before-answer
+    why: "The shared Samtal forge law - commit before answer - which every provider slice is banked under."
+  session_ref: session-provider-ocean
+  created_on: "2026-11-08"
+  source: "session transcript"
+panels:
+- panel_id: panel-m157-boundary
+  rows:
+  - recipe_id: recipe-auth-stack
+    name: "the auth stack"
+    purpose: "Everything a session needs to work on signing in: the provider call road, the connected-code note and the two-roads map fact."
+    session_ref: session-auth-work
+    piece_count: 3
+    kinds:
+    - decision-record
+    - session-memory
+    - memory-map
+  - recipe_id: recipe-mojo-build
+    name: "the Mojo build"
+    purpose: "Everything a session needs to work on the Mojo build: where the tests stand, and the banking lessons the build keeps relearning."
+    session_ref: session-mojo-build
+    piece_count: 3
+    kinds:
+    - memory-map
+    - ledger-candidate
+    - cross-project
+  - recipe_id: recipe-provider-ocean
+    name: "the provider ocean"
+    purpose: "Everything a session needs to widen the Provider Ocean: the drafted index choice and the commit-before-answer law."
+    session_ref: session-provider-ocean
+    piece_count: 2
+    kinds:
+    - decision-record
+    - cross-project
+  total_items: 3
+  total_pieces: 8
+  kind_counts:
+  - kind: decision-record
+    items: 2
+  - kind: session-memory
+    items: 1
+  - kind: memory-map
+    items: 2
+  - kind: ledger-candidate
+    items: 1
+  - kind: cross-project
+    items: 2
+  account:
+  - "The recipe panel holds 3 recipes bundling 8 pieces: cross-project 2, decision-record 2, ledger-candidate 1, memory-map 2, session-memory 1."
+  - "Recipes stand by name, then recipe id - so two panels of one book diff cleanly, line by line."
+  - "Every recipe is summoned by its name alone, and no name in a book names two recipes - a name spoken in a session is never ambiguous."
+  - "The panel is read off the book at call time - it is derived, never stored loose."

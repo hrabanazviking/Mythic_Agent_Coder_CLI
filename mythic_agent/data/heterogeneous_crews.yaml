@@ -1,0 +1,76 @@
+schema: mythic.heterogeneous_crews/1
+slice: M-129
+part: 6
+part_title: Agents as files
+keeper: architect
+plan_note: |
+  Heterogeneous crews: the crew's members riding
+  different models on different providers, as data.
+  The evidence is three lists - the assignments
+  (which member rides which provider on which
+  model, under which budget), the budgets (the
+  Part V budgets, M-107, the assignments name by
+  id) and the usage readings (what each member
+  has actually spent, as data) - and the verdicts
+  are derived from that evidence alone, against
+  the shipped Part II truth: a route is known
+  only when the M-019 provider registry lists the
+  model under the provider, a model's capability
+  truth is the M-027 record (unknown stays
+  unknown), a route's switchability is the M-028
+  resolver's dialect rule, and a budget is judged
+  by the M-107 judge, never re-judged here. This
+  file is ONE EXAMPLE CREW PLAN in the shape a
+  real crew plan's file takes: four assignments
+  among the shipped M-121 casting, holding
+  exactly one verdict of each kind - the Claude
+  Architect (architect on anthropic riding
+  claude-sonnet-4-5, remote) and the local-LLM
+  Forge Worker (forge_worker on ollama riding
+  llama3.1, local) clean and heterogeneous
+  together, scribe riding openai's gpt-5 under a
+  budget this plan does not hold (missing
+  budget), cartographer riding a model ollama
+  does not list (unknown route), and the forge
+  worker's reading past its budget's token limit
+  (over budget). A real crew plan is a new file
+  in this same shape - it is never this file
+  edited in place. This layer holds the crew as
+  data only: it spawns no live crew, calls no
+  real provider, performs no routing and bills
+  nothing itself; the coordinator acts on the
+  verdicts through later roads.
+assignments:
+- member: architect
+  provider: anthropic
+  model: claude-sonnet-4-5
+  budget_id: arch-budget
+- member: forge_worker
+  provider: ollama
+  model: llama3.1
+  budget_id: forge-budget
+- member: scribe
+  provider: openai
+  model: gpt-5
+  budget_id: scribe-budget
+- member: cartographer
+  provider: ollama
+  model: llama9.9
+budgets:
+- budget_id: arch-budget
+  label: Architect budget
+  scope: session
+  token_limit: 200000
+  cost_limit: 20.0
+- budget_id: forge-budget
+  label: Forge budget
+  scope: task
+  token_limit: 40000
+  command_limit: 100
+readings:
+- member: architect
+  tokens_used: 1000
+  cost_used: 0.5
+- member: forge_worker
+  tokens_used: 45000
+  commands_used: 10

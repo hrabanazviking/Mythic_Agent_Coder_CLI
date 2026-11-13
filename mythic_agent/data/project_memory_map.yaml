@@ -1,0 +1,158 @@
+schema: mythic.project_memory_map/1
+slice: M-150
+part: 7
+part_title: Memory & Context
+canon_note: |
+  Project Memory Map (Mythic law): every project
+  grows a living map - architecture, decisions,
+  gotchas, where things live - maintained by the
+  Scribe as work proceeds, diffs reviewable. A
+  project memory map book holds one entry per fact
+  of the map, in held order: each entry names its
+  section in the closed set this slice names
+  (architecture, decision, gotcha, location - the
+  roadmap's own four), its title, the fact itself
+  in plain words, its source, and the reference
+  where the thing it names lives. The PANEL is
+  derived from the whole book: its rows are the
+  entries carried whole, in map order (section
+  first, in the order architecture, decision,
+  gotcha, location, then title), its keeper is
+  always the Scribe, and its totals are the
+  entries' own counts, and a stored panel that
+  disagrees with its derived shape is refused.
+  The shipped PROJECT_MEMORY_MAP.md convention is
+  composed, not duplicated: its headings (What
+  this is, Where things live, The two roads,
+  Working facts & gotchas, Campaign state) stand
+  as the sections' faces, and the example entries
+  below are that file's own facts, held as data.
+  This file is ONE EXAMPLE BOOK, in the shape a
+  real book file takes: the M-149 slice boundary -
+  nine facts of this project's map, of every
+  section, with the one panel of the book. A real
+  book is a new file in this same shape - it is
+  never this file edited in place. This layer
+  holds the map as data only: it writes and edits
+  no project file, and persists nothing.
+guide:
+  title: "Project memory map at the M-149 slice boundary"
+entries:
+- entry_id: map-package
+  section: location
+  title: "The package"
+  detail: "mythic_agent/ is the package; entry points mythic (mythic_agent.cli:main) and mythic-mcp (mythic_agent.mcp_server:main)."
+  source: PROJECT_MEMORY_MAP.md
+  ref: mythic_agent/
+- entry_id: map-agents
+  section: location
+  title: "The agent loop"
+  detail: "mythic_agent/agents/ holds the agent loop: llm.py, tools.py, planning.py, parallel.py, context.py, recovery.py, tasks.py, command_handler.py and prompts.py."
+  source: PROJECT_MEMORY_MAP.md
+  ref: mythic_agent/agents/
+- entry_id: map-tests
+  section: location
+  title: "The test suite"
+  detail: "tests/ is the pytest suite (testpaths = tests in pyproject.toml); the loose test_*.py files at repo root are dev scratch, not the suite."
+  source: PROJECT_MEMORY_MAP.md
+  ref: tests/
+- entry_id: map-two-roads
+  section: architecture
+  title: "The two roads"
+  detail: "Two binding roadmaps: the elder Mimisbrunnr 500-slice road (slices MIM-###) and the younger All-Features 272-slice road (slices M-###), bound by the Concordance."
+  source: PROJECT_MEMORY_MAP.md
+  ref: docs/CONCORDANCE_MIMISBRUNNR_FEATURE_ROADMAP.md
+- entry_id: map-offices
+  section: architecture
+  title: "The six offices"
+  detail: "Six named Mythic-Engineering offices - Skald, Architect, Forge Worker, Auditor, Cartographer, Scribe - over a Textual TUI, an MCP server (mythic-mcp) and durable workspace sessions."
+  source: PROJECT_MEMORY_MAP.md
+  ref: mythic_agent/core/offices.py
+- entry_id: map-ci-manual
+  section: decision
+  title: "CI is manual-dispatch only"
+  detail: "CI runs only when manually dispatched (workflow_dispatch), per Volmarr's standing ruling - never auto-triggered by pushes; verification is done in-house."
+  source: PROJECT_MEMORY_MAP.md
+  ref: .github/workflows
+- entry_id: map-scribe-law
+  section: decision
+  title: "The map is updated in the same session"
+  detail: "Mythic law: the map is updated in the same session as each banked slice, never as a later chore; the Scribe keeps it as work proceeds."
+  source: PROJECT_MEMORY_MAP.md
+  ref: PROJECT_MEMORY_MAP.md
+- entry_id: map-no-docker
+  section: gotcha
+  title: "No Docker, anywhere"
+  detail: "No Docker, anywhere, for anything (Volmarr's law): native installs only."
+  source: PROJECT_MEMORY_MAP.md
+  ref: PROJECT_MEMORY_MAP.md
+- entry_id: map-suite-extras
+  section: gotcha
+  title: "The suite needs its extras"
+  detail: "The suite needs the optional extras installed to collect in full; sounddevice imports fail on machines without the PortAudio system library."
+  source: PROJECT_MEMORY_MAP.md
+  ref: pyproject.toml
+panels:
+- panel_id: panel-m149-boundary
+  keeper: Scribe
+  rows:
+  - entry_id: map-offices
+    section: architecture
+    title: "The six offices"
+    source: PROJECT_MEMORY_MAP.md
+    ref: mythic_agent/core/offices.py
+  - entry_id: map-two-roads
+    section: architecture
+    title: "The two roads"
+    source: PROJECT_MEMORY_MAP.md
+    ref: docs/CONCORDANCE_MIMISBRUNNR_FEATURE_ROADMAP.md
+  - entry_id: map-ci-manual
+    section: decision
+    title: "CI is manual-dispatch only"
+    source: PROJECT_MEMORY_MAP.md
+    ref: .github/workflows
+  - entry_id: map-scribe-law
+    section: decision
+    title: "The map is updated in the same session"
+    source: PROJECT_MEMORY_MAP.md
+    ref: PROJECT_MEMORY_MAP.md
+  - entry_id: map-no-docker
+    section: gotcha
+    title: "No Docker, anywhere"
+    source: PROJECT_MEMORY_MAP.md
+    ref: PROJECT_MEMORY_MAP.md
+  - entry_id: map-suite-extras
+    section: gotcha
+    title: "The suite needs its extras"
+    source: PROJECT_MEMORY_MAP.md
+    ref: pyproject.toml
+  - entry_id: map-agents
+    section: location
+    title: "The agent loop"
+    source: PROJECT_MEMORY_MAP.md
+    ref: mythic_agent/agents/
+  - entry_id: map-package
+    section: location
+    title: "The package"
+    source: PROJECT_MEMORY_MAP.md
+    ref: mythic_agent/
+  - entry_id: map-tests
+    section: location
+    title: "The test suite"
+    source: PROJECT_MEMORY_MAP.md
+    ref: tests/
+  total_entries: 9
+  section_counts:
+  - section: architecture
+    entries: 2
+  - section: decision
+    entries: 2
+  - section: gotcha
+    entries: 2
+  - section: location
+    entries: 3
+  account:
+  - "The panel holds 9 project memory map entries: architecture 2, decision 2, gotcha 2, location 3."
+  - "Sections stand in map order (architecture, then decision, then gotcha, then location) and, inside one section, by title - so two panels of the same map diff cleanly, line by line."
+  - "The Scribe keeps this map as work proceeds: the map is updated in the same session as the work it records, never as a later chore."
+  - "The panel is read off the held entries at call time - it is derived, never stored loose."

@@ -1,0 +1,146 @@
+schema: mythic.handoff_summaries/1
+slice: M-163
+part: 7
+part_title: Memory & Context
+canon_note: 'Handoff summaries: ending a session writes where things stand for the next session
+  or the next human - the stand-up (M-134) in durable form. A handoff summary is one ended
+  session''s standing, carried with its provenance whole: the session it ends, the project
+  and branch it stood on, the claims it carries from the stand-up - the entry ids standing
+  done, doing, blocked and needs-you, each in one section only - the session and journal evidence
+  those claims stand on, who wrote it, the day it was written on, and where it was read from.
+  A session ends once: a second handoff naming a held session refuses, and a claim named by
+  one handoff never appears in another - a claim is handed off once. A handoff is derived
+  from session and journal evidence, and a handoff whose claims disagree with the stand-up
+  digest its evidence derives refuses - a handoff states only what its evidence states. The
+  HANDOFF PANEL is derived from the whole book: its rows are the handoffs carried whole, by
+  project, then day, then branch, then title, then handoff id, and its tallies are the handoffs''
+  own counts, and a stored panel that disagrees with its derived shape is refused. The HANDOFF
+  VERDICT is derived for the whole book: awaiting-you when any claim needs the human''s word,
+  held-up when claims stand blocked and none needs you, standing-clear when neither stands.
+  This file is ONE EXAMPLE BOOK, in the shape a real book file takes: the M-162 slice boundary
+  - three sessions of the one mythic-agent-coder project handed off at the close of the multi-session
+  day, the endurance session on the main line with one claim needing Volmarr''s word, the
+  graph session paused with one claim blocked, the thrift session closed clean, each standing
+  on the journal entries of its own session from the multi-session book, with the one panel
+  of the book. A real book is a new file in this same shape - it is never this file edited
+  in place. This layer holds handoffs as data only: it sends nothing, posts nothing, schedules
+  nothing, calls no model and persists nothing - a handoff standing in a book is a recorded
+  writing, never a claim that anything was sent to the next session or human.'
+guide:
+  title: Handoff summaries at the M-162 slice boundary
+handoffs:
+- handoff_id: handoff-main-close
+  title: the endurance day, handed off on the main line
+  session_ref: session-m161-endurance
+  project: mythic-agent-coder
+  branch: main
+  done:
+  - m-161-endurance-banked
+  - m-162-multisession-banked
+  doing:
+  - m-163-handoffs-building
+  blocked: []
+  needs_you:
+  - roadmap-push-needs-word
+  evidence_refs:
+  - entry-endurance-1
+  - entry-endurance-2
+  written_by: Volmarr
+  written_on: '2026-11-08'
+  source: session memory
+- handoff_id: handoff-graph-pause
+  title: the graph-retrieval session, paused and handed off
+  session_ref: session-m152-graph
+  project: mythic-agent-coder
+  branch: work/graph-retrieval-care
+  done:
+  - m-152-graph-banked
+  doing: []
+  blocked:
+  - full-suite-portaudio-held
+  needs_you: []
+  evidence_refs:
+  - entry-graph-1
+  written_by: Volmarr
+  written_on: '2026-11-08'
+  source: graph retrieval
+- handoff_id: handoff-thrift-close
+  title: the token-thrift follow-up, closed and handed off
+  session_ref: session-m160-thrift
+  project: mythic-agent-coder
+  branch: work/token-thrift-followup
+  done:
+  - m-160-thrift-banked
+  doing: []
+  blocked: []
+  needs_you: []
+  evidence_refs:
+  - entry-thrift-1
+  - entry-thrift-2
+  - entry-thrift-3
+  written_by: Volmarr
+  written_on: '2026-11-08'
+  source: token thrift
+panels:
+- panel_id: panel-m162-boundary
+  rows:
+  - handoff_id: handoff-main-close
+    title: the endurance day, handed off on the main line
+    session_ref: session-m161-endurance
+    project: mythic-agent-coder
+    branch: main
+    done_count: 2
+    doing_count: 1
+    blocked_count: 0
+    needs_you_count: 1
+    claim_count: 4
+    evidence_count: 2
+    written_by: Volmarr
+    written_on: '2026-11-08'
+  - handoff_id: handoff-graph-pause
+    title: the graph-retrieval session, paused and handed off
+    session_ref: session-m152-graph
+    project: mythic-agent-coder
+    branch: work/graph-retrieval-care
+    done_count: 1
+    doing_count: 0
+    blocked_count: 1
+    needs_you_count: 0
+    claim_count: 2
+    evidence_count: 1
+    written_by: Volmarr
+    written_on: '2026-11-08'
+  - handoff_id: handoff-thrift-close
+    title: the token-thrift follow-up, closed and handed off
+    session_ref: session-m160-thrift
+    project: mythic-agent-coder
+    branch: work/token-thrift-followup
+    done_count: 1
+    doing_count: 0
+    blocked_count: 0
+    needs_you_count: 0
+    claim_count: 1
+    evidence_count: 3
+    written_by: Volmarr
+    written_on: '2026-11-08'
+  total_handoffs: 3
+  total_claims: 7
+  total_evidence: 6
+  section_counts:
+  - kind: done
+    claims: 4
+  - kind: doing
+    claims: 1
+  - kind: blocked
+    claims: 1
+  - kind: needs_you
+    claims: 1
+  account:
+  - 'The handoff panel holds 3 handoffs: 7 claims in all, 6 evidence references: blocked 1,
+    doing 1, done 4, needs_you 1.'
+  - Handoffs stand by project, then day, then branch, then title, then handoff id, so two
+    panels of one book diff cleanly, line by line.
+  - Every claim a handoff carries is carried from the stand-up of its session, and a handoff
+    whose claims disagree with that evidence is refused - a handoff states only what its evidence
+    states.
+  - The panel is read off the book at call time - it is derived, never stored loose.

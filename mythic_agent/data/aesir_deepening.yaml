@@ -1,0 +1,38 @@
+schema: mythic.aesir_deepening/1
+selections:
+- office: primary
+  selected: true
+  capability: streaming
+  reason: The lead session may ride Aesir for plain streamed generation when Aesir is the session's chosen door; the default stays the session's own choice.
+- office: polymath
+  selected: true
+  capability: streaming
+  reason: Deep reasoning over plain text fits Aesir's streamed generation; nothing in the office's ordinary work needs tools from the provider itself.
+- office: architect
+  selected: true
+  capability: streaming
+  reason: Structure and boundary thinking is plain generation; Aesir's honest context report shapes how much it is handed at once.
+- office: auditor
+  selected: false
+  capability: tool_calling
+  reason: The auditor's ordinary work runs tests and tools; Aesir reports no general tool calling, so the office is not selected until that telling changes.
+- office: cartographer
+  selected: true
+  capability: streaming
+  reason: Mapping and overview prose is plain generation over gathered facts; the gathering itself stays on other doors.
+- office: forge_worker
+  selected: false
+  capability: tool_calling
+  reason: The fast hand edits files and runs the suite through tools; Aesir reports no general tool calling, so the office is not selected until that telling changes.
+- office: scribe
+  selected: true
+  capability: streaming
+  reason: Documentation and summary writing is plain streamed generation, squarely inside Aesir's reported shape.
+- office: skald
+  selected: true
+  capability: structured_boolean
+  reason: Vision and framing prose is plain generation, and the strict Boolean subset covers its yes-or-no framings honestly.
+- office: guardian
+  selected: false
+  capability: tool_calling
+  reason: Guarding dangerous operations needs tool roads and verifiable checks; Aesir reports no general tool calling, so the office is not selected until that telling changes.

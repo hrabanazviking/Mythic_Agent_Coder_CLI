@@ -1,0 +1,212 @@
+schema: mythic.diff_theatre_final/1
+slice: M-191
+part: 8
+part_title: The Beautiful Face
+canon_note: 'Diff theatre final form (with M-091) - the review screen a user would choose to read code in: folding,
+  intra-line colour, jump-to-file, comment-on-hunk feeding back to the coder. A hunk is held whole - under its file,
+  its kind in the closed vocabulary (added, removed, changed, mixed), its added and removed counts held honestly
+  (an unknown count stands empty, never invented), the jump target that reaches it, named as data, and its detail.
+  A hunk naming no jump target is held honestly with an empty target: it stands untargeted, named in its gaps, and
+  no target is invented for it. The review index is DERIVED at call time from the held hunks alone - never a second
+  stored copy that could drift - and a stored index or targetedness verdict on any record refuses by name. The comments
+  are held as data: a comment record naming its hunk, its stance (note, concern, praise or question) and what it
+  feeds back toward; one record stands per hunk stance, and holding a comment posts none of it. A record claiming
+  a jump was actually taken, a hunk actually applied or a comment actually posted refuses by name. This file is
+  ONE EXAMPLE BOOK, in the shape a real review file takes - the M-190 slice boundary - six hunks and two views,
+  two comment records, with its one pinned panel of the every-hunk view, whose shown hunks stand five targeted of
+  six, so the book verdict under it stands strained; under the targeted view, whose five shown hunks all stand targeted,
+  the verdict stands open. A real book is a new file in this same shape - it is never this file edited in place.
+  This layer jumps to no file, applies no hunk, posts no comment and opens no network: it holds the final form as
+  data and tells it.'
+theatre:
+  title: Diff theatre final form at the M-190 slice boundary
+hunks:
+- hunk_id: hunk-login-redirect
+  seq: 1
+  file: mythic_agent/core/session.py
+  kind: changed
+  added: 12 lines
+  removed: 4 lines
+  target: mythic_agent/core/session.py:128
+  detail: The login redirect loop was found and fixed - the hunk stands changed, and its card names the jump target
+    back into the file as data; holding the card jumps nowhere.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: diff theatre final form
+  origin_session: session-m191
+- hunk_id: hunk-costs-face-view
+  seq: 2
+  file: mythic_agent/core/costs_face.py
+  kind: added
+  added: ''
+  removed: 88 lines
+  target: mythic_agent/core/costs_face.py:12
+  detail: The costs face view was added in this change. How many lines it added was never recorded anywhere honest,
+    so the hunk holds its added count empty - unknown stays unknown, and no figure is invented for it.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: diff theatre final form
+  origin_session: session-m191
+- hunk_id: hunk-flaky-gate-test
+  seq: 3
+  file: tests/test_part7_gate.py
+  kind: changed
+  added: 3 lines
+  removed: ''
+  target: tests/test_part7_gate.py:41
+  detail: The gate test was tightened in this hunk - it stands changed honestly, and the concern comment on it stands
+    held beside it as data, feeding back to the coder.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: diff theatre final form
+  origin_session: session-m191
+- hunk_id: hunk-gallery-guide
+  seq: 4
+  file: docs/gallery_guide.md
+  kind: added
+  added: 26 lines
+  removed: 1 line
+  target: docs/gallery_guide.md:1
+  detail: A short guide to browsing past sessions was added in this hunk - a small addition with a small removal,
+    held whole on its card.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: diff theatre final form
+  origin_session: session-m191
+- hunk_id: hunk-store-sweep
+  seq: 5
+  file: mythic_agent/core/store.py
+  kind: removed
+  added: 2 lines
+  removed: 30 lines
+  target: ''
+  detail: The store sweep removed a dead road in this hunk - it names no jump target in this book, so the hunk stands
+    untargeted honestly, named in the gaps until a target is held for it, and no target is invented here.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: diff theatre final form
+  origin_session: session-m191
+- hunk_id: hunk-bank-m190-wave
+  seq: 6
+  file: mythic_agent/data/roadmap_slices.yaml
+  kind: mixed
+  added: 7 lines
+  removed: 7 lines
+  target: mythic_agent/data/roadmap_slices.yaml:1180
+  detail: The M-190 wave was banked through this hunk - it stands mixed, and its card names the jump target into
+    the roadmap data as data beside the others.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: diff theatre final form
+  origin_session: session-m191
+views:
+- view_id: view-all
+  seq: 1
+  view_filter: all
+  detail: See the whole change, every hunk at once.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: diff theatre final form
+  origin_session: session-m191
+- view_id: view-targeted
+  seq: 2
+  view_filter: targeted
+  detail: See only the hunks that stand targeted.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: diff theatre final form
+  origin_session: session-m191
+comments:
+- comment_id: comment-note-login
+  seq: 1
+  hunk_id: hunk-login-redirect
+  stance: note
+  target: the coder
+  title: Note the login hunk
+  detail: The note on the login hunk stands held as data - its hunk, its stance and what it feeds back toward. Holding
+    the comment posts nothing; the feedback is told, never sent, by this layer.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: diff theatre final form
+  origin_session: session-m191
+- comment_id: comment-praise-guide
+  seq: 2
+  hunk_id: hunk-gallery-guide
+  stance: praise
+  target: the coder
+  title: Praise the guide hunk
+  detail: The praise for the guide hunk stands held as data beside the first. One comment record stands per hunk
+    stance in this book, so a second record for one hunk under one stance refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: diff theatre final form
+  origin_session: session-m191
+panels:
+- panel_id: panel-m190-boundary
+  view_id: view-all
+  view_filter: all
+  rows:
+  - item_id: hunk-login-redirect
+    standing: targeted
+    label: mythic_agent/core/session.py
+    segment: 'hunk-login-redirect: mythic_agent/core/session.py - kind: ''changed'' - added: ''12 lines'' - removed:
+      ''4 lines'' - target: ''mythic_agent/core/session.py:128'' - detail: ''The login redirect loop was found and
+      fixed - the hunk stands changed, and its card names the jump target back into the file as data; holding the
+      card jumps nowhere.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: hunk-costs-face-view
+    standing: targeted
+    label: mythic_agent/core/costs_face.py
+    segment: 'hunk-costs-face-view: mythic_agent/core/costs_face.py - kind: ''added'' - added: ''unknown'' - removed:
+      ''88 lines'' - target: ''mythic_agent/core/costs_face.py:12'' - detail: ''The costs face view was added in
+      this change. How many lines it added was never recorded anywhere honest, so the hunk holds its added count
+      empty - unknown stays unknown, and no figure is invented for it.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: hunk-flaky-gate-test
+    standing: targeted
+    label: tests/test_part7_gate.py
+    segment: 'hunk-flaky-gate-test: tests/test_part7_gate.py - kind: ''changed'' - added: ''3 lines'' - removed:
+      ''unknown'' - target: ''tests/test_part7_gate.py:41'' - detail: ''The gate test was tightened in this hunk
+      - it stands changed honestly, and the concern comment on it stands held beside it as data, feeding back to
+      the coder.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: hunk-gallery-guide
+    standing: targeted
+    label: docs/gallery_guide.md
+    segment: 'hunk-gallery-guide: docs/gallery_guide.md - kind: ''added'' - added: ''26 lines'' - removed: ''1 line''
+      - target: ''docs/gallery_guide.md:1'' - detail: ''A short guide to browsing past sessions was added in this
+      hunk - a small addition with a small removal, held whole on its card.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: hunk-store-sweep
+    standing: untargeted
+    label: mythic_agent/core/store.py
+    segment: 'hunk-store-sweep: mythic_agent/core/store.py - kind: ''removed'' - added: ''2 lines'' - removed: ''30
+      lines'' - target: ''none'' - detail: ''The store sweep removed a dead road in this hunk - it names no jump
+      target in this book, so the hunk stands untargeted honestly, named in the gaps until a target is held for
+      it, and no target is invented here.'' - gaps: no jump target'
+    recorded_on: '2026-11-10'
+  - item_id: hunk-bank-m190-wave
+    standing: targeted
+    label: mythic_agent/data/roadmap_slices.yaml
+    segment: 'hunk-bank-m190-wave: mythic_agent/data/roadmap_slices.yaml - kind: ''mixed'' - added: ''7 lines''
+      - removed: ''7 lines'' - target: ''mythic_agent/data/roadmap_slices.yaml:1180'' - detail: ''The M-190 wave
+      was banked through this hunk - it stands mixed, and its card names the jump target into the roadmap data as
+      data beside the others.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  total_items: 6
+  total_shown: 6
+  target_counts:
+  - standing: targeted
+    items: 5
+  - standing: untargeted
+    items: 1
+  as_of: '2026-11-10'
+  account:
+  - 'The theatre book holds 6 hunks as of 2026-11-10: the view ''all'' shows 6 of them: targeted 5, untargeted 1;
+    5 of the shown hunks stand targeted.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly, segment
+    by segment.
+  - Every segment is derived from its hunk's own fields - the file, the kind, the added and removed honestly held
+    and the jump target that honestly reaches it - and no judgement is stored on any hunk.
+  - 'Targetedness is judged from the held records alone: a hunk naming no jump target stands untargeted, and the
+    theatre index is derived from the held hunks, never stored where it could drift.'

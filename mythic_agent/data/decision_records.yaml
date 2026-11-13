@@ -1,0 +1,110 @@
+schema: mythic.decision_records/1
+slice: M-156
+part: 7
+part_title: Memory & Context
+canon_note: |
+  Decision records: the choices made in session -
+  what was chosen, the roads not taken, and why -
+  held as small ADRs by the Scribe, with provenance
+  whole: the session each was decided in, the day
+  it was decided on, and where it was read from. A
+  record stands proposed until it is accepted; a
+  superseded record names the record that
+  superseded it, and a record in any other state
+  names no superseder - supersession is explicit,
+  never silent. Each record renders as a small ADR
+  in a deterministic markdown form, the exact text
+  that would land in the project docs. The
+  DECISION PANEL is derived from the whole book:
+  its rows are the records carried whole, accepted
+  first, then proposed, then superseded, and its
+  totals are the records' own counts, and a stored
+  panel that disagrees with its derived shape is
+  refused. This file is ONE EXAMPLE BOOK, in the
+  shape a real book file takes: the M-155 slice
+  boundary - three choices standing at the close
+  of the ledger day, one accepted as the project's
+  road, one still proposed awaiting its word, and
+  one superseded by the accepted record, with the
+  one panel of the book. A real book is a new file
+  in this same shape - it is never this file edited
+  in place. This layer holds and renders records
+  as data only: it calls no model, writes no
+  project docs and persists nothing.
+guide:
+  title: "Decision records at the M-155 slice boundary"
+records:
+- record_id: record-stdlib-http
+  status: superseded
+  title: "Call providers through the standard library only"
+  decision: "Provider calls go through urllib in the standard library, with no HTTP dependency added."
+  alternatives:
+  - "Add httpx as the provider HTTP client."
+  - "Add requests as the provider HTTP client."
+  rationale: "The first provider road valued zero new dependencies over streaming ergonomics, while the provider surface was still small."
+  context: "The Provider Ocean's first week: two providers wired, both answering in whole responses, and the dependency list still empty."
+  consequences: "Whole-response calls only; streaming answers had to be faked at the seam, which is the pressure that reopened the choice."
+  session_ref: session-provider-ocean
+  decided_on: "2026-11-02"
+  source: "session transcript"
+  superseded_by: record-httpx-client
+- record_id: record-httpx-client
+  status: accepted
+  title: "Call providers through httpx"
+  decision: "Provider calls go through httpx, the one HTTP dependency the coder carries."
+  alternatives:
+  - "Stay on the standard library urllib road."
+  - "Add requests as the provider HTTP client."
+  rationale: "httpx streams answers token by token and times out cleanly, which the provider ocean needs; one dependency buys both."
+  context: "Streaming landed in the session view and the standard library road could not carry it without a hand-rolled chunk reader."
+  consequences: "One pinned dependency to keep current; every provider road shares its timeout and streaming behaviour."
+  session_ref: session-provider-ocean
+  decided_on: "2026-11-06"
+  source: "session transcript"
+- record_id: record-rune-index
+  status: proposed
+  title: "Index the code graph in SQLite FTS"
+  decision: "The graph index is drafted on SQLite FTS5, already in the tree, until the retrieval measures say otherwise."
+  alternatives:
+  - "Add a dedicated search engine dependency for the index."
+  - "Keep the graph unindexed and scan it per query."
+  rationale: "FTS5 ships with SQLite, so the drafted road adds no dependency; the measure-first rule keeps the heavier road open."
+  context: "Graph retrieval (M-152) returns connected code, and the open question is how its index should be stored as workspaces grow."
+  consequences: "If the measure rules against FTS5, this record is superseded by the record of the road taken instead."
+  session_ref: session-graph-retrieval
+  decided_on: "2026-11-08"
+  source: "session transcript"
+panels:
+- panel_id: panel-m155-boundary
+  rows:
+  - status: accepted
+    record_id: record-httpx-client
+    title: "Call providers through httpx"
+    decision: "Provider calls go through httpx, the one HTTP dependency the coder carries."
+    session_ref: session-provider-ocean
+  - status: proposed
+    record_id: record-rune-index
+    title: "Index the code graph in SQLite FTS"
+    decision: "The graph index is drafted on SQLite FTS5, already in the tree, until the retrieval measures say otherwise."
+    session_ref: session-graph-retrieval
+  - status: superseded
+    record_id: record-stdlib-http
+    title: "Call providers through the standard library only"
+    decision: "Provider calls go through urllib in the standard library, with no HTTP dependency added."
+    session_ref: session-provider-ocean
+  total_items: 3
+  total_accepted: 1
+  total_proposed: 1
+  total_superseded: 1
+  status_counts:
+  - status: accepted
+    items: 1
+  - status: proposed
+    items: 1
+  - status: superseded
+    items: 1
+  account:
+  - "The decision panel holds 3 records: accepted 1, proposed 1, superseded 1."
+  - "Records stand accepted first, then proposed, then superseded; within a state, by session, then record title - so two panels of one book diff cleanly, line by line."
+  - "A superseded record names the record that superseded it, and it stands in the panel with its provenance whole - the session it was decided in, the day, and where it was read from."
+  - "The panel is read off the book at call time - it is derived, never stored loose."

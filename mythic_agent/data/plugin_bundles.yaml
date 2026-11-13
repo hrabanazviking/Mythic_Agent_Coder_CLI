@@ -1,0 +1,228 @@
+schema: mythic.plugin_bundles/1
+plugin: M-238
+plugin_bundles:
+  title: Plugin bundles at the M-238 slice run
+plugins:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-bundle book
+  origin_session: session-m238
+  plugin_id: plugin-workbench
+  seq: 1
+  title: Workbench plugin
+  state: live
+  detail: 'The slice the tracker looks back on first: banked at M-230, standing active in the cross-app
+    method honesty''s hands.'
+  provenance: local
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-bundle book
+  origin_session: session-m238
+  plugin_id: plugin-hearth
+  seq: 2
+  title: Hearth plugin
+  state: live
+  detail: 'This very slice, standing active: the pluginbundles book holding its own plugin as data.'
+  provenance: project
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-bundle book
+  origin_session: session-m238
+  plugin_id: plugin-seidr
+  seq: 3
+  title: Seidr plugin
+  state: dormant
+  detail: A queued slice the tracker has not taken yet; an bundle naming it refuses by name.
+  provenance: unproven
+bundle_records:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-bundle book
+  origin_session: session-m238
+  bundle_id: bundle-held-bundle
+  seq: 1
+  plugin_id: plugin-workbench
+  title: The held bundle
+  stages: &id001
+  - assembled
+  - verified
+  - manifested
+  - installed
+  - held
+  claims:
+  - manifest_ref
+  detail: 'The opening bundle: a slice assembled for the plugin in its home tool, verified across the
+    workshop, manifested where it lives, installed to the tracker at hand and held honestly, held with
+    the tool held as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-bundle book
+  origin_session: session-m238
+  bundle_id: bundle-retried-bundle
+  seq: 2
+  plugin_id: plugin-workbench
+  title: The retried bundle
+  stages:
+  - assembled
+  - verified
+  - manifested
+  - installed
+  - assembled
+  - verified
+  - manifested
+  - installed
+  - held
+  claims: []
+  detail: 'The retried bundle: a first installed step sent the standing back, the slice was assembled
+    and verified again and the tracking held a second time before the holding stood.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-bundle book
+  origin_session: session-m238
+  bundle_id: bundle-own-bundle
+  seq: 3
+  plugin_id: plugin-hearth
+  title: The tracker's own bundle
+  stages: *id001
+  claims:
+  - provenance_ref
+  detail: 'The tracker''s own bundle: this slice''s own bundle, holding its bundle ref as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-bundle book
+  origin_session: session-m238
+  bundle_id: bundle-bare-bundle
+  seq: 4
+  plugin_id: plugin-hearth
+  title: The bare claim bundle
+  stages: *id001
+  claims:
+  - feeling
+  detail: An bundle that held a feeling in place of held proof, standing open.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-bundle book
+  origin_session: session-m238
+  bundle_id: bundle-leaping-bundle
+  seq: 5
+  plugin_id: plugin-hearth
+  title: The leaping bundle
+  stages:
+  - assembled
+  - verified
+  - held
+  claims: []
+  detail: An bundle that stepped from verified straight to held, outside the bundle sequence, standing
+    open.
+views:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-bundle book
+  origin_session: session-m238
+  view_id: view-bundles
+  seq: 1
+  view_filter: all
+  detail: Every held bundle, complete or not.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-bundle book
+  origin_session: session-m238
+  view_id: view-held
+  seq: 2
+  view_filter: complete
+  detail: Only the bundles standing complete.
+notes:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-bundle book
+  origin_session: session-m238
+  note_id: note-note-first
+  seq: 1
+  bundle_id: bundle-held-bundle
+  stance: note
+  target: the opening bundle
+  title: Bundles first
+  detail: The tracker opens by naming the slice first, told honestly.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-bundle book
+  origin_session: session-m238
+  note_id: note-concern-bare
+  seq: 2
+  bundle_id: bundle-bare-bundle
+  stance: concern
+  target: the bare claim bundle
+  title: Claim assembled
+  detail: An bundle that held a feeling claim is not the tracker's way, and stands assembled.
+traces:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-bundle book
+  origin_session: session-m238
+  trace_id: trace-first
+  seq: 1
+  bundle_id: bundle-held-bundle
+  trace: assembled > verified > manifested > installed > held
+  detail: 'The opening bundle''s walk, held exactly as walked: the trace is the walk itself.'
+panels:
+- panel_id: panel-plugin
+  view_id: view-bundles
+  view_filter: all
+  rows:
+  - item_id: bundle-held-bundle
+    standing: complete
+    label: The held bundle
+    segment: 'bundle-held-bundle: The held bundle - plugin: ''plugin-workbench'' - stage: ''held'' - stages:
+      5 - claims: ''manifest_ref'' - detail: ''The opening bundle: a slice assembled for the plugin in
+      its home tool, verified across the workshop, manifested where it lives, installed to the tracker
+      at hand and held honestly, held with the tool held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: bundle-retried-bundle
+    standing: complete
+    label: The retried bundle
+    segment: 'bundle-retried-bundle: The retried bundle - plugin: ''plugin-workbench'' - stage: ''held''
+      - stages: 9 - claims: ''none'' - detail: ''The retried bundle: a first installed step sent the standing
+      back, the slice was assembled and verified again and the tracking held a second time before the
+      holding stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: bundle-own-bundle
+    standing: complete
+    label: The tracker's own bundle
+    segment: 'bundle-own-bundle: The tracker''s own bundle - plugin: ''plugin-hearth'' - stage: ''held''
+      - stages: 5 - claims: ''provenance_ref'' - detail: ''The tracker''s own bundle: this slice''s own
+      bundle, holding its bundle ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: bundle-bare-bundle
+    standing: open
+    label: The bare claim bundle
+    segment: 'bundle-bare-bundle: The bare claim bundle - plugin: ''plugin-hearth'' - stage: ''held''
+      - stages: 5 - claims: ''feeling'' - detail: ''An bundle that held a feeling in place of held proof,
+      standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof: complete stands
+      on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: bundle-leaping-bundle
+    standing: open
+    label: The leaping bundle
+    segment: 'bundle-leaping-bundle: The leaping bundle - plugin: ''plugin-hearth'' - stage: ''held''
+      - stages: 3 - claims: ''none'' - detail: ''An bundle that stepped from verified straight to held,
+      outside the bundle sequence, standing open.'' - gaps: steps from verified to held, which the bundle
+      sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The bundle book holds 5 bundles as of 2026-11-11: the view ''all'' shows 5 of them: complete 3, open
+    2; 3 of the shown bundles stand complete.'
+  - Rows stand in held bundle, the bundle the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its bundle's own fields - the plugin it answers for, the steps it walked
+    in the open and the evidence it honestly carries - and no judgement is stored on any bundle.
+  - 'Completeness is manifested from the held records alone: a bundle that steps outside the bundle sequence,
+    carries a bare claim in place of held evidence, or has not assembled held stands open, assembled in
+    its gaps, and the bundle index is derived from the held bundles, never stored where it could drift.'

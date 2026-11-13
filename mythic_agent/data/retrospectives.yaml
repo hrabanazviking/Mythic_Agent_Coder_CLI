@@ -1,0 +1,227 @@
+schema: mythic.retrospectives/1
+slice: M-213
+retrospectives:
+  title: Retrospectives at the M-212 slice boundary
+slices:
+- slice_id: slice-m212-bugrule
+  seq: 1
+  title: The never-leave-a-bug rule
+  state: active
+  detail: 'The slice the crew looks back on first: banked at M-212, standing active in the retrospectives''
+    hands.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: retrospectives
+  origin_session: session-m213
+- slice_id: slice-m213-retro
+  seq: 2
+  title: Retrospectives
+  state: active
+  detail: 'This very slice, standing active: the retrospectives holding their own lesson as data.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: retrospectives
+  origin_session: session-m213
+- slice_id: slice-m214-pattern
+  seq: 3
+  title: Pattern extraction
+  state: queued
+  detail: A queued slice the crew has not dealt with; a retrospective naming it refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: retrospectives
+  origin_session: session-m213
+retros:
+- retro_id: retro-held-lesson
+  seq: 1
+  slice_id: slice-m212-bugrule
+  title: The held lesson
+  checks: &id001
+  - opened
+  - reflected
+  - written
+  - distilled
+  - filed
+  claims:
+  - slice_ref
+  detail: 'The opening lesson: the slice was opened at the close, the crew reflected on it, the lesson
+    was written against the slice''s own record, distilled whole and filed to the ledger as a reference,
+    with the closed slice held as proof.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: retrospectives
+  origin_session: session-m213
+- retro_id: retro-rechecked-lesson
+  seq: 2
+  slice_id: slice-m212-bugrule
+  title: The rechecked lesson
+  checks:
+  - opened
+  - reflected
+  - written
+  - distilled
+  - opened
+  - reflected
+  - written
+  - distilled
+  - filed
+  claims: []
+  detail: 'The rechecked lesson: a first distillation found the lesson short, the crew opened it again,
+    reflected and wrote it a second time before the filing stood.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: retrospectives
+  origin_session: session-m213
+- retro_id: retro-own-lesson
+  seq: 3
+  slice_id: slice-m213-retro
+  title: The retrospective's own lesson
+  checks: *id001
+  claims:
+  - ledger_ref
+  detail: 'The retrospective''s own lesson: this slice''s own close, carrying its ledger reference as
+    proof - the lesson flows to the Self-Improving ledger (M-155) as data, by reference alone.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: retrospectives
+  origin_session: session-m213
+- retro_id: retro-bare-lesson
+  seq: 4
+  slice_id: slice-m213-retro
+  title: The bare claim lesson
+  checks: *id001
+  claims:
+  - feeling
+  detail: A lesson that carried a feeling in place of held proof, standing open.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: retrospectives
+  origin_session: session-m213
+- retro_id: retro-leaping-lesson
+  seq: 5
+  slice_id: slice-m213-retro
+  title: The leaping lesson
+  checks:
+  - opened
+  - reflected
+  - filed
+  claims: []
+  detail: A lesson that stepped from reflected straight to filed, outside the retro sequence, standing
+    open.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: retrospectives
+  origin_session: session-m213
+views:
+- view_id: view-retros
+  seq: 1
+  view_filter: all
+  detail: Every held lesson, complete or not.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: retrospectives
+  origin_session: session-m213
+- view_id: view-filed
+  seq: 2
+  view_filter: complete
+  detail: Only the lessons standing complete.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: retrospectives
+  origin_session: session-m213
+notes:
+- note_id: note-note-first
+  seq: 1
+  retro_id: retro-held-lesson
+  stance: note
+  target: the opening lesson
+  title: Entries first
+  detail: The crew opens with the closed slice's lesson first, told honestly.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: retrospectives
+  origin_session: session-m213
+- note_id: note-concern-bare
+  seq: 2
+  retro_id: retro-bare-lesson
+  stance: concern
+  target: the bare claim lesson
+  title: Claim named
+  detail: A lesson that carried a feeling claim is not the crew's way, and stands named.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: retrospectives
+  origin_session: session-m213
+traces:
+- trace_id: trace-first
+  seq: 1
+  retro_id: retro-held-lesson
+  trace: opened > reflected > written > distilled > filed
+  detail: 'The opening lesson''s walk, held exactly as walked: the trace is the walk itself.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: retrospectives
+  origin_session: session-m213
+panels:
+- panel_id: panel-m212-boundary
+  view_id: view-retros
+  view_filter: all
+  rows:
+  - item_id: retro-held-lesson
+    standing: complete
+    label: The held lesson
+    segment: 'retro-held-lesson: The held lesson - slice: ''slice-m212-bugrule'' - check: ''filed'' -
+      checks: 5 - claims: ''slice_ref'' - detail: ''The opening lesson: the slice was opened at the close,
+      the crew reflected on it, the lesson was written against the slice''s own record, distilled whole
+      and filed to the ledger as a reference, with the closed slice held as proof.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: retro-rechecked-lesson
+    standing: complete
+    label: The rechecked lesson
+    segment: 'retro-rechecked-lesson: The rechecked lesson - slice: ''slice-m212-bugrule'' - check: ''filed''
+      - checks: 9 - claims: ''none'' - detail: ''The rechecked lesson: a first distillation found the
+      lesson short, the crew opened it again, reflected and wrote it a second time before the filing stood.''
+      - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: retro-own-lesson
+    standing: complete
+    label: The retrospective's own lesson
+    segment: 'retro-own-lesson: The retrospective''s own lesson - slice: ''slice-m213-retro'' - check:
+      ''filed'' - checks: 5 - claims: ''ledger_ref'' - detail: ''The retrospective''s own lesson: this
+      slice''s own close, carrying its ledger reference as proof - the lesson flows to the Self-Improving
+      ledger (M-155) as data, by reference alone.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: retro-bare-lesson
+    standing: open
+    label: The bare claim lesson
+    segment: 'retro-bare-lesson: The bare claim lesson - slice: ''slice-m213-retro'' - check: ''filed''
+      - checks: 5 - claims: ''feeling'' - detail: ''A lesson that carried a feeling in place of held proof,
+      standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof: complete stands
+      on held proof alone'
+    recorded_on: '2026-11-10'
+  - item_id: retro-leaping-lesson
+    standing: open
+    label: The leaping lesson
+    segment: 'retro-leaping-lesson: The leaping lesson - slice: ''slice-m213-retro'' - check: ''filed''
+      - checks: 3 - claims: ''none'' - detail: ''A lesson that stepped from reflected straight to filed,
+      outside the retro sequence, standing open.'' - gaps: steps from reflected to filed, which the retro
+      sequence does not allow'
+    recorded_on: '2026-11-10'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-10'
+  account:
+  - 'The retro book holds 5 retros as of 2026-11-10: the view ''all'' shows 5 of them: complete 3, open
+    2; 3 of the shown retros stand complete.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its retro's own fields - the slice it answers for, the steps it walked
+    in the open and the evidence it honestly carries - and no judgement is stored on any retro.
+  - 'Completeness is written from the held records alone: a retro that steps outside the retro sequence,
+    carries a bare claim in place of held evidence, or has not reached filed stands open, named in its
+    gaps, and the retro index is derived from the held retros, never stored where it could drift.'

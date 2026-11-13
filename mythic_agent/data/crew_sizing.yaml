@@ -1,0 +1,65 @@
+schema: mythic.crew_sizing/1
+slice: M-135
+part: 6
+part_title: Agents as files
+sizing_note: |
+  Crew sizing honesty: the app recommends a crew
+  size by the shape of the task, and says plainly
+  when one pair of hands beats six. A sizing book
+  holds sizing cases - one task shape per case:
+  its title, the task in plain words, the member
+  who would lead it, the office the work fits,
+  how many independent pieces the work splits
+  into, and whether the work is tightly coupled
+  (it must be held in one head, step by step) or
+  loose (its pieces can be worked at once without
+  waiting on each other). The recommended size is
+  derived from the shape alone: tightly coupled
+  work recommends one pair of hands however many
+  pieces it names, and loose work recommends one
+  pair of hands per independent piece, up to six -
+  so the same shape always yields the same
+  recommendation, and a stored recommendation
+  that disagrees with the derived one is refused.
+  This file is ONE EXAMPLE SIZING BOOK in the
+  shape a real sizing file takes: four task shapes
+  at the M-134 slice boundary, from a tangled
+  single-file fix where one pair of hands beats
+  six, to a wide census sweep that honestly takes
+  the full crew. A real sizing book is a new file
+  in this same shape - it is never this file
+  edited in place. This layer holds the sizing as
+  data only: it spawns no crew, sizes no live
+  crew, runs no model and claims no board - the
+  Part VIII board does not exist yet.
+guide:
+  title: "Crew sizing at the M-134 slice boundary"
+cases:
+- case_id: tangled-single-file-fix
+  lead: forge_worker
+  office: forge_worker
+  title: "Untangle one shared file every road touches"
+  detail: "One file sits under every road and its lines lean on each other, so each change moves the next: the work must be held in one head, step by step."
+  independent_pieces: 6
+  coupling: tight
+- case_id: docs-and-tests-split
+  lead: scribe
+  office: scribe
+  title: "Write the guide while its tests are drafted"
+  detail: "The guide and its test draft are two pieces that do not touch until they meet at the end, so two pairs of hands can work at once."
+  independent_pieces: 2
+  coupling: loose
+- case_id: four-independent-slices
+  lead: architect
+  office: architect
+  title: "Build four slices that share no files"
+  detail: "Four slices stand apart, each in its own ground with its own checks, so four pairs of hands can build at once without waiting."
+  independent_pieces: 4
+  coupling: loose
+- case_id: wide-census-sweep
+  lead: cartographer
+  office: cartographer
+  title: "Sweep the whole tree for a census"
+  detail: "The census splits into nine independent sweeps across the tree, more pieces than the honest crew: six pairs of hands take them in turn."
+  independent_pieces: 9
+  coupling: loose

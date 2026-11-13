@@ -1,0 +1,162 @@
+schema: mythic.work_view/1
+slice: M-172
+part: 8
+part_title: The Beautiful Face
+canon_note: 'Streaming Work View: the coder actions stream as a calm narrative - reading, editing
+  auth.py, running tests - with tool detail one keystroke away, never in the face. An event stands
+  for one coder action, named by its event id alone in the stream: its kind in the closed kind set,
+  the target it touches, the tool that carries it, the tool detail it holds back, its state - started,
+  done or failed - and its provenance whole (the day it happened, who acted, its source and the session
+  it happened in). The narrative line is derived, never chosen: a started action speaks in the present
+  with an ellipsis, a done action in the past, a failed action as could-not - and the tool detail never
+  crosses into the narrative, the panel or the verdict; it is shown only on the detail road, one
+  keystroke away. The work panel is derived from the whole book: its rows are the events in stream
+  order carrying their derived narrative lines, its totals are the events own counts by kind and by
+  state, its current event is the last action still standing started, and a stored panel that disagrees
+  with its derived shape is refused. The work verdict is derived for the whole book: troubled while any
+  action stands failed, working while any action still stands started, and calm while every action
+  stands done. This file is ONE EXAMPLE BOOK, in the shape a real book file takes: the M-171 slice
+  boundary - six actions of the charter day, the shipped screens read, the kindness rules searched,
+  the charter data written, the charter module edited and its tests run green, with the verdict check
+  still standing started as the day turns. A real book is a new file in this same shape - it is never
+  this file edited in place. This layer holds actions as data only - it runs no tool, streams nothing
+  live, sends nothing, posts nothing, schedules nothing, calls no model and persists nothing.'
+guide:
+  title: Streaming Work View at the M-171 slice boundary
+events:
+- event_id: event-screens-read
+  seq: 1
+  kind: reading
+  target: mythic_agent/ui/screens/chat_screen.py
+  tool: read_file
+  detail: 'read_file mythic_agent/ui/screens/chat_screen.py - 1040 lines, the working screen whole: RichLog, sidebar, F-key bindings.'
+  state: done
+  occurred_on: '2026-11-09'
+  actor: the coder
+  source: work view
+  origin_session: session-m171-charter
+- event_id: event-kindness-searched
+  seq: 2
+  kind: searching
+  target: K-05
+  tool: grep_search
+  detail: 'grep_search K-05 over mythic_agent/data/ux_charter.yaml - the long-job rule and its review question.'
+  state: done
+  occurred_on: '2026-11-09'
+  actor: the coder
+  source: work view
+  origin_session: session-m171-charter
+- event_id: event-charter-data-written
+  seq: 3
+  kind: writing
+  target: mythic_agent/data/tui_redesign_charter.yaml
+  tool: write_file
+  detail: 'write_file mythic_agent/data/tui_redesign_charter.yaml - 340 lines, eight screen reviews, 112 judgements.'
+  state: done
+  occurred_on: '2026-11-09'
+  actor: the coder
+  source: work view
+  origin_session: session-m171-charter
+- event_id: event-charter-module-edited
+  seq: 4
+  kind: editing
+  target: mythic_agent/core/tui_redesign_charter.py
+  tool: replace_file_content
+  detail: 'replace_file_content mythic_agent/core/tui_redesign_charter.py - the verdict ladder and the charter validator.'
+  state: done
+  occurred_on: '2026-11-09'
+  actor: the coder
+  source: work view
+  origin_session: session-m171-charter
+- event_id: event-charter-tests-run
+  seq: 5
+  kind: running-tests
+  target: tests/test_tui_redesign_charter.py
+  tool: run_command
+  detail: 'run_command pytest tests/test_tui_redesign_charter.py - 24 passed, the charter suite green on its first run.'
+  state: done
+  occurred_on: '2026-11-09'
+  actor: the coder
+  source: work view
+  origin_session: session-m171-charter
+- event_id: event-verdicts-checked
+  seq: 6
+  kind: checking
+  target: the eight screen verdicts
+  tool: update_status
+  detail: 'update_status - two rebuilds, four repairs, two keeps, read off the derived panel before the day turns.'
+  state: started
+  occurred_on: '2026-11-09'
+  actor: the coder
+  source: work view
+  origin_session: session-m171-charter
+panels:
+- panel_id: panel-m171-boundary
+  rows:
+  - event_id: event-screens-read
+    seq: 1
+    kind: reading
+    state: done
+    narrative: 'read `mythic_agent/ui/screens/chat_screen.py`'
+    target: mythic_agent/ui/screens/chat_screen.py
+    occurred_on: '2026-11-09'
+  - event_id: event-kindness-searched
+    seq: 2
+    kind: searching
+    state: done
+    narrative: searched for K-05
+    target: K-05
+    occurred_on: '2026-11-09'
+  - event_id: event-charter-data-written
+    seq: 3
+    kind: writing
+    state: done
+    narrative: 'wrote `mythic_agent/data/tui_redesign_charter.yaml`'
+    target: mythic_agent/data/tui_redesign_charter.yaml
+    occurred_on: '2026-11-09'
+  - event_id: event-charter-module-edited
+    seq: 4
+    kind: editing
+    state: done
+    narrative: 'edited `mythic_agent/core/tui_redesign_charter.py`'
+    target: mythic_agent/core/tui_redesign_charter.py
+    occurred_on: '2026-11-09'
+  - event_id: event-charter-tests-run
+    seq: 5
+    kind: running-tests
+    state: done
+    narrative: 'ran the tests: `tests/test_tui_redesign_charter.py`'
+    target: tests/test_tui_redesign_charter.py
+    occurred_on: '2026-11-09'
+  - event_id: event-verdicts-checked
+    seq: 6
+    kind: checking
+    state: started
+    narrative: checking the eight screen verdicts…
+    target: the eight screen verdicts
+    occurred_on: '2026-11-09'
+  total_events: 6
+  total_done: 5
+  total_started: 1
+  total_failed: 0
+  distinct_targets: 6
+  kind_counts:
+  - kind: reading
+    items: 1
+  - kind: editing
+    items: 1
+  - kind: writing
+    items: 1
+  - kind: searching
+    items: 1
+  - kind: running-tests
+    items: 1
+  - kind: checking
+    items: 1
+  current_event_id: event-verdicts-checked
+  as_of: '2026-11-09'
+  account:
+  - 'The work panel holds 6 actions as of 2026-11-09: 5 done, 1 still standing started and 0 failed over 6 targets: reading 1, editing 1, writing 1, searching 1, running-tests 1, checking 1.'
+  - Rows stand in stream order, first action first, so two panels of one book diff cleanly, line by line.
+  - 'Every row carries its derived narrative line and its state as words: the tool detail stands behind the detail road, one keystroke away, and never in this panel.'
+  - 'The panel is read off the book at call time - it is derived, never stored loose - and standing on this panel runs no tool and streams nothing live: actions are held as data alone.'

@@ -1,0 +1,117 @@
+schema: mythic.memory_import_export/1
+slice: M-164
+part: 7
+part_title: Memory & Context
+canon_note: 'Memory import/export: a project''s memory map + ledger as portable files -
+  they ride with the repo if the user wishes. A memory package is one project''s map and
+  ledger exported as one portable file record, carried with its provenance whole: the
+  project it packs, the session it was exported from and the day, what rides in it - the
+  map entry ids and the sections they stand in, the ledger candidate ids and the promotion
+  states they stand in - who exported it, and where it was read from. A package carries
+  its pieces by id alone: the entries'' and candidates'' own words never cross into the
+  package. A piece rides once: a map entry or a ledger candidate named by one package
+  never rides in another package of the same book, and one session''s export of one project
+  stands once. An import is judged whole before anything is held - provenance, contents
+  and counts together - and a malformed or foreign package refuses by name, with nothing
+  partially held. The MEMORY PANEL is derived from the whole book: its rows are the
+  packages carried whole, by project, then day, then title, then package id, and its tallies
+  are the packages'' own counts, and a stored panel that disagrees with its derived shape
+  is refused. The PORTABILITY VERDICT is derived for the whole book: fully-portable when
+  every package rides map and ledger both, map-only or ledger-only when no package rides
+  both and only one holding rides at all, partially-portable otherwise. This file is ONE
+  EXAMPLE BOOK, in the shape a real book file takes: the M-163 slice boundary - the
+  mythic-agent-coder project packed whole at the close of the handoff day, its nine map
+  entries of every section and its three ledger candidates standing candidate, promoted
+  and declined, and the samtal project''s map packed alone from its gatekeeper session -
+  with the one panel of the book. A real book is a new file in this same shape - it is
+  never this file edited in place. This layer holds packages as data only: it sends
+  nothing, posts nothing, schedules nothing, calls no model, persists nothing and writes
+  no live memory - holding an imported package leaves every live map and ledger exactly
+  as it stood.'
+guide:
+  title: Memory import/export at the M-163 slice boundary
+packages:
+- package_id: package-coder-memory
+  title: the mythic-agent-coder memory, packed to ride with the repo
+  project: mythic-agent-coder
+  source_session: session-m163-handoff
+  map_entry_ids:
+  - map-package
+  - map-agents
+  - map-tests
+  - map-two-roads
+  - map-offices
+  - map-ci-manual
+  - map-scribe-law
+  - map-no-docker
+  - map-suite-extras
+  candidate_ids:
+  - candidate-commit-before-answer
+  - candidate-reap-at-bank
+  - candidate-bank-incrementally
+  map_sections:
+  - architecture
+  - decision
+  - gotcha
+  - location
+  ledger_states:
+  - candidate
+  - promoted
+  - declined
+  exported_by: Volmarr
+  exported_on: '2026-11-09'
+  source: memory import/export
+- package_id: package-samtal-memory
+  title: the samtal memory map, packed to ride along
+  project: samtal
+  source_session: session-samtal-gatekeeper
+  map_entry_ids:
+  - map-samtal-server
+  - map-samtal-wal
+  candidate_ids: []
+  map_sections:
+  - architecture
+  - gotcha
+  ledger_states: []
+  exported_by: Volmarr
+  exported_on: '2026-11-09'
+  source: memory import/export
+panels:
+- panel_id: panel-m163-boundary
+  rows:
+  - package_id: package-coder-memory
+    title: the mythic-agent-coder memory, packed to ride with the repo
+    project: mythic-agent-coder
+    source_session: session-m163-handoff
+    map_count: 9
+    candidate_count: 3
+    piece_count: 12
+    exported_by: Volmarr
+    exported_on: '2026-11-09'
+  - package_id: package-samtal-memory
+    title: the samtal memory map, packed to ride along
+    project: samtal
+    source_session: session-samtal-gatekeeper
+    map_count: 2
+    candidate_count: 0
+    piece_count: 2
+    exported_by: Volmarr
+    exported_on: '2026-11-09'
+  total_packages: 2
+  total_map_entries: 11
+  total_candidates: 3
+  total_pieces: 14
+  ride_counts:
+  - kind: map
+    items: 11
+  - kind: ledger
+    items: 3
+  account:
+  - 'The memory panel holds 2 packages: 14 pieces in all, 11 map entries and 3 ledger
+    candidates: ledger 3, map 11.'
+  - Packages stand by project, then day, then title, then package id, so two panels of
+    one book diff cleanly, line by line.
+  - Every piece a package carries is carried from the project's own memory map and ledger,
+    and a package whose contents disagree with those holdings is refused - a package carries
+    only what its sources hold.
+  - The panel is read off the book at call time - it is derived, never stored loose.

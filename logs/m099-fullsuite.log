@@ -1,0 +1,241 @@
+........................................................................ [  1%]
+........................................................................ [  2%]
+........................................................................ [  4%]
+........................................................................ [  5%]
+........................................................................ [  7%]
+........................................................................ [  8%]
+........................................................................ [  9%]
+........................................................................ [ 11%]
+........................................................................ [ 12%]
+..............FFF....................................................... [ 14%]
+..................................................F..................... [ 15%]
+........................................................................ [ 16%]
+........................................................................ [ 18%]
+........................................................................ [ 19%]
+........................................................................ [ 21%]
+........................................................................ [ 22%]
+........................................................................ [ 24%]
+........................................................................ [ 25%]
+........................................................................ [ 26%]
+........................................s............................... [ 28%]
+........................................................................ [ 29%]
+........................................................................ [ 31%]
+........................................................................ [ 32%]
+........................................................................ [ 33%]
+........................................................................ [ 35%]
+........................................................................ [ 36%]
+........................................................................ [ 38%]
+........................................................................ [ 39%]
+........................................................................ [ 40%]
+........................................................................ [ 42%]
+........................................................................ [ 43%]
+........................................................................ [ 45%]
+........................................................................ [ 46%]
+........................................................................ [ 48%]
+........................................................................ [ 49%]
+........................................................................ [ 50%]
+........................................................................ [ 52%]
+........................................................................ [ 53%]
+........................................................................ [ 55%]
+........................................................................ [ 56%]
+........................................................................ [ 57%]
+..............................................F..F...................... [ 59%]
+........................................................................ [ 60%]
+........................................................................ [ 62%]
+........................................................................ [ 63%]
+........................................................................ [ 64%]
+........................................................................ [ 66%]
+........................................................................ [ 67%]
+........................................................................ [ 69%]
+.......................................................F.F.............. [ 70%]
+........................................................................ [ 72%]
+........................................................................ [ 73%]
+........................................................................ [ 74%]
+........................................................................ [ 76%]
+........................................................................ [ 77%]
+........................................................................ [ 79%]
+........................................................................ [ 80%]
+........................................................................ [ 81%]
+........................................................................ [ 83%]
+........................................................................ [ 84%]
+........................................................................ [ 86%]
+........................................................................ [ 87%]
+........................................................................ [ 88%]
+........................................................................ [ 90%]
+........................................................................ [ 91%]
+........................................................................ [ 93%]
+........................................................................ [ 94%]
+........................................................................ [ 96%]
+........................................................................ [ 97%]
+........................................................................ [ 98%]
+...........................................................              [100%]
+=================================== FAILURES ===================================
+____________________ test_every_defaults_key_is_catalogued _____________________
+
+catalog = ConfigCatalog(catalogued='2026-10-30', scope_note="Every setting in config_defaults.yaml and runtime_defaults.yaml, ev...honour.", names=('AGENTS.md', 'CLAUDE.md', '.mythic.md', '.mythic', '.muserules', '.cursorrules', '.aider.rules.md'))))
+
+    def test_every_defaults_key_is_catalogued(catalog):
+        names = set(catalog.setting_names())
+        defaults = yaml.safe_load((resource_root() / "config_defaults.yaml").read_text())
+        for key in defaults:
+>           assert key in names, f"config_defaults key {key!r} uncatalogued"
+E           AssertionError: config_defaults key 'path_jail' uncatalogued
+E           assert 'path_jail' in {'api_keys', 'apply_repair_loop', 'approval_timeout', 'asset_sight', 'auto_accept_permissions', 'auto_commit', ...}
+
+tests/test_config_catalog.py:69: AssertionError
+_____________________ test_every_schema_key_is_catalogued ______________________
+
+catalog = ConfigCatalog(catalogued='2026-10-30', scope_note="Every setting in config_defaults.yaml and runtime_defaults.yaml, ev...honour.", names=('AGENTS.md', 'CLAUDE.md', '.mythic.md', '.mythic', '.muserules', '.cursorrules', '.aider.rules.md'))))
+
+    def test_every_schema_key_is_catalogued(catalog):
+        names = set(catalog.setting_names())
+        for key in CONFIG_SCHEMA:
+>           assert key in names, f"CONFIG_SCHEMA key {key!r} uncatalogued"
+E           AssertionError: CONFIG_SCHEMA key 'path_jail' uncatalogued
+E           assert 'path_jail' in {'api_keys', 'apply_repair_loop', 'approval_timeout', 'asset_sight', 'auto_accept_permissions', 'auto_commit', ...}
+
+tests/test_config_catalog.py:80: AssertionError
+___________ test_setting_types_and_defaults_match_the_defaults_files ___________
+
+catalog = ConfigCatalog(catalogued='2026-10-30', scope_note="Every setting in config_defaults.yaml and runtime_defaults.yaml, ev...honour.", names=('AGENTS.md', 'CLAUDE.md', '.mythic.md', '.mythic', '.muserules', '.cursorrules', '.aider.rules.md'))))
+
+    def test_setting_types_and_defaults_match_the_defaults_files(catalog):
+        by_name = {s.name: s for s in catalog.settings}
+        defaults = yaml.safe_load((resource_root() / "config_defaults.yaml").read_text())
+        for key, value in defaults.items():
+            if key in ("runtime", "github"):
+                continue
+>           assert by_name[key].type == type(value).__name__, key
+                   ^^^^^^^^^^^^
+E           KeyError: 'path_jail'
+
+tests/test_config_catalog.py:89: KeyError
+____________ test_estimator_heuristic_backend_when_tiktoken_absent _____________
+
+    def test_estimator_heuristic_backend_when_tiktoken_absent():
+        est = TokenEstimator()
+>       assert est.backend == "heuristic"
+E       AssertionError: assert 'tiktoken' == 'heuristic'
+E         
+E         - heuristic
+E         + tiktoken
+
+tests/test_context_compiler.py:34: AssertionError
+_______________________ test_every_module_appears_in_doc _______________________
+
+    def test_every_module_appears_in_doc():
+        index = _read_machine_index()
+        doc_modules = [m["module"] for m in index["modules"]]
+        assert len(doc_modules) == len(set(doc_modules)), "duplicate modules in doc index"
+>       assert set(doc_modules) == set(_discover_modules()), (
+            "doc index does not cover the current module tree"
+        )
+E       AssertionError: doc index does not cover the current module tree
+E       assert {'mythic_agen.../llm.py', ...} == {'mythic_agen.../llm.py', ...}
+E         
+E         Extra items in the right set:
+E         'mythic_agent/core/path_jail.py'
+E         Use -v to get more diff
+
+tests/test_ownership.py:80: AssertionError
+______________________________ test_doc_is_fresh _______________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-volmarr/pytest-597/test_doc_is_fresh0')
+
+    def test_doc_is_fresh(tmp_path: Path):
+        """Regenerating the doc yields identical content modulo the timestamp line."""
+        import sys
+    
+        regen = tmp_path / "OWNERSHIP.regen.md"
+        run = subprocess.run(
+            [sys.executable, str(GEN_SCRIPT), "--out", str(regen)],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        assert run.returncode == 0, f"generator failed: {run.stderr}"
+        current = DOC.read_text(encoding="utf-8")
+        fresh = regen.read_text(encoding="utf-8")
+>       assert _normalize(current) == _normalize(fresh), (
+            "docs/OWNERSHIP.md is stale — regenerate with `python scripts/gen_ownership.py`"
+        )
+E       AssertionError: docs/OWNERSHIP.md is stale — regenerate with `python scripts/gen_ownership.py`
+E       assert ['# Source Ow...e file.', ...] == ['# Source Ow...e file.', ...]
+E         
+E         At index 9 diff: 'Total modules: **216**' != 'Total modules: **217**'
+E         Right contains 9 more items, first extra item: '    {'
+E         Use -v to get more diff
+
+tests/test_ownership.py:137: AssertionError
+_____________________ test_all_names_exist_and_are_public ______________________
+
+    def test_all_names_exist_and_are_public():
+        failures = []
+        for dotted, path in _iter_modules():
+            failures.extend(validate_module(dotted, path))
+>       assert not failures, "\n".join(failures)
+E       AssertionError: mythic_agent.core.audio: import failed unexpectedly: PortAudioError: Error initializing PortAudio: Unanticipated host error [PaErrorCode -9999]: 'PulseAudio_Initialize: Can't connect to server' [<error getting host API: -10000> error -1]
+E       assert not ["mythic_agent.core.audio: import failed unexpectedly: PortAudioError: Error initializing PortAudio: Unanticipated hos...ror [PaErrorCode -9999]: 'PulseAudio_Initialize: Can't connect to server' [<error getting host API: -10000> error -1]"]
+
+tests/test_public_api.py:122: AssertionError
+________________ test_public_api_inventory_doc_is_synchronized _________________
+
+    def test_public_api_inventory_doc_is_synchronized():
+        """docs/PUBLIC_API.md must reflect the live scan (regenerate when the API changes)."""
+        doc = (REPO_ROOT / "docs" / "PUBLIC_API.md").read_text(encoding="utf-8")
+        live_total = sum(
+            len(names) for _, path in _iter_modules() if (names := read_all_names(path)) is not None
+        )
+>       assert f"TOTAL: {live_total} public names" in doc, (
+            f"docs/PUBLIC_API.md is out of sync: live scan finds {live_total} public names; "
+            "regenerate the doc"
+        )
+E       AssertionError: docs/PUBLIC_API.md is out of sync: live scan finds 3153 public names; regenerate the doc
+E       assert 'TOTAL: 3153 public names' in '# Public API Inventory — Mythic Agent Coder CLI\n\nGenerated by scanning `mythic_agent/` with the standard-library `a...\n    Path\n    SliceDefinition\n    SliceResult\n    SliceRunner\n    config_manager\n    dataclass\n    field\n```\n'
+
+tests/test_public_api.py:143: AssertionError
+=============================== warnings summary ===============================
+tests/test_async_boundary.py::test_publish_sync_handles_async_subscriber_without_qualname
+  /home/volmarr/mythic-hammer/repo/tests/test_async_boundary.py:192: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    assert asyncio.iscoroutinefunction(partial_cb)
+
+tests/test_async_boundary.py: 2 warnings
+tests/test_execution.py: 2 warnings
+tests/test_fallback_chain.py: 3 warnings
+tests/test_provider_adapters.py: 8 warnings
+tests/test_runtime.py: 5 warnings
+  /home/volmarr/mythic-hammer/repo/mythic_agent/core/secure_api.py:75: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    if asyncio.iscoroutinefunction(callback):
+
+tests/test_debugger.py::test_dying_adapter_raises_in_its_own_words
+  /home/volmarr/mythic-hammer/repo/.venv-hammer/lib/python3.14/site-packages/_pytest/unraisableexception.py:63: PytestUnraisableExceptionWarning: Exception ignored while finalizing file <_io.BufferedWriter name=13>: None
+  
+  Traceback (most recent call last):
+    File "/home/volmarr/mythic-hammer/repo/tests/test_debugger.py", line 421, in test_dying_adapter_raises_in_its_own_words
+      client.close()
+      ~~~~~~~~~~~~^^
+  BrokenPipeError: [Errno 32] Broken pipe
+  
+  
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+tests/test_provider_adapters.py::test_streaming_reassembles_fragmented_text_and_tool_calls
+tests/test_provider_adapters.py::test_incomplete_tool_fragments_are_rejected
+tests/test_provider_adapters.py::test_streaming_turn_executes_tools_and_never_duplicates_text
+  /usr/lib/python3.14/asyncio/base_events.py:744: RuntimeWarning: coroutine method 'aclose' of 'PoolByteStream.__aiter__' was never awaited
+    self._ready.clear()
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+SKIPPED [1] tests/test_execution.py:121: live tier: set MYTHIC_LIVE_TESTS=1 to run
+FAILED tests/test_config_catalog.py::test_every_defaults_key_is_catalogued - ...
+FAILED tests/test_config_catalog.py::test_every_schema_key_is_catalogued - As...
+FAILED tests/test_config_catalog.py::test_setting_types_and_defaults_match_the_defaults_files
+FAILED tests/test_context_compiler.py::test_estimator_heuristic_backend_when_tiktoken_absent
+FAILED tests/test_ownership.py::test_every_module_appears_in_doc - AssertionE...
+FAILED tests/test_ownership.py::test_doc_is_fresh - AssertionError: docs/OWNE...
+FAILED tests/test_public_api.py::test_all_names_exist_and_are_public - Assert...
+FAILED tests/test_public_api.py::test_public_api_inventory_doc_is_synchronized
+8 failed, 5090 passed, 1 skipped, 25 warnings in 304.60s (0:05:04)

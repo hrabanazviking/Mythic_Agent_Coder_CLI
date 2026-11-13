@@ -1,0 +1,225 @@
+schema: mythic.workflow_default/1
+campaign: M-227
+workflow_default:
+  title: Workflow default honoured at the M-227 slice run
+campaigns:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-proposal book
+  origin_session: session-m227
+  campaign_id: campaign-m226-orders
+  seq: 1
+  title: Standing orders
+  state: live
+  detail: 'The slice the dispatcher looks back on first: banked at M-226, standing active in the workflow
+    default honesty''s hands.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-proposal book
+  origin_session: session-m227
+  campaign_id: campaign-m227-workflow
+  seq: 2
+  title: Workflow default honoured
+  state: live
+  detail: 'This very slice, standing active: the workflow book holding its own campaign as data.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-proposal book
+  origin_session: session-m227
+  campaign_id: campaign-m228-scaling
+  seq: 3
+  title: Team-of-one scaling
+  state: dormant
+  detail: A queued slice the dispatcher has not proposed yet; a proposal naming it refuses by name.
+proposal_records:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-proposal book
+  origin_session: session-m227
+  proposal_id: proposal-held-proposal
+  seq: 1
+  campaign_id: campaign-m226-orders
+  title: The held proposal
+  stages: &id001
+  - proposed
+  - checked
+  - declared
+  - manual
+  - upheld
+  claims:
+  - workflow_ref
+  detail: 'The opening proposal: a workflow proposed for the work, its triggers checked before the default
+    was declared, declared manual-only and upheld honestly, upheld with the workflow held as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-proposal book
+  origin_session: session-m227
+  proposal_id: proposal-retried-proposal
+  seq: 2
+  campaign_id: campaign-m226-orders
+  title: The retried proposal
+  stages:
+  - proposed
+  - checked
+  - declared
+  - manual
+  - proposed
+  - checked
+  - declared
+  - manual
+  - upheld
+  claims: []
+  detail: 'The retried proposal: a first manual step sent the standing back, the workflow was proposed
+    and checked again and the declaration held manual a second time before the upholding stood.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-proposal book
+  origin_session: session-m227
+  proposal_id: proposal-own-proposal
+  seq: 3
+  campaign_id: campaign-m227-workflow
+  title: The dispatcher's own proposal
+  stages: *id001
+  claims:
+  - proposal_ref
+  detail: 'The dispatcher''s own proposal: this slice''s own proposal, upholding its proposal ref as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-proposal book
+  origin_session: session-m227
+  proposal_id: proposal-bare-proposal
+  seq: 4
+  campaign_id: campaign-m227-workflow
+  title: The bare claim proposal
+  stages: *id001
+  claims:
+  - feeling
+  detail: A proposal that upheld a feeling in place of held proof, standing open.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-proposal book
+  origin_session: session-m227
+  proposal_id: proposal-leaping-proposal
+  seq: 5
+  campaign_id: campaign-m227-workflow
+  title: The leaping proposal
+  stages:
+  - proposed
+  - checked
+  - upheld
+  claims: []
+  detail: A proposal that stepped from checked straight to upheld, outside the proposal sequence, standing
+    open.
+views:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-proposal book
+  origin_session: session-m227
+  view_id: view-proposals
+  seq: 1
+  view_filter: all
+  detail: Every held proposal, complete or not.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-proposal book
+  origin_session: session-m227
+  view_id: view-upheld
+  seq: 2
+  view_filter: complete
+  detail: Only the proposals standing complete.
+notes:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-proposal book
+  origin_session: session-m227
+  note_id: note-note-first
+  seq: 1
+  proposal_id: proposal-held-proposal
+  stance: note
+  target: the opening proposal
+  title: Proposals first
+  detail: The dispatcher opens by proposing the workflow first, told honestly.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-proposal book
+  origin_session: session-m227
+  note_id: note-concern-bare
+  seq: 2
+  proposal_id: proposal-bare-proposal
+  stance: concern
+  target: the bare claim proposal
+  title: Claim named
+  detail: A proposal that upheld a feeling claim is not the dispatcher's way, and stands named.
+traces:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-proposal book
+  origin_session: session-m227
+  trace_id: trace-first
+  seq: 1
+  proposal_id: proposal-held-proposal
+  trace: proposed > checked > declared > manual > upheld
+  detail: 'The opening proposal''s walk, held exactly as walked: the trace is the walk itself.'
+panels:
+- panel_id: panel-m226-campaign
+  view_id: view-proposals
+  view_filter: all
+  rows:
+  - item_id: proposal-held-proposal
+    standing: complete
+    label: The held proposal
+    segment: 'proposal-held-proposal: The held proposal - campaign: ''campaign-m226-orders'' - stage:
+      ''upheld'' - stages: 5 - claims: ''workflow_ref'' - detail: ''The opening proposal: a workflow proposed
+      for the work, its triggers checked before the default was declared, declared manual-only and upheld
+      honestly, upheld with the workflow held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: proposal-retried-proposal
+    standing: complete
+    label: The retried proposal
+    segment: 'proposal-retried-proposal: The retried proposal - campaign: ''campaign-m226-orders'' - stage:
+      ''upheld'' - stages: 9 - claims: ''none'' - detail: ''The retried proposal: a first manual step
+      sent the standing back, the workflow was proposed and checked again and the declaration held manual
+      a second time before the upholding stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: proposal-own-proposal
+    standing: complete
+    label: The dispatcher's own proposal
+    segment: 'proposal-own-proposal: The dispatcher''s own proposal - campaign: ''campaign-m227-workflow''
+      - stage: ''upheld'' - stages: 5 - claims: ''proposal_ref'' - detail: ''The dispatcher''s own proposal:
+      this slice''s own proposal, upholding its proposal ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: proposal-bare-proposal
+    standing: open
+    label: The bare claim proposal
+    segment: 'proposal-bare-proposal: The bare claim proposal - campaign: ''campaign-m227-workflow'' -
+      stage: ''upheld'' - stages: 5 - claims: ''feeling'' - detail: ''A proposal that upheld a feeling
+      in place of held proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held
+      proof: complete stands on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: proposal-leaping-proposal
+    standing: open
+    label: The leaping proposal
+    segment: 'proposal-leaping-proposal: The leaping proposal - campaign: ''campaign-m227-workflow'' -
+      stage: ''upheld'' - stages: 3 - claims: ''none'' - detail: ''A proposal that stepped from checked
+      straight to upheld, outside the proposal sequence, standing open.'' - gaps: steps from checked to
+      upheld, which the proposal sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The proposal book holds 5 proposals as of 2026-11-11: the view ''all'' shows 5 of them: complete
+    3, open 2; 3 of the shown proposals stand complete.'
+  - Rows stand in held proposal, the proposal the book itself stands in, so two panels of one view diff
+    cleanly, segment by segment.
+  - Every segment is derived from its proposal's own fields - the campaign it answers for, the steps it
+    walked in the open and the evidence it honestly carries - and no judgement is stored on any proposal.
+  - 'Completeness is declared from the held records alone: a proposal that steps outside the proposal
+    sequence, carries a bare claim in place of held evidence, or has not proposed upheld stands open,
+    named in its gaps, and the proposal index is derived from the held proposals, never stored where it
+    could drift.'

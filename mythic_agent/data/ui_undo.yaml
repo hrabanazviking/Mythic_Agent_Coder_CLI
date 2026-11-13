@@ -1,0 +1,212 @@
+schema: mythic.ui_undo/1
+slice: M-198
+part: 8
+part_title: The Beautiful Face
+canon_note: 'UI undo - closing a pane or clearing a view is never destructive to work; view state per
+  session persists. The M-171 charter names NO row for this slice, so there is no charter verdict for
+  this slice to honour; the slice is built to the roadmap words alone. A pane is held whole - under its
+  title, its kind in the closed vocabulary (pane, view, panel, tab), its cursor held honestly (an unknown
+  cursor stands empty, never invented), the view state it preserves, named as data, and its detail. A
+  pane naming no preserved state is held honestly with an empty state: it stands incomplete, named in
+  its gaps, and no state is invented for it. The undo index is DERIVED at call time from the held panes
+  alone - never a second stored copy that could drift - and a stored index or completeness verdict on
+  any record refuses by name. The notes are held as data: a note record naming its pane, its stance (note,
+  concern, praise or question) and what it feeds back toward; one record stands per pane stance, and holding
+  a note applies none of it. A record claiming a pane was actually restored, a view actually reopened,
+  or work actually destroyed, refuses by name. This file is ONE EXAMPLE BOOK, in the shape a real undo
+  file takes - the M-197 slice boundary - six panes and two views, two note records, with its one pinned
+  panel of the every-pane view, whose shown panes stand five ready of six, so the book verdict under it
+  stands strained; under the ready view, whose five shown panes all stand ready, the verdict stands open.
+  A real book is a new file in this same shape - it is never this file edited in place. This layer restores
+  nothing, reopens nothing, destroys no work, opens no network and writes nothing: it holds the preserved
+  views as data and tells them.'
+ui_undo:
+  title: UI undo at the M-197 slice boundary
+panes:
+- pane_id: pane-editor-main
+  seq: 1
+  title: The editor pane
+  kind: pane
+  cursor: line 12
+  state: the editor draft still open
+  detail: The editor pane stands named in the book - the pane that was closed with its draft still open,
+    held as data; holding the card restores nothing.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: UI undo
+  origin_session: session-m198
+- pane_id: pane-files-main
+  seq: 2
+  title: The files view
+  kind: view
+  cursor: ''
+  state: the files still in view
+  detail: The files view stands in the book with its cursor honestly empty - where the eye stood in the
+    list was never recorded anywhere honest, so the card holds its cursor empty, and no position is invented
+    for it.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: UI undo
+  origin_session: session-m198
+- pane_id: pane-board-main
+  seq: 3
+  title: The crew board
+  kind: panel
+  cursor: top row
+  state: the board as it stood
+  detail: The crew board stands named in the book as a cleared panel - the board as it stood when it was
+    cleared, held as data; holding the card reopens nothing.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: UI undo
+  origin_session: session-m198
+- pane_id: pane-preview-main
+  seq: 4
+  title: The preview tab
+  kind: tab
+  cursor: ''
+  state: the preview still rendered
+  detail: The preview tab stands at the book as a closed tab - the preview it rendered can be told from
+    the card, and the card that says so renders nothing itself.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: UI undo
+  origin_session: session-m198
+- pane_id: pane-quiet-main
+  seq: 5
+  title: The quiet view
+  kind: view
+  cursor: ''
+  state: ''
+  detail: The quiet view stands named in this book with no preserved state held for it yet - what the
+    view held when it was cleared waits to be set down - so the pane stands incomplete honestly, named
+    in the gaps until its state is held for it, and no state is invented here.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: UI undo
+  origin_session: session-m198
+- pane_id: pane-help-main
+  seq: 6
+  title: The help pane
+  kind: pane
+  cursor: f1
+  state: help when you are stuck
+  detail: The help pane stands named in the book for the stuck moment - help held as a preserved view,
+    and the praise note on the help pane stands held beside the book as data.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: UI undo
+  origin_session: session-m198
+views:
+- view_id: view-undo
+  seq: 1
+  view_filter: all
+  detail: 'Every preserved pane at once - the panes, the views, the panels and the tabs between: see every
+    pane.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: UI undo
+  origin_session: session-m198
+- view_id: view-ready
+  seq: 2
+  view_filter: ready
+  detail: Only the panes that carry their preserved state - everything restorable in telling, honestly
+    complete at a glance.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: UI undo
+  origin_session: session-m198
+notes:
+- note_id: note-note-editor
+  seq: 1
+  pane_id: pane-editor-main
+  stance: note
+  target: the user
+  title: Note the editor pane
+  detail: The note on the editor pane stands held as data - its pane, its stance and what it feeds back
+    toward. Holding the note restores nothing; the feedback is told, never applied, by this layer.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: UI undo
+  origin_session: session-m198
+- note_id: note-praise-help
+  seq: 2
+  pane_id: pane-help-main
+  stance: praise
+  target: the user
+  title: Praise the help pane
+  detail: The praise for the help pane stands held as data beside the first. One note record stands per
+    pane stance in this book, so a second record for one pane under one stance refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: UI undo
+  origin_session: session-m198
+panels:
+- panel_id: panel-m197-boundary
+  view_id: view-undo
+  view_filter: all
+  rows:
+  - item_id: pane-editor-main
+    standing: ready
+    label: The editor pane
+    segment: 'pane-editor-main: The editor pane - kind: ''pane'' - cursor: ''line 12'' - state: ''the
+      editor draft still open'' - detail: ''The editor pane stands named in the book - the pane that was
+      closed with its draft still open, held as data; holding the card restores nothing.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: pane-files-main
+    standing: ready
+    label: The files view
+    segment: 'pane-files-main: The files view - kind: ''view'' - cursor: ''unknown'' - state: ''the files
+      still in view'' - detail: ''The files view stands in the book with its cursor honestly empty - where
+      the eye stood in the list was never recorded anywhere honest, so the card holds its cursor empty,
+      and no position is invented for it.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: pane-board-main
+    standing: ready
+    label: The crew board
+    segment: 'pane-board-main: The crew board - kind: ''panel'' - cursor: ''top row'' - state: ''the board
+      as it stood'' - detail: ''The crew board stands named in the book as a cleared panel - the board
+      as it stood when it was cleared, held as data; holding the card reopens nothing.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: pane-preview-main
+    standing: ready
+    label: The preview tab
+    segment: 'pane-preview-main: The preview tab - kind: ''tab'' - cursor: ''unknown'' - state: ''the
+      preview still rendered'' - detail: ''The preview tab stands at the book as a closed tab - the preview
+      it rendered can be told from the card, and the card that says so renders nothing itself.'' - gaps:
+      none'
+    recorded_on: '2026-11-10'
+  - item_id: pane-quiet-main
+    standing: unready
+    label: The quiet view
+    segment: 'pane-quiet-main: The quiet view - kind: ''view'' - cursor: ''unknown'' - state: ''none''
+      - detail: ''The quiet view stands named in this book with no preserved state held for it yet - what
+      the view held when it was cleared waits to be set down - so the pane stands incomplete honestly,
+      named in the gaps until its state is held for it, and no state is invented here.'' - gaps: no preserved
+      state'
+    recorded_on: '2026-11-10'
+  - item_id: pane-help-main
+    standing: ready
+    label: The help pane
+    segment: 'pane-help-main: The help pane - kind: ''pane'' - cursor: ''f1'' - state: ''help when you
+      are stuck'' - detail: ''The help pane stands named in the book for the stuck moment - help held
+      as a preserved view, and the praise note on the help pane stands held beside the book as data.''
+      - gaps: none'
+    recorded_on: '2026-11-10'
+  total_items: 6
+  total_shown: 6
+  target_counts:
+  - standing: ready
+    items: 5
+  - standing: unready
+    items: 1
+  as_of: '2026-11-10'
+  account:
+  - 'The UI undo book holds 6 panes as of 2026-11-10: the view ''all'' shows 6 of them: ready 5, unready
+    1; 5 of the shown panes stand ready.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its pane's own fields - the title, the kind, the cursor honestly held
+    and the preserved state it honestly carries - and no judgement is stored on any pane.
+  - 'Completeness is judged from the held records alone: a pane naming no preserved state stands unready,
+    and the undo index is derived from the held panes, never stored where it could drift.'

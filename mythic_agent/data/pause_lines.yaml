@@ -1,0 +1,227 @@
+schema: mythic.pause_lines/1
+slice: M-208
+pause_lines:
+  title: The pause-lines wired at the M-207 slice boundary
+slices:
+- slice_id: slice-m207-keeper
+  seq: 1
+  title: Keeper runtime
+  state: active
+  detail: 'The slice the guard deals with first: banked at M-207, standing active in the wired lines''
+    hands.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the pause-lines wired
+  origin_session: session-m208
+- slice_id: slice-m208-pauselines
+  seq: 2
+  title: The pause-lines wired
+  state: active
+  detail: 'This very slice, standing active: the wired lines holding their own pausing as data.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the pause-lines wired
+  origin_session: session-m208
+- slice_id: slice-m209-question
+  seq: 3
+  title: Question law
+  state: queued
+  detail: A queued slice the guard has not dealt with; a pausing naming it refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the pause-lines wired
+  origin_session: session-m208
+pausings:
+- pausing_id: pausing-approved-crossing
+  seq: 1
+  slice_id: slice-m207-keeper
+  title: The approved crossing pausing
+  checks:
+  - proposed
+  - checked
+  - paused
+  - crossed
+  claims:
+  - approval_record
+  detail: 'The opening pausing: a proposed crossing paused at the line and crossed only with the user''s
+    approval held as proof.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the pause-lines wired
+  origin_session: session-m208
+- pausing_id: pausing-reasked-crossing
+  seq: 2
+  slice_id: slice-m207-keeper
+  title: The re-asked pausing
+  checks:
+  - proposed
+  - checked
+  - paused
+  - reasked
+  - paused
+  - crossed
+  claims: []
+  detail: 'The re-asked pausing: a paused crossing asked again and paused again before it crossed, in
+    the open.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the pause-lines wired
+  origin_session: session-m208
+- pausing_id: pausing-wired-crossing
+  seq: 3
+  slice_id: slice-m208-pauselines
+  title: The wired pausing
+  checks:
+  - proposed
+  - checked
+  - paused
+  - crossed
+  claims:
+  - ledger_row
+  detail: 'The wired pausing: this slice''s own pausing, carrying its ledger row as proof.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the pause-lines wired
+  origin_session: session-m208
+- pausing_id: pausing-bare-crossing
+  seq: 4
+  slice_id: slice-m208-pauselines
+  title: The bare claim pausing
+  checks:
+  - proposed
+  - checked
+  - paused
+  - crossed
+  claims:
+  - feeling
+  detail: A pausing that carried a feeling in place of held proof, standing open.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the pause-lines wired
+  origin_session: session-m208
+- pausing_id: pausing-leaping-crossing
+  seq: 5
+  slice_id: slice-m208-pauselines
+  title: The leaping pausing
+  checks:
+  - proposed
+  - checked
+  - crossed
+  claims: []
+  detail: A pausing that stepped from checked straight to crossed, outside the pause sequence, standing
+    open.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the pause-lines wired
+  origin_session: session-m208
+views:
+- view_id: view-pausings
+  seq: 1
+  view_filter: all
+  detail: Every held pausing, complete or not.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the pause-lines wired
+  origin_session: session-m208
+- view_id: view-crossed
+  seq: 2
+  view_filter: complete
+  detail: Only the pausings standing complete.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the pause-lines wired
+  origin_session: session-m208
+notes:
+- note_id: note-note-first
+  seq: 1
+  pausing_id: pausing-approved-crossing
+  stance: note
+  target: the opening pausing
+  title: Pauses first
+  detail: The guard opens by pausing at the line, told honestly.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the pause-lines wired
+  origin_session: session-m208
+- note_id: note-concern-bare
+  seq: 2
+  pausing_id: pausing-bare-crossing
+  stance: concern
+  target: the bare claim pausing
+  title: Claim named
+  detail: A pausing that carried a feeling claim is not the guard's way, and stands named.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the pause-lines wired
+  origin_session: session-m208
+traces:
+- trace_id: trace-first
+  seq: 1
+  pausing_id: pausing-approved-crossing
+  trace: proposed > checked > paused > crossed
+  detail: 'The opening pausing''s walk, held exactly as walked: the trace is the walk itself.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the pause-lines wired
+  origin_session: session-m208
+panels:
+- panel_id: panel-m207-boundary
+  view_id: view-pausings
+  view_filter: all
+  rows:
+  - item_id: pausing-approved-crossing
+    standing: complete
+    label: The approved crossing pausing
+    segment: 'pausing-approved-crossing: The approved crossing pausing - slice: ''slice-m207-keeper''
+      - check: ''crossed'' - checks: 4 - claims: ''approval_record'' - detail: ''The opening pausing:
+      a proposed crossing paused at the line and crossed only with the user''s approval held as proof.''
+      - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: pausing-reasked-crossing
+    standing: complete
+    label: The re-asked pausing
+    segment: 'pausing-reasked-crossing: The re-asked pausing - slice: ''slice-m207-keeper'' - check: ''crossed''
+      - checks: 6 - claims: ''none'' - detail: ''The re-asked pausing: a paused crossing asked again and
+      paused again before it crossed, in the open.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: pausing-wired-crossing
+    standing: complete
+    label: The wired pausing
+    segment: 'pausing-wired-crossing: The wired pausing - slice: ''slice-m208-pauselines'' - check: ''crossed''
+      - checks: 4 - claims: ''ledger_row'' - detail: ''The wired pausing: this slice''s own pausing, carrying
+      its ledger row as proof.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: pausing-bare-crossing
+    standing: open
+    label: The bare claim pausing
+    segment: 'pausing-bare-crossing: The bare claim pausing - slice: ''slice-m208-pauselines'' - check:
+      ''crossed'' - checks: 4 - claims: ''feeling'' - detail: ''A pausing that carried a feeling in place
+      of held proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof:
+      complete stands on held proof alone'
+    recorded_on: '2026-11-10'
+  - item_id: pausing-leaping-crossing
+    standing: open
+    label: The leaping pausing
+    segment: 'pausing-leaping-crossing: The leaping pausing - slice: ''slice-m208-pauselines'' - check:
+      ''crossed'' - checks: 3 - claims: ''none'' - detail: ''A pausing that stepped from checked straight
+      to crossed, outside the pause sequence, standing open.'' - gaps: steps from checked to crossed,
+      which the pause sequence does not allow'
+    recorded_on: '2026-11-10'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-10'
+  account:
+  - 'The pausing book holds 5 pausings as of 2026-11-10: the view ''all'' shows 5 of them: complete 3,
+    open 2; 3 of the shown pausings stand complete.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its pausing's own fields - the slice it guards, the steps it walked
+    in the open and the evidence it honestly carries - and no judgement is stored on any pausing.
+  - 'Completeness is judged from the held records alone: a pausing that steps outside the pause sequence,
+    carries a bare claim in place of held evidence, or has not reached crossed stands open, named in its
+    gaps, and the pausing index is derived from the held pausings, never stored where it could drift.'

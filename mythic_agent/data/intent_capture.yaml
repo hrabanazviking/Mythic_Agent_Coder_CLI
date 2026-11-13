@@ -1,0 +1,153 @@
+schema: mythic.intent_capture/1
+slice: M-202
+intent_capture:
+  title: Intent capture at the M-201 slice boundary
+intents:
+- intent_id: intent-plain-words
+  seq: 1
+  project: Mythic Agent Coder
+  what: I want a coder that opens every new project with my own words for what, why and success
+  why: because plans drift when they start from the coder's words instead of mine
+  success: a new project opens with my words stored verbatim and every plan cites them
+  citation: my own words for what, why and success
+  detail: 'The opening intent: the project starts from the user''s words, held verbatim.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: intent capture
+  origin_session: session-m202
+- intent_id: intent-verbatim
+  seq: 2
+  project: The verbatim shelf
+  what: Keep my words exactly - capitals, commas, and all
+  why: my wording carries meaning a summary would lose
+  success: the stored intent reads back word for word as I gave it
+  citation: word for word as I gave it
+  detail: The intent stands exactly as given, never normalised away.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: intent capture
+  origin_session: session-m202
+- intent_id: intent-drifting-plan
+  seq: 3
+  project: The drifting plan
+  what: a plan that quotes the intent before it builds
+  why: so the build can be checked against what I actually asked for
+  success: every plan line traces back to words in the stored intent
+  citation: fast and pretty
+  detail: Its plan cites words that stand nowhere in the stored intent, and stands flagged.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: intent capture
+  origin_session: session-m202
+- intent_id: intent-unplanned
+  seq: 4
+  project: The unplanned shelf
+  what: a shelf for intents no plan has reached yet
+  why: an intent must be holdable before any plan exists
+  success: the intent stands held, honestly uncited, until a plan cites it
+  citation: ''
+  detail: No plan has cited this intent yet; it stands uncited, named in the gaps.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: intent capture
+  origin_session: session-m202
+views:
+- view_id: view-intent
+  seq: 1
+  view_filter: all
+  detail: Every held intent, citing or not.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: intent capture
+  origin_session: session-m202
+- view_id: view-citing
+  seq: 2
+  view_filter: citing
+  detail: Only the intents whose plans cite them.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: intent capture
+  origin_session: session-m202
+notes:
+- note_id: note-note-open
+  seq: 1
+  intent_id: intent-plain-words
+  stance: note
+  target: the opening form
+  title: Words first
+  detail: The project opens with the user's words, told honestly.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: intent capture
+  origin_session: session-m202
+- note_id: note-concern-drift
+  seq: 2
+  intent_id: intent-drifting-plan
+  stance: concern
+  target: the drifting plan
+  title: Drift named
+  detail: A plan citing words outside the intent is flagged, never silently trusted.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: intent capture
+  origin_session: session-m202
+panels:
+- panel_id: panel-m201-boundary
+  view_id: view-intent
+  view_filter: all
+  rows:
+  - item_id: intent-plain-words
+    standing: citing
+    label: Mythic Agent Coder
+    segment: 'intent-plain-words: Mythic Agent Coder - what: ''I want a coder that opens every new project
+      with my own words for what, why and success'' - why: ''because plans drift when they start from
+      the coder''s words instead of mine'' - success: ''a new project opens with my words stored verbatim
+      and every plan cites them'' - citation: ''my own words for what, why and success'' - cited in: ''what''
+      - detail: ''The opening intent: the project starts from the user''s words, held verbatim.'' - gaps:
+      none'
+    recorded_on: '2026-11-10'
+  - item_id: intent-verbatim
+    standing: citing
+    label: The verbatim shelf
+    segment: 'intent-verbatim: The verbatim shelf - what: ''Keep my words exactly - capitals, commas,
+      and all'' - why: ''my wording carries meaning a summary would lose'' - success: ''the stored intent
+      reads back word for word as I gave it'' - citation: ''word for word as I gave it'' - cited in: ''success''
+      - detail: ''The intent stands exactly as given, never normalised away.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: intent-drifting-plan
+    standing: uncited
+    label: The drifting plan
+    segment: 'intent-drifting-plan: The drifting plan - what: ''a plan that quotes the intent before it
+      builds'' - why: ''so the build can be checked against what I actually asked for'' - success: ''every
+      plan line traces back to words in the stored intent'' - citation: ''fast and pretty'' - cited in:
+      ''none'' - detail: ''Its plan cites words that stand nowhere in the stored intent, and stands flagged.''
+      - gaps: the plan cites words not in the stored intent'
+    recorded_on: '2026-11-10'
+  - item_id: intent-unplanned
+    standing: uncited
+    label: The unplanned shelf
+    segment: 'intent-unplanned: The unplanned shelf - what: ''a shelf for intents no plan has reached
+      yet'' - why: ''an intent must be holdable before any plan exists'' - success: ''the intent stands
+      held, honestly uncited, until a plan cites it'' - citation: ''none'' - cited in: ''none'' - detail:
+      ''No plan has cited this intent yet; it stands uncited, named in the gaps.'' - gaps: the plan cites
+      no intent'
+    recorded_on: '2026-11-10'
+  total_items: 4
+  total_shown: 4
+  target_counts:
+  - standing: citing
+    items: 2
+  - standing: uncited
+    items: 2
+  as_of: '2026-11-10'
+  account:
+  - 'The intent book holds 4 intents as of 2026-11-10: the view ''all'' shows 4 of them: citing 2, uncited
+    2; 2 of the shown intents stand citing.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its intent's own fields - the project, and what, why and success held
+    verbatim in the user's plain words, and the citation the plan honestly carries - and no judgement
+    is stored on any intent.
+  - 'Citation is judged from the held records alone: a plan citing no intent stands uncited, a plan citing
+    words that are not in the stored intent stands named in its gaps, and the intent index is derived
+    from the held intents, never stored where it could drift.'

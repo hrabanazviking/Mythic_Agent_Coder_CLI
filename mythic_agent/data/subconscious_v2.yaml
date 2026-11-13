@@ -1,0 +1,196 @@
+schema: mythic.subconscious_v2/1
+slice: M-165
+part: 7
+part_title: Memory & Context
+canon_note: 'The subconscious v2: the dual-layer vector memory gains provenance (where each
+  memory came from), confidence, and decay - stale memories fade unless re-earned. A v2 memory
+  stands in one of the dual layers, core or subconscious, and carries its provenance whole:
+  the shipped piece it came from (its source kind and the piece''s id alone - the piece''s
+  own words never cross into the v2 record), the session and day it was earned, who recorded
+  it and where it was read from. Its confidence is the trust it was earned with, from 0 to
+  1; its decay is a half-life in days and the day it was last earned or re-earned, with its
+  re-earn count: the effective confidence halves every half-life since that day, so a memory
+  stands fresh, fading, stale or faded as of any named day, and re-earning resets the decay
+  clock at exactly the trust it was earned with - it never inflates it. One shipped piece
+  is earned once in a book. The SUBCONSCIOUS PANEL is derived from the whole book as of a
+  day: its rows are the memories carried whole, by layer, then title, then memory id, each
+  with its effective confidence and freshness read off its own decay, and a stored panel that
+  disagrees with its derived shape is refused. The FRESHNESS VERDICT is derived for the whole
+  book: well-kept when every memory stands fresh, fading when some fade and none stand stale
+  or faded, going-stale when any stands stale, and neglected when any has faded away un-re-earned.
+  This file is ONE EXAMPLE BOOK, in the shape a real book file takes: the M-164 slice boundary
+  - the mythic-agent-coder memory packed at the close of the import/export day, six of its
+  pieces earned into v2, three standing fresh in the core layer, one fading, one stale and
+  one faded away in the subconscious, with the one panel of the book read as of that day.
+  A real book is a new file in this same shape - it is never this file edited in place. This
+  layer holds memories as data only: it sends nothing, posts nothing, schedules nothing, calls
+  no model, persists nothing and writes no live memory - earning a v2 memory leaves every
+  shipped holding exactly as it stood.'
+guide:
+  title: The subconscious v2 at the M-164 slice boundary
+memories:
+- memory_id: memory-no-docker-law
+  title: no Docker ever, earned from the memory map
+  layer: core
+  source_kind: memory-map
+  source_ref: map-no-docker
+  origin_session: session-m164-export
+  earned_on: '2026-11-02'
+  recorded_by: Volmarr
+  source: memory import/export
+  confidence: 0.95
+  half_life_days: 30
+  last_earned_on: '2026-11-09'
+  reearn_count: 2
+- memory_id: memory-commit-before-answer
+  title: commit before answer, earned from the ledger
+  layer: core
+  source_kind: ledger-candidate
+  source_ref: candidate-commit-before-answer
+  origin_session: session-m164-export
+  earned_on: '2026-10-22'
+  recorded_by: Volmarr
+  source: memory import/export
+  confidence: 0.9
+  half_life_days: 30
+  last_earned_on: '2026-11-05'
+  reearn_count: 1
+- memory_id: memory-suite-extras
+  title: the suite extras, earned from the memory map
+  layer: core
+  source_kind: memory-map
+  source_ref: map-suite-extras
+  origin_session: session-m164-export
+  earned_on: '2026-11-08'
+  recorded_by: Volmarr
+  source: memory import/export
+  confidence: 0.85
+  half_life_days: 21
+  last_earned_on: '2026-11-08'
+  reearn_count: 0
+- memory_id: memory-samtal-wal
+  title: the samtal WAL lesson, earned from the memory map
+  layer: subconscious
+  source_kind: memory-map
+  source_ref: map-samtal-wal
+  origin_session: session-samtal-gatekeeper
+  earned_on: '2026-10-22'
+  recorded_by: Volmarr
+  source: memory import/export
+  confidence: 0.8
+  half_life_days: 14
+  last_earned_on: '2026-10-22'
+  reearn_count: 0
+- memory_id: memory-reap-at-bank
+  title: reap at bank, earned from the ledger
+  layer: subconscious
+  source_kind: ledger-candidate
+  source_ref: candidate-reap-at-bank
+  origin_session: session-m164-export
+  earned_on: '2026-10-25'
+  recorded_by: Volmarr
+  source: memory import/export
+  confidence: 0.7
+  half_life_days: 10
+  last_earned_on: '2026-10-25'
+  reearn_count: 0
+- memory_id: memory-two-roads
+  title: the two roads, earned from the memory map
+  layer: subconscious
+  source_kind: memory-map
+  source_ref: map-two-roads
+  origin_session: session-m164-export
+  earned_on: '2026-09-20'
+  recorded_by: Volmarr
+  source: memory import/export
+  confidence: 0.6
+  half_life_days: 7
+  last_earned_on: '2026-09-20'
+  reearn_count: 0
+panels:
+- panel_id: panel-m164-boundary
+  rows:
+  - memory_id: memory-commit-before-answer
+    title: commit before answer, earned from the ledger
+    layer: core
+    source_kind: ledger-candidate
+    source_ref: candidate-commit-before-answer
+    confidence: 0.9
+    effective_confidence: 0.8206
+    freshness: fresh
+    age_days: 4
+    reearn_count: 1
+  - memory_id: memory-no-docker-law
+    title: no Docker ever, earned from the memory map
+    layer: core
+    source_kind: memory-map
+    source_ref: map-no-docker
+    confidence: 0.95
+    effective_confidence: 0.95
+    freshness: fresh
+    age_days: 0
+    reearn_count: 2
+  - memory_id: memory-suite-extras
+    title: the suite extras, earned from the memory map
+    layer: core
+    source_kind: memory-map
+    source_ref: map-suite-extras
+    confidence: 0.85
+    effective_confidence: 0.8224
+    freshness: fresh
+    age_days: 1
+    reearn_count: 0
+  - memory_id: memory-reap-at-bank
+    title: reap at bank, earned from the ledger
+    layer: subconscious
+    source_kind: ledger-candidate
+    source_ref: candidate-reap-at-bank
+    confidence: 0.7
+    effective_confidence: 0.2475
+    freshness: stale
+    age_days: 15
+    reearn_count: 0
+  - memory_id: memory-samtal-wal
+    title: the samtal WAL lesson, earned from the memory map
+    layer: subconscious
+    source_kind: memory-map
+    source_ref: map-samtal-wal
+    confidence: 0.8
+    effective_confidence: 0.3281
+    freshness: fading
+    age_days: 18
+    reearn_count: 0
+  - memory_id: memory-two-roads
+    title: the two roads, earned from the memory map
+    layer: subconscious
+    source_kind: memory-map
+    source_ref: map-two-roads
+    confidence: 0.6
+    effective_confidence: 0.0042
+    freshness: faded
+    age_days: 50
+    reearn_count: 0
+  total_memories: 6
+  total_core: 3
+  total_subconscious: 3
+  total_reearned: 3
+  state_counts:
+  - state: fresh
+    items: 3
+  - state: fading
+    items: 1
+  - state: stale
+    items: 1
+  - state: faded
+    items: 1
+  as_of: '2026-11-09'
+  account:
+  - 'The subconscious panel holds 6 memories as of 2026-11-09: 3 in the core layer and 3 in
+    the subconscious layer: faded 1, fading 1, fresh 3, stale 1.'
+  - Rows stand by layer, then title, then memory id, so two panels of one book on one day
+    diff cleanly, line by line.
+  - Every row's effective confidence and freshness are read off its memory's own decay - its
+    confidence, its half-life and the day it was last earned - and a row that disagrees with
+    that reading is refused.
+  - The panel is read off the book at call time, as of a named day - it is derived, never
+    stored loose.

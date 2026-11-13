@@ -1,0 +1,105 @@
+schema: mythic.failure_fostering/1
+slice: M-139
+part: 6
+part_title: Agents as files
+fostering_note: |
+  Failure fostering: a failed member's task is
+  re-dealt with its failure report attached; the
+  same failure twice escalates to the human with
+  both reports. A fostering book holds the
+  original dealings - M-125 dealt assignments,
+  validated by the task-dealing layer itself -
+  and the failure reports filed against them, in
+  held order: each report names the member who
+  failed, the slice, a failure key naming the
+  failure, a title and the body of what went
+  wrong. A re-deal is derived from the original
+  dealing, its failure report and the member who
+  fosters the task - never the member who failed
+  - and a stored re-deal that disagrees with the
+  derived account is refused. An escalation is
+  derived from the two reports of the same
+  failure - same member, same slice, same failure
+  key - and a stored escalation that disagrees
+  with the derived one is refused. This file is
+  ONE EXAMPLE FOSTERING BOOK in the shape a real
+  fostering file takes: the M-139 task dealt to
+  the forge worker, whose replay-gap failure is
+  reported twice - fostered by the auditor with
+  the first report attached, and escalated to
+  the human with both reports - and one kept
+  report of a different failure on M-138, which
+  is fostered by no one and escalates nowhere. A
+  real fostering book is a new file in this same
+  shape - it is never this file edited in place.
+  This layer holds fosterings as data only: it
+  re-deals no task to a live agent and delivers
+  no escalation.
+guide:
+  title: "Failure fostering at the M-138 slice boundary"
+assignments:
+- assignment_id: assign-m139-forge
+  member: forge_worker
+  office: forge_worker
+  slice_id: M-139
+  title: Failure fostering
+  required_office: forge_worker
+  load_after: 1
+- assignment_id: assign-m138-scribe
+  member: scribe
+  office: scribe
+  slice_id: M-138
+  title: Crew replay
+  required_office: scribe
+  load_after: 1
+reports:
+- report_id: report-first
+  member: forge_worker
+  slice_id: M-139
+  failure_key: replay-gap
+  title: Replay gap found
+  body: "The replay book for the finished run skips a hand-off, so the closing decision cannot be shown whole."
+- report_id: report-second
+  member: forge_worker
+  slice_id: M-139
+  failure_key: replay-gap
+  title: Replay gap found again
+  body: "The same replay gap is still there on the second run: one hand-off is missing, so the decision still cannot be shown whole."
+- report_id: report-note
+  member: scribe
+  slice_id: M-138
+  failure_key: trace-slip
+  title: Trace slip noted
+  body: "One trace statement names the wrong step; the chain itself stands, but the wording slips."
+redeals:
+- redeal_id: redeal-m139
+  assignment:
+    assignment_id: assign-m139-forge
+    member: forge_worker
+    office: forge_worker
+    slice_id: M-139
+    title: Failure fostering
+    required_office: forge_worker
+    load_after: 1
+  report:
+    report_id: report-first
+    member: forge_worker
+    slice_id: M-139
+    failure_key: replay-gap
+    title: Replay gap found
+    body: "The replay book for the finished run skips a hand-off, so the closing decision cannot be shown whole."
+  foster_member: auditor
+  account:
+  - "Slice M-139 'Failure fostering' was dealt to forge_worker."
+  - "forge_worker reported failure 'replay-gap' on M-139: 'Replay gap found'."
+  - "The task is re-dealt to auditor with its failure report attached."
+escalations:
+- escalation_id: escalation-m139
+  member: forge_worker
+  slice_id: M-139
+  failure_key: replay-gap
+  report_ids: [report-first, report-second]
+  account:
+  - "Report 1: forge_worker reported 'Replay gap found' (replay-gap) on M-139."
+  - "Report 2: forge_worker reported 'Replay gap found again' (replay-gap) on M-139."
+  - "The same failure 'replay-gap' on M-139 happened twice; it escalates to the human with both reports attached."
