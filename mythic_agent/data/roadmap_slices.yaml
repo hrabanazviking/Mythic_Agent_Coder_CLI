@@ -1595,7 +1595,7 @@ slices:
   part: 11
   title: Accessibility final gate
   summary: M-199's checks on the shipped TUI, with the keyboard-only task timed.
-  status: queued
+  status: done
 - id: M-263
   part: 11
   title: The docs completion
