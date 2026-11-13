@@ -1,0 +1,228 @@
+schema: mythic.ide_companions/1
+host: M-240
+ide_companions:
+  title: IDE companions at the M-240 slice run
+hosts:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endpoint book
+  origin_session: session-m240
+  host_id: ide-intellij
+  seq: 1
+  title: IntelliJ IDE
+  state: live
+  detail: 'The slice the tracker looks back on first: banked at M-230, standing active in the cross-app
+    method honesty''s hands.'
+  channel: direct
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endpoint book
+  origin_session: session-m240
+  host_id: ide-pycharm
+  seq: 2
+  title: PyCharm IDE
+  state: live
+  detail: 'This very slice, standing active: the idecompanions book holding its own host as data.'
+  channel: bridged
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endpoint book
+  origin_session: session-m240
+  host_id: ide-generic
+  seq: 3
+  title: Generic IDE
+  state: dormant
+  detail: A queued slice the tracker has not taken yet; an endpoint naming it refuses by name.
+  channel: unlinked
+endpoint_records:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endpoint book
+  origin_session: session-m240
+  endpoint_id: endpoint-held-endpoint
+  seq: 1
+  host_id: ide-intellij
+  title: The held endpoint
+  stages: &id001
+  - declared
+  - negotiated
+  - bound
+  - exchanged
+  - held
+  claims:
+  - capability_ref
+  detail: 'The opening endpoint: a slice declared for the host in its home tool, negotiated across the
+    workshop, bound where it lives, exchanged to the tracker at hand and held honestly, held with the
+    tool held as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endpoint book
+  origin_session: session-m240
+  endpoint_id: endpoint-retried-endpoint
+  seq: 2
+  host_id: ide-intellij
+  title: The retried endpoint
+  stages:
+  - declared
+  - negotiated
+  - bound
+  - exchanged
+  - declared
+  - negotiated
+  - bound
+  - exchanged
+  - held
+  claims: []
+  detail: 'The retried endpoint: a first exchanged step sent the standing back, the slice was declared
+    and negotiated again and the tracking held a second time before the holding stood.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endpoint book
+  origin_session: session-m240
+  endpoint_id: endpoint-own-endpoint
+  seq: 3
+  host_id: ide-pycharm
+  title: The tracker's own endpoint
+  stages: *id001
+  claims:
+  - channel_ref
+  detail: 'The tracker''s own endpoint: this slice''s own endpoint, holding its endpoint ref as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endpoint book
+  origin_session: session-m240
+  endpoint_id: endpoint-bare-endpoint
+  seq: 4
+  host_id: ide-pycharm
+  title: The bare claim endpoint
+  stages: *id001
+  claims:
+  - feeling
+  detail: An endpoint that held a feeling in place of held proof, standing open.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endpoint book
+  origin_session: session-m240
+  endpoint_id: endpoint-leaping-endpoint
+  seq: 5
+  host_id: ide-pycharm
+  title: The leaping endpoint
+  stages:
+  - declared
+  - negotiated
+  - held
+  claims: []
+  detail: An endpoint that stepped from negotiated straight to held, outside the endpoint sequence, standing
+    open.
+views:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endpoint book
+  origin_session: session-m240
+  view_id: view-endpoints
+  seq: 1
+  view_filter: all
+  detail: Every held endpoint, complete or not.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endpoint book
+  origin_session: session-m240
+  view_id: view-held
+  seq: 2
+  view_filter: complete
+  detail: Only the endpoints standing complete.
+notes:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endpoint book
+  origin_session: session-m240
+  note_id: note-note-first
+  seq: 1
+  endpoint_id: endpoint-held-endpoint
+  stance: note
+  target: the opening endpoint
+  title: Endpoints first
+  detail: The tracker opens by naming the slice first, told honestly.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endpoint book
+  origin_session: session-m240
+  note_id: note-concern-bare
+  seq: 2
+  endpoint_id: endpoint-bare-endpoint
+  stance: concern
+  target: the bare claim endpoint
+  title: Claim declared
+  detail: An endpoint that held a feeling claim is not the tracker's way, and stands declared.
+traces:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endpoint book
+  origin_session: session-m240
+  trace_id: trace-first
+  seq: 1
+  endpoint_id: endpoint-held-endpoint
+  trace: declared > negotiated > bound > exchanged > held
+  detail: 'The opening endpoint''s walk, held exactly as walked: the trace is the walk itself.'
+panels:
+- panel_id: panel-ide
+  view_id: view-endpoints
+  view_filter: all
+  rows:
+  - item_id: endpoint-held-endpoint
+    standing: complete
+    label: The held endpoint
+    segment: 'endpoint-held-endpoint: The held endpoint - host: ''ide-intellij'' - stage: ''held'' - stages:
+      5 - claims: ''capability_ref'' - detail: ''The opening endpoint: a slice declared for the host in
+      its home tool, negotiated across the workshop, bound where it lives, exchanged to the tracker at
+      hand and held honestly, held with the tool held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: endpoint-retried-endpoint
+    standing: complete
+    label: The retried endpoint
+    segment: 'endpoint-retried-endpoint: The retried endpoint - host: ''ide-intellij'' - stage: ''held''
+      - stages: 9 - claims: ''none'' - detail: ''The retried endpoint: a first exchanged step sent the
+      standing back, the slice was declared and negotiated again and the tracking held a second time before
+      the holding stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: endpoint-own-endpoint
+    standing: complete
+    label: The tracker's own endpoint
+    segment: 'endpoint-own-endpoint: The tracker''s own endpoint - host: ''ide-pycharm'' - stage: ''held''
+      - stages: 5 - claims: ''channel_ref'' - detail: ''The tracker''s own endpoint: this slice''s own
+      endpoint, holding its endpoint ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: endpoint-bare-endpoint
+    standing: open
+    label: The bare claim endpoint
+    segment: 'endpoint-bare-endpoint: The bare claim endpoint - host: ''ide-pycharm'' - stage: ''held''
+      - stages: 5 - claims: ''feeling'' - detail: ''An endpoint that held a feeling in place of held proof,
+      standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof: complete stands
+      on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: endpoint-leaping-endpoint
+    standing: open
+    label: The leaping endpoint
+    segment: 'endpoint-leaping-endpoint: The leaping endpoint - host: ''ide-pycharm'' - stage: ''held''
+      - stages: 3 - claims: ''none'' - detail: ''An endpoint that stepped from negotiated straight to
+      held, outside the endpoint sequence, standing open.'' - gaps: steps from negotiated to held, which
+      the endpoint sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The endpoint book holds 5 endpoints as of 2026-11-11: the view ''all'' shows 5 of them: complete
+    3, open 2; 3 of the shown endpoints stand complete.'
+  - Rows stand in held endpoint, the endpoint the book itself stands in, so two panels of one view diff
+    cleanly, segment by segment.
+  - Every segment is derived from its endpoint's own fields - the host it answers for, the steps it walked
+    in the open and the evidence it honestly carries - and no judgement is stored on any endpoint.
+  - 'Completeness is bound from the held records alone: a endpoint that steps outside the endpoint sequence,
+    carries a bare claim in place of held evidence, or has not declared held stands open, declared in
+    its gaps, and the endpoint index is derived from the held endpoints, never stored where it could drift.'

@@ -1,0 +1,227 @@
+schema: mythic.skills_standard/1
+skill: M-236
+skills_standard:
+  title: Skills standard at the M-236 slice run
+skills:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-pack book
+  origin_session: session-m236
+  skill_id: skill-forge
+  seq: 1
+  title: Forge skill
+  state: live
+  detail: 'The slice the tracker looks back on first: banked at M-230, standing active in the cross-app
+    method honesty''s hands.'
+  scope: project
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-pack book
+  origin_session: session-m236
+  skill_id: skill-second-brain
+  seq: 2
+  title: Second Brain skill
+  state: live
+  detail: 'This very slice, standing active: the skillsstandard book holding its own skill as data.'
+  scope: user
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-pack book
+  origin_session: session-m236
+  skill_id: skill-seidr
+  seq: 3
+  title: Seidr skill
+  state: dormant
+  detail: A queued slice the tracker has not taken yet; an pack naming it refuses by name.
+  scope: unscoped
+pack_records:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-pack book
+  origin_session: session-m236
+  pack_id: pack-held-pack
+  seq: 1
+  skill_id: skill-forge
+  title: The held pack
+  stages: &id001
+  - found
+  - opened
+  - vetted
+  - loaded
+  - held
+  claims:
+  - instructions_ref
+  detail: 'The opening pack: a slice found for the skill in its home tool, opened across the workshop,
+    vetted where it lives, loaded to the tracker at hand and held honestly, held with the tool held as
+    proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-pack book
+  origin_session: session-m236
+  pack_id: pack-retried-pack
+  seq: 2
+  skill_id: skill-forge
+  title: The retried pack
+  stages:
+  - found
+  - opened
+  - vetted
+  - loaded
+  - found
+  - opened
+  - vetted
+  - loaded
+  - held
+  claims: []
+  detail: 'The retried pack: a first loaded step sent the standing back, the slice was found and opened
+    again and the tracking held a second time before the holding stood.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-pack book
+  origin_session: session-m236
+  pack_id: pack-own-pack
+  seq: 3
+  skill_id: skill-second-brain
+  title: The tracker's own pack
+  stages: *id001
+  claims:
+  - scope_ref
+  detail: 'The tracker''s own pack: this slice''s own pack, holding its pack ref as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-pack book
+  origin_session: session-m236
+  pack_id: pack-bare-pack
+  seq: 4
+  skill_id: skill-second-brain
+  title: The bare claim pack
+  stages: *id001
+  claims:
+  - feeling
+  detail: An pack that held a feeling in place of held proof, standing open.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-pack book
+  origin_session: session-m236
+  pack_id: pack-leaping-pack
+  seq: 5
+  skill_id: skill-second-brain
+  title: The leaping pack
+  stages:
+  - found
+  - opened
+  - held
+  claims: []
+  detail: An pack that stepped from opened straight to held, outside the pack sequence, standing open.
+views:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-pack book
+  origin_session: session-m236
+  view_id: view-packs
+  seq: 1
+  view_filter: all
+  detail: Every held pack, complete or not.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-pack book
+  origin_session: session-m236
+  view_id: view-held
+  seq: 2
+  view_filter: complete
+  detail: Only the packs standing complete.
+notes:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-pack book
+  origin_session: session-m236
+  note_id: note-note-first
+  seq: 1
+  pack_id: pack-held-pack
+  stance: note
+  target: the opening pack
+  title: Packs first
+  detail: The tracker opens by naming the slice first, told honestly.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-pack book
+  origin_session: session-m236
+  note_id: note-concern-bare
+  seq: 2
+  pack_id: pack-bare-pack
+  stance: concern
+  target: the bare claim pack
+  title: Claim found
+  detail: An pack that held a feeling claim is not the tracker's way, and stands found.
+traces:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-pack book
+  origin_session: session-m236
+  trace_id: trace-first
+  seq: 1
+  pack_id: pack-held-pack
+  trace: found > opened > vetted > loaded > held
+  detail: 'The opening pack''s walk, held exactly as walked: the trace is the walk itself.'
+panels:
+- panel_id: panel-skill
+  view_id: view-packs
+  view_filter: all
+  rows:
+  - item_id: pack-held-pack
+    standing: complete
+    label: The held pack
+    segment: 'pack-held-pack: The held pack - skill: ''skill-forge'' - stage: ''held'' - stages: 5 - claims:
+      ''instructions_ref'' - detail: ''The opening pack: a slice found for the skill in its home tool,
+      opened across the workshop, vetted where it lives, loaded to the tracker at hand and held honestly,
+      held with the tool held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: pack-retried-pack
+    standing: complete
+    label: The retried pack
+    segment: 'pack-retried-pack: The retried pack - skill: ''skill-forge'' - stage: ''held'' - stages:
+      9 - claims: ''none'' - detail: ''The retried pack: a first loaded step sent the standing back, the
+      slice was found and opened again and the tracking held a second time before the holding stood.''
+      - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: pack-own-pack
+    standing: complete
+    label: The tracker's own pack
+    segment: 'pack-own-pack: The tracker''s own pack - skill: ''skill-second-brain'' - stage: ''held''
+      - stages: 5 - claims: ''scope_ref'' - detail: ''The tracker''s own pack: this slice''s own pack,
+      holding its pack ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: pack-bare-pack
+    standing: open
+    label: The bare claim pack
+    segment: 'pack-bare-pack: The bare claim pack - skill: ''skill-second-brain'' - stage: ''held'' -
+      stages: 5 - claims: ''feeling'' - detail: ''An pack that held a feeling in place of held proof,
+      standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof: complete stands
+      on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: pack-leaping-pack
+    standing: open
+    label: The leaping pack
+    segment: 'pack-leaping-pack: The leaping pack - skill: ''skill-second-brain'' - stage: ''held'' -
+      stages: 3 - claims: ''none'' - detail: ''An pack that stepped from opened straight to held, outside
+      the pack sequence, standing open.'' - gaps: steps from opened to held, which the pack sequence does
+      not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The pack book holds 5 packs as of 2026-11-11: the view ''all'' shows 5 of them: complete 3, open
+    2; 3 of the shown packs stand complete.'
+  - Rows stand in held pack, the pack the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its pack's own fields - the skill it answers for, the steps it walked
+    in the open and the evidence it honestly carries - and no judgement is stored on any pack.
+  - 'Completeness is vetted from the held records alone: a pack that steps outside the pack sequence,
+    carries a bare claim in place of held evidence, or has not found held stands open, found in its gaps,
+    and the pack index is derived from the held packs, never stored where it could drift.'

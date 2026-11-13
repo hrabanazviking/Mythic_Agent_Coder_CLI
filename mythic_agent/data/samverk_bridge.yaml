@@ -1,0 +1,228 @@
+schema: mythic.samverk_bridge/1
+repo: M-242
+samverk_bridge:
+  title: Samverk bridge at the M-242 slice run
+repos:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-exchange book
+  origin_session: session-m242
+  repo_id: forge-mythic
+  seq: 1
+  title: Mythic forge
+  state: live
+  detail: 'The slice the tracker looks back on first: banked at M-230, standing active in the cross-app
+    method honesty''s hands.'
+  link: native
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-exchange book
+  origin_session: session-m242
+  repo_id: forge-samtal
+  seq: 2
+  title: Samtal forge
+  state: live
+  detail: 'This very slice, standing active: the samverkbridge book holding its own repo as data.'
+  link: mirrored
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-exchange book
+  origin_session: session-m242
+  repo_id: forge-archive
+  seq: 3
+  title: Archive forge
+  state: dormant
+  detail: A queued slice the tracker has not taken yet; an exchange naming it refuses by name.
+  link: unlinked
+exchange_records:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-exchange book
+  origin_session: session-m242
+  exchange_id: exchange-held-exchange
+  seq: 1
+  repo_id: forge-mythic
+  title: The held exchange
+  stages: &id001
+  - opened
+  - triaged
+  - crafted
+  - reviewed
+  - held
+  claims:
+  - repo_ref
+  detail: 'The opening exchange: a slice opened for the repo in its home tool, triaged across the workshop,
+    crafted where it lives, reviewed to the tracker at hand and held honestly, held with the tool held
+    as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-exchange book
+  origin_session: session-m242
+  exchange_id: exchange-retried-exchange
+  seq: 2
+  repo_id: forge-mythic
+  title: The retried exchange
+  stages:
+  - opened
+  - triaged
+  - crafted
+  - reviewed
+  - opened
+  - triaged
+  - crafted
+  - reviewed
+  - held
+  claims: []
+  detail: 'The retried exchange: a first reviewed step sent the standing back, the slice was opened and
+    triaged again and the tracking held a second time before the holding stood.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-exchange book
+  origin_session: session-m242
+  exchange_id: exchange-own-exchange
+  seq: 3
+  repo_id: forge-samtal
+  title: The tracker's own exchange
+  stages: *id001
+  claims:
+  - link_ref
+  detail: 'The tracker''s own exchange: this slice''s own exchange, holding its exchange ref as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-exchange book
+  origin_session: session-m242
+  exchange_id: exchange-bare-exchange
+  seq: 4
+  repo_id: forge-samtal
+  title: The bare claim exchange
+  stages: *id001
+  claims:
+  - feeling
+  detail: An exchange that held a feeling in place of held proof, standing open.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-exchange book
+  origin_session: session-m242
+  exchange_id: exchange-leaping-exchange
+  seq: 5
+  repo_id: forge-samtal
+  title: The leaping exchange
+  stages:
+  - opened
+  - triaged
+  - held
+  claims: []
+  detail: An exchange that stepped from triaged straight to held, outside the exchange sequence, standing
+    open.
+views:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-exchange book
+  origin_session: session-m242
+  view_id: view-exchanges
+  seq: 1
+  view_filter: all
+  detail: Every held exchange, complete or not.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-exchange book
+  origin_session: session-m242
+  view_id: view-held
+  seq: 2
+  view_filter: complete
+  detail: Only the exchanges standing complete.
+notes:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-exchange book
+  origin_session: session-m242
+  note_id: note-note-first
+  seq: 1
+  exchange_id: exchange-held-exchange
+  stance: note
+  target: the opening exchange
+  title: Exchanges first
+  detail: The tracker opens by naming the slice first, told honestly.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-exchange book
+  origin_session: session-m242
+  note_id: note-concern-bare
+  seq: 2
+  exchange_id: exchange-bare-exchange
+  stance: concern
+  target: the bare claim exchange
+  title: Claim opened
+  detail: An exchange that held a feeling claim is not the tracker's way, and stands opened.
+traces:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  repo: multi-exchange book
+  origin_session: session-m242
+  trace_id: trace-first
+  seq: 1
+  exchange_id: exchange-held-exchange
+  trace: opened > triaged > crafted > reviewed > held
+  detail: 'The opening exchange''s walk, held exactly as walked: the trace is the walk itself.'
+panels:
+- panel_id: panel-samverk
+  view_id: view-exchanges
+  view_filter: all
+  rows:
+  - item_id: exchange-held-exchange
+    standing: complete
+    label: The held exchange
+    segment: 'exchange-held-exchange: The held exchange - repo: ''forge-mythic'' - stage: ''held'' - stages:
+      5 - claims: ''repo_ref'' - detail: ''The opening exchange: a slice opened for the repo in its home
+      tool, triaged across the workshop, crafted where it lives, reviewed to the tracker at hand and held
+      honestly, held with the tool held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: exchange-retried-exchange
+    standing: complete
+    label: The retried exchange
+    segment: 'exchange-retried-exchange: The retried exchange - repo: ''forge-mythic'' - stage: ''held''
+      - stages: 9 - claims: ''none'' - detail: ''The retried exchange: a first reviewed step sent the
+      standing back, the slice was opened and triaged again and the tracking held a second time before
+      the holding stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: exchange-own-exchange
+    standing: complete
+    label: The tracker's own exchange
+    segment: 'exchange-own-exchange: The tracker''s own exchange - repo: ''forge-samtal'' - stage: ''held''
+      - stages: 5 - claims: ''link_ref'' - detail: ''The tracker''s own exchange: this slice''s own exchange,
+      holding its exchange ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: exchange-bare-exchange
+    standing: open
+    label: The bare claim exchange
+    segment: 'exchange-bare-exchange: The bare claim exchange - repo: ''forge-samtal'' - stage: ''held''
+      - stages: 5 - claims: ''feeling'' - detail: ''An exchange that held a feeling in place of held proof,
+      standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof: complete stands
+      on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: exchange-leaping-exchange
+    standing: open
+    label: The leaping exchange
+    segment: 'exchange-leaping-exchange: The leaping exchange - repo: ''forge-samtal'' - stage: ''held''
+      - stages: 3 - claims: ''none'' - detail: ''An exchange that stepped from triaged straight to held,
+      outside the exchange sequence, standing open.'' - gaps: steps from triaged to held, which the exchange
+      sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The exchange book holds 5 exchanges as of 2026-11-11: the view ''all'' shows 5 of them: complete
+    3, open 2; 3 of the shown exchanges stand complete.'
+  - Rows stand in held exchange, the exchange the book itself stands in, so two panels of one view diff
+    cleanly, segment by segment.
+  - Every segment is derived from its exchange's own fields - the repo it answers for, the steps it walked
+    in the open and the evidence it honestly carries - and no judgement is stored on any exchange.
+  - 'Completeness is crafted from the held records alone: a exchange that steps outside the exchange sequence,
+    carries a bare claim in place of held evidence, or has not opened held stands open, opened in its
+    gaps, and the exchange index is derived from the held exchanges, never stored where it could drift.'

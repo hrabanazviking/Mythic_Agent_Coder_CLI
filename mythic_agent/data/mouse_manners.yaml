@@ -1,0 +1,207 @@
+schema: mythic.mouse_manners/1
+slice: M-188
+part: 8
+part_title: The Beautiful Face
+canon_note: 'Mouse manners - click, drag-select, scroll, and links that open files at line numbers in the user''s
+  editor. A gesture is held whole - under its title, the area it lives in in the closed vocabulary (chat, terminal,
+  editor, review, settings, onboarding, lessons, command palace), its kind in the closed vocabulary (click, drag-select,
+  scroll, link), the mouse road that reaches it, named as data, and its detail. A gesture naming no mouse road is
+  held honestly with an empty road: it stands unwired, named in its gaps, and no road is invented for it. The gesture
+  guide is DERIVED at call time from the held gestures roads alone - never a second stored copy that could drift
+  - and a stored guide or wiring verdict on any record refuses by name. The file links are held as data: a link
+  record naming its file, its line number and the user''s editor as its target; one record stands per file line,
+  and holding a link opens no file and launches no editor. A record claiming a live pointer move, a live click or
+  a file actually opened refuses by name. This file is ONE EXAMPLE BOOK, in the shape a real gesture file takes
+  - the M-187 slice boundary - six gestures and two views, two link records, with its one pinned panel of the every-gesture
+  view, whose shown gestures stand five wired of six, so the book verdict under it stands strained; under the wired
+  view, whose five shown gestures all stand wired, the verdict stands open. A real book is a new file in this same
+  shape - it is never this file edited in place. This layer moves no pointer, clicks nothing, scrolls nothing and
+  opens no file: it holds mouse manners as data and tells it.'
+guide:
+  title: Mouse manners at the M-187 slice boundary
+gestures:
+- gesture_id: gesture-open-file-link
+  seq: 1
+  title: Open a file link at its line
+  area: chat
+  gesture: link
+  road: click
+  detail: On the chat screen, a file link names its file and its line as data, and a click on it is the mouse road
+    to the user's editor at that line - the link records hold the file, the line and the editor target, and holding
+    them here opens nothing.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: mouse manners
+  origin_session: session-m188
+- gesture_id: gesture-place-cursor
+  seq: 2
+  title: Place the cursor
+  area: editor
+  gesture: click
+  road: left click
+  detail: In the editor, a left click places the cursor where the pointer stands - the words typed after it land
+    there, and nothing moves until the click.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: mouse manners
+  origin_session: session-m188
+- gesture_id: gesture-drag-select
+  seq: 3
+  title: Drag to select text
+  area: editor
+  gesture: drag-select
+  road: drag
+  detail: In the editor, dragging across text selects it - the selection stands ready to copy, cut or hand to the
+    coder. The keyboard book left this act unreachable by keyboard; the drag is the mouse road that reaches it.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: mouse manners
+  origin_session: session-m188
+- gesture_id: gesture-scroll-transcript
+  seq: 4
+  title: Scroll the transcript
+  area: chat
+  gesture: scroll
+  road: wheel
+  detail: On the chat screen, the wheel scrolls the transcript - back to what was said, forward to what is new -
+    and the place in the words is kept while it turns.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: mouse manners
+  origin_session: session-m188
+- gesture_id: gesture-touch-pan
+  seq: 5
+  title: Pan the review by touch
+  area: review
+  gesture: scroll
+  road: ''
+  detail: Panning the review by touch names no mouse road in this book - a touch is not a mouse road held here -
+    so the gesture stands unwired by mouse honestly, named in its gaps until a mouse road is held for it, and no
+    road is invented here.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: mouse manners
+  origin_session: session-m188
+- gesture_id: gesture-click-approve
+  seq: 6
+  title: Approve a tool call
+  area: review
+  gesture: click
+  road: left click
+  detail: At a review, a left click on the approval card approves the tool call as named on it - approval is one
+    deliberate click, and a stray click anywhere else answers no.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: mouse manners
+  origin_session: session-m188
+views:
+- view_id: view-all
+  seq: 1
+  view_filter: all
+  detail: See the whole mouse book, every gesture at once.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: mouse manners
+  origin_session: session-m188
+- view_id: view-wired
+  seq: 2
+  view_filter: wired
+  detail: See only the gestures that stand wired to the mouse.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: mouse manners
+  origin_session: session-m188
+links:
+- link_id: link-terminal-help
+  seq: 1
+  path: mythic_agent/terminal.py
+  line: 279
+  editor: the user's editor
+  title: The terminal help line
+  detail: The help line of the terminal loop stands behind this link - its file, its line and the user's editor
+    as its target, held as data. Holding the link opens no file and launches no editor; the road is told, never
+    travelled, by this layer.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: mouse manners
+  origin_session: session-m188
+- link_id: link-chat-help
+  seq: 2
+  path: mythic_agent/ui/screens/chat_screen.py
+  line: 750
+  editor: the user's editor
+  title: The chat screen help road
+  detail: The help road of the chat screen stands behind this link - its file, its line and the user's editor as
+    its target, held as data beside the first. One link stands per file line in this book, so a second link to the
+    same line refuses by name.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: mouse manners
+  origin_session: session-m188
+panels:
+- panel_id: panel-m187-boundary
+  view_id: view-all
+  view_filter: all
+  rows:
+  - item_id: gesture-open-file-link
+    wire: wired
+    label: Open a file link at its line
+    segment: 'gesture-open-file-link: Open a file link at its line in area ''chat'' - gesture: ''link'' - road:
+      ''click'' - detail: ''On the chat screen, a file link names its file and its line as data, and a click on
+      it is the mouse road to the user''s editor at that line - the link records hold the file, the line and the
+      editor target, and holding them here opens nothing.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: gesture-place-cursor
+    wire: wired
+    label: Place the cursor
+    segment: 'gesture-place-cursor: Place the cursor in area ''editor'' - gesture: ''click'' - road: ''left click''
+      - detail: ''In the editor, a left click places the cursor where the pointer stands - the words typed after
+      it land there, and nothing moves until the click.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: gesture-drag-select
+    wire: wired
+    label: Drag to select text
+    segment: 'gesture-drag-select: Drag to select text in area ''editor'' - gesture: ''drag-select'' - road: ''drag''
+      - detail: ''In the editor, dragging across text selects it - the selection stands ready to copy, cut or hand
+      to the coder. The keyboard book left this act unreachable by keyboard; the drag is the mouse road that reaches
+      it.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: gesture-scroll-transcript
+    wire: wired
+    label: Scroll the transcript
+    segment: 'gesture-scroll-transcript: Scroll the transcript in area ''chat'' - gesture: ''scroll'' - road: ''wheel''
+      - detail: ''On the chat screen, the wheel scrolls the transcript - back to what was said, forward to what
+      is new - and the place in the words is kept while it turns.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: gesture-touch-pan
+    wire: unwired
+    label: Pan the review by touch
+    segment: 'gesture-touch-pan: Pan the review by touch in area ''review'' - gesture: ''scroll'' - road: ''none''
+      - detail: ''Panning the review by touch names no mouse road in this book - a touch is not a mouse road held
+      here - so the gesture stands unwired by mouse honestly, named in its gaps until a mouse road is held for it,
+      and no road is invented here.'' - gaps: no mouse road'
+    recorded_on: '2026-11-09'
+  - item_id: gesture-click-approve
+    wire: wired
+    label: Approve a tool call
+    segment: 'gesture-click-approve: Approve a tool call in area ''review'' - gesture: ''click'' - road: ''left
+      click'' - detail: ''At a review, a left click on the approval card approves the tool call as named on it -
+      approval is one deliberate click, and a stray click anywhere else answers no.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  total_items: 6
+  total_shown: 6
+  wire_counts:
+  - wire: wired
+    items: 5
+  - wire: unwired
+    items: 1
+  as_of: '2026-11-09'
+  account:
+  - 'The mouse book holds 6 gestures as of 2026-11-09: the view ''all'' shows 6 of them: wired 5, unwired 1; 5 of
+    the shown gestures stand wired to the mouse.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly, segment
+    by segment.
+  - Every segment is derived from its gesture's own fields - the title, the area it lives in and the mouse road
+    that honestly reaches it - and no judgement is stored on any gesture.
+  - 'Wiring is judged from the held records alone: a gesture naming no mouse road stands unwired, and the gesture
+    guide is derived from the held roads, never stored where it could drift.'

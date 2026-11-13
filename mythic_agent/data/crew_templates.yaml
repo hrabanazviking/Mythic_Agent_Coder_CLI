@@ -1,0 +1,105 @@
+schema: mythic.crew_templates/1
+slice: M-143
+part: 6
+part_title: The Crew
+templates_note: |
+  Crew templates: saved formations summonable by
+  name. A crew template book holds one template
+  record per saved formation, in held order: each
+  record names the formation in plain words, what
+  it is for, and the seats it fields - every seat
+  naming a member of the shipped casting (M-121).
+  A record names no size and no member list,
+  because both are derived from its seats: the
+  member list is the seats read in order and the
+  size is their count, so no formation can claim
+  more members than its seats name. A roster of
+  one formation is derived from its seats - its
+  members, size and account read off the record -
+  and a stored roster that disagrees with the
+  derived one is refused. The template index is
+  derived from the whole book: its rows are the
+  per-formation rosters in held order, its totals
+  are the records' own counts (every formation
+  held, every seat named, every distinct member
+  standing in them) and its account is read off
+  the rows and totals; a stored index that
+  disagrees refuses. This file is ONE EXAMPLE
+  CREW TEMPLATE BOOK, in the shape a real crew
+  templates file takes: the M-142 slice boundary -
+  the roadmap's four named formations (Duo, Full
+  Six, Research Swarm, Review Panel) built from
+  the shipped casting, with the one template
+  index of it. A real template book is a new file
+  in this same shape - it is never this file
+  edited in place. This layer holds templates as
+  data only: it summons no crew, spawns no agent,
+  runs nothing and persists nothing - summonable
+  by name here means a name resolves to the
+  validated formation record, nothing more.
+guide:
+  title: "Crew template book at the M-142 slice boundary"
+entries:
+- template_id: tpl-duo
+  template: duo
+  title: Duo
+  detail: One pair of hands plus the eyes that check them - the smallest crew that still catches its own mistakes.
+  slots: [forge_worker, auditor]
+- template_id: tpl-full-six
+  template: full_six
+  title: Full Six
+  detail: The six offices of the crew standing together - intent, design, build, verification, research and memory on one piece of work.
+  slots: [skald, architect, forge_worker, auditor, cartographer, scribe]
+- template_id: tpl-research-swarm
+  template: research_swarm
+  title: Research Swarm
+  detail: The Cartographer-led fan-out for a hard question - several members read at once and their findings come back as one digested answer with sources.
+  slots: [cartographer, architect, skald, scribe]
+  lead: cartographer
+- template_id: tpl-review-panel
+  template: review_panel
+  title: Review Panel
+  detail: The casting's two checking members review the same change with different eyes - disagreements are surfaced, not averaged away.
+  slots: [auditor, guardian]
+indexes:
+- index_id: index-m142-boundary
+  rows:
+  - template: duo
+    template_id: tpl-duo
+    members: [forge_worker, auditor]
+    size: 2
+    account:
+    - "duo fields 2 member(s): forge_worker, auditor."
+    - "Every seat names a member of the shipped casting (M-121)."
+    - "Summoning a template resolves its name to this formation record; no crew is run by this layer."
+  - template: full_six
+    template_id: tpl-full-six
+    members: [skald, architect, forge_worker, auditor, cartographer, scribe]
+    size: 6
+    account:
+    - "full_six fields 6 member(s): skald, architect, forge_worker, auditor, cartographer, scribe."
+    - "Every seat names a member of the shipped casting (M-121)."
+    - "Summoning a template resolves its name to this formation record; no crew is run by this layer."
+  - template: research_swarm
+    template_id: tpl-research-swarm
+    members: [cartographer, architect, skald, scribe]
+    size: 4
+    account:
+    - "research_swarm fields 4 member(s): cartographer, architect, skald, scribe."
+    - "Every seat names a member of the shipped casting (M-121)."
+    - "Summoning a template resolves its name to this formation record; no crew is run by this layer."
+  - template: review_panel
+    template_id: tpl-review-panel
+    members: [auditor, guardian]
+    size: 2
+    account:
+    - "review_panel fields 2 member(s): auditor, guardian."
+    - "Every seat names a member of the shipped casting (M-121)."
+    - "Summoning a template resolves its name to this formation record; no crew is run by this layer."
+  total_templates: 4
+  total_slots: 14
+  total_members: 7
+  account:
+  - "The book holds 4 saved formation(s) naming 14 seat(s) in all."
+  - "7 member(s) of the shipped casting stand in these formations; every seat names a real casting member."
+  - "A template is summoned by name to its record; nothing in this book runs a crew."

@@ -1,0 +1,225 @@
+schema: mythic.copy_share/1
+slice: M-195
+part: 8
+part_title: The Beautiful Face
+canon_note: 'Copy and share - any answer, diff, or report copyable as clean markdown; a shareable session
+  summary generated on command. The M-171 charter names this slice on NO row, so the book is built to
+  the roadmap words alone. A clip is held whole - under its heading, its kind in the closed vocabulary
+  (answer, diff, report, code, summary), its format and its origin held honestly (an unknown format or
+  origin stands empty, never invented), the clean markdown it carries, named as data, and its detail.
+  A clip naming no markdown body is held honestly with an empty markdown: it stands unready, named in
+  its gaps, and no markdown is invented for it. The clip index is DERIVED at call time from the held clips
+  alone - never a second stored copy that could drift - and a stored index or readiness verdict on any
+  record refuses by name. The notes are held as data: a note record naming its clip, its stance (note,
+  concern, praise or question) and what it feeds back toward; one record stands per clip stance, and holding
+  a note posts none of it. A record claiming a clip was actually copied to a clipboard, actually shared,
+  sent or posted refuses by name. This file is ONE EXAMPLE BOOK, in the shape a real clip file takes -
+  the M-194 slice boundary - six clips and two views, two note records, with its one pinned panel of the
+  every-clip view, whose shown clips stand five ready of six, so the book verdict under it stands strained;
+  under the ready view, whose five shown clips all stand ready, the verdict stands open. A real book is
+  a new file in this same shape - it is never this file edited in place. This layer copies nothing to
+  any clipboard, shares nothing, sends nothing, posts nothing and opens no network: it holds the copying
+  and sharing as data and tells it.'
+copy_share:
+  title: Copy and share at the M-194 slice boundary
+clips:
+- clip_id: clip-answer-main
+  seq: 1
+  heading: The last answer, ready to copy
+  kind: answer
+  format: markdown
+  origin: the last answer
+  markdown: the answer in clean markdown
+  detail: The last answer stands ready as clean markdown - the whole answer, its code fences kept and
+    its tables plain, stands whole on its card; holding the card copies nothing to any clipboard.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: copy and share
+  origin_session: session-m195
+- clip_id: clip-diff-main
+  seq: 2
+  heading: The last diff, ready to copy
+  kind: diff
+  format: ''
+  origin: the working tree diff
+  markdown: the diff in clean markdown
+  detail: The diff stands ready as a fenced markdown block. In what format the diff was first rendered
+    was never recorded anywhere honest, so the clip holds its format empty - unknown stays unknown, and
+    no figure is invented for it.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: copy and share
+  origin_session: session-m195
+- clip_id: clip-report-main
+  seq: 3
+  heading: The session report, ready to copy
+  kind: report
+  format: markdown
+  origin: ''
+  markdown: the report in clean markdown
+  detail: The report stands ready as clean markdown, its headings and tallies plain. From which sitting
+    the report was drawn was never recorded anywhere honest, so the clip holds its origin empty - unknown
+    stays unknown, and no figure is invented for it.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: copy and share
+  origin_session: session-m195
+- clip_id: clip-summary-main
+  seq: 4
+  heading: The shareable session summary
+  kind: summary
+  format: markdown
+  origin: the session on the floor
+  markdown: the session summary in clean markdown
+  detail: The shareable session summary stands generated on command as clean markdown - what was done,
+    what stands banked, and what comes next - and the praise note on the diff clip stands held beside
+    the book as data.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: copy and share
+  origin_session: session-m195
+- clip_id: clip-code-main
+  seq: 5
+  heading: A code block awaiting its markdown
+  kind: code
+  format: markdown
+  origin: the open file
+  markdown: ''
+  detail: A code block stands named in this book with no markdown body held for it yet - the fence and
+    its language wait to be set down - so the clip stands unready honestly, named in the gaps until its
+    markdown is held for it, and no markdown is invented here.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: copy and share
+  origin_session: session-m195
+- clip_id: clip-answer-chat
+  seq: 6
+  heading: The chat answer, ready to copy
+  kind: answer
+  format: markdown
+  origin: the conversation
+  markdown: the conversation and the question on the floor
+  detail: The chat answer stands ready in the conversation and copies last - the conversation and the
+    question on the floor are the work itself, and the clip that would lose them is no share at all.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: copy and share
+  origin_session: session-m195
+views:
+- view_id: view-share
+  seq: 1
+  view_filter: all
+  detail: 'Every clip at once - the answer, the diff, the report, the summary and the code between: see
+    every clip.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: copy and share
+  origin_session: session-m195
+- view_id: view-ready
+  seq: 2
+  view_filter: ready
+  detail: Only the clips that carry their clean markdown - everything copyable, honestly ready at a glance.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: copy and share
+  origin_session: session-m195
+notes:
+- note_id: note-note-answer
+  seq: 1
+  clip_id: clip-answer-main
+  stance: note
+  target: the user
+  title: Note the answer clip
+  detail: The note on the answer clip stands held as data - its clip, its stance and what it feeds back
+    toward. Holding the note posts nothing; the feedback is told, never sent, by this layer.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: copy and share
+  origin_session: session-m195
+- note_id: note-praise-diff
+  seq: 2
+  clip_id: clip-diff-main
+  stance: praise
+  target: the user
+  title: Praise the diff clip
+  detail: The praise for the diff clip stands held as data beside the first. One note record stands per
+    clip stance in this book, so a second record for one clip under one stance refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: copy and share
+  origin_session: session-m195
+panels:
+- panel_id: panel-m194-boundary
+  view_id: view-share
+  view_filter: all
+  rows:
+  - item_id: clip-answer-main
+    standing: ready
+    label: The last answer, ready to copy
+    segment: 'clip-answer-main: The last answer, ready to copy - kind: ''answer'' - format: ''markdown''
+      - origin: ''the last answer'' - markdown: ''the answer in clean markdown'' - detail: ''The last
+      answer stands ready as clean markdown - the whole answer, its code fences kept and its tables plain,
+      stands whole on its card; holding the card copies nothing to any clipboard.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: clip-diff-main
+    standing: ready
+    label: The last diff, ready to copy
+    segment: 'clip-diff-main: The last diff, ready to copy - kind: ''diff'' - format: ''unknown'' - origin:
+      ''the working tree diff'' - markdown: ''the diff in clean markdown'' - detail: ''The diff stands
+      ready as a fenced markdown block. In what format the diff was first rendered was never recorded
+      anywhere honest, so the clip holds its format empty - unknown stays unknown, and no figure is invented
+      for it.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: clip-report-main
+    standing: ready
+    label: The session report, ready to copy
+    segment: 'clip-report-main: The session report, ready to copy - kind: ''report'' - format: ''markdown''
+      - origin: ''unknown'' - markdown: ''the report in clean markdown'' - detail: ''The report stands
+      ready as clean markdown, its headings and tallies plain. From which sitting the report was drawn
+      was never recorded anywhere honest, so the clip holds its origin empty - unknown stays unknown,
+      and no figure is invented for it.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: clip-summary-main
+    standing: ready
+    label: The shareable session summary
+    segment: 'clip-summary-main: The shareable session summary - kind: ''summary'' - format: ''markdown''
+      - origin: ''the session on the floor'' - markdown: ''the session summary in clean markdown'' - detail:
+      ''The shareable session summary stands generated on command as clean markdown - what was done, what
+      stands banked, and what comes next - and the praise note on the diff clip stands held beside the
+      book as data.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: clip-code-main
+    standing: unready
+    label: A code block awaiting its markdown
+    segment: 'clip-code-main: A code block awaiting its markdown - kind: ''code'' - format: ''markdown''
+      - origin: ''the open file'' - markdown: ''none'' - detail: ''A code block stands named in this book
+      with no markdown body held for it yet - the fence and its language wait to be set down - so the
+      clip stands unready honestly, named in the gaps until its markdown is held for it, and no markdown
+      is invented here.'' - gaps: no markdown body'
+    recorded_on: '2026-11-10'
+  - item_id: clip-answer-chat
+    standing: ready
+    label: The chat answer, ready to copy
+    segment: 'clip-answer-chat: The chat answer, ready to copy - kind: ''answer'' - format: ''markdown''
+      - origin: ''the conversation'' - markdown: ''the conversation and the question on the floor'' -
+      detail: ''The chat answer stands ready in the conversation and copies last - the conversation and
+      the question on the floor are the work itself, and the clip that would lose them is no share at
+      all.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  total_items: 6
+  total_shown: 6
+  target_counts:
+  - standing: ready
+    items: 5
+  - standing: unready
+    items: 1
+  as_of: '2026-11-10'
+  account:
+  - 'The share book holds 6 clips as of 2026-11-10: the view ''all'' shows 6 of them: ready 5, unready
+    1; 5 of the shown clips stand ready.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its clip's own fields - the heading, the kind, the format and origin
+    honestly held and the ready work it honestly carries - and no judgement is stored on any clip.
+  - 'Preservation is judged from the held records alone: a clip naming no markdown body stands unready,
+    and the share index is derived from the held clips, never stored where it could drift.'

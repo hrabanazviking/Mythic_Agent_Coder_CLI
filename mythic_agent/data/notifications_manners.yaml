@@ -1,0 +1,177 @@
+schema: mythic.notifications_manners/1
+slice: M-181
+part: 8
+part_title: The Beautiful Face
+canon_note: >
+  Notifications with Manners - long jobs announce completion (terminal
+  bell/OS notification, once), failures announce once with the one
+  action that matters; silence is the default posture. A job is held
+  whole - its outcome (running, completed or failed), how long it ran,
+  the bell and OS backends it names, and the one failure action a
+  failure carries - and whether it announces is derived from its
+  outcome and duration: the morning build ran long and announces once
+  through the OS road, the quick check ran short and stands silent
+  under the default posture, and the night export failed and announces
+  once with its one action, though the OS backend it names stands
+  unknown, so its channel stands honestly unknown and nothing is
+  delivered by invention. A channel is held whole - its name and the
+  backend it names - and the manners rules themselves are held as
+  data in the closed rule set. Availability - available, unavailable
+  by a named reason, or honestly unknown - is derived from the
+  backends a record names, never stored and never faked. No row of
+  the M-171 TUI redesign charter names M-181, so the slice is built
+  to the roadmap words alone, as M-177, M-179 and M-180 were. This
+  file is ONE EXAMPLE BOOK, in the shape a real manners file takes -
+  the M-180 slice boundary - seven items, two views, and the one
+  pinned panel of the every-kind view, whose shown items stand five
+  whole of seven, so the book verdict under it stands strained; under
+  the job view, whose three shown jobs stand two whole, the verdict
+  stands strained too. A real book is a new file in this same shape -
+  it is never this file edited in place. This layer holds manners as
+  data and reaches live roads only through seams - it rings no bell
+  and posts no notification in tests.
+guide:
+  title: Notifications at the M-180 slice boundary
+jobs:
+- job_id: job-morning-build
+  seq: 1
+  outcome: completed
+  duration_seconds: 1500
+  bell_backend: terminal_bell
+  os_backend: notify_send
+  detail: The morning build, held as data - it ran long past the threshold, so its completion announces once, through the OS notification road it names, and never twice however often it is polled.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: notifications with manners
+  origin_session: session-m181
+- job_id: job-quick-check
+  seq: 2
+  outcome: completed
+  duration_seconds: 20
+  bell_backend: terminal_bell
+  os_backend: notify_send
+  detail: The quick check, held as data - it finished well under the long-job threshold, so it announces nothing at all, and its silence is the default posture kept, not an announcement missed.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: notifications with manners
+  origin_session: session-m181
+- job_id: job-night-export
+  seq: 3
+  outcome: failed
+  duration_seconds: 2400
+  os_backend: unknown
+  failure_action: rerun the export after checking the disk space
+  detail: The night export, held as data - it failed, so it announces once with the one action that matters, but the only backend it names stands unknown, so no channel is chosen for it and nothing is delivered by invention until a road stands proven.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: notifications with manners
+  origin_session: session-m181
+channels:
+- channel_id: channel-terminal-bell
+  seq: 1
+  name: terminal_bell
+  backend: terminal_bell
+  detail: The terminal bell channel, held as data - the bell backend stands named, so the channel stands available for any announcement that chooses it.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: notifications with manners
+  origin_session: session-m181
+- channel_id: channel-os-notification
+  seq: 2
+  name: os_notification
+  detail: The OS notification channel, held as data - no backend stands named for it in this book, so the channel stands unavailable by that named reason, and an announcement is never posted through it by invention.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: notifications with manners
+  origin_session: session-m181
+rules:
+- rule_id: rule-silence-by-default
+  seq: 1
+  name: silence_by_default
+  statement: announce nothing unless the derivation says otherwise
+  detail: The first rule of the manners law, held as data - silence is the default posture, and every announcement in this layer is an exception the derivation must earn.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: notifications with manners
+  origin_session: session-m181
+- rule_id: rule-failure-names-one-action
+  seq: 2
+  name: failure_names_one_action
+  statement: a failure speaks once and names the one action that matters
+  detail: The second rule of the manners law, held as data - a failure announces once, and what it speaks is the single next action, never a list and never a lament.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: notifications with manners
+  origin_session: session-m181
+views:
+- view_id: view-all
+  seq: 1
+  kind_filter: all
+  detail: See the whole notifications book, every kind at once.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: notifications with manners
+  origin_session: session-m181
+- view_id: view-job
+  seq: 2
+  kind_filter: job
+  detail: See only the jobs of the book.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: notifications with manners
+  origin_session: session-m181
+panels:
+- panel_id: panel-m180-boundary
+  view_id: view-all
+  kind_filter: all
+  rows:
+  - item_id: job-morning-build
+    kind: job
+    label: job-morning-build
+    segment: 'job-morning-build: job completed after 1500s, decision announce, channel os_notification'
+    recorded_on: '2026-11-09'
+  - item_id: job-quick-check
+    kind: job
+    label: job-quick-check
+    segment: 'job-quick-check: job completed after 20s, decision silence, channel os_notification'
+    recorded_on: '2026-11-09'
+  - item_id: job-night-export
+    kind: job
+    label: job-night-export
+    segment: 'job-night-export: job failed after 2400s, decision announce, channel no channel'
+    recorded_on: '2026-11-09'
+  - item_id: channel-terminal-bell
+    kind: channel
+    label: channel-terminal-bell
+    segment: 'channel-terminal-bell: channel terminal_bell, availability available, backend terminal_bell'
+    recorded_on: '2026-11-09'
+  - item_id: channel-os-notification
+    kind: channel
+    label: channel-os-notification
+    segment: 'channel-os-notification: channel os_notification, availability unavailable, backend no backend named'
+    recorded_on: '2026-11-09'
+  - item_id: rule-silence-by-default
+    kind: rule
+    label: silence_by_default
+    segment: 'silence_by_default: manners rule stands - announce nothing unless the derivation says otherwise'
+    recorded_on: '2026-11-09'
+  - item_id: rule-failure-names-one-action
+    kind: rule
+    label: failure_names_one_action
+    segment: 'failure_names_one_action: manners rule stands - a failure speaks once and names the one action that matters'
+    recorded_on: '2026-11-09'
+  total_items: 7
+  total_shown: 7
+  kind_counts:
+  - kind: job
+    items: 3
+  - kind: channel
+    items: 2
+  - kind: rule
+    items: 2
+  as_of: '2026-11-09'
+  account:
+  - 'The notifications book holds 7 items as of 2026-11-09: the view ''all'' shows 7 of them: job 3, channel 2, rule 2; 5 of the shown items stand whole.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly, segment by segment.
+  - Every segment is derived from its item's own fields - a decision from its outcome and duration, a channel from the backends it names - and no judgement is stored on any item.
+  - 'Silence is the default posture: running jobs and short jobs announce nothing, a long job announces once, and a failure announces once with the one action that matters.'

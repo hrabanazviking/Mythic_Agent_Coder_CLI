@@ -1,0 +1,208 @@
+schema: mythic.slicing_engine/1
+slice: M-203
+slicing_engine:
+  title: The slicing engine at the M-202 slice boundary
+intents:
+- intent_id: intent-plain-words
+  seq: 1
+  project: Mythic Agent Coder
+  state: approved
+  detail: 'The opening intent: approved in the user''s plain words at M-202.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the slicing engine
+  origin_session: session-m203
+- intent_id: intent-verbatim
+  seq: 2
+  project: The verbatim shelf
+  state: approved
+  detail: The second approved intent the Architect drafts from.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the slicing engine
+  origin_session: session-m203
+- intent_id: intent-unapproved
+  seq: 3
+  project: The unapproved shelf
+  state: unapproved
+  detail: An intent not yet approved; no draft stands from it, and a draft naming it refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the slicing engine
+  origin_session: session-m203
+drafts:
+- draft_id: draft-capture-intent
+  seq: 1
+  intent_id: intent-plain-words
+  title: Capture the intent
+  outcomes:
+  - the intent stands held in the user's plain words
+  dependencies: []
+  detail: 'The opening draft: the intent itself stands held before any slicing.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the slicing engine
+  origin_session: session-m203
+- draft_id: draft-draft-slices
+  seq: 2
+  intent_id: intent-plain-words
+  title: Draft the slices
+  outcomes:
+  - slices stand drafted at the house grain
+  dependencies:
+  - draft-capture-intent
+  detail: 'The slicing draft: work cut to one verifiable outcome each.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the slicing engine
+  origin_session: session-m203
+- draft_id: draft-shape-approval
+  seq: 3
+  intent_id: intent-plain-words
+  title: Approve the shape
+  outcomes:
+  - the shape stands approved as data
+  dependencies:
+  - draft-draft-slices
+  detail: 'The shape draft: the human approves the set and its order.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the slicing engine
+  origin_session: session-m203
+- draft_id: draft-two-outcomes
+  seq: 4
+  intent_id: intent-verbatim
+  title: The wide slice
+  outcomes:
+  - the first outcome stands
+  - the second outcome stands
+  dependencies: []
+  detail: A draft claiming two outcomes, off the house grain, standing unsound.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the slicing engine
+  origin_session: session-m203
+- draft_id: draft-loose-thread
+  seq: 5
+  intent_id: intent-verbatim
+  title: The loose thread
+  outcomes:
+  - the loose thread stands named
+  dependencies:
+  - draft-never-held
+  detail: A draft whose dependency stands nowhere in the book, named in its gaps.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the slicing engine
+  origin_session: session-m203
+views:
+- view_id: view-slicing
+  seq: 1
+  view_filter: all
+  detail: Every held draft, sound or not.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the slicing engine
+  origin_session: session-m203
+- view_id: view-sound
+  seq: 2
+  view_filter: sound
+  detail: Only the drafts standing sound.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the slicing engine
+  origin_session: session-m203
+notes:
+- note_id: note-note-open
+  seq: 1
+  draft_id: draft-capture-intent
+  stance: note
+  target: the opening form
+  title: Words first
+  detail: The drafting opens from the approved intent, told honestly.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the slicing engine
+  origin_session: session-m203
+- note_id: note-concern-grain
+  seq: 2
+  draft_id: draft-two-outcomes
+  stance: concern
+  target: the wide slice
+  title: Grain named
+  detail: A draft claiming two outcomes is not house grain, and stands named.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the slicing engine
+  origin_session: session-m203
+approvals:
+- approval_id: approval-shape-open
+  seq: 1
+  intent_id: intent-plain-words
+  shape: draft-capture-intent > draft-draft-slices > draft-shape-approval
+  detail: 'The human approved the shape of the opening intent''s drafts: the set and its dependency order,
+    not every step.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the slicing engine
+  origin_session: session-m203
+panels:
+- panel_id: panel-m202-boundary
+  view_id: view-slicing
+  view_filter: all
+  rows:
+  - item_id: draft-capture-intent
+    standing: sound
+    label: Capture the intent
+    segment: 'draft-capture-intent: Capture the intent - intent: ''intent-plain-words'' - outcome: ''the
+      intent stands held in the user''s plain words'' - outcomes: 1 - dependencies: ''none'' - detail:
+      ''The opening draft: the intent itself stands held before any slicing.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: draft-draft-slices
+    standing: sound
+    label: Draft the slices
+    segment: 'draft-draft-slices: Draft the slices - intent: ''intent-plain-words'' - outcome: ''slices
+      stand drafted at the house grain'' - outcomes: 1 - dependencies: ''draft-capture-intent'' - detail:
+      ''The slicing draft: work cut to one verifiable outcome each.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: draft-shape-approval
+    standing: sound
+    label: Approve the shape
+    segment: 'draft-shape-approval: Approve the shape - intent: ''intent-plain-words'' - outcome: ''the
+      shape stands approved as data'' - outcomes: 1 - dependencies: ''draft-draft-slices'' - detail: ''The
+      shape draft: the human approves the set and its order.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: draft-two-outcomes
+    standing: unsound
+    label: The wide slice
+    segment: 'draft-two-outcomes: The wide slice - intent: ''intent-verbatim'' - outcome: ''none'' - outcomes:
+      2 - dependencies: ''none'' - detail: ''A draft claiming two outcomes, off the house grain, standing
+      unsound.'' - gaps: claims 2 outcomes, not the house grain of one verifiable outcome each'
+    recorded_on: '2026-11-10'
+  - item_id: draft-loose-thread
+    standing: unsound
+    label: The loose thread
+    segment: 'draft-loose-thread: The loose thread - intent: ''intent-verbatim'' - outcome: ''the loose
+      thread stands named'' - outcomes: 1 - dependencies: ''draft-never-held'' - detail: ''A draft whose
+      dependency stands nowhere in the book, named in its gaps.'' - gaps: depends on draft-never-held,
+      which stands nowhere in this book'
+    recorded_on: '2026-11-10'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: sound
+    items: 3
+  - standing: unsound
+    items: 2
+  as_of: '2026-11-10'
+  account:
+  - 'The slicing book holds 5 drafts as of 2026-11-10: the view ''all'' shows 5 of them: sound 3, unsound
+    2; 3 of the shown drafts stand sound.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its draft's own fields - the intent it was drafted from, its one verifiable
+    outcome at the house grain, and the dependencies it honestly carries - and no judgement is stored
+    on any draft.
+  - 'Soundness is judged from the held records alone: a draft off the house grain stands unsound, a draft
+    whose dependencies stand nowhere or stand in a cycle stands named in its gaps, and the slicing index
+    is derived from the held drafts, never stored where it could drift.'

@@ -1,0 +1,215 @@
+schema: mythic.costs_face/1
+slice: M-190
+costs:
+  title: Costs face at the M-189 slice boundary
+lines:
+- line_id: spend-login-session
+  seq: 1
+  label: Fix the login redirect
+  scope: session
+  amount: $0.42
+  period: 18 minutes
+  budget: session-budget
+  detail: The login redirect loop was found and fixed - the session's spend stands counted, held whole
+    on its line under the M-107 session budget; holding the line charges nothing.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: costs face
+  origin_session: session-m190
+- line_id: spend-costs-face-slice
+  seq: 2
+  label: Draft the costs face
+  scope: slice
+  amount: $0.87
+  period: 42 minutes
+  budget: slice-budget
+  detail: The costs face itself was drafted in this slice - its spend stands counted under the M-107 slice
+    budget, and the gentle warning for it stands held beside it as data.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: costs face
+  origin_session: session-m190
+- line_id: spend-flaky-gate-session
+  seq: 3
+  label: Repair the flaky gate test
+  scope: session
+  amount: $0.17
+  period: ''
+  budget: session-budget
+  detail: The gate test still flaked at the end of this session. How long it ran was never recorded, so
+    the period stands empty - unknown stays unknown, and no figure is invented for it.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: costs face
+  origin_session: session-m190
+- line_id: spend-gallery-slice
+  seq: 4
+  label: Write the gallery guide
+  scope: slice
+  amount: $0.05
+  period: 9 minutes
+  budget: slice-budget
+  detail: A short guide to browsing past sessions was written in this slice - a small slice with a small
+    spend, held whole on its line.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: costs face
+  origin_session: session-m190
+- line_id: spend-store-sweep
+  seq: 5
+  label: Sweep the verify store
+  scope: session
+  amount: ''
+  period: 1 hour 4 minutes
+  budget: ''
+  detail: 'The store sweep was stopped partway and its spend was never recorded anywhere honest, so the
+    amount stands empty and it names no M-107 budget in this book: the line stands uncounted honestly,
+    named in the gaps, and no figure or budget is invented here.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: costs face
+  origin_session: session-m190
+- line_id: spend-bank-wave-slice
+  seq: 6
+  label: Bank the M-189 wave
+  scope: slice
+  amount: $0.12
+  period: 26 minutes
+  budget: slice-budget
+  detail: The session gallery wave was banked in this slice - its spend stands counted under the M-107
+    slice budget beside the others.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: costs face
+  origin_session: session-m190
+views:
+- view_id: view-all
+  seq: 1
+  view_filter: all
+  detail: See the whole costs face, every session and slice at once.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: costs face
+  origin_session: session-m190
+- view_id: view-counted
+  seq: 2
+  view_filter: counted
+  detail: See only the spend that stands counted.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: costs face
+  origin_session: session-m190
+warnings:
+- warning_id: warning-gentle-login
+  seq: 1
+  subject: session-login
+  level: gentle
+  threshold: four fifths of the M-107 session budget
+  title: Gentle warning for the login session
+  detail: The gentle warning for the login session stands held as data - its subject, its level and the
+    threshold it stands at. Holding the warning enforces no budget and blocks nothing; the warning is
+    told, never acted on, by this layer.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: costs face
+  origin_session: session-m190
+- warning_id: warning-near-costs-face
+  seq: 2
+  subject: slice-m190
+  level: near
+  threshold: four fifths of the M-107 slice budget
+  title: Near warning for the costs face slice
+  detail: The near warning for the costs face slice stands held as data beside the first. One warning
+    record stands per subject level in this book, so a second record for one subject under one level refuses
+    by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: costs face
+  origin_session: session-m190
+panels:
+- panel_id: panel-m189-boundary
+  view_id: view-all
+  view_filter: all
+  rows:
+  - item_id: spend-login-session
+    standing: counted
+    label: Fix the login redirect
+    segment: 'spend-login-session: Fix the login redirect - scope: ''session'' - amount: ''$0.42'' - period:
+      ''18 minutes'' - budget: ''session-budget'' - detail: ''The login redirect loop was found and fixed
+      - the session''s spend stands counted, held whole on its line under the M-107 session budget; holding
+      the line charges nothing.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: spend-costs-face-slice
+    standing: counted
+    label: Draft the costs face
+    segment: 'spend-costs-face-slice: Draft the costs face - scope: ''slice'' - amount: ''$0.87'' - period:
+      ''42 minutes'' - budget: ''slice-budget'' - detail: ''The costs face itself was drafted in this
+      slice - its spend stands counted under the M-107 slice budget, and the gentle warning for it stands
+      held beside it as data.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: spend-flaky-gate-session
+    standing: counted
+    label: Repair the flaky gate test
+    segment: 'spend-flaky-gate-session: Repair the flaky gate test - scope: ''session'' - amount: ''$0.17''
+      - period: ''unknown'' - budget: ''session-budget'' - detail: ''The gate test still flaked at the
+      end of this session. How long it ran was never recorded, so the period stands empty - unknown stays
+      unknown, and no figure is invented for it.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: spend-gallery-slice
+    standing: counted
+    label: Write the gallery guide
+    segment: 'spend-gallery-slice: Write the gallery guide - scope: ''slice'' - amount: ''$0.05'' - period:
+      ''9 minutes'' - budget: ''slice-budget'' - detail: ''A short guide to browsing past sessions was
+      written in this slice - a small slice with a small spend, held whole on its line.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: spend-store-sweep
+    standing: unknown
+    label: Sweep the verify store
+    segment: 'spend-store-sweep: Sweep the verify store - scope: ''session'' - amount: ''unknown'' - period:
+      ''1 hour 4 minutes'' - budget: ''none'' - detail: ''The store sweep was stopped partway and its
+      spend was never recorded anywhere honest, so the amount stands empty and it names no M-107 budget
+      in this book: the line stands uncounted honestly, named in the gaps, and no figure or budget is
+      invented here.'' - gaps: spend unknown, no budget held'
+    recorded_on: '2026-11-10'
+  - item_id: spend-bank-wave-slice
+    standing: counted
+    label: Bank the M-189 wave
+    segment: 'spend-bank-wave-slice: Bank the M-189 wave - scope: ''slice'' - amount: ''$0.12'' - period:
+      ''26 minutes'' - budget: ''slice-budget'' - detail: ''The session gallery wave was banked in this
+      slice - its spend stands counted under the M-107 slice budget beside the others.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  total_items: 6
+  total_shown: 6
+  standing_counts:
+  - standing: counted
+    items: 5
+  - standing: unknown
+    items: 1
+  as_of: '2026-11-10'
+  account:
+  - 'The costs book holds 6 lines as of 2026-11-10: the view ''all'' shows 6 of them: counted 5, unknown
+    1; 5 of the shown lines stand counted.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its line's own fields - the label, the scope, the amount and period
+    honestly held and the M-107 budget it stands under - and no judgement is stored on any line.
+  - 'Spend is judged from the held records alone: a line naming no amount stands unknown, a line naming
+    no budget stands unheld, and the costs index is derived from the held lines, never stored where it
+    could drift.'
+canon_note: 'Costs face - live spend per session and per slice, with the honesty rule kept (unknown =
+  unknown) and budgets from M-107 as gentle warnings before walls. A line is held whole - under its label,
+  its scope in the closed vocabulary (session, slice), its amount and its period held honestly (an unknown
+  amount stands empty, never invented), the M-107 budget it stands under, named as data, and its detail.
+  A line naming no budget is held honestly with an empty budget: it stands unheld, named in its gaps,
+  and no budget is invented for it. The costs index is DERIVED at call time from the held lines alone
+  - never a second stored copy that could drift - and a stored index or counting verdict on any record
+  refuses by name. The gentle warnings are held as data: a warning record naming its subject, its level
+  (gentle, near or over) and the threshold it stands at; one record stands per subject level, and holding
+  a warning enforces no budget, blocks nothing and charges nothing. A record claiming a budget was enforced
+  or blocked, or that spend was actually charged, refuses by name. This file is ONE EXAMPLE BOOK, in the
+  shape a real costs file takes - the M-189 slice boundary - six lines and two views, two warning records,
+  with its one pinned panel of the every-line view, whose shown lines stand five counted of six, so the
+  book verdict under it stands strained; under the counted view, whose five shown lines all stand counted,
+  the verdict stands open. A real book is a new file in this same shape - it is never this file edited
+  in place. This layer charges nothing, enforces no budget, blocks nothing and opens no network: it holds
+  the costs as data and tells it.'

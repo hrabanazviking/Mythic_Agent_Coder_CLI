@@ -1,0 +1,240 @@
+schema: mythic.help_answers/1
+slice: M-186
+part: 8
+part_title: The Beautiful Face
+canon_note: 'Help that answers - `?` anywhere gives help for that screen; a question box ("how do I undo a commit?")
+  answered from the local docs by the coder itself. A screen help entry is held whole - under the screen it stands
+  for in the closed vocabulary (chat, terminal, editor, review, settings, onboarding, lessons, command palace),
+  its title and its detail; one entry stands per screen, and a screen holding no entry stands honestly uncovered,
+  named in the book gaps - no generic help is invented for it and no other screen help is borrowed. A local doc
+  is held whole - under its title, its topic in the closed vocabulary, its standing, current or stale, its detail,
+  which is the answer text itself, and its keywords. The question box answers ONLY from these held docs: a question
+  matching a current doc is answered from that doc own words, a question matching only a stale doc stands unanswered
+  and named stale in its gaps, and a question matching no held doc stands honestly unanswered, named in its gaps.
+  Answers are derived at call time and never stored, and no live road stands behind one: a record claiming a live
+  search, a network lookup or a model answer refuses by name. This file is ONE EXAMPLE BOOK, in the shape a real
+  help file takes - the M-185 slice boundary - six docs and two views, four screen helps, with its one pinned panel
+  of the every-doc view, whose shown docs stand five current of six, so the book verdict under it stands strained;
+  under the current view, whose five shown docs all stand current, the verdict stands open. A real book is a new
+  file in this same shape - it is never this file edited in place. This layer searches nothing live, calls no model,
+  opens no network and writes nothing: it holds help as data and tells it.'
+guide:
+  title: Help that answers at the M-185 slice boundary
+docs:
+- doc_id: doc-undo-commit
+  seq: 1
+  title: Undo a commit
+  topic: editing and undo
+  standing: current
+  detail: To undo the last commit and keep its changes in your working tree, run /undo and choose the commit - the
+    change set returns as uncommitted edits, and nothing is lost until you say so.
+  keywords:
+  - undo
+  - commit
+  - revert
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: help that answers
+  origin_session: session-m186
+- doc_id: doc-first-task
+  seq: 2
+  title: Your first task
+  topic: getting started
+  standing: current
+  detail: To begin, open the chat screen, name one tiny real task in plain words, and watch it run - your first
+    task succeeds before any configuration is asked of you.
+  keywords:
+  - first
+  - task
+  - begin
+  - start
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: help that answers
+  origin_session: session-m186
+- doc_id: doc-provider-keys
+  seq: 3
+  title: Provider keys in Kista
+  topic: providers and keys
+  standing: current
+  detail: Provider keys are kept in Kista, never in the config file - add a key once through the Kista offer, and
+    the config holds only the reference to it from then on.
+  keywords:
+  - provider
+  - key
+  - kista
+  - api
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: help that answers
+  origin_session: session-m186
+- doc_id: doc-crew-dealing
+  seq: 4
+  title: Dealing work to a crew
+  topic: crews and parallel work
+  standing: current
+  detail: To deal work to a crew, name the task on the chat screen and choose the crew size - each hand works its
+    own worktree, and the coordinator alone merges.
+  keywords:
+  - crew
+  - parallel
+  - deal
+  - worktree
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: help that answers
+  origin_session: session-m186
+- doc_id: doc-sandbox-commands
+  seq: 5
+  title: Commands the sandbox allows
+  topic: sandbox and safety
+  standing: stale
+  detail: This doc names the sandbox command list as it stood before the last sandbox refresh, so it stands stale
+    honestly - it answers nothing until its list is checked against the sandbox as it stands now.
+  keywords:
+  - sandbox
+  - command
+  - allowed
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: help that answers
+  origin_session: session-m186
+- doc_id: doc-plain-words
+  seq: 6
+  title: Plain words, Jarl mode
+  topic: plain language
+  standing: current
+  detail: In Jarl mode every report, approval and stand-up is told in plain everyday words first - the technical
+    detail folds behind one keypress, never the other way round.
+  keywords:
+  - plain
+  - jarl
+  - words
+  - simple
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: help that answers
+  origin_session: session-m186
+views:
+- view_id: view-all
+  seq: 1
+  view_filter: all
+  detail: See the whole help book, every doc at once.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: help that answers
+  origin_session: session-m186
+- view_id: view-current
+  seq: 2
+  view_filter: current
+  detail: See only the docs that stand current and answer.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: help that answers
+  origin_session: session-m186
+helps:
+- help_id: help-chat
+  seq: 1
+  screen: chat
+  title: The chat screen
+  detail: The chat screen is where you talk to the coder - ask in plain words, press ? here for this help, and use
+    the question box for anything the local docs can answer.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: help that answers
+  origin_session: session-m186
+- help_id: help-terminal
+  seq: 2
+  screen: terminal
+  title: The terminal
+  detail: The terminal takes slash commands - /helpask shows this book, /help lists every command, and ? on this
+    screen shows this entry again.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: help that answers
+  origin_session: session-m186
+- help_id: help-editor
+  seq: 3
+  screen: editor
+  title: The editor
+  detail: The editor shows every change before it lands - read the diff, keep or undo each hunk, and nothing is
+    written until you accept it.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: help that answers
+  origin_session: session-m186
+- help_id: help-lessons
+  seq: 4
+  screen: lessons
+  title: The lessons screen
+  detail: The lessons screen plays the tutorial grown - one interactive lesson per feature family, played inside
+    a scratch repo where a mistake costs nothing.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: help that answers
+  origin_session: session-m186
+panels:
+- panel_id: panel-m185-boundary
+  view_id: view-all
+  view_filter: all
+  rows:
+  - item_id: doc-undo-commit
+    standing: current
+    label: Undo a commit
+    segment: 'doc-undo-commit: Undo a commit in topic ''editing and undo'' - standing: ''current'' - detail: ''To
+      undo the last commit and keep its changes in your working tree, run /undo and choose the commit - the change
+      set returns as uncommitted edits, and nothing is lost until you say so.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: doc-first-task
+    standing: current
+    label: Your first task
+    segment: 'doc-first-task: Your first task in topic ''getting started'' - standing: ''current'' - detail: ''To
+      begin, open the chat screen, name one tiny real task in plain words, and watch it run - your first task succeeds
+      before any configuration is asked of you.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: doc-provider-keys
+    standing: current
+    label: Provider keys in Kista
+    segment: 'doc-provider-keys: Provider keys in Kista in topic ''providers and keys'' - standing: ''current''
+      - detail: ''Provider keys are kept in Kista, never in the config file - add a key once through the Kista offer,
+      and the config holds only the reference to it from then on.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: doc-crew-dealing
+    standing: current
+    label: Dealing work to a crew
+    segment: 'doc-crew-dealing: Dealing work to a crew in topic ''crews and parallel work'' - standing: ''current''
+      - detail: ''To deal work to a crew, name the task on the chat screen and choose the crew size - each hand
+      works its own worktree, and the coordinator alone merges.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: doc-sandbox-commands
+    standing: stale
+    label: Commands the sandbox allows
+    segment: 'doc-sandbox-commands: Commands the sandbox allows in topic ''sandbox and safety'' - standing: ''stale''
+      - detail: ''This doc names the sandbox command list as it stood before the last sandbox refresh, so it stands
+      stale honestly - it answers nothing until its list is checked against the sandbox as it stands now.'' - gaps:
+      stale'
+    recorded_on: '2026-11-09'
+  - item_id: doc-plain-words
+    standing: current
+    label: Plain words, Jarl mode
+    segment: 'doc-plain-words: Plain words, Jarl mode in topic ''plain language'' - standing: ''current'' - detail:
+      ''In Jarl mode every report, approval and stand-up is told in plain everyday words first - the technical detail
+      folds behind one keypress, never the other way round.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  total_items: 6
+  total_shown: 6
+  standing_counts:
+  - standing: current
+    items: 5
+  - standing: stale
+    items: 1
+  as_of: '2026-11-09'
+  account:
+  - 'The help book holds 6 docs as of 2026-11-09: the view ''all'' shows 6 of them: current 5, stale 1; 5 of the
+    shown docs stand current.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly, segment
+    by segment.
+  - Every segment is derived from its doc's own fields - the title, the topic it belongs to and the standing it
+    honestly stands in - and no judgement is stored on any doc.
+  - 'Answers come from the local docs alone: a stale doc answers nothing, and a question no current held doc answers
+    stands unanswered, named in its gaps.'

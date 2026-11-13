@@ -1,0 +1,358 @@
+schema: mythic.part6_gate/1
+gate_slice: M-146
+part: 6
+part_title: The Crew
+verdict: PASS
+gate_note: |
+  The Part VI gate: a six-slice feature built by a three-member crew in
+  parallel worktrees - merged clean, Auditor-approved, cost ledger
+  complete. The feature is the crew machinery itself, in six slices
+  (M-124 parallel worktrees, M-125 task dealing, M-126 crew comms,
+  M-128 merge discipline, M-133 crew memory, M-140 cost court), dealt
+  by the shipped M-125 dealer to three members of the shipped M-121
+  casting (forge_worker, architect, scribe - two slices each, every
+  deal an office fit), each member building in its own worktree on its
+  own branch under the shipped M-124 discipline (two waves of three
+  assignments, the coordinator polymath holding no worktree and
+  merging every step), every merge recorded under the shipped M-128
+  discipline with a passed test gate and a green outcome - the judge
+  derives no verdict and every line completes, so the merge is clean.
+  The Auditor (M-130) approves: one case per feature slice, each
+  carrying the two required checks (suite-green, banking-order-kept),
+  every result passed - the derived report is clean and every gate
+  state passed. The Scribe's cost ledger (M-140) is complete: one
+  priced run record for every dealt member-and-slice pair, the ledger
+  derived from the records with its totals closing exactly. Every
+  step is re-proven live by the gate tests on every run through the
+  shipped pure roads (load_casting, deal_tasks, WorktreePlan /
+  merge_plan_for, MergeDiscipline's judge, AuditorLedger's report,
+  cost court's derive_ledger over the shared rate table) - no step is
+  faked or stubbed, no live crew is spawned, no git command is run
+  and no model is called; the campaign tree is never the exercise
+  repo, and the exercise is the record's own crew-shaped evidence,
+  judged by the shipped judges themselves.
+baseline:
+  resource: m145_confirmation_suite
+  collected: 7247
+  passed: 7244
+  failed: 2
+  skipped: 1
+slices:
+- slice: M-121
+  title: Agents as files
+- slice: M-122
+  title: The six offices formalised
+- slice: M-123
+  title: Custom offices
+- slice: M-124
+  title: Parallel worktrees
+- slice: M-125
+  title: Task dealing
+- slice: M-126
+  title: Crew comms
+- slice: M-127
+  title: Cycle and deadlock detection grown
+- slice: M-128
+  title: Merge discipline
+- slice: M-129
+  title: Heterogeneous crews
+- slice: M-130
+  title: The Auditor's veto
+- slice: M-131
+  title: Research swarms
+- slice: M-132
+  title: Review panels
+- slice: M-133
+  title: Crew memory
+- slice: M-134
+  title: Stand-ups
+- slice: M-135
+  title: Crew sizing honesty
+- slice: M-136
+  title: Agent character voices
+- slice: M-137
+  title: External agents as crew
+- slice: M-138
+  title: Crew replay
+- slice: M-139
+  title: Failure fostering
+- slice: M-140
+  title: Cost court
+- slice: M-141
+  title: The Mythic Coder building itself
+- slice: M-142
+  title: Solo mode dignity
+- slice: M-143
+  title: Crew templates
+- slice: M-144
+  title: Interrupts with grace
+- slice: M-145
+  title: Crew on schedule
+exercises:
+- id: crew_build
+  title: A six-slice feature built by a three-member crew
+  owning_slices:
+  - M-121
+  - M-124
+  - M-125
+  - M-128
+  - M-130
+  - M-140
+  status: completed
+  evidence_kind: pure-roads-measured
+  crew:
+  - forge_worker
+  - architect
+  - scribe
+  coordinator: polymath
+  feature_slices:
+  - slice: M-124
+    title: Parallel worktrees
+    office: forge_worker
+  - slice: M-125
+    title: Task dealing
+    office: architect
+  - slice: M-126
+    title: Crew comms
+    office: architect
+  - slice: M-128
+    title: Merge discipline
+    office: forge_worker
+  - slice: M-133
+    title: Crew memory
+    office: scribe
+  - slice: M-140
+    title: Cost court
+    office: scribe
+  dealt:
+  - slice: M-124
+    member: forge_worker
+  - slice: M-125
+    member: architect
+  - slice: M-126
+    member: architect
+  - slice: M-128
+    member: forge_worker
+  - slice: M-133
+    member: scribe
+  - slice: M-140
+    member: scribe
+  worktree_waves:
+  - wave: 1
+    assignments:
+    - member: forge_worker
+      slice: M-124
+      branch: crew/forge_worker/m-124
+      path: worktrees/forge_worker
+    - member: architect
+      slice: M-125
+      branch: crew/architect/m-125
+      path: worktrees/architect
+    - member: scribe
+      slice: M-133
+      branch: crew/scribe/m-133
+      path: worktrees/scribe
+  - wave: 2
+    assignments:
+    - member: forge_worker
+      slice: M-128
+      branch: crew/forge_worker/m-128
+      path: worktrees/forge_worker
+    - member: architect
+      slice: M-126
+      branch: crew/architect/m-126
+      path: worktrees/architect
+    - member: scribe
+      slice: M-140
+      branch: crew/scribe/m-140
+      path: worktrees/scribe
+  merges:
+  - member: forge_worker
+    slice: M-124
+    branch: crew/forge_worker/m-124
+    gate: passed
+    outcome: green
+  - member: architect
+    slice: M-125
+    branch: crew/architect/m-125
+    gate: passed
+    outcome: green
+  - member: scribe
+    slice: M-133
+    branch: crew/scribe/m-133
+    gate: passed
+    outcome: green
+  - member: forge_worker
+    slice: M-128
+    branch: crew/forge_worker/m-128
+    gate: passed
+    outcome: green
+  - member: architect
+    slice: M-126
+    branch: crew/architect/m-126
+    gate: passed
+    outcome: green
+  - member: scribe
+    slice: M-140
+    branch: crew/scribe/m-140
+    gate: passed
+    outcome: green
+  merge_verdicts: 0
+  audit_cases:
+  - slice: M-124
+    title: Parallel worktrees
+    builder: forge_worker
+  - slice: M-125
+    title: Task dealing
+    builder: architect
+  - slice: M-126
+    title: Crew comms
+    builder: architect
+  - slice: M-128
+    title: Merge discipline
+    builder: forge_worker
+  - slice: M-133
+    title: Crew memory
+    builder: scribe
+  - slice: M-140
+    title: Cost court
+    builder: scribe
+  audit_checks:
+  - slice: M-124
+    name: suite-green
+    required: true
+  - slice: M-124
+    name: banking-order-kept
+    required: true
+  - slice: M-125
+    name: suite-green
+    required: true
+  - slice: M-125
+    name: banking-order-kept
+    required: true
+  - slice: M-126
+    name: suite-green
+    required: true
+  - slice: M-126
+    name: banking-order-kept
+    required: true
+  - slice: M-128
+    name: suite-green
+    required: true
+  - slice: M-128
+    name: banking-order-kept
+    required: true
+  - slice: M-133
+    name: suite-green
+    required: true
+  - slice: M-133
+    name: banking-order-kept
+    required: true
+  - slice: M-140
+    name: suite-green
+    required: true
+  - slice: M-140
+    name: banking-order-kept
+    required: true
+  audit_results:
+  - slice: M-124
+    check: suite-green
+    outcome: passed
+  - slice: M-124
+    check: banking-order-kept
+    outcome: passed
+  - slice: M-125
+    check: suite-green
+    outcome: passed
+  - slice: M-125
+    check: banking-order-kept
+    outcome: passed
+  - slice: M-126
+    check: suite-green
+    outcome: passed
+  - slice: M-126
+    check: banking-order-kept
+    outcome: passed
+  - slice: M-128
+    check: suite-green
+    outcome: passed
+  - slice: M-128
+    check: banking-order-kept
+    outcome: passed
+  - slice: M-133
+    check: suite-green
+    outcome: passed
+  - slice: M-133
+    check: banking-order-kept
+    outcome: passed
+  - slice: M-140
+    check: suite-green
+    outcome: passed
+  - slice: M-140
+    check: banking-order-kept
+    outcome: passed
+  audit_verdicts: 0
+  cost_entries:
+  - member: forge_worker
+    entry_id: run-m124
+    slice: M-124
+    model: gpt-4o
+    input_tokens: 120000
+    output_tokens: 30000
+  - member: architect
+    entry_id: run-m125
+    slice: M-125
+    model: claude-3-sonnet
+    input_tokens: 80000
+    output_tokens: 20000
+  - member: architect
+    entry_id: run-m126
+    slice: M-126
+    model: claude-3-sonnet
+    input_tokens: 60000
+    output_tokens: 15000
+  - member: forge_worker
+    entry_id: run-m128
+    slice: M-128
+    model: gpt-4o
+    input_tokens: 90000
+    output_tokens: 25000
+  - member: scribe
+    entry_id: run-m133
+    slice: M-133
+    model: gpt-4o-mini
+    input_tokens: 50000
+    output_tokens: 12000
+  - member: scribe
+    entry_id: run-m140
+    slice: M-140
+    model: gpt-4o-mini
+    input_tokens: 45000
+    output_tokens: 10000
+  cost_calls: 6
+  cost_input_tokens: 445000
+  cost_output_tokens: 112000
+  cost_total_usd: 2.04745
+  evidence: |
+    The six-slice crew feature - the crew machinery's own slices
+    M-124, M-125, M-126, M-128, M-133 and M-140 - is dealt by the
+    shipped M-125 dealer to three members of the shipped M-121
+    casting (forge_worker, architect, scribe), two slices each and
+    every deal an office fit. Each member builds in its own worktree
+    on its own branch under the shipped M-124 discipline, in two
+    waves of three assignments with the coordinator (polymath, the
+    casting's lead) holding no worktree and merging every step; the
+    derived merge plans land in slice order. Every merge is recorded
+    under the shipped M-128 discipline with a passed test gate and a
+    green outcome: the judge derives zero verdicts, no line is
+    stopped and every line completes - merged clean. The Auditor's
+    M-130 report over one case per feature slice (two required
+    checks each, every result passed) is clean with every gate state
+    passed - Auditor-approved. The Scribe's M-140 ledger holds one
+    priced run record for every dealt member-and-slice pair and its
+    derived totals close exactly (6 calls, 445000 input tokens,
+    112000 output tokens) - the cost ledger is complete. The proof
+    is at the shipped pure roads' data level: no live crew ran, no
+    git command executed and no model was called; the token counts
+    are the exercise's own record, priced by the shared rate table
+    exactly as the shipped cost court prices any run record.

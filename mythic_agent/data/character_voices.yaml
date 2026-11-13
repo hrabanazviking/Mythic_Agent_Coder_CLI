@@ -1,0 +1,72 @@
+schema: mythic.character_voices/1
+slice: M-136
+part: 6
+part_title: Agents as files
+voices_note: |
+  Agent character voices: the house cast keep
+  their written characters in how they report -
+  flavour in the reporting, never in the code or
+  the facts. A voice book holds one voice profile
+  per member: the member's id, the voice's name,
+  its register, its signature markers, the
+  greeting that opens the member's reports and
+  the sign-off that closes them. A report is two
+  separate parts: FACTS, carried verbatim from
+  their source, byte for byte, unalterable by
+  the voice, and FLAVOUR, the profile's greeting
+  and sign-off framing those facts - and the two
+  never mix: a fact carrying one of its teller's
+  markers is refused, and a stored report whose
+  flavour disagrees with its profile, or whose
+  facts disagree with their source, is refused.
+  This file is ONE EXAMPLE VOICE BOOK in the
+  shape a real voices file takes: four members
+  of the house cast at the M-135 slice boundary,
+  one in each register, and one example report -
+  the skald telling the crew-sizing result, its
+  facts carried byte-for-byte under the skald's
+  warm framing. A real voice book is a new file
+  in this same shape - it is never this file
+  edited in place. This layer holds voices as
+  data only: it calls no model, generates
+  nothing live and alters no member's code or
+  facts.
+guide:
+  title: "Character voices at the M-135 slice boundary"
+profiles:
+- profile_id: voice-auditor
+  member: auditor
+  voice_name: "The Plain Ledger"
+  register: plain
+  markers: ["as counted", "no more, no less"]
+  greeting: "The count, as it stands:"
+  sign_off: "That is the whole of it."
+- profile_id: voice-skald
+  member: skald
+  voice_name: "The Hearth Voice"
+  register: warm
+  markers: ["by the fire", "hear this"]
+  greeting: "Come and hear how it went:"
+  sign_off: "And the fire keeps the tale."
+- profile_id: voice-scribe
+  member: scribe
+  voice_name: "The Dry Quill"
+  register: wry
+  markers: ["for the record", "ink dries either way"]
+  greeting: "For the record, then:"
+  sign_off: "Ink dries either way."
+- profile_id: voice-guardian
+  member: guardian
+  voice_name: "The Watch Voice"
+  register: grim
+  markers: ["the wall holds", "nothing passed unseen"]
+  greeting: "The watch reports:"
+  sign_off: "The wall holds."
+reports:
+- report_id: sizing-told-at-the-fire
+  member: skald
+  title: "The sizing of four tasks, told warm"
+  facts:
+  - "The sizing book held four task shapes at the M-134 slice boundary."
+  - "The tangled single-file fix derived one pair of hands, because the work was tightly coupled."
+  - "The wide census sweep derived six pairs of hands, the honest crew's cap."

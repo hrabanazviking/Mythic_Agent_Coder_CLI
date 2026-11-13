@@ -1,0 +1,162 @@
+schema: mythic.approval_cards/1
+slice: M-174
+part: 8
+part_title: The Beautiful Face
+canon_note: 'Approval Cards Perfected: one decision per card, with the full context carried on the card -
+  the operation verbatim, the target and the consequence each named as their own line, and the provenance
+  whole (the day it was recorded, who recorded it, its source and the session it was recorded in). The
+  remembered approval a card offers is derived from the card''s own act through the shipped M-096 scope
+  road: always allow this command, with these arguments, in this project - the exact scope of this card''s
+  act, never broader. Keyboard and mouse offer the same acts in the same order - allow, reject, remember -
+  read off one held tuple, so the two paths are exactly equal. A card''s alarm level is derived from its
+  act alone: alarm for a destructive operation, calm for a routine one - alarm styling is reserved for the
+  dangerous few, per the M-171 charter''s S-04 direction, which names M-174 as the owning slice. The answer
+  to a card is held as its own decision record, and the panel and the verdict are derived from the held
+  cards and their answers. This file is ONE EXAMPLE BOOK, in the shape a real card file takes: the M-173
+  slice boundary - four cards of the campaign''s own work, the test run remembered at its exact scope, the
+  M-174 commit allowed, the roadmap push still awaiting, and the one destructive card, removing a stale
+  worktree, standing alarmed and unanswered, with its one pinned panel; the verdict stands alarmed. A real
+  book is a new file in this same shape - it is never this file edited in place. This layer holds questions
+  as data only - it runs no operation, executes no approval, saves no remembered approval, renders no live
+  UI, sends nothing, posts nothing, schedules nothing, calls no model and persists nothing.'
+guide:
+  title: Approval Cards at the M-173 slice boundary
+cards:
+- card_id: card-test-run
+  decision: Allow the slice-board test run
+  operation: python -m pytest tests/test_slice_board.py -q
+  target: tests/test_slice_board.py
+  consequence: The slice-board tests run on this machine and write only to their own test temp dirs; no shipped file changes and nothing is banked by the run.
+  context:
+  - The M-173 slice board stands banked at the boundary this book is pinned to, and its tests are the proof it stands.
+  - The run is read-only over the shipped tree; the suite was counted green at banking.
+  command: python
+  args: [-m, pytest, tests/test_slice_board.py, -q]
+  path: /home/volmarr/mythic-hammer
+  destructive: false
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: approval cards
+  origin_session: session-m174
+- card_id: card-commit-m174
+  decision: Allow the M-174 pure-layer commit
+  operation: git commit -m M-174-pure-layer
+  target: mythic_agent/core/approval_cards.py
+  consequence: One local commit lands on the team branch; nothing is pushed, nothing is merged and nothing is banked by this act.
+  context:
+  - The pure layer is built and verified in the team worktree; the commit is the slice pattern''s first of four.
+  - Banking stays the coordinator''s road, in roadmap order, after the whole slice lands.
+  command: git
+  args: [commit, -m, M-174-pure-layer]
+  path: /home/volmarr/mythic-hammer
+  destructive: false
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: approval cards
+  origin_session: session-m174
+- card_id: card-push-roadmap
+  decision: Allow the roadmap push
+  operation: git push origin HEAD
+  target: origin HEAD
+  consequence: The branch leaves this machine for the shared remote, where every other builder can pull it; the push is visible to the whole campaign.
+  context:
+  - The shipped doctrine reads a push as costly - it can be undone only at a price - but not destructive, so this card stands calm.
+  - Pushes ride the house rules - fetch and remote-diff first, an explicit refspec, never a force-push, and the remote verified moved.
+  command: git
+  args: [push, origin, HEAD]
+  path: /home/volmarr/mythic-hammer
+  destructive: false
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: approval cards
+  origin_session: session-m174
+- card_id: card-remove-team99
+  decision: Allow removing the team-99 worktree
+  operation: rm -rf /home/volmarr/mythic-hammer/team-99
+  target: /home/volmarr/mythic-hammer/team-99
+  consequence: The worktree and everything in it is deleted; the deletion cannot be undone and anything unbanked in it is lost for good.
+  context:
+  - The shipped doctrine places this act on the irreversible rung, so this card alone of the four stands alarmed.
+  - The worktree is a stale scratch tree with no team working in it; its slice was banked from another tree.
+  command: rm
+  args: [-rf, /home/volmarr/mythic-hammer/team-99]
+  path: /home/volmarr/mythic-hammer
+  destructive: true
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: approval cards
+  origin_session: session-m174
+decisions:
+- decision_id: dec-remember-tests
+  seq: 1
+  card_id: card-test-run
+  answer: remember
+  detail: The same test run in this project is allowed from here on, at exactly the scope the card names - this command, these arguments, this project.
+  recorded_on: '2026-11-09'
+  actor: the jarl
+  source: approval cards
+  origin_session: session-m174
+- decision_id: dec-allow-commit
+  seq: 2
+  card_id: card-commit-m174
+  answer: allow
+  detail: The pure-layer commit may land on the team branch; banking remains the coordinator''s later road.
+  recorded_on: '2026-11-09'
+  actor: the jarl
+  source: approval cards
+  origin_session: session-m174
+panels:
+- panel_id: panel-m173-boundary
+  rows:
+  - card_id: card-test-run
+    decision: Allow the slice-board test run
+    target: tests/test_slice_board.py
+    alarm: calm
+    answer: remember
+    line: Allow the slice-board test run - calm
+    recorded_on: '2026-11-09'
+  - card_id: card-commit-m174
+    decision: Allow the M-174 pure-layer commit
+    target: mythic_agent/core/approval_cards.py
+    alarm: calm
+    answer: allow
+    line: Allow the M-174 pure-layer commit - calm
+    recorded_on: '2026-11-09'
+  - card_id: card-push-roadmap
+    decision: Allow the roadmap push
+    target: origin HEAD
+    alarm: calm
+    answer: awaiting
+    line: Allow the roadmap push - calm
+    recorded_on: '2026-11-09'
+  - card_id: card-remove-team99
+    decision: Allow removing the team-99 worktree
+    target: /home/volmarr/mythic-hammer/team-99
+    alarm: alarm
+    answer: awaiting
+    line: Allow removing the team-99 worktree - alarm
+    recorded_on: '2026-11-09'
+  total_cards: 4
+  total_destructive: 1
+  total_alarmed: 1
+  total_allowed: 1
+  total_rejected: 0
+  total_remembered: 1
+  total_awaiting: 2
+  answer_counts:
+  - answer: allow
+    items: 1
+  - answer: remember
+    items: 1
+  - answer: awaiting
+    items: 2
+  as_of: '2026-11-09'
+  account:
+  - 'The approval cards hold 4 cards as of 2026-11-09: 1 allowed, 0 rejected and 1 remembered, with 2 still
+    awaiting an answer: allow 1, remember 1, awaiting 2; 1 cards ask about a destructive operation and 1 of
+    them stand alarmed and unanswered.'
+  - Rows stand in held order, first card first, so two panels of one book diff cleanly, line by line.
+  - 'Every row carries its target as its own line and its alarm level as a word: alarm is reserved for destructive
+    operations, and routine cards stand calm.'
+  - 'Every card offers its remembered scope at exactly its own act - this command, these arguments, this project
+    - and keyboard and mouse offer the same acts in the same order on every card.'
