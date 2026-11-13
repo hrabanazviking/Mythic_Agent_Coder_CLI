@@ -1618,7 +1618,7 @@ slices:
   part: 11
   title: The Stranger Fleet Test
   summary: M-200's stranger + a headless CI run + a crew campaign, all from docs alone, on a clean machine.
-  status: queued
+  status: done
 - id: M-267
   part: 11
   title: Cost-of-quality report
