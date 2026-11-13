@@ -1562,7 +1562,7 @@ slices:
   title: Published-yardstick runs
   summary: SWE-bench-style public sets run where licences allow, results reported with model, cost, and
     date — comparable to the field's claims, never inflated.
-  status: queued
+  status: done
 - id: M-257
   part: 11
   title: Regression court
