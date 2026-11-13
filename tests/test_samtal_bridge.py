@@ -434,8 +434,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 259
-    assert citizen["next_slice"] == "M-260"
+    assert citizen["done"] == 260
+    assert citizen["next_slice"] == "M-261"
     assert citizen["m243_title"] == "Samtal bridge"
     assert citizen["m243_part"] == 10
     assert citizen["m243_status"] == "done"
@@ -910,8 +910,8 @@ class TestDispatchAgentStatus:
         assert status["ledger"]["current_dispatch"] == "dispatch-bare-dispatch"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 259
-        assert status["roadmap"]["next_slice"] == "M-260"
+        assert status["roadmap"]["done"] == 260
+        assert status["roadmap"]["next_slice"] == "M-261"
         assert status["roadmap"]["m243_title"] == "Samtal bridge"
         assert "held as data alone" in status["rule"]
         assert "dispatch-bare-dispatch" in status["plain_words"]
