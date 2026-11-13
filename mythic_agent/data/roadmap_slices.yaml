@@ -1624,7 +1624,7 @@ slices:
   title: Cost-of-quality report
   summary: benchmark scores against spend per model route — the honest shopping guide for the user's own
     money.
-  status: queued
+  status: done
 - id: M-268
   part: 11
   title: Changelog that tells the truth
