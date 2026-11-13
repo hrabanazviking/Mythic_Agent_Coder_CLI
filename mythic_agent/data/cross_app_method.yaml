@@ -1,0 +1,226 @@
+schema: mythic.cross_app_method/1
+campaign: M-231
+cross_app_method:
+  title: Cross-app method at the M-231 slice run
+campaigns:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-external book
+  origin_session: session-m231
+  campaign_id: campaign-m230-metrics
+  seq: 1
+  title: Method metrics
+  state: live
+  detail: 'The slice the tracker looks back on first: banked at M-230, standing active in the cross-app
+    method honesty''s hands.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-external book
+  origin_session: session-m231
+  campaign_id: campaign-m231-crossapp
+  seq: 2
+  title: Cross-app method
+  state: live
+  detail: 'This very slice, standing active: the crossapp book holding its own campaign as data.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-external book
+  origin_session: session-m231
+  campaign_id: campaign-m232-gate
+  seq: 3
+  title: Part IX gate
+  state: dormant
+  detail: A queued slice the tracker has not taken yet; an external naming it refuses by name.
+external_records:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-external book
+  origin_session: session-m231
+  external_id: external-held-external
+  seq: 1
+  campaign_id: campaign-m230-metrics
+  title: The held external
+  stages: &id001
+  - named
+  - linked
+  - verified
+  - tracked
+  - held
+  claims:
+  - tool_ref
+  detail: 'The opening external: a slice named for the campaign in its home tool, linked across the workshop,
+    verified where it lives, tracked to the tracker at hand and held honestly, held with the tool held
+    as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-external book
+  origin_session: session-m231
+  external_id: external-retried-external
+  seq: 2
+  campaign_id: campaign-m230-metrics
+  title: The retried external
+  stages:
+  - named
+  - linked
+  - verified
+  - tracked
+  - named
+  - linked
+  - verified
+  - tracked
+  - held
+  claims: []
+  detail: 'The retried external: a first tracked step sent the standing back, the slice was named and
+    linked again and the tracking held a second time before the holding stood.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-external book
+  origin_session: session-m231
+  external_id: external-own-external
+  seq: 3
+  campaign_id: campaign-m231-crossapp
+  title: The tracker's own external
+  stages: *id001
+  claims:
+  - external_ref
+  detail: 'The tracker''s own external: this slice''s own external, holding its external ref as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-external book
+  origin_session: session-m231
+  external_id: external-bare-external
+  seq: 4
+  campaign_id: campaign-m231-crossapp
+  title: The bare claim external
+  stages: *id001
+  claims:
+  - feeling
+  detail: An external that held a feeling in place of held proof, standing open.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-external book
+  origin_session: session-m231
+  external_id: external-leaping-external
+  seq: 5
+  campaign_id: campaign-m231-crossapp
+  title: The leaping external
+  stages:
+  - named
+  - linked
+  - held
+  claims: []
+  detail: An external that stepped from linked straight to held, outside the external sequence, standing
+    open.
+views:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-external book
+  origin_session: session-m231
+  view_id: view-externals
+  seq: 1
+  view_filter: all
+  detail: Every held external, complete or not.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-external book
+  origin_session: session-m231
+  view_id: view-held
+  seq: 2
+  view_filter: complete
+  detail: Only the externals standing complete.
+notes:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-external book
+  origin_session: session-m231
+  note_id: note-note-first
+  seq: 1
+  external_id: external-held-external
+  stance: note
+  target: the opening external
+  title: Externals first
+  detail: The tracker opens by naming the slice first, told honestly.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-external book
+  origin_session: session-m231
+  note_id: note-concern-bare
+  seq: 2
+  external_id: external-bare-external
+  stance: concern
+  target: the bare claim external
+  title: Claim named
+  detail: An external that held a feeling claim is not the tracker's way, and stands named.
+traces:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-external book
+  origin_session: session-m231
+  trace_id: trace-first
+  seq: 1
+  external_id: external-held-external
+  trace: named > linked > verified > tracked > held
+  detail: 'The opening external''s walk, held exactly as walked: the trace is the walk itself.'
+panels:
+- panel_id: panel-m230-campaign
+  view_id: view-externals
+  view_filter: all
+  rows:
+  - item_id: external-held-external
+    standing: complete
+    label: The held external
+    segment: 'external-held-external: The held external - campaign: ''campaign-m230-metrics'' - stage:
+      ''held'' - stages: 5 - claims: ''tool_ref'' - detail: ''The opening external: a slice named for
+      the campaign in its home tool, linked across the workshop, verified where it lives, tracked to the
+      tracker at hand and held honestly, held with the tool held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: external-retried-external
+    standing: complete
+    label: The retried external
+    segment: 'external-retried-external: The retried external - campaign: ''campaign-m230-metrics'' -
+      stage: ''held'' - stages: 9 - claims: ''none'' - detail: ''The retried external: a first tracked
+      step sent the standing back, the slice was named and linked again and the tracking held a second
+      time before the holding stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: external-own-external
+    standing: complete
+    label: The tracker's own external
+    segment: 'external-own-external: The tracker''s own external - campaign: ''campaign-m231-crossapp''
+      - stage: ''held'' - stages: 5 - claims: ''external_ref'' - detail: ''The tracker''s own external:
+      this slice''s own external, holding its external ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: external-bare-external
+    standing: open
+    label: The bare claim external
+    segment: 'external-bare-external: The bare claim external - campaign: ''campaign-m231-crossapp'' -
+      stage: ''held'' - stages: 5 - claims: ''feeling'' - detail: ''An external that held a feeling in
+      place of held proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held
+      proof: complete stands on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: external-leaping-external
+    standing: open
+    label: The leaping external
+    segment: 'external-leaping-external: The leaping external - campaign: ''campaign-m231-crossapp'' -
+      stage: ''held'' - stages: 3 - claims: ''none'' - detail: ''An external that stepped from linked
+      straight to held, outside the external sequence, standing open.'' - gaps: steps from linked to held,
+      which the external sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The external book holds 5 externals as of 2026-11-11: the view ''all'' shows 5 of them: complete
+    3, open 2; 3 of the shown externals stand complete.'
+  - Rows stand in held external, the external the book itself stands in, so two panels of one view diff
+    cleanly, segment by segment.
+  - Every segment is derived from its external's own fields - the campaign it answers for, the steps it
+    walked in the open and the evidence it honestly carries - and no judgement is stored on any external.
+  - 'Completeness is verified from the held records alone: a external that steps outside the external
+    sequence, carries a bare claim in place of held evidence, or has not named held stands open, named
+    in its gaps, and the external index is derived from the held externals, never stored where it could
+    drift.'

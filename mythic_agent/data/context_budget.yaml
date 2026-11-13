@@ -1,0 +1,179 @@
+schema: mythic.context_budget/1
+slice: M-147
+part: 7
+part_title: Memory & Context
+budget_note: |
+  Context budget made visible: a live meter and
+  a "what's in the context and why" panel - every
+  file, note, and map section accounted for in
+  tokens. A budget panel book holds one token
+  budget and one context item per thing in the
+  context, in held order: each item names its
+  kind in the closed set the shipped context
+  system itself justifies (system, instruction,
+  file, map_section, note, history, tool_result),
+  its title, its source, the plain-words reason
+  WHY it is in the context, and its token count.
+  An item names no total, no headroom and no
+  share, because those are derived from the
+  whole panel: the meter - the total, the
+  per-kind subtotals, the headroom (budget minus
+  total), the over-budget state and the usage
+  share - is read off the items, and a stored
+  meter that disagrees with the derived one is
+  refused. The panel - every item carried whole
+  with its share of the whole, its totals and
+  its account - is likewise derived from the
+  items, and a stored panel that disagrees
+  refuses. This file is ONE EXAMPLE PANEL, in
+  the shape a real panel file takes: the M-146
+  slice boundary - the context of a session
+  opening Part VII, one item of every kind
+  against a budget of 8000 tokens, with the one
+  meter and the one panel of it. A real panel
+  is a new file in this same shape - it is never
+  this file edited in place. This layer holds
+  the account as data only: it compiles no
+  context, assembles no prompt, calls no model
+  and persists nothing.
+guide:
+  title: "Context budget panel at the M-146 slice boundary"
+budget_tokens: 8000
+entries:
+- item_id: ctx-system-prompt
+  kind: system
+  title: System prompt
+  source: mythic_agent/agents/prompts.py
+  reason: The system prompt frames every answer the coder gives; it is always included and never truncated.
+  tokens: 640
+- item_id: ctx-instructions
+  kind: instruction
+  title: Workspace instructions
+  source: instructions (merged layers)
+  reason: The workspace's own instruction files steer the work in this repo, merged by precedence so the coder follows them without re-reading each file.
+  tokens: 480
+- item_id: ctx-file-crew-schedules
+  kind: file
+  title: crew_schedules.py
+  source: mythic_agent/core/crew_schedules.py
+  reason: The file under change in this session, named in the session's request, so the coder edits the true text and not a memory of it.
+  tokens: 1520
+- item_id: ctx-map-crew
+  kind: map_section
+  title: "Repo map: crew package"
+  source: repo-map
+  reason: The repo map section for the crew package, so the coder sees the crew modules' shape without opening each file.
+  tokens: 720
+- item_id: ctx-note-slice
+  kind: note
+  title: Slice note M-147
+  source: session notes
+  reason: "The keeper's slice note: the roadmap words for M-147 and the banking order this slice must follow."
+  tokens: 260
+- item_id: ctx-history-turns
+  kind: history
+  title: Recent turns
+  source: session history
+  reason: The recent turns of this session, so the coder answers in context and does not repeat settled decisions.
+  tokens: 1180
+- item_id: ctx-tool-result-tests
+  kind: tool_result
+  title: Latest test run
+  source: pytest run (tool result)
+  reason: The latest test run's output, kept so its failures can be read without re-running the suite.
+  tokens: 860
+meters:
+- meter_id: meter-m146-boundary
+  budget_tokens: 8000
+  total_tokens: 5660
+  total_items: 7
+  headroom_tokens: 2340
+  over_budget: false
+  usage_percent: 70.8
+  kind_totals:
+  - kind: system
+    tokens: 640
+    items: 1
+  - kind: instruction
+    tokens: 480
+    items: 1
+  - kind: file
+    tokens: 1520
+    items: 1
+  - kind: map_section
+    tokens: 720
+    items: 1
+  - kind: note
+    tokens: 260
+    items: 1
+  - kind: history
+    tokens: 1180
+    items: 1
+  - kind: tool_result
+    tokens: 860
+    items: 1
+  account:
+  - "The context holds 5660 of 8000 tokens (70.8% used); 2340 tokens of headroom remain."
+  - "By kind: system 640 tokens in 1 item(s); instruction 480 tokens in 1 item(s); file 1520 tokens in 1 item(s); map_section 720 tokens in 1 item(s); note 260 tokens in 1 item(s); history 1180 tokens in 1 item(s); tool_result 860 tokens in 1 item(s)."
+  - "The meter is read off the held items at call time - it is derived, never stored loose."
+panels:
+- panel_id: panel-m146-boundary
+  rows:
+  - item_id: ctx-system-prompt
+    kind: system
+    title: System prompt
+    source: mythic_agent/agents/prompts.py
+    reason: The system prompt frames every answer the coder gives; it is always included and never truncated.
+    tokens: 640
+    share_percent: 11.3
+  - item_id: ctx-instructions
+    kind: instruction
+    title: Workspace instructions
+    source: instructions (merged layers)
+    reason: The workspace's own instruction files steer the work in this repo, merged by precedence so the coder follows them without re-reading each file.
+    tokens: 480
+    share_percent: 8.5
+  - item_id: ctx-file-crew-schedules
+    kind: file
+    title: crew_schedules.py
+    source: mythic_agent/core/crew_schedules.py
+    reason: The file under change in this session, named in the session's request, so the coder edits the true text and not a memory of it.
+    tokens: 1520
+    share_percent: 26.9
+  - item_id: ctx-map-crew
+    kind: map_section
+    title: "Repo map: crew package"
+    source: repo-map
+    reason: The repo map section for the crew package, so the coder sees the crew modules' shape without opening each file.
+    tokens: 720
+    share_percent: 12.7
+  - item_id: ctx-note-slice
+    kind: note
+    title: Slice note M-147
+    source: session notes
+    reason: "The keeper's slice note: the roadmap words for M-147 and the banking order this slice must follow."
+    tokens: 260
+    share_percent: 4.6
+  - item_id: ctx-history-turns
+    kind: history
+    title: Recent turns
+    source: session history
+    reason: The recent turns of this session, so the coder answers in context and does not repeat settled decisions.
+    tokens: 1180
+    share_percent: 20.8
+  - item_id: ctx-tool-result-tests
+    kind: tool_result
+    title: Latest test run
+    source: pytest run (tool result)
+    reason: The latest test run's output, kept so its failures can be read without re-running the suite.
+    tokens: 860
+    share_percent: 15.2
+  budget_tokens: 8000
+  total_tokens: 5660
+  total_items: 7
+  headroom_tokens: 2340
+  over_budget: false
+  account:
+  - "The panel accounts for 7 item(s) in the context: 5660 token(s) against a budget of 8000, with 2340 token(s) of headroom."
+  - "Every item names its kind, its source and the reason it is in the context; nothing sits in the context unaccounted for."
+  - "The panel is read off the held items at call time - it is derived, never stored loose, and holding it changes no live context assembly."

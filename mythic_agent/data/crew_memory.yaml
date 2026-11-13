@@ -1,0 +1,51 @@
+schema: mythic.crew_memory/1
+slice: M-133
+part: 6
+part_title: Agents as files
+memory_note: |
+  Crew memory: one shared project memory held as
+  per-member notebooks, as data. Each entry is one
+  fact in exactly one member's notebook - its title,
+  the fact in plain words, its tags and its
+  provenance - and the shared memory is the union
+  of all notebooks: search runs over every notebook
+  at once in one deterministic order, so a fact one
+  member won the hard way is findable by all,
+  whoever recorded it and whoever asks. Search is
+  derived from the held entries, never stored, and
+  there are no embeddings, no model calls and no
+  relevance scores. This file is ONE EXAMPLE MEMORY
+  in the shape a real memory file takes: the
+  auditor's hard-won fact about the broken
+  checkpoint chain, the guardian's fact about the
+  PortAudio environment case, and the scribe's fact
+  about verifying a push moved the remote. A real
+  memory is a new file in this same shape - it is
+  never this file edited in place. This layer holds
+  the memory as data only: it persists nothing,
+  syncs nothing, spawns no crew and calls no model.
+notebooks:
+- member: auditor
+  entries:
+  - entry_id: broken-checkpoint-chain
+    member: auditor
+    title: "Broken checkpoint chain refuses restore"
+    fact: "Restoring a session branch refuses when the branch's checkpoint chain is broken, instead of restoring half a chain silently; the refusal names the broken link."
+    tags: [checkpoints, restore, sessions]
+    provenance: "M-132 review panel example"
+- member: guardian
+  entries:
+  - entry_id: portaudio-env-import
+    member: guardian
+    title: "PortAudio import failure is environmental"
+    fact: "The full-suite failure on the PortAudio public-api import is a long-classified environment case on this machine, not a code defect; it fails the same way on a clean tree."
+    tags: [tests, environment, audio]
+    provenance: "Campaign full-suite classification"
+- member: scribe
+  entries:
+  - entry_id: verify-remote-moved
+    member: scribe
+    title: "A push is proven only when the remote moved"
+    fact: "A banking push is verified by git ls-remote showing the new head, never by the push command's own success message alone."
+    tags: [banking, git, verification]
+    provenance: "Campaign banking discipline"

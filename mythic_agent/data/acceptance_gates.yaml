@@ -1,0 +1,223 @@
+schema: mythic.acceptance_gates/1
+slice: M-205
+acceptance_gates:
+  title: The Acceptance gate at the M-204 slice boundary
+slices:
+- slice_id: slice-m204-juggernaut
+  seq: 1
+  title: The Juggernaut loop
+  state: active
+  detail: 'The slice the gate walks first: drafted at M-204, standing active in the gate''s hands.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the acceptance gate
+  origin_session: session-m205
+- slice_id: slice-m205-gates
+  seq: 2
+  title: Acceptance gates per slice
+  state: active
+  detail: 'This very slice, standing active: the gate holding its own runtime as data.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the acceptance gate
+  origin_session: session-m205
+- slice_id: slice-m206-banking
+  seq: 3
+  title: Banking discipline
+  state: queued
+  detail: A queued slice the gate has not taken; a audit naming it refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the acceptance gate
+  origin_session: session-m205
+audits:
+- audit_id: audit-juggernaut-gate
+  seq: 1
+  slice_id: slice-m204-juggernaut
+  title: The Juggernaut loop gate audit
+  checks:
+  - charter
+  - build
+  - test_suite
+  - evidence
+  claims:
+  - runner_output
+  detail: 'The opening audit: the gate walked the slicing slice in the open and asked only what the words
+    should mean.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the acceptance gate
+  origin_session: session-m205
+- audit_id: audit-repair-gate
+  seq: 2
+  slice_id: slice-m204-juggernaut
+  title: The repair gate audit
+  checks:
+  - charter
+  - build
+  - test_suite
+  - repair
+  - test_suite
+  - evidence
+  claims: []
+  detail: 'The repair gate audit: a failed test stepped to repair and back to test for the rerun, in the
+    open.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the acceptance gate
+  origin_session: session-m205
+- audit_id: audit-acceptance-gate
+  seq: 3
+  slice_id: slice-m205-gates
+  title: The acceptance gate audit
+  checks:
+  - charter
+  - build
+  - test_suite
+  - evidence
+  claims:
+  - ledger_row
+  detail: 'The acceptance gate audit: this slice''s own walk, asking only which direction the human chose.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the acceptance gate
+  origin_session: session-m205
+- audit_id: audit-feeling-gate
+  seq: 4
+  slice_id: slice-m205-gates
+  title: The feeling gate audit
+  checks:
+  - charter
+  - build
+  - test_suite
+  - evidence
+  claims:
+  - feeling
+  detail: A audit that asked which file to touch, a claim the code answers itself, standing red.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the acceptance gate
+  origin_session: session-m205
+- audit_id: audit-skipping-gate
+  seq: 5
+  slice_id: slice-m205-gates
+  title: The skipping gate audit
+  checks:
+  - charter
+  - build
+  - evidence
+  claims: []
+  detail: A audit that stepped from build straight to continue, outside the gate sequence, standing red.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the acceptance gate
+  origin_session: session-m205
+views:
+- view_id: view-gates
+  seq: 1
+  view_filter: all
+  detail: Every held audit, green or not.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the acceptance gate
+  origin_session: session-m205
+- view_id: view-green
+  seq: 2
+  view_filter: green
+  detail: Only the audits standing green.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the acceptance gate
+  origin_session: session-m205
+notes:
+- note_id: note-note-first
+  seq: 1
+  audit_id: audit-juggernaut-gate
+  stance: note
+  target: the opening walk
+  title: Words first
+  detail: The gate opens by reading the charter, told honestly.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the acceptance gate
+  origin_session: session-m205
+- note_id: note-concern-asking
+  seq: 2
+  audit_id: audit-feeling-gate
+  stance: concern
+  target: the asking audit
+  title: Claim named
+  detail: A audit that asked a feeling claim is not the gate's way, and stands named.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the acceptance gate
+  origin_session: session-m205
+traces:
+- trace_id: trace-first
+  seq: 1
+  audit_id: audit-juggernaut-gate
+  trace: charter > build > test_suite > evidence
+  detail: 'The opening audit''s walk, held exactly as walked: the trace is the walk itself.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: the acceptance gate
+  origin_session: session-m205
+panels:
+- panel_id: panel-m204-boundary
+  view_id: view-gates
+  view_filter: all
+  rows:
+  - item_id: audit-juggernaut-gate
+    standing: green
+    label: The Juggernaut loop gate audit
+    segment: 'audit-juggernaut-gate: The Juggernaut loop gate audit - slice: ''slice-m204-juggernaut''
+      - check: ''evidence'' - checks: 4 - claims: ''runner_output'' - detail: ''The opening audit: the
+      gate walked the slicing slice in the open and asked only what the words should mean.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: audit-repair-gate
+    standing: green
+    label: The repair gate audit
+    segment: 'audit-repair-gate: The repair gate audit - slice: ''slice-m204-juggernaut'' - check: ''evidence''
+      - checks: 6 - claims: ''none'' - detail: ''The repair gate audit: a failed test stepped to repair
+      and back to test for the rerun, in the open.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: audit-acceptance-gate
+    standing: green
+    label: The acceptance gate audit
+    segment: 'audit-acceptance-gate: The acceptance gate audit - slice: ''slice-m205-gates'' - check:
+      ''evidence'' - checks: 4 - claims: ''ledger_row'' - detail: ''The acceptance gate audit: this slice''s
+      own walk, asking only which direction the human chose.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: audit-feeling-gate
+    standing: red
+    label: The feeling gate audit
+    segment: 'audit-feeling-gate: The feeling gate audit - slice: ''slice-m205-gates'' - check: ''evidence''
+      - checks: 4 - claims: ''feeling'' - detail: ''A audit that asked which file to touch, a claim the
+      code answers itself, standing red.'' - gaps: asked a feeling claim the Auditor can answer'
+    recorded_on: '2026-11-10'
+  - item_id: audit-skipping-gate
+    standing: red
+    label: The skipping gate audit
+    segment: 'audit-skipping-gate: The skipping gate audit - slice: ''slice-m205-gates'' - check: ''evidence''
+      - checks: 3 - claims: ''none'' - detail: ''A audit that stepped from build straight to continue,
+      outside the gate sequence, standing red.'' - gaps: steps from build to evidence, which the gate
+      sequence does not allow'
+    recorded_on: '2026-11-10'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: green
+    items: 3
+  - standing: red
+    items: 2
+  as_of: '2026-11-10'
+  account:
+  - 'The acceptance book holds 5 audits as of 2026-11-10: the view ''all'' shows 5 of them: green 3, red
+    2; 3 of the shown audits stand green.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its audit's own fields - the slice it audits, the checks it walked in
+    the open and the claims it honestly carries - and no judgement is stored on any audit.
+  - 'Greenness is judged from the held records alone: a audit that steps outside the gate sequence, asks
+    a claim the Auditor can answer, or has not reached continue stands red, named in its gaps, and the
+    acceptance index is derived from the held audits, never stored where it could drift.'

@@ -1,0 +1,233 @@
+schema: mythic.onboarding_five/1
+slice: M-184
+part: 8
+part_title: The Beautiful Face
+canon_note: 'Onboarding in five minutes - the first run detects providers, offers Kista key-keeping, walks
+  one tiny real task - success before configuration, always. A detection is held whole - under its provider,
+  the named probe that looked for it, and the outcome that probe honestly returned, found or absent. Detection
+  is derived from named probes: an environment key probe reads a key''s name, never the key; a local door
+  probe asks the door; a registry probe reads the registry. Availability is never faked: a provider no
+  probe found stands absent and named in its gaps. The Kista offer stands as data - the provider it was
+  made for and the answer it was given - and the keys themselves are never held by this layer: a record
+  naming a key itself refuses by name. The walk''s steps stand held in order - detect, walk, success,
+  offer, configure - and the ordering rule stands as data in the layer: a walk whose configure step stands
+  before its first success step refuses by name; configuration is offered after the first success, never
+  required before it. The walked task is genuinely tiny and real: read one small file and say in one line
+  what it does. This file is ONE EXAMPLE BOOK, in the shape a real first-run file takes - the M-183 slice
+  boundary - six detections and two views, five walk steps and one offer, with its one pinned panel of
+  the every-detection view, whose shown providers stand four found of six, so the book verdict under it
+  stands strained; under the found view, whose four shown providers all stand found, the verdict stands
+  open. A real book is a new file in this same shape - it is never this file edited in place. This layer
+  detects nothing live, keeps no key, runs no task and configures nothing: it holds the first run as data
+  and tells it.'
+guide:
+  title: Onboarding in five minutes at the M-183 slice boundary
+detections:
+- detection_id: det-ollama-door
+  seq: 1
+  provider: Ollama
+  probe: local door probe
+  outcome: found
+  detail: Ollama answers on its local door, so a first task can run with no key and no configuration at
+    all.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: onboarding five
+  origin_session: session-m184
+- detection_id: det-openai-env
+  seq: 2
+  provider: OpenAI
+  probe: environment key probe
+  outcome: found
+  detail: An OpenAI key stands in the environment, found by its name alone - the key itself was never
+    read or held by this layer.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: onboarding five
+  origin_session: session-m184
+- detection_id: det-aesir-door
+  seq: 3
+  provider: Project Aesir
+  probe: local door probe
+  outcome: found
+  detail: Project Aesir answers on its local door, so the tiny first task can run on the home metal.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: onboarding five
+  origin_session: session-m184
+- detection_id: det-anthropic-env
+  seq: 4
+  provider: Anthropic
+  probe: environment key probe
+  outcome: absent
+  detail: No Anthropic key stands in the environment; the probe names the absence honestly and invents
+    no availability.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: onboarding five
+  origin_session: session-m184
+- detection_id: det-lmstudio-door
+  seq: 5
+  provider: LM Studio
+  probe: local door probe
+  outcome: found
+  detail: LM Studio answers on its local door, ready for a first task with nothing to configure.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: onboarding five
+  origin_session: session-m184
+- detection_id: det-openrouter-registry
+  seq: 6
+  provider: OpenRouter
+  probe: registry probe
+  outcome: absent
+  detail: OpenRouter stands in the registry but no key or door answers for it here, so it is held absent,
+    never faked as found.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: onboarding five
+  origin_session: session-m184
+views:
+- view_id: view-all
+  seq: 1
+  view_filter: all
+  detail: See the whole onboarding book, every detection at once.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: onboarding five
+  origin_session: session-m184
+- view_id: view-found
+  seq: 2
+  view_filter: found
+  detail: See only the providers that stand found.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: onboarding five
+  origin_session: session-m184
+steps:
+- step_id: step-detect
+  seq: 1
+  phase: detect
+  title: Detect what already stands
+  detail: The first run probes the doors and names that already stand here - environment keys by name,
+    local doors, the registry - and holds each outcome as data, found or absent, never faked.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: onboarding five
+  origin_session: session-m184
+- step_id: step-walk
+  seq: 2
+  phase: walk
+  title: Walk one tiny real task
+  detail: 'With Ollama found on its local door, the walk runs one tiny real task: read one small file
+    and say in one line what it does. The task is real, and it is tiny on purpose.'
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: onboarding five
+  origin_session: session-m184
+- step_id: step-success
+  seq: 3
+  phase: success
+  title: Stand in the first success
+  detail: 'The one-line answer lands: the first success stands before any configuration was asked for,
+    exactly as the ordering rule stands.'
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: onboarding five
+  origin_session: session-m184
+- step_id: step-offer
+  seq: 4
+  phase: offer
+  title: Offer Kista key-keeping
+  detail: 'Only now is Kista key-keeping offered, as an offer: it may be accepted or declined, and either
+    answer is held as data. No key is ever held by this layer.'
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: onboarding five
+  origin_session: session-m184
+- step_id: step-configure
+  seq: 5
+  phase: configure
+  title: Configure, if wanted
+  detail: 'Configuration is offered last and required never: pick a default provider, keep keys in Kista,
+    shape the setup - all of it after the first success, all of it optional.'
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: onboarding five
+  origin_session: session-m184
+offers:
+- offer_id: offer-kista-openai
+  seq: 1
+  provider: OpenAI
+  decision: declined
+  detail: Kista key-keeping for the OpenAI key was offered after the first success and declined for now;
+    the key stays where it stands and no key was held by this layer.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: onboarding five
+  origin_session: session-m184
+panels:
+- panel_id: panel-m183-boundary
+  view_id: view-all
+  view_filter: all
+  rows:
+  - item_id: det-ollama-door
+    outcome: found
+    label: Ollama
+    segment: 'det-ollama-door: Ollama probed by ''local door probe'' - outcome: ''found'' - detail: ''Ollama
+      answers on its local door, so a first task can run with no key and no configuration at all.'' -
+      gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: det-openai-env
+    outcome: found
+    label: OpenAI
+    segment: 'det-openai-env: OpenAI probed by ''environment key probe'' - outcome: ''found'' - detail:
+      ''An OpenAI key stands in the environment, found by its name alone - the key itself was never read
+      or held by this layer.'' - gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: det-aesir-door
+    outcome: found
+    label: Project Aesir
+    segment: 'det-aesir-door: Project Aesir probed by ''local door probe'' - outcome: ''found'' - detail:
+      ''Project Aesir answers on its local door, so the tiny first task can run on the home metal.'' -
+      gaps: none'
+    recorded_on: '2026-11-09'
+  - item_id: det-anthropic-env
+    outcome: absent
+    label: Anthropic
+    segment: 'det-anthropic-env: Anthropic probed by ''environment key probe'' - outcome: ''absent'' -
+      detail: ''No Anthropic key stands in the environment; the probe names the absence honestly and invents
+      no availability.'' - gaps: provider'
+    recorded_on: '2026-11-09'
+  - item_id: det-lmstudio-door
+    outcome: found
+    label: LM Studio
+    segment: 'det-lmstudio-door: LM Studio probed by ''local door probe'' - outcome: ''found'' - detail:
+      ''LM Studio answers on its local door, ready for a first task with nothing to configure.'' - gaps:
+      none'
+    recorded_on: '2026-11-09'
+  - item_id: det-openrouter-registry
+    outcome: absent
+    label: OpenRouter
+    segment: 'det-openrouter-registry: OpenRouter probed by ''registry probe'' - outcome: ''absent'' -
+      detail: ''OpenRouter stands in the registry but no key or door answers for it here, so it is held
+      absent, never faked as found.'' - gaps: provider'
+    recorded_on: '2026-11-09'
+  total_items: 6
+  total_shown: 6
+  outcome_counts:
+  - outcome: found
+    items: 4
+  - outcome: absent
+    items: 2
+  as_of: '2026-11-09'
+  account:
+  - 'The onboarding book holds 6 detections as of 2026-11-09: the view ''all'' shows 6 of them: found
+    4, absent 2; 4 of the shown providers stand found.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its detection's own fields - the provider, the named probe that looked
+    for it and the outcome that probe honestly returned - and no judgement is stored on any detection.
+  - 'Availability is never faked: a provider no probe found stands absent, named in its gaps, and no key
+    is ever held by this layer - Kista key-keeping is offered, never assumed, and success stands before
+    configuration, always.'

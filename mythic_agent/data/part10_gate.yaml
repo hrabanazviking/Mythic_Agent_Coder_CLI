@@ -1,0 +1,182 @@
+schema: mythic.part10_gate/1
+gate_slice: M-254
+part: 10
+part_title: Bridges
+verdict: PASS
+gate_note: |
+  The Part X gate: one campaign slice executed across bridges -
+  issue from a host, build locally, PR raised, stand-up posted
+  to Samtal - with credentials never leaving Kista. The exercise
+  is the walk itself: a single campaign slice stands in the
+  roadmap's own record walked across the bridges in held order
+  (issue, build, PR, stand-up) through the shipped pure roads
+  the bridges themselves ship - the issue arriving across the
+  Samverk bridge exchange (M-242), the build standing on the
+  local MCP client road (M-233), the PR raised under the Kista
+  key-keeper's own road (M-244), the slice whose whole charge
+  is that credentials are named by ref and never leave Kista,
+  and the stand-up posted across the Samtal bridge (M-243) -
+  and every bridge layer M-233 to M-253 stands in its own
+  shipped module under its own slice constant. No stage is
+  faked or stubbed: no host API is called, no issue is
+  fetched, no PR is raised, no stand-up is posted and no
+  credential is read out of Kista by the gate itself; the
+  walk is a data-level re-proof over records that already
+  stand banked.
+baseline:
+  resource: m253_confirmation_suite
+  collected: 12510
+  passed: 12507
+  failed: 2
+  skipped: 1
+slices:
+  - slice: M-233
+    title: MCP client
+  - slice: M-234
+    title: MCP server v2
+  - slice: M-235
+    title: MCP registry kindness
+  - slice: M-236
+    title: Skills standard
+  - slice: M-237
+    title: Custom commands
+  - slice: M-238
+    title: Plugin bundles
+  - slice: M-239
+    title: IDE companions I — VS Code family
+  - slice: M-240
+    title: IDE companions II — JetBrains and the generic road
+  - slice: M-241
+    title: Rival importers
+  - slice: M-242
+    title: Samverk bridge
+  - slice: M-243
+    title: Samtal bridge
+  - slice: M-244
+    title: Kista as the key-keeper (with M-032)
+  - slice: M-245
+    title: Aesir deepening (with M-025)
+  - slice: M-246
+    title: GitHub/GitLab/Bitbucket parity
+  - slice: M-247
+    title: CI bridges
+  - slice: M-248
+    title: Issue trackers beyond git hosts
+  - slice: M-249
+    title: The WYRD seam
+  - slice: M-250
+    title: Webhook doors
+  - slice: M-251
+    title: Export everything
+  - slice: M-252
+    title: Docs MCP pattern generalised
+  - slice: M-253
+    title: Bridge permissions audit
+layers:
+  - slice: M-233
+    module: mcp_client
+    constant: CONNECTION_SLICE
+  - slice: M-234
+    module: mcp_server_v2
+    constant: EXPOSURE_SLICE
+  - slice: M-235
+    module: mcp_registry
+    constant: LISTING_SLICE
+  - slice: M-236
+    module: skills_standard
+    constant: PACK_SLICE
+  - slice: M-237
+    module: custom_commands
+    constant: TEMPLATE_SLICE
+  - slice: M-238
+    module: plugin_bundles
+    constant: BUNDLE_SLICE
+  - slice: M-239
+    module: vscode_companions
+    constant: COMPANION_SLICE
+  - slice: M-240
+    module: ide_companions
+    constant: ENDPOINT_SLICE
+  - slice: M-241
+    module: rival_importers
+    constant: IMPORTER_SLICE
+  - slice: M-242
+    module: samverk_bridge
+    constant: EXCHANGE_SLICE
+  - slice: M-243
+    module: samtal_bridge
+    constant: DISPATCH_SLICE
+  - slice: M-244
+    module: kista_keykeeper
+    constant: RESOLUTION_SLICE
+  - slice: M-245
+    module: aesir_deepening
+    constant: AESIR_SLICE
+  - slice: M-246
+    module: git_host_parity
+    constant: GIT_HOST_SLICE
+  - slice: M-247
+    module: ci_bridges
+    constant: CI_BRIDGE_SLICE
+  - slice: M-248
+    module: issue_trackers
+    constant: ISSUE_TRACKER_SLICE
+  - slice: M-249
+    module: wyrd_seam
+    constant: WYRD_SEAM_SLICE
+  - slice: M-250
+    module: webhook_doors
+    constant: WEBHOOK_DOORS_SLICE
+  - slice: M-251
+    module: export_everything
+    constant: EXPORT_EVERYTHING_SLICE
+  - slice: M-252
+    module: docs_mcp_pattern
+    constant: DOCS_MCP_PATTERN_SLICE
+  - slice: M-253
+    module: bridge_permissions
+    constant: BRIDGE_PERMISSIONS_SLICE
+exercises:
+  - id: bridge_campaign
+    title: One campaign slice executed across bridges
+    owning_slices:
+      - M-242
+      - M-233
+      - M-244
+      - M-243
+    status: completed
+    evidence_kind: pure-roads-measured
+    evidence: >
+      The walk as recorded: one campaign slice arrives as an
+      issue from a host across the Samverk bridge, is built
+      locally on the MCP client road, is raised as a PR under
+      the Kista key-keeper's road with credentials named by
+      ref only - kista:github and kista:samtal - and never
+      leaving Kista, and its stand-up is posted across the
+      Samtal bridge - each stage re-derived through its own
+      shipped roadmap road and re-proven live by the gate
+      tests on every run.
+    executed_on: "2026-11-12"
+    host_slice: M-246
+    host_name: github
+    credential_rule: credentials-never-leave-kista
+    kista_refs:
+      - kista:github
+      - kista:samtal
+    steps:
+      - step_id: step-issue
+        slice: M-242
+        module: samverk_bridge
+        anchor: roadmap_record
+      - step_id: step-build
+        slice: M-233
+        module: mcp_client
+        anchor: roadmap_record
+      - step_id: step-pr
+        slice: M-244
+        module: kista_keykeeper
+        anchor: roadmap_record
+      - step_id: step-standup
+        slice: M-243
+        module: samtal_bridge
+        anchor: roadmap_record

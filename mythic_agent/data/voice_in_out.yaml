@@ -1,0 +1,186 @@
+schema: mythic.voice_in_out/1
+slice: M-180
+part: 8
+part_title: The Beautiful Face
+canon_note: >
+  Voice In and Out - push-to-talk dictation for prompts, and spoken
+  stand-ups via the existing TTS (direct catalog casting, the house
+  voice law) - voice is an extra door, never the only door. A dictation
+  session is held whole - its state (recording, landed or drafted),
+  its transcript, the capture and transcriber backends it names, and
+  its provenance whole - and its transcript lands as a prompt draft,
+  never auto-sent. A spoken stand-up is held whole - its speaker, its
+  text, the catalog voice cast for it directly from the voice catalog
+  (the shipped TTS manager's primary voice, en_US-lessac-high, stands
+  as the morning stand-up's cast voice here, copied from
+  mythic_agent/core/tts.py) and the TTS backend it names. A voice
+  action is held whole - its spoken phrase and the text equivalent
+  that stands beside it - because every voice action has a text
+  equivalent and a voice-only action refuses by name. Availability -
+  available, unavailable by a named reason, or honestly unknown - is
+  derived from the backends and voices a record names, never stored
+  and never faked - the evening dictation names the unknown
+  transcriber and stands honestly unknown, and the evening stand-up
+  names no catalog voice and stands unavailable, its road out not
+  travelled until a voice is cast. No row of the M-171 TUI redesign
+  charter names M-180, so the slice is built to the roadmap words
+  alone, as M-177 and M-179 were. This file is ONE EXAMPLE BOOK, in
+  the shape a real voice file takes - the M-179 slice boundary -
+  seven items, two views, and the one pinned panel of the every-kind
+  view, whose shown items stand five whole of seven, so the book
+  verdict under it stands strained; under the dictation view, whose
+  two shown sessions stand one whole, the verdict stands strained
+  too. A real book is a new file in this same shape - it is never
+  this file edited in place. This layer holds voice as data and
+  reaches live roads only through seams - it captures no live audio
+  in tests, builds no new TTS engine, clones no voice and sends no
+  prompt.
+guide:
+  title: Voice at the M-179 slice boundary
+dictations:
+- dictation_id: dictation-morning-prompt
+  seq: 1
+  state: drafted
+  transcript: Rework the parser so the hunk review names the failing test first.
+  capture_backend: existing_audio
+  transcriber_backend: existing_whisper
+  detail: The morning push-to-talk dictation, held as data - the push was held, the transcript landed through the existing audio road, and the words now stand as a prompt draft that was never auto-sent.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: voice in and out
+  origin_session: session-m180
+- dictation_id: dictation-evening-note
+  seq: 2
+  state: recording
+  capture_backend: existing_audio
+  transcriber_backend: unknown
+  detail: The evening push-to-talk dictation, still held as data - the push stands held and no transcript stands yet, and the transcriber it names stands unknown, so its availability stands honestly unknown and nothing is landed by invention.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: voice in and out
+  origin_session: session-m180
+standups:
+- standup_id: standup-morning
+  seq: 1
+  speaker: Primary
+  text: 'Morning stand-up - the parser rework landed, hunk review is next, and nothing blocks.'
+  voice_name: en_US-lessac-high
+  tts_backend: existing_tts
+  detail: The morning spoken stand-up, held as data - its text stands in full beside its voice, its cast voice is the shipped TTS manager's primary catalog voice, and it is spoken through the existing TTS seam at the agent layer's word, never from this file.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: voice in and out
+  origin_session: session-m180
+- standup_id: standup-evening
+  seq: 2
+  speaker: Primary
+  text: 'Evening stand-up - the hunk review stands open, and the parser tests run again at dawn.'
+  tts_backend: existing_tts
+  detail: The evening spoken stand-up, held as data - its text stands in full, but no catalog voice is cast for it yet, so its road out stands unavailable by that named reason and it is read, not spoken, until a voice is cast directly from the catalog.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: voice in and out
+  origin_session: session-m180
+actions:
+- action_id: action-dictate-prompt
+  seq: 1
+  name: dictate_prompt
+  voice_phrase: dictate a prompt
+  text_equivalent: type the prompt as a draft
+  detail: The dictation action, held under the standing law - say the phrase and hold the push, or type the prompt as a draft; both doors open the same draft, and the typed door stands whether or not voice does.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: voice in and out
+  origin_session: session-m180
+- action_id: action-speak-standup
+  seq: 2
+  name: speak_standup
+  voice_phrase: speak the stand-up
+  text_equivalent: read the stand-up text on screen
+  detail: The spoken stand-up action, held under the standing law - say the phrase to hear the stand-up, or read its text on screen; the stand-up stands in text first, and its voice is the extra door.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: voice in and out
+  origin_session: session-m180
+- action_id: action-mute-speech
+  seq: 3
+  name: mute_speech
+  voice_phrase: mute speech
+  text_equivalent: use the typed mute toggle
+  detail: The mute action, held under the standing law - say the phrase to still the speech, or use the typed mute toggle; silence is reachable by text alone, as every voice action must be.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: voice in and out
+  origin_session: session-m180
+views:
+- view_id: view-all
+  seq: 1
+  kind_filter: all
+  detail: See the whole voice book, every kind at once.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: voice in and out
+  origin_session: session-m180
+- view_id: view-dictation
+  seq: 2
+  kind_filter: dictation
+  detail: See only the dictation sessions of the book.
+  recorded_on: '2026-11-09'
+  actor: the coordinator
+  source: voice in and out
+  origin_session: session-m180
+panels:
+- panel_id: panel-m179-boundary
+  view_id: view-all
+  kind_filter: all
+  rows:
+  - item_id: dictation-morning-prompt
+    kind: dictation
+    label: dictation-morning-prompt
+    segment: 'dictation-morning-prompt: dictation drafted, availability available, draft never sent'
+    recorded_on: '2026-11-09'
+  - item_id: dictation-evening-note
+    kind: dictation
+    label: dictation-evening-note
+    segment: 'dictation-evening-note: dictation recording, availability unknown, draft never sent'
+    recorded_on: '2026-11-09'
+  - item_id: standup-morning
+    kind: standup
+    label: standup-morning
+    segment: 'standup-morning: standup by Primary, availability available, voice en_US-lessac-high'
+    recorded_on: '2026-11-09'
+  - item_id: standup-evening
+    kind: standup
+    label: standup-evening
+    segment: 'standup-evening: standup by Primary, availability unavailable, voice no voice cast'
+    recorded_on: '2026-11-09'
+  - item_id: action-dictate-prompt
+    kind: action
+    label: dictate_prompt
+    segment: 'dictate_prompt: text equivalent ''type the prompt as a draft'' stands - never voice-only'
+    recorded_on: '2026-11-09'
+  - item_id: action-speak-standup
+    kind: action
+    label: speak_standup
+    segment: 'speak_standup: text equivalent ''read the stand-up text on screen'' stands - never voice-only'
+    recorded_on: '2026-11-09'
+  - item_id: action-mute-speech
+    kind: action
+    label: mute_speech
+    segment: 'mute_speech: text equivalent ''use the typed mute toggle'' stands - never voice-only'
+    recorded_on: '2026-11-09'
+  total_items: 7
+  total_shown: 7
+  kind_counts:
+  - kind: dictation
+    items: 2
+  - kind: standup
+    items: 2
+  - kind: action
+    items: 3
+  as_of: '2026-11-09'
+  account:
+  - 'The voice book holds 7 items as of 2026-11-09: the view ''all'' shows 7 of them: dictation 2, standup 2, action 3; 5 of the shown items stand whole.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly, segment by segment.
+  - Every segment is derived from its item's own fields - availability from the backends and voices it names, a draft from its transcript - and no judgement is stored on any item.
+  - 'Voice is an extra door, never the only door: every shown action names a text equivalent, and no dictated prompt is sent from this layer.'

@@ -1,0 +1,224 @@
+schema: mythic.dry_run_campaigns/1
+campaign: M-224
+dry_run_campaigns:
+  title: Dry-run campaigns at the M-224 slice run
+campaigns:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-rehearsal book
+  origin_session: session-m224
+  campaign_id: campaign-m223-failtax
+  seq: 1
+  title: Failure taxonomy
+  state: live
+  detail: 'The slice the rehearser looks back on first: banked at M-224, standing active in the rehearsal
+    honesty''s hands.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-rehearsal book
+  origin_session: session-m224
+  campaign_id: campaign-m224-dryrun
+  seq: 2
+  title: Dry-run campaigns
+  state: live
+  detail: 'This very slice, standing active: the dry-run book holding its own campaign as data.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-rehearsal book
+  origin_session: session-m224
+  campaign_id: campaign-m225-export
+  seq: 3
+  title: Campaign export
+  state: dormant
+  detail: A queued slice the rehearser has not dealt with; a rehearsal naming it refuses by name.
+rehearsal_records:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-rehearsal book
+  origin_session: session-m224
+  rehearsal_id: rehearsal-held-rehearsal
+  seq: 1
+  campaign_id: campaign-m223-failtax
+  title: The held rehearsal
+  stages: &id001
+  - planned
+  - dealt
+  - gated
+  - mocked
+  - proven
+  claims:
+  - plan_ref
+  detail: 'The opening rehearsal: a campaign planned for the work, dealt before it ran, gated against
+    the shape and mocked honestly, proven with the plan held as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-rehearsal book
+  origin_session: session-m224
+  rehearsal_id: rehearsal-retried-rehearsal
+  seq: 2
+  campaign_id: campaign-m223-failtax
+  title: The retried rehearsal
+  stages:
+  - planned
+  - dealt
+  - gated
+  - mocked
+  - planned
+  - dealt
+  - gated
+  - mocked
+  - proven
+  claims: []
+  detail: 'The retried rehearsal: a first mock sent the standing back, the campaign was planned and dealt
+    again and the gate mocked a second time before the proof stood.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-rehearsal book
+  origin_session: session-m224
+  rehearsal_id: rehearsal-own-rehearsal
+  seq: 3
+  campaign_id: campaign-m224-dryrun
+  title: The rehearser's own rehearsal
+  stages: *id001
+  claims:
+  - proof_ref
+  detail: 'The rehearser''s own rehearsal: this slice''s own rehearsal, carrying its proof ref as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-rehearsal book
+  origin_session: session-m224
+  rehearsal_id: rehearsal-bare-rehearsal
+  seq: 4
+  campaign_id: campaign-m224-dryrun
+  title: The bare claim rehearsal
+  stages: *id001
+  claims:
+  - feeling
+  detail: A rehearsal that carried a feeling in place of held proof, standing open.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-rehearsal book
+  origin_session: session-m224
+  rehearsal_id: rehearsal-leaping-rehearsal
+  seq: 5
+  campaign_id: campaign-m224-dryrun
+  title: The leaping rehearsal
+  stages:
+  - planned
+  - dealt
+  - proven
+  claims: []
+  detail: A rehearsal that stepped from dealt straight to proven, outside the rehearsal sequence, standing
+    open.
+views:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-rehearsal book
+  origin_session: session-m224
+  view_id: view-rehearsals
+  seq: 1
+  view_filter: all
+  detail: Every held rehearsal, complete or not.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-rehearsal book
+  origin_session: session-m224
+  view_id: view-proven
+  seq: 2
+  view_filter: complete
+  detail: Only the rehearsals standing complete.
+notes:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-rehearsal book
+  origin_session: session-m224
+  note_id: note-note-first
+  seq: 1
+  rehearsal_id: rehearsal-held-rehearsal
+  stance: note
+  target: the opening rehearsal
+  title: Rehearsals first
+  detail: The rehearser opens by planning the rehearsal first, told honestly.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-rehearsal book
+  origin_session: session-m224
+  note_id: note-concern-bare
+  seq: 2
+  rehearsal_id: rehearsal-bare-rehearsal
+  stance: concern
+  target: the bare claim rehearsal
+  title: Claim named
+  detail: A rehearsal that carried a feeling claim is not the rehearser's way, and stands named.
+traces:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-rehearsal book
+  origin_session: session-m224
+  trace_id: trace-first
+  seq: 1
+  rehearsal_id: rehearsal-held-rehearsal
+  trace: planned > dealt > gated > mocked > proven
+  detail: 'The opening rehearsal''s walk, held exactly as walked: the trace is the walk itself.'
+panels:
+- panel_id: panel-m223-campaign
+  view_id: view-rehearsals
+  view_filter: all
+  rows:
+  - item_id: rehearsal-held-rehearsal
+    standing: complete
+    label: The held rehearsal
+    segment: 'rehearsal-held-rehearsal: The held rehearsal - campaign: ''campaign-m223-failtax'' - stage:
+      ''proven'' - stages: 5 - claims: ''plan_ref'' - detail: ''The opening rehearsal: a campaign planned
+      for the work, dealt before it ran, gated against the shape and mocked honestly, proven with the
+      plan held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: rehearsal-retried-rehearsal
+    standing: complete
+    label: The retried rehearsal
+    segment: 'rehearsal-retried-rehearsal: The retried rehearsal - campaign: ''campaign-m223-failtax''
+      - stage: ''proven'' - stages: 9 - claims: ''none'' - detail: ''The retried rehearsal: a first mock
+      sent the standing back, the campaign was planned and dealt again and the gate mocked a second time
+      before the proof stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: rehearsal-own-rehearsal
+    standing: complete
+    label: The rehearser's own rehearsal
+    segment: 'rehearsal-own-rehearsal: The rehearser''s own rehearsal - campaign: ''campaign-m224-dryrun''
+      - stage: ''proven'' - stages: 5 - claims: ''proof_ref'' - detail: ''The rehearser''s own rehearsal:
+      this slice''s own rehearsal, carrying its proof ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: rehearsal-bare-rehearsal
+    standing: open
+    label: The bare claim rehearsal
+    segment: 'rehearsal-bare-rehearsal: The bare claim rehearsal - campaign: ''campaign-m224-dryrun''
+      - stage: ''proven'' - stages: 5 - claims: ''feeling'' - detail: ''A rehearsal that carried a feeling
+      in place of held proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held
+      proof: complete stands on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: rehearsal-leaping-rehearsal
+    standing: open
+    label: The leaping rehearsal
+    segment: 'rehearsal-leaping-rehearsal: The leaping rehearsal - campaign: ''campaign-m224-dryrun''
+      - stage: ''proven'' - stages: 3 - claims: ''none'' - detail: ''A rehearsal that stepped from dealt
+      straight to proven, outside the rehearsal sequence, standing open.'' - gaps: steps from dealt to
+      proven, which the rehearsal sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The rehearsal book holds 5 rehearsals as of 2026-11-11: the view ''all'' shows 5 of them: complete
+    3, open 2; 3 of the shown rehearsals stand complete.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its rehearsal's own fields - the campaign it answers for, the steps
+    it walked in the open and the evidence it honestly carries - and no judgement is stored on any rehearsal.
+  - 'Completeness is gated from the held records alone: a rehearsal that steps outside the rehearsal sequence,
+    carries a bare claim in place of held evidence, or has not planned proven stands open, named in its
+    gaps, and the rehearsal index is derived from the held rehearsals, never stored where it could drift.'

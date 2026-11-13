@@ -1,0 +1,212 @@
+schema: mythic.interrupts_resumes/1
+slice: M-219
+interrupts_resumes:
+  title: Interrupts and resumes across days at the M-219 slice boundary
+pauses:
+- pause_id: pause-m218-road
+  seq: 1
+  title: The 500-slice road as a campaign
+  state: live
+  detail: 'The slice the resumekeeper looks back on first: banked at M-219, standing active in the resume
+    honesty''s hands.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-resume daybook
+  origin_session: session-m219
+- pause_id: pause-m219-resumes
+  seq: 2
+  title: Interrupts and resumes across days
+  state: live
+  detail: 'This very slice, standing active: the multi-resume daybook holding its own resume as data.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-resume daybook
+  origin_session: session-m219
+- pause_id: pause-m220-milestones
+  seq: 3
+  title: Milestone reports
+  state: dormant
+  detail: A queued slice the resumekeeper has not dealt with; an resume naming it refuses by name.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-resume daybook
+  origin_session: session-m219
+resume_records:
+- resume_id: resume-held-resume
+  seq: 1
+  pause_id: pause-m218-road
+  title: The held resume
+  checks: &id001
+  - paused
+  - journalled
+  - mapped
+  - restated
+  - resumed
+  claims:
+  - pause_ref
+  detail: 'The opening resume: a resume paused for the work, journalled before it ran, mapped against
+    the outcome and restated honestly, resumed with the slice held as proof.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-resume daybook
+  origin_session: session-m219
+- resume_id: resume-remeasured-resume
+  seq: 2
+  pause_id: pause-m218-road
+  title: The remeasured resume
+  checks:
+  - paused
+  - journalled
+  - mapped
+  - restated
+  - paused
+  - journalled
+  - mapped
+  - restated
+  - resumed
+  claims: []
+  detail: 'The remeasured resume: a first comparison sent the standing back, the resume was paused
+    and journalled again and the outcome mapped a second time before the run stood.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-resume daybook
+  origin_session: session-m219
+- resume_id: resume-own-resume
+  seq: 3
+  pause_id: pause-m219-resumes
+  title: The resumekeeper's own resume
+  checks: *id001
+  claims:
+  - resume_ref
+  detail: 'The resumekeeper''s own resume: this slice''s own resume, carrying its run ref as
+    proof.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-resume daybook
+  origin_session: session-m219
+- resume_id: resume-bare-resume
+  seq: 4
+  pause_id: pause-m219-resumes
+  title: The bare claim resume
+  checks: *id001
+  claims:
+  - feeling
+  detail: A resume that carried a feeling in place of held proof, standing open.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-resume daybook
+  origin_session: session-m219
+- resume_id: resume-leaping-resume
+  seq: 5
+  pause_id: pause-m219-resumes
+  title: The leaping resume
+  checks:
+  - paused
+  - journalled
+  - resumed
+  claims: []
+  detail: A resume that stepped from journalled straight to resumed, outside the resume sequence,
+    standing open.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-resume daybook
+  origin_session: session-m219
+views:
+- view_id: view-resumes
+  seq: 1
+  view_filter: all
+  detail: Every held resume, complete or not.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-resume daybook
+  origin_session: session-m219
+- view_id: view-resumed
+  seq: 2
+  view_filter: complete
+  detail: Only the resumes standing complete.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-resume daybook
+  origin_session: session-m219
+notes:
+- note_id: note-note-first
+  seq: 1
+  resume_id: resume-held-resume
+  stance: note
+  target: the opening resume
+  title: Resumes first
+  detail: The resumekeeper opens by predicting the resume first, told honestly.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-resume daybook
+  origin_session: session-m219
+- note_id: note-concern-bare
+  seq: 2
+  resume_id: resume-bare-resume
+  stance: concern
+  target: the bare claim resume
+  title: Claim named
+  detail: A resume that carried a feeling claim is not the resumekeeper's way, and stands named.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-resume daybook
+  origin_session: session-m219
+traces:
+- trace_id: trace-first
+  seq: 1
+  resume_id: resume-held-resume
+  trace: paused > journalled > mapped > restated > resumed
+  detail: 'The opening resume''s walk, held exactly as walked: the trace is the walk itself.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-resume daybook
+  origin_session: session-m219
+panels:
+- panel_id: panel-m218-boundary
+  view_id: view-resumes
+  view_filter: all
+  rows:
+  - item_id: resume-held-resume
+    standing: complete
+    label: The held resume
+    segment: 'resume-held-resume: The held resume - slice: ''pause-m218-road'' - check: ''resumed'' - checks: 5 - claims: ''pause_ref'' - detail: ''The opening resume: a resume paused for
+      the work, journalled before it ran, mapped against the outcome and restated honestly, resumed with the slice held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: resume-remeasured-resume
+    standing: complete
+    label: The remeasured resume
+    segment: 'resume-remeasured-resume: The remeasured resume - slice: ''pause-m218-road'' - check: ''resumed'' - checks: 9 - claims: ''none'' - detail: ''The remeasured resume: a first comparison
+      sent the standing back, the resume was paused and journalled again and the outcome mapped a second time before the run stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: resume-own-resume
+    standing: complete
+    label: The resumekeeper's own resume
+    segment: 'resume-own-resume: The resumekeeper''s own resume - slice: ''pause-m219-resumes'' - check: ''resumed'' - checks: 5 - claims: ''resume_ref'' - detail: ''The resumekeeper''s own resume:
+      this slice''s own resume, carrying its run ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: resume-bare-resume
+    standing: open
+    label: The bare claim resume
+    segment: 'resume-bare-resume: The bare claim resume - slice: ''pause-m219-resumes'' - check: ''resumed'' - checks: 5 - claims: ''feeling'' - detail: ''A resume that carried a feeling in place
+      of held proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof: complete stands on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: resume-leaping-resume
+    standing: open
+    label: The leaping resume
+    segment: 'resume-leaping-resume: The leaping resume - slice: ''pause-m219-resumes'' - check: ''resumed'' - checks: 3 - claims: ''none'' - detail: ''A resume that stepped from journalled straight
+      to resumed, outside the resume sequence, standing open.'' - gaps: steps from journalled to resumed, which the resume sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The resume book holds 5 resumes as of 2026-11-11: the view ''all'' shows 5 of them: complete 3, open 2; 3 of the shown resumes stand complete.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly, segment by segment.
+  - Every segment is derived from its resume's own fields - the slice it answers for, the steps it walked in the open and the evidence it honestly carries - and no judgement is stored on any resume.
+  - 'Completeness is mapped from the held records alone: a resume that steps outside the resume sequence, carries a bare claim in place of held evidence, or has not reached resumed stands open, named
+    in its gaps, and the resume index is derived from the held resumes, never stored where it could drift.'

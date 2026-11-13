@@ -1,0 +1,212 @@
+schema: mythic.build_log/1
+slice: M-221
+build_log:
+  title: The plain-language build log at the M-221 slice day
+days:
+- day_id: day-m220-milestones
+  seq: 1
+  title: Milestone reports
+  state: live
+  detail: 'The slice the logkeeper looks back on first: banked at M-221, standing active in the entry
+    honesty''s hands.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-entry book
+  origin_session: session-m221
+- day_id: day-m221-log
+  seq: 2
+  title: The plain-language build log
+  state: live
+  detail: 'This very slice, standing active: the multi-entry book holding its own entry as data.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-entry book
+  origin_session: session-m221
+- day_id: day-m222-guarded
+  seq: 3
+  title: Guarded self-modification
+  state: dormant
+  detail: A queued slice the logkeeper has not dealt with; an entry naming it refuses by name.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-entry book
+  origin_session: session-m221
+entry_records:
+- entry_id: entry-held-entry
+  seq: 1
+  day_id: day-m220-milestones
+  title: The held entry
+  checks: &id001
+  - noted
+  - worded
+  - checked
+  - read
+  - kept
+  claims:
+  - day_ref
+  detail: 'The opening entry: a entry noted for the work, worded before it ran, checked against
+    the outcome and read honestly, kept with the slice held as proof.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-entry book
+  origin_session: session-m221
+- entry_id: entry-remeasured-entry
+  seq: 2
+  day_id: day-m220-milestones
+  title: The remeasured entry
+  checks:
+  - noted
+  - worded
+  - checked
+  - read
+  - noted
+  - worded
+  - checked
+  - read
+  - kept
+  claims: []
+  detail: 'The remeasured entry: a first comparison sent the standing back, the entry was noted
+    and worded again and the outcome checked a second time before the run stood.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-entry book
+  origin_session: session-m221
+- entry_id: entry-own-entry
+  seq: 3
+  day_id: day-m221-log
+  title: The logkeeper's own entry
+  checks: *id001
+  claims:
+  - entry_ref
+  detail: 'The logkeeper''s own entry: this slice''s own entry, carrying its run ref as
+    proof.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-entry book
+  origin_session: session-m221
+- entry_id: entry-bare-entry
+  seq: 4
+  day_id: day-m221-log
+  title: The bare claim entry
+  checks: *id001
+  claims:
+  - feeling
+  detail: A entry that carried a feeling in place of held proof, standing open.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-entry book
+  origin_session: session-m221
+- entry_id: entry-leaping-entry
+  seq: 5
+  day_id: day-m221-log
+  title: The leaping entry
+  checks:
+  - noted
+  - worded
+  - kept
+  claims: []
+  detail: A entry that stepped from worded straight to kept, outside the entry sequence,
+    standing open.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-entry book
+  origin_session: session-m221
+views:
+- view_id: view-entries
+  seq: 1
+  view_filter: all
+  detail: Every held entry, complete or not.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-entry book
+  origin_session: session-m221
+- view_id: view-kept
+  seq: 2
+  view_filter: complete
+  detail: Only the entries standing complete.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-entry book
+  origin_session: session-m221
+notes:
+- note_id: note-note-first
+  seq: 1
+  entry_id: entry-held-entry
+  stance: note
+  target: the opening entry
+  title: Entrys first
+  detail: The logkeeper opens by predicting the entry first, told honestly.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-entry book
+  origin_session: session-m221
+- note_id: note-concern-bare
+  seq: 2
+  entry_id: entry-bare-entry
+  stance: concern
+  target: the bare claim entry
+  title: Claim named
+  detail: A entry that carried a feeling claim is not the logkeeper's way, and stands named.
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-entry book
+  origin_session: session-m221
+traces:
+- trace_id: trace-first
+  seq: 1
+  entry_id: entry-held-entry
+  trace: noted > worded > checked > read > kept
+  detail: 'The opening entry''s walk, held exactly as walked: the trace is the walk itself.'
+  recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-entry book
+  origin_session: session-m221
+panels:
+- panel_id: panel-m220-day
+  view_id: view-entries
+  view_filter: all
+  rows:
+  - item_id: entry-held-entry
+    standing: complete
+    label: The held entry
+    segment: 'entry-held-entry: The held entry - slice: ''day-m220-milestones'' - check: ''kept'' - checks: 5 - claims: ''day_ref'' - detail: ''The opening entry: a entry noted for
+      the work, worded before it ran, checked against the outcome and read honestly, kept with the slice held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: entry-remeasured-entry
+    standing: complete
+    label: The remeasured entry
+    segment: 'entry-remeasured-entry: The remeasured entry - slice: ''day-m220-milestones'' - check: ''kept'' - checks: 9 - claims: ''none'' - detail: ''The remeasured entry: a first comparison
+      sent the standing back, the entry was noted and worded again and the outcome checked a second time before the run stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: entry-own-entry
+    standing: complete
+    label: The logkeeper's own entry
+    segment: 'entry-own-entry: The logkeeper''s own entry - slice: ''day-m221-log'' - check: ''kept'' - checks: 5 - claims: ''entry_ref'' - detail: ''The logkeeper''s own entry:
+      this slice''s own entry, carrying its run ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: entry-bare-entry
+    standing: open
+    label: The bare claim entry
+    segment: 'entry-bare-entry: The bare claim entry - slice: ''day-m221-log'' - check: ''kept'' - checks: 5 - claims: ''feeling'' - detail: ''A entry that carried a feeling in place
+      of held proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof: complete stands on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: entry-leaping-entry
+    standing: open
+    label: The leaping entry
+    segment: 'entry-leaping-entry: The leaping entry - slice: ''day-m221-log'' - check: ''kept'' - checks: 3 - claims: ''none'' - detail: ''A entry that stepped from worded straight
+      to kept, outside the entry sequence, standing open.'' - gaps: steps from worded to kept, which the entry sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The entry book holds 5 entries as of 2026-11-11: the view ''all'' shows 5 of them: complete 3, open 2; 3 of the shown entries stand complete.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly, segment by segment.
+  - Every segment is derived from its entry's own fields - the slice it answers for, the steps it walked in the open and the evidence it honestly carries - and no judgement is stored on any entry.
+  - 'Completeness is checked from the held records alone: a entry that steps outside the entry sequence, carries a bare claim in place of held evidence, or has not noted kept stands open, named
+    in its gaps, and the entry index is derived from the held entries, never stored where it could drift.'

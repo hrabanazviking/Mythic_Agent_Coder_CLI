@@ -1,0 +1,225 @@
+schema: mythic.team_scaling/1
+campaign: M-228
+team_scaling:
+  title: Team-of-one scaling at the M-228 slice run
+campaigns:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endeavour book
+  origin_session: session-m228
+  campaign_id: campaign-m227-workflow
+  seq: 1
+  title: Workflow default honoured
+  state: live
+  detail: 'The slice the steward looks back on first: banked at M-227, standing active in the team-of-one
+    scaling honesty''s hands.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endeavour book
+  origin_session: session-m228
+  campaign_id: campaign-m228-scaling
+  seq: 2
+  title: Team-of-one scaling
+  state: live
+  detail: 'This very slice, standing active: the scaling book holding its own campaign as data.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endeavour book
+  origin_session: session-m228
+  campaign_id: campaign-m229-teachable
+  seq: 3
+  title: The method, teachable
+  state: dormant
+  detail: A queued slice the steward has not scoped yet; an endeavour naming it refuses by name.
+endeavour_records:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endeavour book
+  origin_session: session-m228
+  endeavour_id: endeavour-held-endeavour
+  seq: 1
+  campaign_id: campaign-m227-workflow
+  title: The held endeavour
+  stages: &id001
+  - scoped
+  - sized
+  - grained
+  - matched
+  - served
+  claims:
+  - scope_ref
+  detail: 'The opening endeavour: work scoped for the campaign, its size sized before the grain was grained,
+    matched to the crew at hand and served honestly, served with the scope held as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endeavour book
+  origin_session: session-m228
+  endeavour_id: endeavour-retried-endeavour
+  seq: 2
+  campaign_id: campaign-m227-workflow
+  title: The retried endeavour
+  stages:
+  - scoped
+  - sized
+  - grained
+  - matched
+  - scoped
+  - sized
+  - grained
+  - matched
+  - served
+  claims: []
+  detail: 'The retried endeavour: a first matched step sent the standing back, the work was scoped and
+    sized again and the matching held a second time before the serving stood.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endeavour book
+  origin_session: session-m228
+  endeavour_id: endeavour-own-endeavour
+  seq: 3
+  campaign_id: campaign-m228-scaling
+  title: The steward's own endeavour
+  stages: *id001
+  claims:
+  - endeavour_ref
+  detail: 'The steward''s own endeavour: this slice''s own endeavour, serving its endeavour ref as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endeavour book
+  origin_session: session-m228
+  endeavour_id: endeavour-bare-endeavour
+  seq: 4
+  campaign_id: campaign-m228-scaling
+  title: The bare claim endeavour
+  stages: *id001
+  claims:
+  - feeling
+  detail: An endeavour that served a feeling in place of held proof, standing open.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endeavour book
+  origin_session: session-m228
+  endeavour_id: endeavour-leaping-endeavour
+  seq: 5
+  campaign_id: campaign-m228-scaling
+  title: The leaping endeavour
+  stages:
+  - scoped
+  - sized
+  - served
+  claims: []
+  detail: An endeavour that stepped from sized straight to served, outside the endeavour sequence, standing
+    open.
+views:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endeavour book
+  origin_session: session-m228
+  view_id: view-endeavours
+  seq: 1
+  view_filter: all
+  detail: Every held endeavour, complete or not.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endeavour book
+  origin_session: session-m228
+  view_id: view-served
+  seq: 2
+  view_filter: complete
+  detail: Only the endeavours standing complete.
+notes:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endeavour book
+  origin_session: session-m228
+  note_id: note-note-first
+  seq: 1
+  endeavour_id: endeavour-held-endeavour
+  stance: note
+  target: the opening endeavour
+  title: Endeavours first
+  detail: The steward opens by scoping the work first, told honestly.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endeavour book
+  origin_session: session-m228
+  note_id: note-concern-bare
+  seq: 2
+  endeavour_id: endeavour-bare-endeavour
+  stance: concern
+  target: the bare claim endeavour
+  title: Claim named
+  detail: An endeavour that served a feeling claim is not the steward's way, and stands named.
+traces:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-endeavour book
+  origin_session: session-m228
+  trace_id: trace-first
+  seq: 1
+  endeavour_id: endeavour-held-endeavour
+  trace: scoped > sized > grained > matched > served
+  detail: 'The opening endeavour''s walk, held exactly as walked: the trace is the walk itself.'
+panels:
+- panel_id: panel-m227-campaign
+  view_id: view-endeavours
+  view_filter: all
+  rows:
+  - item_id: endeavour-held-endeavour
+    standing: complete
+    label: The held endeavour
+    segment: 'endeavour-held-endeavour: The held endeavour - campaign: ''campaign-m227-workflow'' - stage:
+      ''served'' - stages: 5 - claims: ''scope_ref'' - detail: ''The opening endeavour: work scoped for
+      the campaign, its size sized before the grain was grained, matched to the crew at hand and served
+      honestly, served with the scope held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: endeavour-retried-endeavour
+    standing: complete
+    label: The retried endeavour
+    segment: 'endeavour-retried-endeavour: The retried endeavour - campaign: ''campaign-m227-workflow''
+      - stage: ''served'' - stages: 9 - claims: ''none'' - detail: ''The retried endeavour: a first matched
+      step sent the standing back, the work was scoped and sized again and the matching held a second
+      time before the serving stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: endeavour-own-endeavour
+    standing: complete
+    label: The steward's own endeavour
+    segment: 'endeavour-own-endeavour: The steward''s own endeavour - campaign: ''campaign-m228-scaling''
+      - stage: ''served'' - stages: 5 - claims: ''endeavour_ref'' - detail: ''The steward''s own endeavour:
+      this slice''s own endeavour, serving its endeavour ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: endeavour-bare-endeavour
+    standing: open
+    label: The bare claim endeavour
+    segment: 'endeavour-bare-endeavour: The bare claim endeavour - campaign: ''campaign-m228-scaling''
+      - stage: ''served'' - stages: 5 - claims: ''feeling'' - detail: ''An endeavour that served a feeling
+      in place of held proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held
+      proof: complete stands on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: endeavour-leaping-endeavour
+    standing: open
+    label: The leaping endeavour
+    segment: 'endeavour-leaping-endeavour: The leaping endeavour - campaign: ''campaign-m228-scaling''
+      - stage: ''served'' - stages: 3 - claims: ''none'' - detail: ''An endeavour that stepped from sized
+      straight to served, outside the endeavour sequence, standing open.'' - gaps: steps from sized to
+      served, which the endeavour sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The endeavour book holds 5 endeavours as of 2026-11-11: the view ''all'' shows 5 of them: complete
+    3, open 2; 3 of the shown endeavours stand complete.'
+  - Rows stand in held endeavour, the endeavour the book itself stands in, so two panels of one view diff
+    cleanly, segment by segment.
+  - Every segment is derived from its endeavour's own fields - the campaign it answers for, the steps
+    it walked in the open and the evidence it honestly carries - and no judgement is stored on any endeavour.
+  - 'Completeness is grained from the held records alone: a endeavour that steps outside the endeavour
+    sequence, carries a bare claim in place of held evidence, or has not scoped served stands open, named
+    in its gaps, and the endeavour index is derived from the held endeavours, never stored where it could
+    drift.'

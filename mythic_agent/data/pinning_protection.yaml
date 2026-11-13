@@ -1,0 +1,109 @@
+schema: mythic.pinning_protection/1
+slice: M-159
+part: 7
+part_title: Memory & Context
+canon_note: |
+  Pinning and protection: files and facts the
+  compaction may never drop - the task, the laws,
+  the failing test - and pins are visible. A pin is
+  one protected file or fact carried with its
+  provenance whole: what is pinned, its kind, the
+  reference it stands under, why it is protected,
+  who pinned it, the day it was pinned on, and
+  where it was read from. One thing is pinned once
+  in a book: the same kind and reference named twice
+  refuses. The PIN PANEL is derived from the whole
+  book: its rows are the pins carried whole, by kind
+  - the task first, then the laws, the failing test,
+  the files, the facts - then by subject, then pin
+  id, and its totals are the pins' own counts and
+  its kind counts the pins' own tallies, and a stored
+  panel that disagrees with its derived shape is
+  refused. This file is ONE EXAMPLE BOOK, in the
+  shape a real book file takes: the M-158 slice
+  boundary - four pins standing at the close of the
+  context-recipes day, the task, the Forge laws, the
+  failing test and the sibling module file, with the
+  one panel of the book. A real book is a new file in
+  this same shape - it is never this file edited in
+  place. This layer holds pins as data only: it
+  compacts nothing, drops nothing, calls no model
+  and persists nothing - a pin declares protection,
+  it does not itself rewrite the live pruner.
+guide:
+  title: "Pinning and protection at the M-158 slice boundary"
+pins:
+- pin_id: pin-the-task
+  subject: "the task the session is working on: M-159, pinning and protection"
+  kind: task
+  ref: task-m159
+  why: "Compaction may never drop the task the session is working on - a session that forgets its task cannot finish it."
+  pinned_by: "Volmarr"
+  pinned_on: "2026-11-08"
+  source: "roadmap"
+- pin_id: pin-forge-laws
+  subject: "the Forge Protocol laws"
+  kind: law
+  ref: law-forge-protocol
+  why: "The laws govern every slice the session builds; dropping them mid-session unmakes the shape of the work."
+  pinned_by: "Volmarr"
+  pinned_on: "2026-11-08"
+  source: "session transcript"
+- pin_id: pin-failing-test
+  subject: "the failing test: tests/test_pinning_protection.py"
+  kind: failing-test
+  ref: test-pinning-protection
+  why: "The failing test is the session's compass: it names what is still broken, and compaction may never drop it."
+  pinned_by: "Volmarr"
+  pinned_on: "2026-11-08"
+  source: "test runner"
+- pin_id: pin-recipes-module
+  subject: "mythic_agent/core/context_recipes.py"
+  kind: file
+  ref: file-context-recipes
+  why: "The sibling module the pinning layer stands beside; its shape is the session's working reference."
+  pinned_by: "Volmarr"
+  pinned_on: "2026-11-08"
+  source: "session transcript"
+panels:
+- panel_id: panel-m158-boundary
+  rows:
+  - pin_id: pin-the-task
+    subject: "the task the session is working on: M-159, pinning and protection"
+    kind: task
+    ref: task-m159
+    pinned_by: "Volmarr"
+    pinned_on: "2026-11-08"
+  - pin_id: pin-forge-laws
+    subject: "the Forge Protocol laws"
+    kind: law
+    ref: law-forge-protocol
+    pinned_by: "Volmarr"
+    pinned_on: "2026-11-08"
+  - pin_id: pin-failing-test
+    subject: "the failing test: tests/test_pinning_protection.py"
+    kind: failing-test
+    ref: test-pinning-protection
+    pinned_by: "Volmarr"
+    pinned_on: "2026-11-08"
+  - pin_id: pin-recipes-module
+    subject: "mythic_agent/core/context_recipes.py"
+    kind: file
+    ref: file-context-recipes
+    pinned_by: "Volmarr"
+    pinned_on: "2026-11-08"
+  total_pins: 4
+  kind_counts:
+  - kind: task
+    pins: 1
+  - kind: law
+    pins: 1
+  - kind: failing-test
+    pins: 1
+  - kind: file
+    pins: 1
+  account:
+  - "The pin panel holds 4 pins protecting what compaction may never drop: failing-test 1, file 1, law 1, task 1."
+  - "Pins stand by kind - the task first, then the laws, the failing test, the files, the facts - then by subject, then pin id, so two panels of one book diff cleanly, line by line."
+  - "Every pin is visible: the panel shows each protected file and fact whole - what is pinned, its kind, who pinned it and the day."
+  - "The panel is read off the book at call time - it is derived, never stored loose."

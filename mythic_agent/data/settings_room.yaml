@@ -1,0 +1,223 @@
+schema: mythic.settings_room/1
+slice: M-196
+part: 8
+part_title: The Beautiful Face
+canon_note: 'Settings as one room - every setting in one searchable screen, each with its plain-language
+  meaning and its current source (default/project/user/session) shown. The M-171 charter names this slice
+  on TWO rows: S-02, the setup wizard (verdict rebuild, co-owned with M-184 and M-182), and S-05, the
+  GitHub config modal (verdict keep, sole owner M-196; the card folds into the one room unchanged in shape,
+  its unnamed-overwrite and unexplained-save-failure strains repaired there). A setting is held whole
+  - under its name, its section in the closed vocabulary (model, keys, display, behaviour, privacy), its
+  current value and its current source layer in the closed vocabulary (default, project, user, session)
+  held honestly (an unknown value stands empty, never invented), the plain-language meaning it carries,
+  named as data, and its detail. A setting naming no plain meaning is held honestly with an empty meaning:
+  it stands incomplete, named in its gaps, and no meaning is invented for it. The settings index is DERIVED
+  at call time from the held settings alone - never a second stored copy that could drift - and a stored
+  index or completeness verdict on any record refuses by name. The notes are held as data: a note record
+  naming its setting, its stance (note, concern, praise or question) and what it feeds back toward; one
+  record stands per setting stance, and holding a note applies none of it. A record claiming a setting
+  was actually changed, applied or saved, or that a config was actually written, refuses by name. This
+  file is ONE EXAMPLE BOOK, in the shape a real settings file takes - the M-195 slice boundary - six settings
+  and two views, two note records, with its one pinned panel of the every-setting view, whose shown settings
+  stand five ready of six, so the book verdict under it stands strained; under the ready view, whose five
+  shown settings all stand ready, the verdict stands open. A real book is a new file in this same shape
+  - it is never this file edited in place. This layer changes nothing, applies nothing, saves nothing,
+  writes no config and opens no network: it holds the settings as data and tells it.'
+settings_room:
+  title: Settings as one room at the M-195 slice boundary
+settings:
+- setting_id: setting-model-main
+  seq: 1
+  name: The model in use
+  section: model
+  value: the session model
+  layer: session
+  meaning: the model that answers you
+  detail: The model in use stands named in the room - the mind doing the work in this session, its name
+    held as data; holding the card changes no model.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: settings room
+  origin_session: session-m196
+- setting_id: setting-key-main
+  seq: 2
+  name: The provider key
+  section: keys
+  value: ''
+  layer: user
+  meaning: the key that opens your provider
+  detail: The provider key stands in the room with its current value honestly empty - what key stands
+    in force was never recorded anywhere honest, so the card holds its value empty, and the key itself
+    is never shown in the room.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: settings room
+  origin_session: session-m196
+- setting_id: setting-theme-main
+  seq: 3
+  name: The colour theme
+  section: display
+  value: the forge dark theme
+  layer: project
+  meaning: the colours the screen wears
+  detail: The colour theme stands named in the room as the project chose it - the colours the screen wears,
+    held as data, and the praise note on the theme setting stands held beside the book as data.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: settings room
+  origin_session: session-m196
+- setting_id: setting-autosave-main
+  seq: 4
+  name: Saving as you go
+  section: behaviour
+  value: 'on'
+  layer: default
+  meaning: whether your work is saved as you go
+  detail: Saving as you go stands at its default in the room - the work is saved as it is done, and the
+    card that says so saves nothing itself.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: settings room
+  origin_session: session-m196
+- setting_id: setting-telemetry-main
+  seq: 5
+  name: Usage notes sent home
+  section: privacy
+  value: 'off'
+  layer: user
+  meaning: ''
+  detail: Usage notes sent home stand named in this book with no plain meaning held for them yet - what
+    the notes carry and where they go wait to be set down - so the setting stands incomplete honestly,
+    named in the gaps until its meaning is held for it, and no meaning is invented here.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: settings room
+  origin_session: session-m196
+- setting_id: setting-font-main
+  seq: 6
+  name: The letter size
+  section: display
+  value: the reading size
+  layer: session
+  meaning: how large the letters stand
+  detail: The letter size stands named in the room for this session - how large the letters stand on the
+    screen, held as data; holding the card resizes no letter.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: settings room
+  origin_session: session-m196
+views:
+- view_id: view-room
+  seq: 1
+  view_filter: all
+  detail: 'Every setting at once - the model, the keys, the display, the behaviour and the privacy between:
+    see every setting.'
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: settings room
+  origin_session: session-m196
+- view_id: view-ready
+  seq: 2
+  view_filter: ready
+  detail: Only the settings that carry their plain meaning - everything explained, honestly complete at
+    a glance.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: settings room
+  origin_session: session-m196
+notes:
+- note_id: note-note-model
+  seq: 1
+  setting_id: setting-model-main
+  stance: note
+  target: the user
+  title: Note the model setting
+  detail: The note on the model setting stands held as data - its setting, its stance and what it feeds
+    back toward. Holding the note changes nothing; the feedback is told, never applied, by this layer.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: settings room
+  origin_session: session-m196
+- note_id: note-praise-theme
+  seq: 2
+  setting_id: setting-theme-main
+  stance: praise
+  target: the user
+  title: Praise the theme setting
+  detail: The praise for the theme setting stands held as data beside the first. One note record stands
+    per setting stance in this book, so a second record for one setting under one stance refuses by name.
+  recorded_on: '2026-11-10'
+  actor: the coordinator
+  source: settings room
+  origin_session: session-m196
+panels:
+- panel_id: panel-m195-boundary
+  view_id: view-room
+  view_filter: all
+  rows:
+  - item_id: setting-model-main
+    standing: ready
+    label: The model in use
+    segment: 'setting-model-main: The model in use - section: ''model'' - value: ''the session model''
+      - layer: ''session'' - meaning: ''the model that answers you'' - detail: ''The model in use stands
+      named in the room - the mind doing the work in this session, its name held as data; holding the
+      card changes no model.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: setting-key-main
+    standing: ready
+    label: The provider key
+    segment: 'setting-key-main: The provider key - section: ''keys'' - value: ''unknown'' - layer: ''user''
+      - meaning: ''the key that opens your provider'' - detail: ''The provider key stands in the room
+      with its current value honestly empty - what key stands in force was never recorded anywhere honest,
+      so the card holds its value empty, and the key itself is never shown in the room.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: setting-theme-main
+    standing: ready
+    label: The colour theme
+    segment: 'setting-theme-main: The colour theme - section: ''display'' - value: ''the forge dark theme''
+      - layer: ''project'' - meaning: ''the colours the screen wears'' - detail: ''The colour theme stands
+      named in the room as the project chose it - the colours the screen wears, held as data, and the
+      praise note on the theme setting stands held beside the book as data.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: setting-autosave-main
+    standing: ready
+    label: Saving as you go
+    segment: 'setting-autosave-main: Saving as you go - section: ''behaviour'' - value: ''on'' - layer:
+      ''default'' - meaning: ''whether your work is saved as you go'' - detail: ''Saving as you go stands
+      at its default in the room - the work is saved as it is done, and the card that says so saves nothing
+      itself.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  - item_id: setting-telemetry-main
+    standing: unready
+    label: Usage notes sent home
+    segment: 'setting-telemetry-main: Usage notes sent home - section: ''privacy'' - value: ''off'' -
+      layer: ''user'' - meaning: ''none'' - detail: ''Usage notes sent home stand named in this book with
+      no plain meaning held for them yet - what the notes carry and where they go wait to be set down
+      - so the setting stands incomplete honestly, named in the gaps until its meaning is held for it,
+      and no meaning is invented here.'' - gaps: no plain meaning'
+    recorded_on: '2026-11-10'
+  - item_id: setting-font-main
+    standing: ready
+    label: The letter size
+    segment: 'setting-font-main: The letter size - section: ''display'' - value: ''the reading size''
+      - layer: ''session'' - meaning: ''how large the letters stand'' - detail: ''The letter size stands
+      named in the room for this session - how large the letters stand on the screen, held as data; holding
+      the card resizes no letter.'' - gaps: none'
+    recorded_on: '2026-11-10'
+  total_items: 6
+  total_shown: 6
+  target_counts:
+  - standing: ready
+    items: 5
+  - standing: unready
+    items: 1
+  as_of: '2026-11-10'
+  account:
+  - 'The settings book holds 6 settings as of 2026-11-10: the view ''all'' shows 6 of them: ready 5, unready
+    1; 5 of the shown settings stand ready.'
+  - Rows stand in held order, the order the book itself stands in, so two panels of one view diff cleanly,
+    segment by segment.
+  - Every segment is derived from its setting's own fields - the name, the section, the value and layer
+    honestly held and the plain meaning it honestly carries - and no judgement is stored on any setting.
+  - 'Completeness is judged from the held records alone: a setting naming no plain meaning stands unready,
+    and the settings index is derived from the held settings, never stored where it could drift.'

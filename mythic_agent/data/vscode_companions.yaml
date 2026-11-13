@@ -1,0 +1,229 @@
+schema: mythic.vscode_companions/1
+editor: M-239
+vscode_companions:
+  title: VS Code companions at the M-239 slice run
+editors:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-companion book
+  origin_session: session-m239
+  editor_id: editor-vscode
+  seq: 1
+  title: VS Code editor
+  state: live
+  detail: 'The slice the tracker looks back on first: banked at M-230, standing active in the cross-app
+    method honesty''s hands.'
+  connection: local
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-companion book
+  origin_session: session-m239
+  editor_id: editor-insiders
+  seq: 2
+  title: Insiders editor
+  state: live
+  detail: 'This very slice, standing active: the vscodecompanions book holding its own editor as data.'
+  connection: remote
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-companion book
+  origin_session: session-m239
+  editor_id: editor-vscodium
+  seq: 3
+  title: VSCodium editor
+  state: dormant
+  detail: A queued slice the tracker has not taken yet; an companion naming it refuses by name.
+  connection: unlinked
+companion_records:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-companion book
+  origin_session: session-m239
+  companion_id: companion-held-companion
+  seq: 1
+  editor_id: editor-vscode
+  title: The held companion
+  stages: &id001
+  - linked
+  - probed
+  - opened
+  - shared
+  - held
+  claims:
+  - file_ref
+  detail: 'The opening companion: a slice linked for the editor in its home tool, probed across the workshop,
+    opened where it lives, shared to the tracker at hand and held honestly, held with the tool held as
+    proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-companion book
+  origin_session: session-m239
+  companion_id: companion-retried-companion
+  seq: 2
+  editor_id: editor-vscode
+  title: The retried companion
+  stages:
+  - linked
+  - probed
+  - opened
+  - shared
+  - linked
+  - probed
+  - opened
+  - shared
+  - held
+  claims: []
+  detail: 'The retried companion: a first shared step sent the standing back, the slice was linked and
+    probed again and the tracking held a second time before the holding stood.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-companion book
+  origin_session: session-m239
+  companion_id: companion-own-companion
+  seq: 3
+  editor_id: editor-insiders
+  title: The tracker's own companion
+  stages: *id001
+  claims:
+  - connection_ref
+  detail: 'The tracker''s own companion: this slice''s own companion, holding its companion ref as proof.'
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-companion book
+  origin_session: session-m239
+  companion_id: companion-bare-companion
+  seq: 4
+  editor_id: editor-insiders
+  title: The bare claim companion
+  stages: *id001
+  claims:
+  - feeling
+  detail: An companion that held a feeling in place of held proof, standing open.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-companion book
+  origin_session: session-m239
+  companion_id: companion-leaping-companion
+  seq: 5
+  editor_id: editor-insiders
+  title: The leaping companion
+  stages:
+  - linked
+  - probed
+  - held
+  claims: []
+  detail: An companion that stepped from probed straight to held, outside the companion sequence, standing
+    open.
+views:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-companion book
+  origin_session: session-m239
+  view_id: view-companions
+  seq: 1
+  view_filter: all
+  detail: Every held companion, complete or not.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-companion book
+  origin_session: session-m239
+  view_id: view-held
+  seq: 2
+  view_filter: complete
+  detail: Only the companions standing complete.
+notes:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-companion book
+  origin_session: session-m239
+  note_id: note-note-first
+  seq: 1
+  companion_id: companion-held-companion
+  stance: note
+  target: the opening companion
+  title: Companions first
+  detail: The tracker opens by naming the slice first, told honestly.
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-companion book
+  origin_session: session-m239
+  note_id: note-concern-bare
+  seq: 2
+  companion_id: companion-bare-companion
+  stance: concern
+  target: the bare claim companion
+  title: Claim linked
+  detail: An companion that held a feeling claim is not the tracker's way, and stands linked.
+traces:
+- recorded_on: '2026-11-11'
+  actor: the coordinator
+  source: multi-companion book
+  origin_session: session-m239
+  trace_id: trace-first
+  seq: 1
+  companion_id: companion-held-companion
+  trace: linked > probed > opened > shared > held
+  detail: 'The opening companion''s walk, held exactly as walked: the trace is the walk itself.'
+panels:
+- panel_id: panel-editor
+  view_id: view-companions
+  view_filter: all
+  rows:
+  - item_id: companion-held-companion
+    standing: complete
+    label: The held companion
+    segment: 'companion-held-companion: The held companion - editor: ''editor-vscode'' - stage: ''held''
+      - stages: 5 - claims: ''file_ref'' - detail: ''The opening companion: a slice linked for the editor
+      in its home tool, probed across the workshop, opened where it lives, shared to the tracker at hand
+      and held honestly, held with the tool held as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: companion-retried-companion
+    standing: complete
+    label: The retried companion
+    segment: 'companion-retried-companion: The retried companion - editor: ''editor-vscode'' - stage:
+      ''held'' - stages: 9 - claims: ''none'' - detail: ''The retried companion: a first shared step sent
+      the standing back, the slice was linked and probed again and the tracking held a second time before
+      the holding stood.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: companion-own-companion
+    standing: complete
+    label: The tracker's own companion
+    segment: 'companion-own-companion: The tracker''s own companion - editor: ''editor-insiders'' - stage:
+      ''held'' - stages: 5 - claims: ''connection_ref'' - detail: ''The tracker''s own companion: this
+      slice''s own companion, holding its companion ref as proof.'' - gaps: none'
+    recorded_on: '2026-11-11'
+  - item_id: companion-bare-companion
+    standing: open
+    label: The bare claim companion
+    segment: 'companion-bare-companion: The bare claim companion - editor: ''editor-insiders'' - stage:
+      ''held'' - stages: 5 - claims: ''feeling'' - detail: ''An companion that held a feeling in place
+      of held proof, standing open.'' - gaps: carries a feeling claim, a bare claim with no held proof:
+      complete stands on held proof alone'
+    recorded_on: '2026-11-11'
+  - item_id: companion-leaping-companion
+    standing: open
+    label: The leaping companion
+    segment: 'companion-leaping-companion: The leaping companion - editor: ''editor-insiders'' - stage:
+      ''held'' - stages: 3 - claims: ''none'' - detail: ''An companion that stepped from probed straight
+      to held, outside the companion sequence, standing open.'' - gaps: steps from probed to held, which
+      the companion sequence does not allow'
+    recorded_on: '2026-11-11'
+  total_items: 5
+  total_shown: 5
+  target_counts:
+  - standing: complete
+    items: 3
+  - standing: open
+    items: 2
+  as_of: '2026-11-11'
+  account:
+  - 'The companion book holds 5 companions as of 2026-11-11: the view ''all'' shows 5 of them: complete
+    3, open 2; 3 of the shown companions stand complete.'
+  - Rows stand in held companion, the companion the book itself stands in, so two panels of one view diff
+    cleanly, segment by segment.
+  - Every segment is derived from its companion's own fields - the editor it answers for, the steps it
+    walked in the open and the evidence it honestly carries - and no judgement is stored on any companion.
+  - 'Completeness is opened from the held records alone: a companion that steps outside the companion
+    sequence, carries a bare claim in place of held evidence, or has not linked held stands open, linked
+    in its gaps, and the companion index is derived from the held companions, never stored where it could
+    drift.'
