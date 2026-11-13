@@ -4366,6 +4366,302 @@ def parse_privacyaudit_args(args: Any):
     raise ValueError(PRIVACYAUDIT_USAGE)
 
 
+#: The /accessibilityfinal slash grammar (M-262, agent layer).
+ACCESSIBILITYFINAL_USAGE = (
+    "Usage: /accessibilityfinal | /accessibilityfinal checks | "
+    "/accessibilityfinal check <check> | /accessibilityfinal record "
+    "<check> | /accessibilityfinal standing "
+    "<check> | /accessibilityfinal report | "
+    "/accessibilityfinal report <book> | "
+    "/accessibilityfinal index | /accessibilityfinal verdict")
+
+
+def _af_check_dict(entry: Any) -> dict[str, Any]:
+    """One audit check registry entry, as plain data (M-262)."""
+    return {"id": entry.id, "doctrine": entry.doctrine,
+            "subject": entry.subject,
+            "standing": entry.standing, "reason": entry.reason}
+
+
+
+def _af_record_dict(record: Any) -> dict[str, Any]:
+    """One privacy-audit capture record, as plain data (M-262)."""
+    return {"check": record.check,
+            "task": record.task,
+            "date": record.date,
+            "disposition": record.disposition,
+            "owner": record.owner,
+            "proof_kind": record.proof_kind,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+
+def _af_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived run standing, as plain data (M-262)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "grade": standing.grade,
+            "gaps": list(standing.gaps)}
+
+
+def _af_report_dict(report: Any) -> dict[str, Any]:
+    """One audit report, as plain data (M-262)."""
+    return {"book": report.book,
+            "entry": report.entry, "report": report.report,
+            "date": report.date,
+            "passed_count": report.passed_count,
+            "roaded_count": report.roaded_count,
+            "total_checks": report.total_checks,
+            "claims": list(report.claims),
+            "state": report.state, "certified": report.certified,
+            "inflated": report.inflated}
+
+
+
+def _af_report_text(report: Any) -> str:
+    """One audit report told in plain words (M-262)."""
+    return (f"{report.book} <- {report.entry}: "
+            f"report - {report.report} (state: "
+            f"{report.state}; a report is never "
+            "inflated here)")
+
+
+
+def _af_coerce_record(record: Any):
+    """A capture record from a record or a plain telling (M-262)."""
+    from ..core.accessibility_final import GateRecord
+    if isinstance(record, GateRecord):
+        return record
+    if isinstance(record, dict):
+        return GateRecord(
+            check=record["check"],
+            task=record["task"],
+            date=record["date"],
+            disposition=record["disposition"],
+            owner=record["owner"],
+            proof_kind=record["proof_kind"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return GateRecord(
+        check=record.check, task=record.task,
+        date=record.date,
+        disposition=record.disposition,
+        owner=record.owner,
+        proof_kind=record.proof_kind,
+        stages=tuple(record.stages),
+        claims=tuple(record.claims))
+
+
+class AccessibilityFinalRegistry:
+    """Session registry for the accessibility final gate (M-262).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.accessibility_final``):
+    it holds the shipped check registry (one entry per
+    check of the road, held as data) beside the
+    capture records held one by one for the session,
+    one record per check, and the privacy
+    reports held for the session, one report per book. A
+    record is validated whole by the pure layer before it
+    is held - a record naming an unknown check,
+    stage or evidence kind refuses by name here too, and a
+    refusal holds nothing new. A second record for a
+    check already held refuses likewise.
+    Reports are held only through the pure layer's report
+    road - state ready by default, may be marked shared by
+    a human, a certification claimed only when every
+    combination stands answered, and never inflated:
+    the report tells the findings exactly as they
+    stand. Holding runs no benchmark, times no start and
+    probes no network: the registry holds tellings as
+    data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.accessibility_final import default_registry
+        self._surfaces = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._reports: dict[str, Any] = {}
+
+    def checks(self):
+        """The shipped check registry held by the session."""
+        return self._surfaces
+
+    def register_record(self, record: Any):
+        """Hold one capture record, validated whole.
+
+        A second record for a check already
+        held refuses, and a refusal holds nothing new.
+        """
+        held = _af_coerce_record(record)
+        held.validate(self._surfaces)
+        key = held.check
+        if key in self._records:
+            raise ValueError(
+                "a capture record for check "
+                f"{held.check!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, check: Any):
+        """The held record for one check."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(check)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no capture record "
+                f"for check {check!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of capture records, validated whole.
+
+        Every record is validated, and checked against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _af_coerce_record(record)
+            held.validate(self._surfaces)
+            key = held.check
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "a capture record for check "
+                    f"{held.check!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[held.check] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The capture records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the records and the reports."""
+        return (list(self._records.values())
+                + list(self._reports.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.accessibility_final import derive_standing
+        return [derive_standing(record, self._surfaces)
+                for record in self._records.values()]
+
+    def hold_report(self, book: Any, entry: Any,
+                      report: Any, date: Any,
+                      passed_count: Any, roaded_count: Any,
+                      total_checks: Any,
+                      claims: Any = (),
+                      state: Any = "ready",
+                      certified: Any = False):
+        """Prepare one audit report, held for the session.
+
+        The report is shaped by the pure layer alone -
+        a state word outside ready/shared refuses by name
+        there, a certification short of every check answered
+        refuses there, and a report is never inflated. A
+        second report for a book already held refuses
+        likewise.
+        """
+        from ..core.accessibility_final import prepare_report
+        report = prepare_report(book, entry, report,
+                                 date, passed_count,
+                                 roaded_count,
+                                 total_checks,
+                                 claims=tuple(claims),
+                                 state=state, certified=certified)
+        if report.book in self._reports:
+            raise ValueError(
+                "an audit report for book "
+                f"{report.book!r} already stands held "
+                "for the session")
+        self._reports[report.book] = report
+        return report
+
+    def get_report(self, book: Any):
+        """The held audit report for one book."""
+        from ..core.validation import ValidationError
+        try:
+            return self._reports[book]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no audit report for "
+                f"book {book!r}") from None
+
+    def list_reports(self) -> list:
+        """The audit reports held, in hold order."""
+        return list(self._reports.values())
+
+    def book(self):
+        """The held pieces composed as a accessibility final gate book.
+
+        The book is plain data: the shipped check
+        registry's entries beside the capture records
+        and audit reports held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.accessibility_final import ACCESSIBILITY_FINAL_SCHEMA
+        return {
+            "schema": ACCESSIBILITY_FINAL_SCHEMA,
+            "checks": [_af_check_dict(entry)
+                        for entry in self._surfaces.entries()],
+            "records": [_af_record_dict(record)
+                        for record in self._records.values()],
+            "reports": [_af_report_dict(verdict)
+                       for verdict in self._reports.values()],
+        }
+
+
+def parse_accessibilityfinal_args(args: Any):
+    """Parse /accessibilityfinal arguments (M-262).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``checks``, ``index`` and ``verdict`` name
+    their own stance with no target; ``check <check>``
+    names one check; ``record <check>`` and
+    ``standing <check>`` name one check alone - an audit
+    record is keyed by its check, never by a pair;
+    ``report <book>`` names one book and the bare
+    ``report`` stance names the session's audit
+    reports. Anything else raises ValueError carrying
+    the usage line, exactly as the sibling parsers
+    refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("checks", "index", "verdict"):
+        if rest:
+            raise ValueError(ACCESSIBILITYFINAL_USAGE)
+        return (head, None, (), None)
+    if head == "check":
+        if len(rest) != 1:
+            raise ValueError(ACCESSIBILITYFINAL_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 1:
+            raise ValueError(ACCESSIBILITYFINAL_USAGE)
+        return (head, rest[0], (), None)
+    if head == "report":
+        if not rest:
+            return ("reports", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(ACCESSIBILITYFINAL_USAGE)
+        return ("report", rest[0], (), None)
+    raise ValueError(ACCESSIBILITYFINAL_USAGE)
+
+
 #: The /docsmcp slash grammar (M-252, agent layer).
 DOCSMCP_USAGE = (
     "Usage: /docsmcp | /docsmcp projects | "
@@ -89615,6 +89911,619 @@ class Agent:
         if announced is None:
             announced = set()
             self._privacyaudit_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+    def _accessibilityfinal_registry(self):
+        """The held privacy-audit registry (M-262).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped check registry beside the session's
+        capture records and audit reports one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_accessibilityfinal_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_accessibilityfinal_store", None)
+        if registry is None:
+            registry = AccessibilityFinalRegistry()
+            self._accessibilityfinal_store = registry
+        return registry
+
+    def accessibilityfinal_checks(self):
+        """The shipped check registry, as data (M-262).
+
+        One entry per check of the road - P-01..P-12, the twelve doctrine by subject checks - held as registry entries, each naming its doctrine, its subject and its listed standing. Resolution registers and publishes
+        nothing, runs no benchmark and probes no
+        network.
+        """
+        return self._accessibilityfinal_registry().checks()
+
+    def accessibilityfinal_book(self):
+        """The session's accessibility final gate book, as data (M-262).
+
+        The held registry's book when the session holds
+        records or reports one by one - otherwise the book
+        boarded whole through
+        :meth:`record_accessibilityfinal_records`, or the shipped
+        check registry with nothing held until a record
+        or report is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._accessibilityfinal_registry()
+        if registry.list_records() or registry.list_reports():
+            held = getattr(self, "_accessibilityfinal_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [r["check"] for r in held["records"]]
+                    == [r["check"] for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_accessibilityfinal_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _accessibilityfinal_effective_record(self, check: Any):
+        """The record an check's standing is derived from (M-262).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on, no date, no owner named - so an unheld
+        check derives an honest open standing naming its
+        gaps, never a dressed claim: an absent finding
+        reads as unanswered. An unknown check refuses by
+        name through the shipped registry first.
+        """
+        from ..core.accessibility_final import GateRecord
+        registry = self._accessibilityfinal_registry()
+        registry.checks().get(check)
+        try:
+            return registry.get_record(check)
+        except ValueError:
+            return GateRecord(
+                check=check, task="unrecorded",
+                date="",
+                disposition="ROADED",
+                owner="",
+                proof_kind="none",
+                stages=(), claims=())
+
+    def _accessibilityfinal_screen(self):
+        """The accessibility-final-gate screen, in plain words (M-262).
+
+        The shipped checks first, then the held records told by the pure layer - a held record reads held as answered there - then each held report. With no record held, the screen says so plainly: a check counts PASSED only on the gate own shipped-TUI re-run resting on held rerun evidence, and every other finding ships ROADED with a named owner, in the open.
+        """
+        from ..core.accessibility_final import format_checks, format_records
+        registry = self._accessibilityfinal_registry()
+        lines = [format_checks(registry.checks())]
+        records = registry.list_records()
+        if records:
+            lines.append(format_records(records, registry.checks()))
+        else:
+            lines.append("Accessibility-final records: none recorded this session - a check counts PASSED only on the gate own shipped-TUI re-run resting on held rerun evidence, and every other finding ships ROADED with a named owner, in the open, never silent.")
+        for report in registry.list_reports():
+            lines.append(_af_report_text(report))
+        return "\n".join(lines)
+
+    def accessibilityfinal_status(self) -> dict[str, Any]:
+        """The accessibility final gate account, in plain data (M-262).
+
+        The shipped check registry's entries and the
+        capture records and audit reports held this session as
+        plain records (empty until held), the session
+        book's record (the shipped check registry with
+        nothing held - until items are held), the records
+        standing held and still open derived at call time,
+        the index and verdict derived at call time, the
+        checks and records told in plain words through the
+        pure formatters, and the plain explanation. A
+        session holding no record for a finding derives that
+        finding's open standing. Resolution registers and
+        publishes nothing, runs no benchmark and probes
+        no network: this layer tells only.
+        """
+        from ..core import accessibility_final as camp_module
+        registry = self._accessibilityfinal_registry()
+        held_records = registry.list_records()
+        book = self.accessibilityfinal_book()
+        index = self.accessibilityfinal_index()
+        return {
+            "records": [_af_record_dict(r)
+                        for r in held_records],
+            "checks": [_af_check_dict(e)
+                        for e in registry.checks().entries()],
+            "book": (book if held_records
+                     or registry.list_reports()
+                     or getattr(self, "_accessibilityfinal_held",
+                                None) is not None else None),
+            "accessibilityfinal_book": {
+                "schema": camp_module.ACCESSIBILITY_FINAL_SCHEMA,
+                "checks": book["checks"],
+                "records": book["records"],
+                "reports": book["reports"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.accessibilityfinal_verdict()["verdict"],
+            "checks_text": camp_module.format_checks(
+                registry.checks()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "reports": [_af_report_dict(d)
+                       for d in registry.list_reports()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._accessibilityfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": ACCESSIBILITYFINAL_USAGE,
+        }
+
+    def get_accessibilityfinal_check(self, check: Any):
+        """The one check entry a check name names (M-262).
+
+        The shipped check registry answers: a check the
+        check book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._accessibilityfinal_registry().checks().get(check)
+
+    def get_accessibilityfinal_record(self, check: Any):
+        """The one record a check names (M-262).
+
+        The session's held registry answers: a finding the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._accessibilityfinal_registry().get_record(check)
+
+    def accessibilityfinal_standing(self, check: Any):
+        """Derive one finding's standing (M-262).
+
+        The standing is derived at call time by the pure
+        layer from the finding's effective record - the held
+        record, or the honest empty record while none
+        stands held: held only on a full legal walk
+        resting on held finding evidence, with the
+        finding resting on held rerun evidence, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.accessibility_final import derive_standing
+        registry = self._accessibilityfinal_registry()
+        return derive_standing(
+            self._accessibilityfinal_effective_record(check),
+            registry.checks())
+
+    def gates_for_disposition(self, disposition_word: Any):
+        """The held records carrying one disposition (M-262)."""
+        if disposition_word is None or not str(disposition_word).strip():
+            raise ValueError(
+                "a disposition must be named to list its records")
+        return [r for r in
+                self._accessibilityfinal_registry().list_records()
+                if r.disposition == disposition_word]
+
+
+    def accessibilityfinal_held(self):
+        """The records whose standing stands held (M-262)."""
+        registry = self._accessibilityfinal_registry()
+        return [f"{r.check}"
+                for r in registry.list_records()
+                if self.accessibilityfinal_standing(r.check).held]
+
+    def accessibilityfinal_index(self) -> dict[str, Any]:
+        """Derive the accessibility final gate index at call time (M-262).
+
+        The index is derived from every held record
+        alone - each held record's derived standing, the
+        held records named and the open records named in
+        its gaps. Deriving registers and publishes nothing,
+        runs no benchmark and probes no network.
+        Returns the derived index record, the rendered
+        records, the screen and the plain explanation.
+        """
+        from ..core import accessibility_final as camp_module
+        registry = self._accessibilityfinal_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.accessibilityfinal_standing(record.check)
+            standings.append({
+                "check": record.check,
+                **_af_standing_dict(standing)})
+        index = {
+            "type": "accessibilityfinal_index",
+            "slice": camp_module.ACCESSIBILITY_FINAL_SLICE,
+            "schema": camp_module.ACCESSIBILITY_FINAL_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['check']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['check']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._accessibilityfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def accessibilityfinal_verdict(self) -> dict[str, Any]:
+        """Derive the accessibility final gate verdict at call time (M-262).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and every
+        held record's standing stands held on held
+        finding evidence, with every finding
+        resting on held rerun evidence, ``open`` while no record stands held or any held
+        record stands short of held - with the held and
+        open records named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import accessibility_final as camp_module
+        registry = self._accessibilityfinal_registry()
+        records = registry.list_records()
+        held = self.accessibilityfinal_held()
+        open_keys = [f"{r.check}"
+                     for r in records
+                     if f"{r.check}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Accessibility final gate stands held: every recorded "
+                "check rests on held rerun evidence "
+                "and stands answered - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Accessibility final gate stands open: no check "
+                "is recorded this session - an absent "
+                "check reads as unknown, never "
+                "as answered.")
+        else:
+            word = "open"
+            telling = (
+                "Accessibility final gate stands open: a check "
+                "is held only when it rests on held "
+                "local evidence and stands answered, "
+                "and these checks "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "accessibilityfinal_verdict",
+            "slice": camp_module.ACCESSIBILITY_FINAL_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._accessibilityfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_accessibilityfinal_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one capture record for the session (M-262).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        check, stage or evidence kind refuses by
+        name on this road too, and a refusal holds nothing
+        new and publishes nothing. A held record is
+        published as its ``accessibilityfinal_record``
+        session-news record through the checkpoint road.
+        Returns the held record, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a record runs no benchmark
+        and probes no network: the telling stands on
+        this layer's book, as data.
+        """
+        from ..core import accessibility_final as camp_module
+        registry = self._accessibilityfinal_registry()
+        held = registry.register_record(record)
+        news = {"type": "accessibilityfinal_record",
+                **_af_record_dict(held)}
+        self._publish_accessibilityfinal_record(news)
+        return {
+            "record": _af_record_dict(held),
+            "record_news": news,
+            "screen": self._accessibilityfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_accessibilityfinal_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of capture records for the session (M-262).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order given.
+        Returns the held records, their news records,
+        the count of records held, the screen, and the
+        explanation. Registering runs no benchmark and probes
+        no network.
+        """
+        from ..core import accessibility_final as camp_module
+        registry = self._accessibilityfinal_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "accessibilityfinal_record", **_af_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_accessibilityfinal_record(news)
+        return {
+            "records": [_af_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._accessibilityfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_accessibilityfinal_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of capture records (M-262).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its check key and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held book,
+        its records, their news records, the count, the
+        screen, and the explanation. Recording runs no
+        benchmark and probes no network.
+        """
+        from ..core import accessibility_final as camp_module
+        validated = [_af_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._accessibilityfinal_registry().checks())
+        fingerprint = (
+            tuple(r.check for r in validated),
+            camp_module.ACCESSIBILITY_FINAL_SCHEMA)
+        boarded = getattr(self, "_accessibilityfinal_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._accessibilityfinal_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these capture records are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._accessibilityfinal_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._accessibilityfinal_held = registry.book()
+        news_records = [
+            {"type": "accessibilityfinal_record", **_af_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_accessibilityfinal_record(news)
+        return {
+            "book": self._accessibilityfinal_held,
+            "records": [_af_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._accessibilityfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_accessibilityfinal(
+            self, check: Any) -> dict[str, Any]:
+        """Stand one finding's standing on the session book (M-262).
+
+        This is the book's own viewing road: the finding's
+        check entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        finding's effective record, and published as its
+        ``accessibilityfinal_standing`` session news, with the held
+        record published as its ``accessibilityfinal_record``
+        session news when one stands held. Returns the
+        check's entry, its derived standing, the held
+        record when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        findings as data alone - it runs no benchmark,
+        probes no network and inflates nothing here.
+        """
+        from ..core import accessibility_final as camp_module
+        entry = self.get_accessibilityfinal_check(check)
+        standing = self.accessibilityfinal_standing(check)
+        try:
+            held = self.get_accessibilityfinal_record(check)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "accessibilityfinal_record",
+                           **_af_record_dict(held)}
+            self._publish_accessibilityfinal_record(record_news)
+        standing_news = {
+            "type": "accessibilityfinal_standing", "check": check,
+            **_af_standing_dict(standing)}
+        self._publish_accessibilityfinal_record(standing_news)
+        return {
+            "check": _af_check_dict(entry),
+            "standing": {"check": check,
+                         **_af_standing_dict(standing)},
+            "record": (_af_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._accessibilityfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def prepare_accessibilityfinal_report(
+            self, book: Any, entry: Any, report: Any,
+            date: Any, passed_count: Any, roaded_count: Any,
+            total_checks: Any,
+            claims: Any = (),
+            state: Any = "ready",
+            certified: Any = False
+            ) -> dict[str, Any]:
+        """Prepare one audit report for the session (M-262).
+
+        The report is shaped by the pure layer alone -
+        it stands at state ready by default, may be
+        marked ``shared`` by a human, and a state
+        word outside ready/shared refuses by name;
+        a report is never inflated here, a certification
+        short of every check answered refuses there, and
+        no finding is re-audited on this road. A held report
+        is published as its ``accessibilityfinal_verdict``
+        session-news record through the checkpoint road.
+        Returns the held report, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Preparing audits nothing and
+        runs nothing here.
+        """
+        from ..core import accessibility_final as camp_module
+        registry = self._accessibilityfinal_registry()
+        report = registry.hold_report(book, entry, report,
+                                       date, passed_count,
+                                       roaded_count,
+                                       total_checks,
+                                       claims=claims,
+                                       state=state,
+                                       certified=certified)
+        news = {"type": "accessibilityfinal_verdict",
+                **_af_report_dict(report)}
+        self._publish_accessibilityfinal_record(news)
+        return {
+            "report": _af_report_dict(report),
+            "report_news": news,
+            "screen": self._accessibilityfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+
+    def get_accessibilityfinal_report(self, book: Any):
+        """The one report a book names (M-262).
+
+        The session's held registry answers: a book
+        the session holds no report for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._accessibilityfinal_registry().get_report(book)
+
+
+    def accessibilityfinal_reports(self) -> list:
+        """The audit reports held for the session (M-262)."""
+        return self._accessibilityfinal_registry().list_reports()
+
+
+    def report_accessibilityfinal(self) -> dict[str, Any]:
+        """Render the session accessibility final gate, as a verdict (M-262).
+
+        The shipped check registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, runs no benchmark and probes
+        no network. Returns the book,
+        the checks, held records and reports as plain
+        records, the derived standings, the rendered
+        checks and records, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import accessibility_final as camp_module
+        registry = self._accessibilityfinal_registry()
+        book = self.accessibilityfinal_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.accessibilityfinal_standing(record.check)
+            standings.append({
+                "check": record.check,
+                **_af_standing_dict(standing)})
+        return {
+            "book": book,
+            "checks": [_af_check_dict(e)
+                        for e in registry.checks().entries()],
+            "records": [_af_record_dict(r)
+                        for r in registry.list_records()],
+            "reports": [_af_report_dict(d)
+                       for d in registry.list_reports()],
+            "standings": standings,
+            "index": self.accessibilityfinal_index()["index"],
+            "verdict": self.accessibilityfinal_verdict()["verdict"],
+            "checks_text": camp_module.format_checks(
+                registry.checks()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._accessibilityfinal_effective_record(r.check))
+                for r in registry.list_records()),
+            "screen": self._accessibilityfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_accessibilityfinal_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one capture record as session news (M-262).
+
+        The agent layer's ``accessibilityfinal_record``,
+        ``accessibilityfinal_standing`` and
+        ``accessibilityfinal_verdict`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is granted. Each
+        record is announced at most once per telling: a
+        record under its check, its run, its date, its
+        disposition, its owner, its proof kind, its
+        walked stages and its claims, a standing under
+        its check, its held word, its stage, its grade
+        and its gaps, and a report under its book, its
+        entry, its report and its state, so a standing
+        grown by a newly held record announces again
+        as the new figure it is.
+        A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "accessibilityfinal_record":
+            target = ("accessibilityfinal_record",
+                      record.get("check"),
+                      record.get("run"),
+                      record.get("date"),
+                      record.get("disposition"),
+                      record.get("owner"),
+                      record.get("proof_kind"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "accessibilityfinal_standing":
+            target = ("accessibilityfinal_standing",
+                      record.get("check"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("grade"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "accessibilityfinal_verdict":
+            target = ("accessibilityfinal_verdict",
+                      record.get("book"),
+                      record.get("entry"),
+                      record.get("report"),
+                      record.get("state"))
+        else:
+            return
+        announced = getattr(self, "_accessibilityfinal_announced", None)
+        if announced is None:
+            announced = set()
+            self._accessibilityfinal_announced = announced
         if target in announced:
             return
         announced.add(target)
