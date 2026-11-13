@@ -1607,7 +1607,7 @@ slices:
   title: README care
   summary: the repo README extended **by hand** with the new story — nothing removed, per Volmarr's standing
     law.
-  status: queued
+  status: done
 - id: M-265
   part: 11
   title: Migration proof

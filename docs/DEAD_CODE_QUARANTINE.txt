@@ -1336,3 +1336,10 @@ mythic_agent/agents/llm.py:91203:record_docscompletion_records:method
 mythic_agent/agents/llm.py:91252:view_docscompletion:method
 mythic_agent/agents/llm.py:91298:prepare_docscompletion_report:method
 mythic_agent/agents/llm.py:91358:report_docscompletion:method
+mythic_agent/agents/llm.py:91953:sections_for_disposition:method
+mythic_agent/agents/llm.py:92067:register_readmecare_record:method
+mythic_agent/agents/llm.py:92097:register_readmecare_records:method
+mythic_agent/agents/llm.py:92127:record_readmecare_records:method
+mythic_agent/agents/llm.py:92176:view_readmecare:method
+mythic_agent/agents/llm.py:92222:prepare_readmecare_report:method
+mythic_agent/agents/llm.py:92282:report_readmecare:method
