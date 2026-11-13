@@ -1343,3 +1343,10 @@ mythic_agent/agents/llm.py:92127:record_readmecare_records:method
 mythic_agent/agents/llm.py:92176:view_readmecare:method
 mythic_agent/agents/llm.py:92222:prepare_readmecare_report:method
 mythic_agent/agents/llm.py:92282:report_readmecare:method
+mythic_agent/agents/llm.py:92876:areas_for_disposition:method
+mythic_agent/agents/llm.py:92990:register_migrationproof_record:method
+mythic_agent/agents/llm.py:93020:register_migrationproof_records:method
+mythic_agent/agents/llm.py:93050:record_migrationproof_records:method
+mythic_agent/agents/llm.py:93099:view_migrationproof:method
+mythic_agent/agents/llm.py:93145:prepare_migrationproof_report:method
+mythic_agent/agents/llm.py:93205:report_migrationproof:method
