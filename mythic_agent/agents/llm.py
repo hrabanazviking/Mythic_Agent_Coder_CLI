@@ -6441,6 +6441,305 @@ def parse_truthfulchangelog_args(args: Any):
     raise ValueError(TRUTHFULCHANGELOG_USAGE)
 
 
+#: The /releaseshaping slash grammar (M-269, agent layer).
+RELEASESHAPING_USAGE = (
+    "Usage: /releaseshaping | /releaseshaping releases | "
+    "/releaseshaping release <release> | /releaseshaping record "
+    "<release> | /releaseshaping standing "
+    "<release> | /releaseshaping report | "
+    "/releaseshaping report <book> | "
+    "/releaseshaping index | /releaseshaping verdict")
+
+
+def _rs_entry_dict(entry: Any) -> dict[str, Any]:
+    """One audit release registry entry, as plain data (M-269)."""
+    return {"id": entry.id, "doctrine": entry.doctrine,
+            "subject": entry.subject,
+            "standing": entry.standing, "reason": entry.reason}
+
+
+
+def _rs_record_dict(record: Any) -> dict[str, Any]:
+    """One truth-proof release record, as plain data (M-269)."""
+    return {"release": record.release,
+            "work": record.work,
+            "date": record.date,
+            "disposition": record.disposition,
+            "owner": record.owner,
+            "proof_kind": record.proof_kind,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+
+def _rs_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived run standing, as plain data (M-269)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "grade": standing.grade,
+            "gaps": list(standing.gaps)}
+
+
+def _rs_report_dict(report: Any) -> dict[str, Any]:
+    """One release report, as plain data (M-269)."""
+    return {"book": report.book,
+            "entry": report.entry, "report": report.report,
+            "date": report.date,
+            "ready_count": report.ready_count,
+            "shaping_count": report.shaping_count,
+            "not_ready_count": report.not_ready_count,
+            "total_releases": report.total_releases,
+            "claims": list(report.claims),
+            "state": report.state, "certified": report.certified,
+            "inflated": report.inflated}
+
+
+
+def _rs_report_text(report: Any) -> str:
+    """One release report told in plain words (M-269)."""
+    return (f"{report.book} <- {report.entry}: "
+            f"report - {report.report} (state: "
+            f"{report.state}; a report is never "
+            "inflated here)")
+
+
+
+def _rs_coerce_record(record: Any):
+    """A release record from a record or a plain telling (M-269)."""
+    from ..core.release_shaping import ReleaseShapingRecord
+    if isinstance(record, ReleaseShapingRecord):
+        return record
+    if isinstance(record, dict):
+        return ReleaseShapingRecord(
+            release=record["release"],
+            work=record["work"],
+            date=record["date"],
+            disposition=record["disposition"],
+            owner=record["owner"],
+            proof_kind=record["proof_kind"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return ReleaseShapingRecord(
+        release=record.release, work=record.work,
+        date=record.date,
+        disposition=record.disposition,
+        owner=record.owner,
+        proof_kind=record.proof_kind,
+        stages=tuple(record.stages),
+        claims=tuple(record.claims))
+
+
+class ReleaseShapingRegistry:
+    """Session registry for the Release shaping (M-269).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.release_shaping``):
+    it holds the shipped release registry (one entry per
+    release of the road, held as data) beside the
+    release records held one by one for the session,
+    one record per release, and the privacy
+    reports held for the session, one report per book. A
+    record is validated whole by the pure layer before it
+    is held - a record naming an unknown release,
+    stage or evidence kind refuses by name here too, and a
+    refusal holds nothing new. A second record for a
+    release already held refuses likewise.
+    Reports are held only through the pure layer's report
+    road - state ready by default, may be marked shared by
+    a human, a certification claimed only when every
+    combination stands answered, and never inflated:
+    the report tells the findings exactly as they
+    stand. Holding runs no test, times no start and
+    probes no network: the registry holds tellings as
+    data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.release_shaping import default_registry
+        self._release_registry = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._reports: dict[str, Any] = {}
+
+    def releases(self):
+        """The shipped release registry held by the session."""
+        return self._release_registry
+
+    def register_record(self, record: Any):
+        """Hold one release record, validated whole.
+
+        A second record for a release already
+        held refuses, and a refusal holds nothing new.
+        """
+        held = _rs_coerce_record(record)
+        held.validate(self._release_registry)
+        key = held.release
+        if key in self._records:
+            raise ValueError(
+                "a care record for release "
+                f"{held.release!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, release: Any):
+        """The held record for one release."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(release)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no care record "
+                f"for release {release!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of release records, validated whole.
+
+        Every record is validated, and guideed against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _rs_coerce_record(record)
+            held.validate(self._release_registry)
+            key = held.release
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "a care record for release "
+                    f"{held.release!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[held.release] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The release records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the records and the reports."""
+        return (list(self._records.values())
+                + list(self._reports.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.release_shaping import derive_standing
+        return [derive_standing(record, self._release_registry)
+                for record in self._records.values()]
+
+    def hold_report(self, book: Any, entry: Any,
+                      report: Any, date: Any,
+                      ready_count: Any, shaping_count: Any,
+                      not_ready_count: Any,
+                      total_releases: Any,
+                      claims: Any = (),
+                      state: Any = "ready",
+                      certified: Any = False):
+        """Prepare one release report, held for the session.
+
+        The report is shaped by the pure layer alone -
+        a state word outside ready/shared refuses by name
+        there, a certification short of every release answered
+        refuses there, and a report is never inflated. A
+        second report for a book already held refuses
+        likewise.
+        """
+        from ..core.release_shaping import prepare_report
+        report = prepare_report(book, entry, report,
+                                 date, ready_count,
+                                 shaping_count,
+                                 not_ready_count,
+                                 total_releases,
+                                 claims=tuple(claims),
+                                 state=state, certified=certified)
+        if report.book in self._reports:
+            raise ValueError(
+                "an release report for book "
+                f"{report.book!r} already stands held "
+                "for the session")
+        self._reports[report.book] = report
+        return report
+
+    def get_report(self, book: Any):
+        """The held release report for one book."""
+        from ..core.validation import ValidationError
+        try:
+            return self._reports[book]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no release report for "
+                f"book {book!r}") from None
+
+    def list_reports(self) -> list:
+        """The release reports held, in hold order."""
+        return list(self._reports.values())
+
+    def book(self):
+        """The held pieces composed as a Release shaping book.
+
+        The book is plain data: the shipped release
+        registry's entries beside the release records
+        and release reports held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.release_shaping import RELEASE_SHAPING_SCHEMA
+        return {
+            "schema": RELEASE_SHAPING_SCHEMA,
+            "releases": [_rs_entry_dict(entry)
+                        for entry in self._release_registry.entries()],
+            "records": [_rs_record_dict(record)
+                        for record in self._records.values()],
+            "reports": [_rs_report_dict(verdict)
+                       for verdict in self._reports.values()],
+        }
+
+
+def parse_releaseshaping_args(args: Any):
+    """Parse /releaseshaping arguments (M-269).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``releases``, ``index`` and ``verdict`` name
+    their own stance with no target; ``release <release>``
+    names one release; ``record <release>`` and
+    ``standing <release>`` name one release alone - an audit
+    record is keyed by its release, never by a pair;
+    ``report <book>`` names one book and the bare
+    ``report`` stance names the session's audit
+    reports. Anything else raises ValueError carrying
+    the usage line, exactly as the sibling parsers
+    refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("releases", "index", "verdict"):
+        if rest:
+            raise ValueError(RELEASESHAPING_USAGE)
+        return (head, None, (), None)
+    if head == "release":
+        if len(rest) != 1:
+            raise ValueError(RELEASESHAPING_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 1:
+            raise ValueError(RELEASESHAPING_USAGE)
+        return (head, rest[0], (), None)
+    if head == "report":
+        if not rest:
+            return ("reports", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(RELEASESHAPING_USAGE)
+        return ("report", rest[0], (), None)
+    raise ValueError(RELEASESHAPING_USAGE)
+
+
 #: The /docsmcp slash grammar (M-252, agent layer).
 DOCSMCP_USAGE = (
     "Usage: /docsmcp | /docsmcp projects | "
@@ -96068,6 +96367,634 @@ class Agent:
         if announced is None:
             announced = set()
             self._truthfulchangelog_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+    def _releaseshaping_registry(self):
+        """The held truth-proof registry (M-269).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped release registry beside the session's
+        release records and release reports one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_releaseshaping_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_releaseshaping_store", None)
+        if registry is None:
+            registry = ReleaseShapingRegistry()
+            self._releaseshaping_store = registry
+        return registry
+
+    def releaseshaping_releases(self):
+        """The shipped release registry, as data (M-269).
+
+        One entry per release of the road - R-01..R-12, the twelve doctrine by subject releases - held as registry entries, each naming its doctrine, its subject and its listed standing. Resolution registers and publishes
+        nothing, runs no test and probes no
+        network.
+        """
+        return self._releaseshaping_registry().releases()
+
+    def releaseshaping_book(self):
+        """The session's Release shaping book, as data (M-269).
+
+        The held registry's book when the session holds
+        records or reports one by one - otherwise the book
+        boarded whole through
+        :meth:`record_releaseshaping_records`, or the shipped
+        release registry with nothing held until a record
+        or report is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._releaseshaping_registry()
+        if registry.list_records() or registry.list_reports():
+            held = getattr(self, "_releaseshaping_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [r["release"] for r in held["records"]]
+                    == [r["release"] for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_releaseshaping_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _releaseshaping_effective_record(self, release: Any):
+        """The record an release's standing is derived from (M-269).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on, no date, no owner named - so an unheld
+        release derives an honest open standing naming its
+        gaps, never a dressed claim: an absent finding
+        reads as unanswered. An unknown release refuses by
+        name through the shipped registry first.
+        """
+        from ..core.release_shaping import ReleaseShapingRecord
+        registry = self._releaseshaping_registry()
+        registry.releases().get(release)
+        try:
+            return registry.get_record(release)
+        except ValueError:
+            return ReleaseShapingRecord(
+                release=release, work="unrecorded",
+                date="",
+                disposition="NOT_READY",
+                owner="",
+                proof_kind="none",
+                stages=(), claims=())
+
+    def _releaseshaping_screen(self):
+        """The release shaping screen, in plain words (M-269).
+
+        The shipped releases first, then the held records
+        told by the pure layer - a held record reads
+        "held as answered" there - then each held
+        report. With no record held, the screen says
+        so plainly: a release counts READY only on
+        held proof measured in the release itself
+        resting on held evidence, and every
+        other release ships SHAPING or NOT READY with a named owner, in the open.
+        """
+        from ..core.release_shaping import (
+            format_releases, format_records)
+        registry = self._releaseshaping_registry()
+        lines = [format_releases(registry.releases())]
+        records = registry.list_records()
+        if records:
+            lines.append(format_records(records, registry.releases()))
+        else:
+            lines.append(
+                "Release shaping records: none recorded "
+                "this session - a release counts READY "
+                "only on held proof measured "
+                "in the release itself resting on "
+                "held evidence, and every "
+                "other release ships SHAPING or NOT READY with a named "
+                "owner, in the open, never silent.")
+        for report in registry.list_reports():
+            lines.append(_rs_report_text(report))
+        return "\n".join(lines)
+    def releaseshaping_status(self) -> dict[str, Any]:
+        """The Release shaping account, in plain data (M-269).
+
+        The shipped release registry's entries and the
+        release records and release reports held this session as
+        plain records (empty until held), the session
+        book's record (the shipped release registry with
+        nothing held - until items are held), the records
+        standing held and still open derived at call time,
+        the index and verdict derived at call time, the
+        releases and records told in plain words through the
+        pure formatters, and the plain explanation. A
+        session holding no record for a finding derives that
+        finding's open standing. Resolution registers and
+        publishes nothing, runs no test and probes
+        no network: this layer tells only.
+        """
+        from ..core import release_shaping as camp_module
+        registry = self._releaseshaping_registry()
+        held_records = registry.list_records()
+        book = self.releaseshaping_book()
+        index = self.releaseshaping_index()
+        return {
+            "records": [_rs_record_dict(r)
+                        for r in held_records],
+            "releases": [_rs_entry_dict(e)
+                        for e in registry.releases().entries()],
+            "book": (book if held_records
+                     or registry.list_reports()
+                     or getattr(self, "_releaseshaping_held",
+                                None) is not None else None),
+            "releaseshaping_book": {
+                "schema": camp_module.RELEASE_SHAPING_SCHEMA,
+                "releases": book["releases"],
+                "records": book["records"],
+                "reports": book["reports"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.releaseshaping_verdict()["verdict"],
+            "releases_text": camp_module.format_releases(
+                registry.releases()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "reports": [_rs_report_dict(d)
+                       for d in registry.list_reports()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._releaseshaping_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": RELEASESHAPING_USAGE,
+        }
+
+    def get_releaseshaping_release(self, release: Any):
+        """The one release entry a release name names (M-269).
+
+        The shipped release registry answers: a release the
+        release book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._releaseshaping_registry().releases().get(release)
+
+    def get_releaseshaping_record(self, release: Any):
+        """The one record a release names (M-269).
+
+        The session's held registry answers: a finding the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._releaseshaping_registry().get_record(release)
+
+    def releaseshaping_standing(self, release: Any):
+        """Derive one finding's standing (M-269).
+
+        The standing is derived at call time by the pure
+        layer from the finding's effective record - the held
+        record, or the honest empty record while none
+        stands held: held only on a full legal walk
+        resting on held evidence, with the
+        finding resting on held evidence, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.release_shaping import derive_standing
+        registry = self._releaseshaping_registry()
+        return derive_standing(
+            self._releaseshaping_effective_record(release),
+            registry.releases())
+
+    def releases_for_disposition(self, disposition_word: Any):
+        """The held records carrying one disposition (M-269)."""
+        if disposition_word is None or not str(disposition_word).strip():
+            raise ValueError(
+                "a disposition must be named to list its records")
+        return [r for r in
+                self._releaseshaping_registry().list_records()
+                if r.disposition == disposition_word]
+
+
+    def releaseshaping_held(self):
+        """The records whose standing stands held (M-269)."""
+        registry = self._releaseshaping_registry()
+        return [f"{r.release}"
+                for r in registry.list_records()
+                if self.releaseshaping_standing(r.release).held]
+
+    def releaseshaping_index(self) -> dict[str, Any]:
+        """Derive the Release shaping index at call time (M-269).
+
+        The index is derived from every held record
+        alone - each held record's derived standing, the
+        held records named and the open records named in
+        its gaps. Deriving registers and publishes nothing,
+        runs no test and probes no network.
+        Returns the derived index record, the rendered
+        records, the screen and the plain explanation.
+        """
+        from ..core import release_shaping as camp_module
+        registry = self._releaseshaping_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.releaseshaping_standing(record.release)
+            standings.append({
+                "release": record.release,
+                **_rs_standing_dict(standing)})
+        index = {
+            "type": "releaseshaping_index",
+            "slice": camp_module.RELEASE_SHAPING_SLICE,
+            "schema": camp_module.RELEASE_SHAPING_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['release']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['release']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._releaseshaping_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def releaseshaping_verdict(self) -> dict[str, Any]:
+        """Derive the Release shaping verdict at call time (M-269).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and every
+        held record's standing stands held on held
+        code evidence, with every finding
+        resting on held evidence, ``open`` while no record stands held or any held
+        record stands short of held - with the held and
+        open records named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import release_shaping as camp_module
+        registry = self._releaseshaping_registry()
+        records = registry.list_records()
+        held = self.releaseshaping_held()
+        open_keys = [f"{r.release}"
+                     for r in records
+                     if f"{r.release}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Release shaping stands held: every recorded "
+                "release rests on held evidence "
+                "and stands answered - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Release shaping stands open: no release "
+                "is recorded this session - an absent "
+                "release reads as unknown, never "
+                "as answered.")
+        else:
+            word = "open"
+            telling = (
+                "Release shaping stands open: a release "
+                "is held only when it rests on held "
+                "local evidence and stands answered, "
+                "and these releases "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "releaseshaping_verdict",
+            "slice": camp_module.RELEASE_SHAPING_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._releaseshaping_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_releaseshaping_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one release record for the session (M-269).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        release, stage or evidence kind refuses by
+        name on this road too, and a refusal holds nothing
+        new and publishes nothing. A held record is
+        published as its ``releaseshaping_record``
+        session-news record through the checkpoint road.
+        Returns the held record, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a record runs no test
+        and probes no network: the telling stands on
+        this layer's book, as data.
+        """
+        from ..core import release_shaping as camp_module
+        registry = self._releaseshaping_registry()
+        held = registry.register_record(record)
+        news = {"type": "releaseshaping_record",
+                **_rs_record_dict(held)}
+        self._publish_releaseshaping_record(news)
+        return {
+            "record": _rs_record_dict(held),
+            "record_news": news,
+            "screen": self._releaseshaping_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_releaseshaping_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of release records for the session (M-269).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order given.
+        Returns the held records, their news records,
+        the count of records held, the screen, and the
+        explanation. Registering runs no test and probes
+        no network.
+        """
+        from ..core import release_shaping as camp_module
+        registry = self._releaseshaping_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "releaseshaping_record", **_rs_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_releaseshaping_record(news)
+        return {
+            "records": [_rs_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._releaseshaping_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_releaseshaping_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of release records (M-269).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its release key and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held book,
+        its records, their news records, the count, the
+        screen, and the explanation. Recording runs no
+        test and probes no network.
+        """
+        from ..core import release_shaping as camp_module
+        validated = [_rs_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._releaseshaping_registry().releases())
+        fingerprint = (
+            tuple(r.release for r in validated),
+            camp_module.RELEASE_SHAPING_SCHEMA)
+        boarded = getattr(self, "_releaseshaping_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._releaseshaping_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these release records are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._releaseshaping_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._releaseshaping_held = registry.book()
+        news_records = [
+            {"type": "releaseshaping_record", **_rs_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_releaseshaping_record(news)
+        return {
+            "book": self._releaseshaping_held,
+            "records": [_rs_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._releaseshaping_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_releaseshaping(
+            self, release: Any) -> dict[str, Any]:
+        """Stand one finding's standing on the session book (M-269).
+
+        This is the book's own viewing road: the finding's
+        release entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        finding's effective record, and published as its
+        ``releaseshaping_standing`` session news, with the held
+        record published as its ``releaseshaping_record``
+        session news when one stands held. Returns the
+        release's entry, its derived standing, the held
+        record when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        findings as data alone - it runs no test,
+        probes no network and inflates nothing here.
+        """
+        from ..core import release_shaping as camp_module
+        entry = self.get_releaseshaping_release(release)
+        standing = self.releaseshaping_standing(release)
+        try:
+            held = self.get_releaseshaping_record(release)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "releaseshaping_record",
+                           **_rs_record_dict(held)}
+            self._publish_releaseshaping_record(record_news)
+        standing_news = {
+            "type": "releaseshaping_standing", "release": release,
+            **_rs_standing_dict(standing)}
+        self._publish_releaseshaping_record(standing_news)
+        return {
+            "release": _rs_entry_dict(entry),
+            "standing": {"release": release,
+                         **_rs_standing_dict(standing)},
+            "record": (_rs_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._releaseshaping_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def prepare_releaseshaping_report(
+            self, book: Any, entry: Any, report: Any,
+            date: Any, ready_count: Any, shaping_count: Any,
+            not_ready_count: Any, total_releases: Any,
+            claims: Any = (),
+            state: Any = "ready",
+            certified: Any = False
+            ) -> dict[str, Any]:
+        """Prepare one release report for the session (M-269).
+
+        The report is shaped by the pure layer alone -
+        it stands at state ready by default, may be
+        marked ``shared`` by a human, and a state
+        word outside ready/shared refuses by name;
+        a report is never inflated here, a certification
+        short of every release answered refuses there, and
+        no finding is re-audited on this road. A held report
+        is published as its ``releaseshaping_verdict``
+        session-news record through the checkpoint road.
+        Returns the held report, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Preparing audits nothing and
+        runs nothing here.
+        """
+        from ..core import release_shaping as camp_module
+        registry = self._releaseshaping_registry()
+        report = registry.hold_report(book, entry, report,
+                                       date, ready_count,
+                                       shaping_count,
+                                       not_ready_count,
+                                       total_releases,
+                                       claims=claims,
+                                       state=state,
+                                       certified=certified)
+        news = {"type": "releaseshaping_verdict",
+                **_rs_report_dict(report)}
+        self._publish_releaseshaping_record(news)
+        return {
+            "report": _rs_report_dict(report),
+            "report_news": news,
+            "screen": self._releaseshaping_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+
+    def get_releaseshaping_report(self, book: Any):
+        """The one report a book names (M-269).
+
+        The session's held registry answers: a book
+        the session holds no report for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._releaseshaping_registry().get_report(book)
+
+
+    def releaseshaping_reports(self) -> list:
+        """The release reports held for the session (M-269)."""
+        return self._releaseshaping_registry().list_reports()
+
+
+    def report_releaseshaping(self) -> dict[str, Any]:
+        """Render the session Release shaping, as a verdict (M-269).
+
+        The shipped release registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, runs no test and probes
+        no network. Returns the book,
+        the releases, held records and reports as plain
+        records, the derived standings, the rendered
+        releases and records, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import release_shaping as camp_module
+        registry = self._releaseshaping_registry()
+        book = self.releaseshaping_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.releaseshaping_standing(record.release)
+            standings.append({
+                "release": record.release,
+                **_rs_standing_dict(standing)})
+        return {
+            "book": book,
+            "releases": [_rs_entry_dict(e)
+                        for e in registry.releases().entries()],
+            "records": [_rs_record_dict(r)
+                        for r in registry.list_records()],
+            "reports": [_rs_report_dict(d)
+                       for d in registry.list_reports()],
+            "standings": standings,
+            "index": self.releaseshaping_index()["index"],
+            "verdict": self.releaseshaping_verdict()["verdict"],
+            "releases_text": camp_module.format_releases(
+                registry.releases()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._releaseshaping_effective_record(r.release))
+                for r in registry.list_records()),
+            "screen": self._releaseshaping_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_releaseshaping_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one release record as session news (M-269).
+
+        The agent layer's ``releaseshaping_record``,
+        ``releaseshaping_standing`` and
+        ``releaseshaping_verdict`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is granted. Each
+        record is announced at most once per telling: a
+        record under its release, its run, its date, its
+        disposition, its owner, its proof kind, its
+        walked stages and its claims, a standing under
+        its release, its held word, its stage, its grade
+        and its gaps, and a report under its book, its
+        entry, its report and its state, so a standing
+        grown by a newly held record announces again
+        as the new figure it is.
+        A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "releaseshaping_record":
+            target = ("releaseshaping_record",
+                      record.get("release"),
+                      record.get("run"),
+                      record.get("date"),
+                      record.get("disposition"),
+                      record.get("owner"),
+                      record.get("proof_kind"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "releaseshaping_standing":
+            target = ("releaseshaping_standing",
+                      record.get("release"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("grade"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "releaseshaping_verdict":
+            target = ("releaseshaping_verdict",
+                      record.get("book"),
+                      record.get("entry"),
+                      record.get("report"),
+                      record.get("state"))
+        else:
+            return
+        announced = getattr(self, "_releaseshaping_announced", None)
+        if announced is None:
+            announced = set()
+            self._releaseshaping_announced = announced
         if target in announced:
             return
         announced.add(target)
