@@ -99353,7 +99353,7 @@ class Agent:
             self._finalreport_effective_record(section),
             registry.sections())
 
-    def sections_for_disposition(self, disposition_word: Any):
+    def report_sections_for_disposition(self, disposition_word: Any):
         """The held records carrying one disposition (M-272)."""
         if disposition_word is None or not str(disposition_word).strip():
             raise ValueError(

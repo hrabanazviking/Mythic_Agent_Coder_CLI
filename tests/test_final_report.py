@@ -393,7 +393,7 @@ class TestFinalReportAgentStatus:
                      "get_finalreport_section",
                      "get_finalreport_record",
                      "finalreport_standing",
-                     "sections_for_disposition",
+                     "report_sections_for_disposition",
                      "finalreport_held",
                      "finalreport_index",
                      "finalreport_verdict",
@@ -409,7 +409,7 @@ class TestFinalReportAgentStatus:
             "finalreport_status",
             "get_finalreport_section",
             "get_finalreport_record",
-            "finalreport_standing", "sections_for_disposition",
+            "finalreport_standing", "report_sections_for_disposition",
             "finalreport_held", "finalreport_index",
             "finalreport_verdict",
             "register_finalreport_record",
@@ -437,7 +437,7 @@ class TestFinalReportAgentStatus:
         assert standing.stage == "unseen"
         assert standing.grade == "open"
         assert agent.finalreport_held() == []
-        assert agent.sections_for_disposition("PROVEN") == []
+        assert agent.report_sections_for_disposition("PROVEN") == []
         agent.finalreport_index()
         agent.finalreport_verdict()
         agent.report_finalreport()
@@ -450,7 +450,7 @@ class TestFinalReportAgentStatus:
         with pytest.raises(ValueError, match="holds no"):
             agent.get_finalreport_record("F-01")
         with pytest.raises(ValueError):
-            agent.sections_for_disposition("")
+            agent.report_sections_for_disposition("")
         agent.close()
 
 
@@ -838,7 +838,7 @@ class TestFinalReportDerivedRoads:
         assert [s["section"] for s in report["standings"]] == [
             "F-01"]
 
-    def test_sections_for_disposition_and_held_keys(self, agent):
+    def test_report_sections_for_disposition_and_held_keys(self, agent):
         agent.register_finalreport_record(_fr_record())
         agent.register_finalreport_record(
             _fr_fresh_for("F-02", work="section-2026-11-b"))
@@ -848,7 +848,7 @@ class TestFinalReportDerivedRoads:
             proof_kind="none",
             stages=["named"], claims=["assertion"]))
         assert [r.work for r in
-                agent.sections_for_disposition("PROVEN")] == [
+                agent.report_sections_for_disposition("PROVEN")] == [
             "section-2026-11-a", "section-2026-11-b"]
         assert agent.finalreport_held() == ["F-01", "F-02"]
         standing = agent.finalreport_standing(
