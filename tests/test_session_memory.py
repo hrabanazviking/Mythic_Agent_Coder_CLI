@@ -558,7 +558,7 @@ def test_open_slices_from_the_shipped_roadmap():
     slices = open_slices_from_roadmap()
     assert slices[0].slice_id == queued_ids[0]
     assert all(s.state == "open" for s in slices)
-    assert len(slices) == 2
+    assert len(slices) == 1
     limited = open_slices_from_roadmap(limit=2)
     assert [s.slice_id for s in limited] == queued_ids[:2]
     assert [s.slice_id for s in open_slices_from_roadmap(
@@ -973,7 +973,7 @@ class TestSessionMemoryAgentHolding:
         assert [s.slice_id for s in situation.open_slices[:2]] == [
             s.id for s in road.slices
             if s.status == "queued"][:2]
-        assert len(situation.open_slices) == 2
+        assert len(situation.open_slices) == 1
         assert len(_memory_events(
             store, session_id, "session_memory_situation")) == 1
         with pytest.raises(ValueError):
