@@ -354,12 +354,12 @@ def test_card_from_roadmap_slice_derives_its_column():
     banked = card_from_roadmap_slice(by_id["M-171"], position=1)
     assert banked.column == "banked"
     assert banked.title == "The TUI redesign charter"
-    queued = card_from_roadmap_slice(
-        by_id["M-272"], position=3, column="queued")
-    assert queued.column == "queued"
+    last = card_from_roadmap_slice(
+        by_id["M-272"], position=3, column="banked")
+    assert last.column == "banked"
     with pytest.raises(ValueError):
         card_from_roadmap_slice(by_id["M-272"], position=3,
-                                column="banked")
+                                column="queued")
     ghost = SimpleNamespace(
         id="M-190", part=8, title="A ghost slice",
         summary="a slice the road does not know.", status="building")
@@ -1313,18 +1313,18 @@ class TestSliceBoardAgentHolding:
         roadmap = load_roadmap()
         by_id = {item.id: item for item in roadmap.slices}
         card = card_from_roadmap_slice(by_id["M-272"], position=1)
-        assert card.column == "queued"
+        assert card.column == "banked"
         assert card.title == "Final report to Volmarr"
         with pytest.raises(ValueError):
             card_from_roadmap_slice(
-                by_id["M-272"], position=1, column="banked")
+                by_id["M-272"], position=1, column="queued")
         outcome = agent.register_slice_board_card(card)
-        assert outcome["card"]["column"] == "queued"
+        assert outcome["card"]["column"] == "banked"
         banked = card_from_roadmap_slice(by_id["M-171"], position=2)
         assert banked.column == "banked"
         agent.register_slice_board_card(banked)
         assert [c.slice_id for c in agent.slice_board_cards_in_column(
-            "banked")] == ["M-171"]
+            "banked")] == ["M-272", "M-171"]
 
     def test_register_action_is_judged_against_its_board(
             self, agent, tmp_path):
@@ -1484,7 +1484,7 @@ class TestSliceBoardAgentHolding:
         after = {item.id: item.status
                  for item in load_roadmap().slices}
         assert after == before
-        assert after["M-272"] == "queued"
+        assert after["M-272"] == "done"
 
 
 class TestSliceBoardTerminalSurface:
