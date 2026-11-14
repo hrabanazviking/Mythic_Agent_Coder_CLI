@@ -1629,7 +1629,7 @@ slices:
   part: 11
   title: Changelog that tells the truth
   summary: proven / partial / NOT PROVEN per feature family, in the release itself.
-  status: queued
+  status: done
 - id: M-269
   part: 11
   title: Version and release shaping

@@ -1364,3 +1364,10 @@ mythic_agent/agents/llm.py:94896:record_costofquality_records:method
 mythic_agent/agents/llm.py:94945:view_costofquality:method
 mythic_agent/agents/llm.py:94991:prepare_costofquality_report:method
 mythic_agent/agents/llm.py:95051:report_costofquality:method
+mythic_agent/agents/llm.py:95648:families_for_disposition:method
+mythic_agent/agents/llm.py:95762:register_truthfulchangelog_record:method
+mythic_agent/agents/llm.py:95792:register_truthfulchangelog_records:method
+mythic_agent/agents/llm.py:95822:record_truthfulchangelog_records:method
+mythic_agent/agents/llm.py:95871:view_truthfulchangelog:method
+mythic_agent/agents/llm.py:95917:prepare_truthfulchangelog_report:method
+mythic_agent/agents/llm.py:95978:report_truthfulchangelog:method
