@@ -435,8 +435,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 271
-    assert citizen["next_slice"] == "M-272"
+    assert citizen["done"] == 272
+    assert citizen["next_slice"] is None
     assert citizen["m216_title"] == "Multi-campaign hall"
     assert citizen["m216_part"] == 9
     assert citizen["m216_status"] == "done"
@@ -911,8 +911,8 @@ class TestCampaignAgentStatus:
         assert status["board"]["current_campaign"] == "campaign-bare-campaign"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 271
-        assert status["roadmap"]["next_slice"] == "M-272"
+        assert status["roadmap"]["done"] == 272
+        assert status["roadmap"]["next_slice"] is None
         assert status["roadmap"]["m216_title"] == "Multi-campaign hall"
         assert "held as data alone" in status["rule"]
         assert "campaign-bare-campaign" in status["plain_words"]

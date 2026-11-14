@@ -1392,3 +1392,10 @@ mythic_agent/agents/llm.py:98603:record_retrolessons_records:method
 mythic_agent/agents/llm.py:98652:view_retrolessons:method
 mythic_agent/agents/llm.py:98698:prepare_retrolessons_report:method
 mythic_agent/agents/llm.py:98759:report_retrolessons:method
+mythic_agent/agents/llm.py:99356:report_sections_for_disposition:method
+mythic_agent/agents/llm.py:99470:register_finalreport_record:method
+mythic_agent/agents/llm.py:99500:register_finalreport_records:method
+mythic_agent/agents/llm.py:99530:record_finalreport_records:method
+mythic_agent/agents/llm.py:99579:view_finalreport:method
+mythic_agent/agents/llm.py:99625:prepare_finalreport_report:method
+mythic_agent/agents/llm.py:99686:report_finalreport:method
