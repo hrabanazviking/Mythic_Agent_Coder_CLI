@@ -1634,7 +1634,7 @@ slices:
   part: 11
   title: Version and release shaping
   summary: the release cut on `development` per house discipline, tagged, with the evidence index.
-  status: queued
+  status: done
 - id: M-270
   part: 11
   title: The roadmap's own audit
