@@ -555,6 +555,8 @@ class CommandHandler:
                 self._handle_costofquality(args)
             elif cmd == "/truthfulchangelog":
                 self._handle_truthfulchangelog(args)
+            elif cmd == "/releaseshaping":
+                self._handle_releaseshaping(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -15743,6 +15745,120 @@ class CommandHandler:
                     "verdict_text"]
             else:
                 text = primary.truthfulchangelog_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+    def _handle_releaseshaping(self, args: str):
+        """M-269: /releaseshaping - the Release shaping as data.
+
+        ``/releaseshaping`` shows the releases held this session -
+        the public sets as registry entries: one
+        entry per set, naming the word that set
+        gives a single run and the standing of its
+        gate, beside the run records
+        held this session (no run recorded yet when
+        none is held - a run is held only when a
+        reported run rests on held evidence);
+        ``/releaseshaping releases`` shows the whole shipped
+        release registry; ``/releaseshaping release <release>``
+        shows one release's registry entry; ``/releaseshaping
+        record <release> <run>`` shows the record held
+        for one release and run; ``/releaseshaping standing
+        <release> <run>`` shows the standing derived for
+        one run - held only on a full legal walk resting
+        on held evidence, with the verdict carrying
+        model, release and date together, otherwise
+        open, naming its gaps; ``/releaseshaping verdict`` shows
+        the run verdicts held this session and
+        ``/releaseshaping verdict <release>`` shows one release's
+        verdict - a verdict is never inflated here and no
+        run is graded here on this road; ``/releaseshaping
+        index`` shows the index derived over every held
+        record; ``/releaseshaping verdict`` shows the verdict
+        derived for the session. Resolution registers and
+        publishes nothing as session news on this heading:
+        records are held only when they are given
+        through the agent's register roads, stood on the
+        book on the viewing road, or held on the book
+        roads, and every record held for the session is
+        journaled as a releaseshaping_record session record,
+        every viewed standing as a releaseshaping_standing
+        session record and every held verdict as
+        a releaseshaping_verdict session record. This heading
+        runs no test, downloads no set,
+        executes no grading test and inflates nothing here -
+        holding and telling are words only.
+        """
+        from ..core.release_shaping import (
+            format_record,
+            format_release,
+            format_releases,
+        )
+        from .llm import parse_releaseshaping_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_releaseshaping_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "releases":
+                text = format_releases(
+                    primary.releaseshaping_releases())
+            elif stance == "release":
+                text = format_release(
+                    primary.get_releaseshaping_release(target))
+            elif stance == "record":
+                text = format_record(
+                    primary.get_releaseshaping_record(target))
+            elif stance == "standing":
+                standing = primary.releaseshaping_standing(
+                    target)
+                text = (
+                    f"{target}: "
+                    f"{'held as answered' if standing.held else 'open'} "
+                    f"(stage: {standing.stage}; "
+                    f"grade: {standing.grade})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "reports":
+                verdicts = primary.releaseshaping_reports()
+                if not verdicts:
+                    text = (
+                        "Report: none held this "
+                        "session - Release reports move only as "
+                        "moves only as reports, and a report is "
+                        "never inflated here.")
+                else:
+                    text = "\n".join(
+                        f"{d.book} -> {d.entry}: report - "
+                        f"{d.report} (state: {d.state}; "
+                        "a report is never inflated here)"
+                        for d in verdicts)
+            elif stance == "report":
+                d = primary.get_releaseshaping_report(target)
+                text = (
+                    f"{d.book} -> {d.entry}: report - "
+                    f"{d.report} (state: {d.state}; "
+                    "a report is never inflated here)")
+            elif stance == "index":
+                text = primary.releaseshaping_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.releaseshaping_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.releaseshaping_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
