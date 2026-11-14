@@ -1640,7 +1640,7 @@ slices:
   title: The roadmap's own audit
   summary: every slice marked DONE with evidence, PARTIAL with its road, or NOT PROVEN with its reason
     — in this file's closing twin.
-  status: queued
+  status: done
 - id: M-271
   part: 11
   title: Retro and lessons

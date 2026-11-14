@@ -1378,3 +1378,10 @@ mythic_agent/agents/llm.py:96749:record_releaseshaping_records:method
 mythic_agent/agents/llm.py:96798:view_releaseshaping:method
 mythic_agent/agents/llm.py:96844:prepare_releaseshaping_report:method
 mythic_agent/agents/llm.py:96905:report_releaseshaping:method
+mythic_agent/agents/llm.py:97502:parts_for_disposition:method
+mythic_agent/agents/llm.py:97616:register_roadmapaudit_record:method
+mythic_agent/agents/llm.py:97646:register_roadmapaudit_records:method
+mythic_agent/agents/llm.py:97676:record_roadmapaudit_records:method
+mythic_agent/agents/llm.py:97725:view_roadmapaudit:method
+mythic_agent/agents/llm.py:97771:prepare_roadmapaudit_report:method
+mythic_agent/agents/llm.py:97832:report_roadmapaudit:method
