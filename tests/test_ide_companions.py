@@ -434,8 +434,8 @@ def test_shipped_book_judged_honestly_as_data():
     assert citizen["parts"] == 11
     assert citizen["slices"] == 272
     assert citizen["done"] == len(load_roadmap().done())
-    assert citizen["done"] == 260
-    assert citizen["next_slice"] == "M-261"
+    assert citizen["done"] == 268
+    assert citizen["next_slice"] == "M-269"
     assert citizen["m240_title"] == "IDE companions II — JetBrains and the generic road"
     assert citizen["m240_part"] == 10
     assert citizen["m240_status"] == "done"
@@ -910,8 +910,8 @@ class TestEndpointAgentStatus:
         assert status["ledger"]["current_endpoint"] == "endpoint-bare-endpoint"
         assert status["roadmap"]["slices"] == 272
         assert status["roadmap"]["parts"] == 11
-        assert status["roadmap"]["done"] == 260
-        assert status["roadmap"]["next_slice"] == "M-261"
+        assert status["roadmap"]["done"] == 268
+        assert status["roadmap"]["next_slice"] == "M-269"
         assert status["roadmap"]["m240_title"] == "IDE companions II — JetBrains and the generic road"
         assert "held as data alone" in status["rule"]
         assert "endpoint-bare-endpoint" in status["plain_words"]

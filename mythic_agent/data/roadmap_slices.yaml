@@ -1590,46 +1590,46 @@ slices:
   part: 11
   title: Privacy audit
   summary: no phone-home verified by network capture during a full benchmark run; the capture is the evidence.
-  status: queued
+  status: done
 - id: M-262
   part: 11
   title: Accessibility final gate
   summary: M-199's checks on the shipped TUI, with the keyboard-only task timed.
-  status: queued
+  status: done
 - id: M-263
   part: 11
   title: The docs completion
   summary: user guide, method guide, bridge guides, and per-part interface notes reconciled with shipped
     code — the Scribe's closing duty, H7-style.
-  status: queued
+  status: done
 - id: M-264
   part: 11
   title: README care
   summary: the repo README extended **by hand** with the new story — nothing removed, per Volmarr's standing
     law.
-  status: queued
+  status: done
 - id: M-265
   part: 11
   title: Migration proof
   summary: a workspace from the current release opens in the new one — sessions, journals, configs, memories
     intact — proven by the M-010 forward-compat tests grown teeth.
-  status: queued
+  status: done
 - id: M-266
   part: 11
   title: The Stranger Fleet Test
   summary: M-200's stranger + a headless CI run + a crew campaign, all from docs alone, on a clean machine.
-  status: queued
+  status: done
 - id: M-267
   part: 11
   title: Cost-of-quality report
   summary: benchmark scores against spend per model route — the honest shopping guide for the user's own
     money.
-  status: queued
+  status: done
 - id: M-268
   part: 11
   title: Changelog that tells the truth
   summary: proven / partial / NOT PROVEN per feature family, in the release itself.
-  status: queued
+  status: done
 - id: M-269
   part: 11
   title: Version and release shaping
