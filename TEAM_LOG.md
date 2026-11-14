@@ -2225,3 +2225,9 @@ M-247 pure layer built by keeper after stall found (no live worker at tick open)
 - Provenance: the agent-layer files were found uncommitted in team-02 at the 20:30 keeper tick (written 20:25 EST, no live worker, no suite running - a stall). The keeper verified the work itself before committing: py_compile clean on all touched files; slice solo 50 passed (25 pure + 25 agent/surface); neighbours combined 113 passed in one run (release_shaping + truthful_changelog + roadmap_slices), campaign .venv-hammer python.
 - Transform defects: none found in the verified agent layer; no assertion weakened, no prior slice code touched.
 - Owed next, in roadmap order: coordinator banking for M-269 (FF merge team-02 into the campaign repo, merged full suite, PUBLIC_API regen 13578 -> 13603 expected, OWNERSHIP regen, roadmap flip M-269 to done, ledger row, dead-code quarantine), then M-270 (Part XI gate). Banked stands 268/272; M-269 NOT banked.
+
+## M-270 Roadmap audit - agent layer DONE (2026-11-13 keeper tick, team-02)
+- Session RoadmapAuditRegistry in llm.py + /roadmapaudit (status/book/part/record/standing/index/verdict/report), handler, terminal, chat; journal-first news; derived standings/verdict; NO config delta; helper parts_for_disposition.
+- Transform: m270_agent_transform.py from M-269 blocks, 32/32 checks OK, no releaseshaping leftover. A-01 audit-truth/part-01, proof done-and-held, empty record NOT_PROVEN, report done/partial/not_proven counts over total_parts.
+- Verification: slice solo 50 passed, neighbours 150 passed, py_compile clean. Commits: pure 68483f5, agent 3a9c1a5 (team-local).
+- Owed next: banking M-270 (FF merge, full suite, PUBLIC_API 13603 -> 13628 expected, OWNERSHIP, roadmap flip, ledger, quarantine), then M-271, M-272. Banked 269/272.
