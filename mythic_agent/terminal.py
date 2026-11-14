@@ -276,7 +276,7 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
     if command in {"/quit", "/exit"}:
         return True, True, ""
     if command == "/help":
-        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /changeset [on|off] /rename [on|off|<old-path> <new-path>] /generated [on|off|<path>|mark <path> <generator>] /largefile [on|off|<path>]/largefile [on|off|<path>] /stash [show|on|off|shelve <name>|restore <name>|drop <name>] /patch [show|on|off|export <set name>|import <patch file>] /editor [show|on|off|file <path>|prompt] /diff [show|on|off|unified|side-by-side|whitespace|whitespace off] /blame [show|on|off|<path> [<line>]] /massedit [show|on|off] /posture [show|<profile name>] /remember [list|forget <id>|clear] /sandbox [show|on|off|truth|plan <command>] /network [show|on|off|list|check <tool> <host>|allow <tool> <domain>] /pathjail [show|on|off|grants|check <path>|grant <abs-path>] /plan [show|on|off|approve|build|check <effect>] /hooks [show|show <event>|check <event>] /hookpacks [show|show <pack>|install <pack>] /background [show|show <job>|tail [<job>]|kill <job>|start <command...>] /keeper [show|show <target>|check|heartbeat <target>] /schedule [show|show <job>|check] /fleet [show|show <task>|verdict|resume] /budgets [show|show <budget>|check|check <budget>] /halt [show|show <halt>|pull|pull <target>] /audit [show|show <entry>|export] /secrets [show|show <screening>|check <file>] /doctrine [show|show <judgement>|ladder|check <command>] /rollback [show|show <run>|drills|run <drill>] /multirepo [show|show <set>|repos] /remote [show|show <plan>|targets] /grace [show|show <record>|failures] /moment [show|show <record>|parts] /policy [show|plan|sections|apply] /crew [show|show <member>|office <office>] /offices [show|show <office>|handoffs <office>|contract <from> <to>] /offices custom [show|show <office>|handoffs <office>|contract <from> <to>] /worktrees [show|show <member>|plan|merges] /dealing [show|show <member>|plan|loads] /comms [show|show <member>|ask|kinds] /deadlock [show|show <member>|kinds] /merge [show|show <member>|lines|kinds] /hetero [show|show <member>|routes|kinds] /veto [show|show <slice>|gates|kinds] /swarm [show|show <member>|digest|sources|kinds] /panel [show|show <reviewer>|outcome|verdicts|kinds] /memory [show|show <member>|search <words>|tag <tag>|entry <entry-id>|members] /standup [show|digest|done|doing|blocked|needs-you|entry <entry-id>|kinds] /crewsize [show|recommend <case-id>|case <case-id>|solo|pair|crew|full-crew|kinds] /voices [show|profile <member-id>|report <report-id>|plain|warm|wry|grim|registers] /externals [show|seat <member-id>|check <member-id>|mcp|transports] /replay [show|step <step-id>|trace <step-id>] /foster [show|report <report-id>|redeal <slice-id>|escalation <report-id>] /costcourt [show|entry <entry-id>|member <member-id>|slice <slice-id>|ledger] /dogfood [show|entry <entry-id>|member <member-id>|slice <slice-id>|part <part-number>|ledger] /solo [show|capability <capability-id>|member <member-id>|report <member-id>|ledger] /templates [show|template <template>|member <member-id>|roster <template>|index] /interrupts [show|interrupt <interrupt-id>|member <member-id>|slice <slice-id>|report <interrupt-id>|index] /crewschedules [show|attachment <attachment-id>|template <template>|job <job-id>|report <attachment-id>|index] /contextbudget [show|item <item-id>|kind <kind>|meter|panel] /mentions [show|mention <mention-id>|kind <kind>|plan <mention-id>|parse <text>|index] /instructionfiles [show|entry <file-id>|origin <origin>|layer <layer>|panel] /memorymap [show|entry <entry-id>|section <section>|panel] /glassbox [show|record <record-id>|versions <record-id>|panel] /graphsearch [show|node <node-id>|seeds|panel] /daymemory [show|situation <situation-id>|memory|slices|decisions|panel] /crossmemory [show|lesson <lesson-id>|offers|accepted <project>|panel] /ledger [show|candidate <candidate-id>|decisions|standing|panel] /decisions [show|record <record-id>|adr <record-id>|accepted|panel] /forget [show|entry <entry-id>|forgotten|quarantined|panel] /recipes [show|recipe <recipe-id>|summon <recipe name>|panel] /pins [show|pin <pin-id>|kind <kind>|panel] /thrift [show|record <record-id>|road <road>|panel|costs] /endurance [show|record <record-id>|kind <kind>|panel|verdict] /multisession [show|session <session-id>|branch <branch>|panel|isolation] /handoffsummary [show|handoff <handoff-id>|session <session-ref>|panel|verdict] /memoryxport [show|package <package-id>|project <project>|panel|verdict] /subconscious [show|memory <memory-id>|layer <core|subconscious>|source <source-kind>|panel|verdict] /contradiction [show|watch <watch-id>|kind <memory-kind>|panel|verdict] /private [show|posting <posting-id>|kind <memory-kind>|home <home>|panel|verdict] /memorydoctor [show|finding <finding-id>|check <check>|store <store>|panel|verdict|repairs] /coldstart [show|record <record-id>|project <project-ref>|panel|verdict|stages] /workview [show|event <event-id>|detail [<event-id>]|kind <kind>|panel|verdict] /sliceboard [show|card <slice-id>|column <column>|action <action-id>|panel|verdict] /approvalcards [show|card <card-id>|decision <decision-id>|panel|verdict] /fuzzypicker [show|candidate <candidate-id>|search <search-id>|find <words>|kind <kind>|panel|verdict] /commandpalace [show|entry <entry-id>|browse <browse-id>|visit <words>|kind <kind>|panel|verdict] /promptcraft [show|item <item-id>|view <view-id>|project <project>|kind <kind>|panel|verdict] /statusline [show|fact <fact-id>|view <view-id>|kind <kind>|line|panel|verdict] /themesgrownup [show|theme <theme-id>|view <view-id>|mode <mode>|panel|verdict] /voiceinout [show|dictation <dictation-id>|standup <standup-id>|action <action-id>|view <view-id>|kind <kind>|panel|verdict] /manners [show|job <job-id>|channel <channel-id>|rule <rule-id>|view <view-id>|kind <kind>|panel|verdict] /skin [show|report <report-id>|approval <approval-id>|standup <standup-id>|term <term-id>|view <view-id>|kind <kind>|panel|verdict|unfold <item-id>|register] /errors [show|error <error-id>|trace <error-id>|view <view-id>|kind <kind>|panel|verdict] /onboard [show|detection <detection-id>|walk|offer <offer-id>|view <view-id>|outcome <outcome>|panel|verdict] /lessons [show|lesson <lesson-id>|play|scratch <scratch-id>|view <view-id>|readiness <readiness>|panel|verdict] /helpask [show|doc <doc-id>|ask <words>|screen <screen>|view <view-id>|standing <standing>|panel|verdict|coverage] /keymap [show|act <act-id>|key <key>|area <area>|view <view-id>|mode <mode-id>|print|panel|verdict] /mouse [show|gesture <gesture-id>|road <road>|area <area>|view <view-id>|link <link-id>|guide|panel|verdict] /gallery [show|card <card-id>|road <road>|outcome <outcome>|view <view-id>|action <action-id>|index|panel|verdict] /costs [show|line <line-id>|budget <budget>|scope <scope>|view <view-id>|warning <warning-id>|index|panel|verdict] /theatre [show|hunk <hunk-id>|target <target>|kind <kind>|view <view-id>|comment <comment-id>|index|panel|verdict] /panes [show|pane <pane-id>|target <target>|kind <kind>|layout <layout-id>|note <note-id>|index|panel|verdict] /smallterminal [show|fold <fold-id>|preserves <preserves>|kind <kind>|view <view-id>|note <note-id>|index|panel|verdict] /copyshare [show|clip <clip-id>|markdown <markdown>|kind <kind>|view <view-id>|note <note-id>|index|panel|verdict] /settingsroom [show|setting <setting-id>|meaning <meaning>|section <section>|view <view-id>|note <note-id>|index|panel|verdict] /commandpalette [show|entry <entry-id>|keywords <keywords>|kind <kind>|view <view-id>|note <note-id>|index|panel|verdict] /uiundo [show|pane <pane-id>|state <state>|kind <kind>|view <view-id>|note <note-id>|index|panel|verdict] /accessverify [show|gate <gate-id>|evidence <evidence>|kind <kind>|view <view-id>|note <note-id>|index|panel|verdict] /campaigns [show|slice <slice-id>|checks <checks>|state <state>|view <view-id>|note <note-id>|index|panel|verdict] /intent [show|intent <intent-id>|citation <citation>|project <project>|view <view-id>|note <note-id>|index|panel|verdict] /slicing [show|draft <draft-id>|outcome <outcome>|intent <intent-id>|view <view-id>|note <note-id>|index|panel|verdict] /juggernaut [show|run <run-id>|phase <phase>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /acceptance [show|audit <audit-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /banking [show|banking <banking-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /keepruntime [show|keeping <keeping-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /pauselines [show|pausing <pausing-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /questionlaw [show|questioning <questioning-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /scopesentry [show|sentry <sentry-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /mapupkeep [show|upkeep <upkeep-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /bugrule [show|bug <bug-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /retrospectives [show|retro <retro-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /patterns [show|pattern <pattern-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /estimates [show|estimate <estimate-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /hall [show|campaign <campaign-id>|check <check>|repo <repo-id>|view <view-id>|note <note-id>|index|panel|verdict] /shapes [show|template <template-id>|check <check>|kind <kind-id>|view <view-id>|note <note-id>|index|panel|verdict] /mimis [show|road <road-id>|check <check>|concordance <concordance-id>|view <view-id>|note <note-id>|index|panel|verdict] /resumes [show|resume <resume-id>|check <check>|pause <pause-id>|view <view-id>|note <note-id>|index|panel|verdict] /milestones [show|report <report-id>|check <check>|boundary <boundary-id>|view <view-id>|note <note-id>|index|panel|verdict] /log [show|entry <entry-id>|check <check>|day <day-id>|view <view-id>|note <note-id>|index|panel|verdict] /selfmod [show|change <change-id>|check <check>|tool <tool-id>|view <view-id>|note <note-id>|index|panel|verdict] /failures [show|failure <failure-id>|stage <stage>|run <run-id>|view <view-id>|note <note-id>|index|panel|verdict] /dryrun [show|rehearsal <rehearsal-id>|stage <stage>|campaign <campaign-id>|view <view-id>|note <note-id>|index|panel|verdict] /export [show|bundle <bundle-id>|stage <stage>|campaign <campaign-id>|view <view-id>|note <note-id>|index|panel|verdict] /orders [show|order <order-id>|stage <stage>|campaign <campaign-id>|view <view-id>|note <note-id>|index|panel|verdict] /workflow [show|proposal <proposal-id>|stage <stage>|campaign <campaign-id>|view <view-id>|note <note-id>|index|panel|verdict] /scaling [show|endeavour <endeavour-id>|stage <stage>|campaign <campaign-id>|view <view-id>|note <note-id>|index|panel|verdict] /course [show|lesson <lesson-id>|stage <stage>|campaign <campaign-id>|view <view-id>|note <note-id>|index|panel|verdict] /metrics [show|reading <reading-id>|stage <stage>|campaign <campaign-id>|view <view-id>|note <note-id>|index|panel|verdict] /crossapp [show|external <external-id>|stage <stage>|campaign <campaign-id>|view <view-id>|note <note-id>|index|panel|verdict] /mcpclient [show|connection <connection-id>|stage <stage>|server <server-id>|view <view-id>|note <note-id>|index|panel|verdict] /mcpregistry [show|listing <listing-id>|stage <stage>|entry <entry-id>|view <view-id>|note <note-id>|index|panel|verdict] /skillsstandard [show|pack <pack-id>|stage <stage>|skill <skill-id>|view <view-id>|note <note-id>|index|panel|verdict] /customcommands [show|template <template-id>|stage <stage>|command <command-id>|view <view-id>|note <note-id>|index|panel|verdict] /pluginbundles [show|bundle <bundle-id>|stage <stage>|plugin <plugin-id>|view <view-id>|note <note-id>|index|panel|verdict] /vscodecompanions [show|companion <companion-id>|stage <stage>|editor <editor-id>|view <view-id>|note <note-id>|index|panel|verdict] /idecompanions [show|endpoint <endpoint-id>|stage <stage>|host <host-id>|view <view-id>|note <note-id>|index|panel|verdict] /rivalimporters [show|importer <importer-id>|stage <stage>|source <source-id>|view <view-id>|note <note-id>|index|panel|verdict] /samverkbridge [show|exchange <exchange-id>|stage <stage>|repo <repo-id>|view <view-id>|note <note-id>|index|panel|verdict] /samtalbridge [show|dispatch <dispatch-id>|stage <stage>|hall <hall-id>|view <view-id>|note <note-id>|index|panel|verdict] /kistakeykeeper [show|resolution <resolution-id>|stage <stage>|bridge <bridge-id>|view <view-id>|note <note-id>|index|panel|verdict] /aesirdeepening [show|report|selections|selection <office>|ask <office>|index|verdict] /githostparity [show|hosts|host <host>|record <host>|standing <host>|index|verdict] /cibridges [show|providers|provider <provider>|record <provider> <workflow>|standing <provider> <workflow>|draft [<provider> <workflow>]|index|verdict] /issuetrackers [show|trackers|tracker <tracker>|record <tracker> <issue>|standing <tracker> <issue>|draft [<tracker> <issue>]|index|verdict] /wyrdseam [show|sources|source <source>|snapshot <source> <node>|standing <source> <node>|advice [<campaign>]|index|verdict] /webhookdoors [show|sources|source <source>|event <source> <event>|standing <source> <event>|propose [<campaign>]|index|verdict] /exporteverything [show|kinds|kind <kind>|record <kind> <record>|standing <kind> <record>|prepare [<bundle>]|index|verdict] /docsmcp [show|projects|project <project>|record <project> <record>|standing <project> <record>|propose [<bridge>]|index|verdict] /bridgeaudit [show|bridges|bridge <bridge>|record <bridge> <record>|standing <bridge> <record>|report [<bridge>]|index|verdict] /benchmarkharness [show|kinds|kind <kind>|record <kind> <run>|standing <kind> <run>|report [<kind>]|index|verdict] /publishedyardstick [show|yardsticks|yardstick <yardstick>|record <yardstick> <run>|standing <yardstick> <run>|report [<yardstick>]|index|verdict] /regressioncourt [show|parts|part <part>|record <part> <run>|standing <part> <run>|draft [<battery>]|index|verdict] /performancebudgets [show|measures|measure <measure>|record <measure> <machine>|standing <measure> <machine>|report [<book>]|index|verdict] /platformmatrixfinal [show|cells|cell <cell>|record <cell>|standing <cell>|report [<book>]|index|verdict] /securityaudit [show|areas|area <area>|record <area>|standing <area>|report [<book>]|index|verdict] /mcpserver [show|exposure <exposure-id>|stage <stage>|service <service-id>|view <view-id>|note <note-id>|index|panel|verdict] /ceremony [show|moment <moment-id>|alternative <alternative>|kind <kind>|view <view-id>|note <note-id>|index|panel|verdict] /issueslice [on|off|github <number>] /prcraft [on|off|tasks <pr>] /commitcraft [on|off|plan|commit <concern>|push] /guardians [word on|word off|check <path>] /autocommit [on|off|allow-protected|block-protected] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
+        return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /changeset [on|off] /rename [on|off|<old-path> <new-path>] /generated [on|off|<path>|mark <path> <generator>] /largefile [on|off|<path>]/largefile [on|off|<path>] /stash [show|on|off|shelve <name>|restore <name>|drop <name>] /patch [show|on|off|export <set name>|import <patch file>] /editor [show|on|off|file <path>|prompt] /diff [show|on|off|unified|side-by-side|whitespace|whitespace off] /blame [show|on|off|<path> [<line>]] /massedit [show|on|off] /posture [show|<profile name>] /remember [list|forget <id>|clear] /sandbox [show|on|off|truth|plan <command>] /network [show|on|off|list|check <tool> <host>|allow <tool> <domain>] /pathjail [show|on|off|grants|check <path>|grant <abs-path>] /plan [show|on|off|approve|build|check <effect>] /hooks [show|show <event>|check <event>] /hookpacks [show|show <pack>|install <pack>] /background [show|show <job>|tail [<job>]|kill <job>|start <command...>] /keeper [show|show <target>|check|heartbeat <target>] /schedule [show|show <job>|check] /fleet [show|show <task>|verdict|resume] /budgets [show|show <budget>|check|check <budget>] /halt [show|show <halt>|pull|pull <target>] /audit [show|show <entry>|export] /secrets [show|show <screening>|check <file>] /doctrine [show|show <judgement>|ladder|check <command>] /rollback [show|show <run>|drills|run <drill>] /multirepo [show|show <set>|repos] /remote [show|show <plan>|targets] /grace [show|show <record>|failures] /moment [show|show <record>|parts] /policy [show|plan|sections|apply] /crew [show|show <member>|office <office>] /offices [show|show <office>|handoffs <office>|contract <from> <to>] /offices custom [show|show <office>|handoffs <office>|contract <from> <to>] /worktrees [show|show <member>|plan|merges] /dealing [show|show <member>|plan|loads] /comms [show|show <member>|ask|kinds] /deadlock [show|show <member>|kinds] /merge [show|show <member>|lines|kinds] /hetero [show|show <member>|routes|kinds] /veto [show|show <slice>|gates|kinds] /swarm [show|show <member>|digest|sources|kinds] /panel [show|show <reviewer>|outcome|verdicts|kinds] /memory [show|show <member>|search <words>|tag <tag>|entry <entry-id>|members] /standup [show|digest|done|doing|blocked|needs-you|entry <entry-id>|kinds] /crewsize [show|recommend <case-id>|case <case-id>|solo|pair|crew|full-crew|kinds] /voices [show|profile <member-id>|report <report-id>|plain|warm|wry|grim|registers] /externals [show|seat <member-id>|check <member-id>|mcp|transports] /replay [show|step <step-id>|trace <step-id>] /foster [show|report <report-id>|redeal <slice-id>|escalation <report-id>] /costcourt [show|entry <entry-id>|member <member-id>|slice <slice-id>|ledger] /dogfood [show|entry <entry-id>|member <member-id>|slice <slice-id>|part <part-number>|ledger] /solo [show|capability <capability-id>|member <member-id>|report <member-id>|ledger] /templates [show|template <template>|member <member-id>|roster <template>|index] /interrupts [show|interrupt <interrupt-id>|member <member-id>|slice <slice-id>|report <interrupt-id>|index] /crewschedules [show|attachment <attachment-id>|template <template>|job <job-id>|report <attachment-id>|index] /contextbudget [show|item <item-id>|kind <kind>|meter|panel] /mentions [show|mention <mention-id>|kind <kind>|plan <mention-id>|parse <text>|index] /instructionfiles [show|entry <file-id>|origin <origin>|layer <layer>|panel] /memorymap [show|entry <entry-id>|section <section>|panel] /glassbox [show|record <record-id>|versions <record-id>|panel] /graphsearch [show|node <node-id>|seeds|panel] /daymemory [show|situation <situation-id>|memory|slices|decisions|panel] /crossmemory [show|lesson <lesson-id>|offers|accepted <project>|panel] /ledger [show|candidate <candidate-id>|decisions|standing|panel] /decisions [show|record <record-id>|adr <record-id>|accepted|panel] /forget [show|entry <entry-id>|forgotten|quarantined|panel] /recipes [show|recipe <recipe-id>|summon <recipe name>|panel] /pins [show|pin <pin-id>|kind <kind>|panel] /thrift [show|record <record-id>|road <road>|panel|costs] /endurance [show|record <record-id>|kind <kind>|panel|verdict] /multisession [show|session <session-id>|branch <branch>|panel|isolation] /handoffsummary [show|handoff <handoff-id>|session <session-ref>|panel|verdict] /memoryxport [show|package <package-id>|project <project>|panel|verdict] /subconscious [show|memory <memory-id>|layer <core|subconscious>|source <source-kind>|panel|verdict] /contradiction [show|watch <watch-id>|kind <memory-kind>|panel|verdict] /private [show|posting <posting-id>|kind <memory-kind>|home <home>|panel|verdict] /memorydoctor [show|finding <finding-id>|check <check>|store <store>|panel|verdict|repairs] /coldstart [show|record <record-id>|project <project-ref>|panel|verdict|stages] /workview [show|event <event-id>|detail [<event-id>]|kind <kind>|panel|verdict] /sliceboard [show|card <slice-id>|column <column>|action <action-id>|panel|verdict] /approvalcards [show|card <card-id>|decision <decision-id>|panel|verdict] /fuzzypicker [show|candidate <candidate-id>|search <search-id>|find <words>|kind <kind>|panel|verdict] /commandpalace [show|entry <entry-id>|browse <browse-id>|visit <words>|kind <kind>|panel|verdict] /promptcraft [show|item <item-id>|view <view-id>|project <project>|kind <kind>|panel|verdict] /statusline [show|fact <fact-id>|view <view-id>|kind <kind>|line|panel|verdict] /themesgrownup [show|theme <theme-id>|view <view-id>|mode <mode>|panel|verdict] /voiceinout [show|dictation <dictation-id>|standup <standup-id>|action <action-id>|view <view-id>|kind <kind>|panel|verdict] /manners [show|job <job-id>|channel <channel-id>|rule <rule-id>|view <view-id>|kind <kind>|panel|verdict] /skin [show|report <report-id>|approval <approval-id>|standup <standup-id>|term <term-id>|view <view-id>|kind <kind>|panel|verdict|unfold <item-id>|register] /errors [show|error <error-id>|trace <error-id>|view <view-id>|kind <kind>|panel|verdict] /onboard [show|detection <detection-id>|walk|offer <offer-id>|view <view-id>|outcome <outcome>|panel|verdict] /lessons [show|lesson <lesson-id>|play|scratch <scratch-id>|view <view-id>|readiness <readiness>|panel|verdict] /helpask [show|doc <doc-id>|ask <words>|screen <screen>|view <view-id>|standing <standing>|panel|verdict|coverage] /keymap [show|act <act-id>|key <key>|area <area>|view <view-id>|mode <mode-id>|print|panel|verdict] /mouse [show|gesture <gesture-id>|road <road>|area <area>|view <view-id>|link <link-id>|guide|panel|verdict] /gallery [show|card <card-id>|road <road>|outcome <outcome>|view <view-id>|action <action-id>|index|panel|verdict] /costs [show|line <line-id>|budget <budget>|scope <scope>|view <view-id>|warning <warning-id>|index|panel|verdict] /theatre [show|hunk <hunk-id>|target <target>|kind <kind>|view <view-id>|comment <comment-id>|index|panel|verdict] /panes [show|pane <pane-id>|target <target>|kind <kind>|layout <layout-id>|note <note-id>|index|panel|verdict] /smallterminal [show|fold <fold-id>|preserves <preserves>|kind <kind>|view <view-id>|note <note-id>|index|panel|verdict] /copyshare [show|clip <clip-id>|markdown <markdown>|kind <kind>|view <view-id>|note <note-id>|index|panel|verdict] /settingsroom [show|setting <setting-id>|meaning <meaning>|section <section>|view <view-id>|note <note-id>|index|panel|verdict] /commandpalette [show|entry <entry-id>|keywords <keywords>|kind <kind>|view <view-id>|note <note-id>|index|panel|verdict] /uiundo [show|pane <pane-id>|state <state>|kind <kind>|view <view-id>|note <note-id>|index|panel|verdict] /accessverify [show|gate <gate-id>|evidence <evidence>|kind <kind>|view <view-id>|note <note-id>|index|panel|verdict] /campaigns [show|slice <slice-id>|checks <checks>|state <state>|view <view-id>|note <note-id>|index|panel|verdict] /intent [show|intent <intent-id>|citation <citation>|project <project>|view <view-id>|note <note-id>|index|panel|verdict] /slicing [show|draft <draft-id>|outcome <outcome>|intent <intent-id>|view <view-id>|note <note-id>|index|panel|verdict] /juggernaut [show|run <run-id>|phase <phase>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /acceptance [show|audit <audit-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /banking [show|banking <banking-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /keepruntime [show|keeping <keeping-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /pauselines [show|pausing <pausing-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /questionlaw [show|questioning <questioning-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /scopesentry [show|sentry <sentry-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /mapupkeep [show|upkeep <upkeep-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /bugrule [show|bug <bug-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /retrospectives [show|retro <retro-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /patterns [show|pattern <pattern-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /estimates [show|estimate <estimate-id>|check <check>|slice <slice-id>|view <view-id>|note <note-id>|index|panel|verdict] /hall [show|campaign <campaign-id>|check <check>|repo <repo-id>|view <view-id>|note <note-id>|index|panel|verdict] /shapes [show|template <template-id>|check <check>|kind <kind-id>|view <view-id>|note <note-id>|index|panel|verdict] /mimis [show|road <road-id>|check <check>|concordance <concordance-id>|view <view-id>|note <note-id>|index|panel|verdict] /resumes [show|resume <resume-id>|check <check>|pause <pause-id>|view <view-id>|note <note-id>|index|panel|verdict] /milestones [show|report <report-id>|check <check>|boundary <boundary-id>|view <view-id>|note <note-id>|index|panel|verdict] /log [show|entry <entry-id>|check <check>|day <day-id>|view <view-id>|note <note-id>|index|panel|verdict] /selfmod [show|change <change-id>|check <check>|tool <tool-id>|view <view-id>|note <note-id>|index|panel|verdict] /failures [show|failure <failure-id>|stage <stage>|run <run-id>|view <view-id>|note <note-id>|index|panel|verdict] /dryrun [show|rehearsal <rehearsal-id>|stage <stage>|campaign <campaign-id>|view <view-id>|note <note-id>|index|panel|verdict] /export [show|bundle <bundle-id>|stage <stage>|campaign <campaign-id>|view <view-id>|note <note-id>|index|panel|verdict] /orders [show|order <order-id>|stage <stage>|campaign <campaign-id>|view <view-id>|note <note-id>|index|panel|verdict] /workflow [show|proposal <proposal-id>|stage <stage>|campaign <campaign-id>|view <view-id>|note <note-id>|index|panel|verdict] /scaling [show|endeavour <endeavour-id>|stage <stage>|campaign <campaign-id>|view <view-id>|note <note-id>|index|panel|verdict] /course [show|lesson <lesson-id>|stage <stage>|campaign <campaign-id>|view <view-id>|note <note-id>|index|panel|verdict] /metrics [show|reading <reading-id>|stage <stage>|campaign <campaign-id>|view <view-id>|note <note-id>|index|panel|verdict] /crossapp [show|external <external-id>|stage <stage>|campaign <campaign-id>|view <view-id>|note <note-id>|index|panel|verdict] /mcpclient [show|connection <connection-id>|stage <stage>|server <server-id>|view <view-id>|note <note-id>|index|panel|verdict] /mcpregistry [show|listing <listing-id>|stage <stage>|entry <entry-id>|view <view-id>|note <note-id>|index|panel|verdict] /skillsstandard [show|pack <pack-id>|stage <stage>|skill <skill-id>|view <view-id>|note <note-id>|index|panel|verdict] /customcommands [show|template <template-id>|stage <stage>|command <command-id>|view <view-id>|note <note-id>|index|panel|verdict] /pluginbundles [show|bundle <bundle-id>|stage <stage>|plugin <plugin-id>|view <view-id>|note <note-id>|index|panel|verdict] /vscodecompanions [show|companion <companion-id>|stage <stage>|editor <editor-id>|view <view-id>|note <note-id>|index|panel|verdict] /idecompanions [show|endpoint <endpoint-id>|stage <stage>|host <host-id>|view <view-id>|note <note-id>|index|panel|verdict] /rivalimporters [show|importer <importer-id>|stage <stage>|source <source-id>|view <view-id>|note <note-id>|index|panel|verdict] /samverkbridge [show|exchange <exchange-id>|stage <stage>|repo <repo-id>|view <view-id>|note <note-id>|index|panel|verdict] /samtalbridge [show|dispatch <dispatch-id>|stage <stage>|hall <hall-id>|view <view-id>|note <note-id>|index|panel|verdict] /kistakeykeeper [show|resolution <resolution-id>|stage <stage>|bridge <bridge-id>|view <view-id>|note <note-id>|index|panel|verdict] /aesirdeepening [show|report|selections|selection <office>|ask <office>|index|verdict] /githostparity [show|hosts|host <host>|record <host>|standing <host>|index|verdict] /cibridges [show|providers|provider <provider>|record <provider> <workflow>|standing <provider> <workflow>|draft [<provider> <workflow>]|index|verdict] /issuetrackers [show|trackers|tracker <tracker>|record <tracker> <issue>|standing <tracker> <issue>|draft [<tracker> <issue>]|index|verdict] /wyrdseam [show|sources|source <source>|snapshot <source> <node>|standing <source> <node>|advice [<campaign>]|index|verdict] /webhookdoors [show|sources|source <source>|event <source> <event>|standing <source> <event>|propose [<campaign>]|index|verdict] /exporteverything [show|kinds|kind <kind>|record <kind> <record>|standing <kind> <record>|prepare [<bundle>]|index|verdict] /docsmcp [show|projects|project <project>|record <project> <record>|standing <project> <record>|propose [<bridge>]|index|verdict] /bridgeaudit [show|bridges|bridge <bridge>|record <bridge> <record>|standing <bridge> <record>|report [<bridge>]|index|verdict] /benchmarkharness [show|kinds|kind <kind>|record <kind> <run>|standing <kind> <run>|report [<kind>]|index|verdict] /publishedyardstick [show|yardsticks|yardstick <yardstick>|record <yardstick> <run>|standing <yardstick> <run>|report [<yardstick>]|index|verdict] /regressioncourt [show|parts|part <part>|record <part> <run>|standing <part> <run>|draft [<battery>]|index|verdict] /performancebudgets [show|measures|measure <measure>|record <measure> <machine>|standing <measure> <machine>|report [<book>]|index|verdict] /platformmatrixfinal [show|cells|cell <cell>|record <cell>|standing <cell>|report [<book>]|index|verdict] /securityaudit [show|areas|area <area>|record <area>|standing <area>|report [<book>]|index|verdict] /privacyaudit [show|surfaces|surface <surface>|record <surface>|standing <surface>|report [<book>]|index|verdict] /accessibilityfinal [show|checks|check <check>|record <check>|standing <check>|report [<book>]|index|verdict] /docscompletion [show|guides|guide <guide>|record <guide>|standing <guide>|report [<book>]|index|verdict] /readmecare [show|sections|section <section>|record <section>|standing <section>|report [<book>]|index|verdict] /migrationproof [show|areas|area <area>|record <area>|standing <area>|report [<book>]|index|verdict] /strangerfleettest [show|exercises|exercise <exercise>|record <exercise>|standing <exercise>|report [<book>]|index|verdict] /costofquality [show|routes|route <route>|record <route>|standing <route>|report [<book>]|index|verdict] /truthfulchangelog [show|families|family <family>|record <family>|standing <family>|report [<book>]|index|verdict] /mcpserver [show|exposure <exposure-id>|stage <stage>|service <service-id>|view <view-id>|note <note-id>|index|panel|verdict] /ceremony [show|moment <moment-id>|alternative <alternative>|kind <kind>|view <view-id>|note <note-id>|index|panel|verdict] /issueslice [on|off|github <number>] /prcraft [on|off|tasks <pr>] /commitcraft [on|off|plan|commit <concern>|push] /guardians [word on|word off|check <path>] /autocommit [on|off|allow-protected|block-protected] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
         return True, False, "/help /clear /compact /model <name> [url] /route [office] /fallback [on|off|add|clear] /costroute [on|off|<task-class>] /editformat [auto|<format>|<task-kind>] /hashanchor [on|off] /repairloop [on|off] /hunkreview [on|off] /issueslice [on|off|github <number>] /prcraft [on|off|tasks <pr>] /checkpoint [take <name>|restore <name> [discard]|on|off] /branch [on|off|fork <index> [name]|list|compare <id> <id>] /kista [adopt] /resume-thought [show] /retry [show] /vision [show|switch] /longcontext [show|<model>] /offline [show] /testkit <provider> [url] /map [task|show <path>|pin <path>|unpin <path>|pins] /ssearch <language> <pattern> /srewrite [apply] <language> <pattern> => <replacement> /lsp [show|check <path>|def <path> <line> <col>|refs <path> <line> <col>|hover <path> <line> <col>|symbols [query]] /truth <path> /format <path> [apply] /status /session /add <path> /stop /undo [list|edit|command|checkpoint <id>|<count>|on|off] /quit"
     if command == "/clear":
         agent._handle_clear_history(agent.name)
@@ -7826,6 +7826,606 @@ def _slash(agent: Agent, line: str) -> tuple[bool, bool, str]:
         if _act == "verdict":
             return True, False, agent.securityaudit_verdict()["verdict_text"]
         return True, False, agent.securityaudit_status()["screen"]
+
+    if command == "/privacyaudit":
+        # M-261 terminal road: show the privacy audit held
+        # this session - the public sets as
+        # registry entries: one entry per set, naming
+        # the word that set gives a single run and the
+        # standing of its gate,
+        # beside the run records held this session
+        # (no run recorded when none is held) - show
+        # the whole shipped registry, one surface's entry,
+        # the record held for one surface and run, the
+        # standing derived for one run, the run
+        # verdict held, the index derived over every held
+        # record, or the verdict derived for the
+        # session, on the agent-layer parser + the pure
+        # formatters. This road runs no benchmark,
+        # downloads no set, executes no grading test, inflates
+        # no result, probes no network and persists
+        # nothing - holding and telling are words only.
+        from .core.privacy_audit import format_surface as _fmt_rcpart, format_surfaces as _fmt_rcparts, format_record as _fmt_rcrec
+        from .agents.llm import parse_privacyaudit_args as _parse_rc
+        try:
+            _act, _tgt, _needs, _model = _parse_rc(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "surfaces":
+            return True, False, _fmt_rcparts(agent.privacyaudit_surfaces())
+        if _act == "surface":
+            try:
+                _entry = agent.get_privacyaudit_surface(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_rcpart(_entry)
+        if _act == "record":
+            try:
+                _rec = agent.get_privacyaudit_record(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_rcrec(_rec)
+        if _act == "standing":
+            try:
+                _standing = agent.privacyaudit_standing(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            _text = (f"{_tgt}: run "
+                     f"{'held as answered' if _standing.held else 'open'} "
+                     f"(stage: {_standing.stage}; "
+                     f"grade: {_standing.grade})")
+            for _gap in _standing.gaps:
+                _text += f"\n  gap: {_gap}"
+            return True, False, _text
+        if _act == "reports":
+            _reports = agent.privacyaudit_reports()
+            if not _reports:
+                return True, False, ("Run verdict: none held this "
+                                     "session - the surfaces verdict run "
+                                     "moves only as verdicts, and a verdict is "
+                                     "never inflated here.")
+            return True, False, "\n".join(
+                f"{_d.book} -> {_d.entry}: verdict - {_d.report} "
+                f"(state: {_d.state}; verdict is never inflated here)"
+                for _d in _reports)
+        if _act == "report":
+            try:
+                _d = agent.get_privacyaudit_report(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, (
+                f"{_d.book} -> {_d.entry}: verdict - {_d.report} "
+                f"(state: {_d.state}; verdict is never inflated here)")
+        if _act == "index":
+            return True, False, agent.privacyaudit_index()["index_text"]
+        if _act == "verdict":
+            return True, False, agent.privacyaudit_verdict()["verdict_text"]
+        return True, False, agent.privacyaudit_status()["screen"]
+
+    if command == "/accessibilityfinal":
+        # M-262 terminal road: show the accessibility final gate held
+        # this session - the public sets as
+        # registry entries: one entry per set, naming
+        # the word that set gives a single run and the
+        # standing of its gate,
+        # beside the run records held this session
+        # (no run recorded when none is held) - show
+        # the whole shipped registry, one check's entry,
+        # the record held for one check and run, the
+        # standing derived for one run, the run
+        # verdict held, the index derived over every held
+        # record, or the verdict derived for the
+        # session, on the agent-layer parser + the pure
+        # formatters. This road runs no benchmark,
+        # downloads no set, executes no grading test, inflates
+        # no result, probes no network and persists
+        # nothing - holding and telling are words only.
+        from .core.accessibility_final import format_check as _fmt_rcpart, format_checks as _fmt_rcparts, format_record as _fmt_rcrec
+        from .agents.llm import parse_accessibilityfinal_args as _parse_rc
+        try:
+            _act, _tgt, _needs, _model = _parse_rc(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "checks":
+            return True, False, _fmt_rcparts(agent.accessibilityfinal_checks())
+        if _act == "check":
+            try:
+                _entry = agent.get_accessibilityfinal_check(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_rcpart(_entry)
+        if _act == "record":
+            try:
+                _rec = agent.get_accessibilityfinal_record(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_rcrec(_rec)
+        if _act == "standing":
+            try:
+                _standing = agent.accessibilityfinal_standing(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            _text = (f"{_tgt}: run "
+                     f"{'held as answered' if _standing.held else 'open'} "
+                     f"(stage: {_standing.stage}; "
+                     f"grade: {_standing.grade})")
+            for _gap in _standing.gaps:
+                _text += f"\n  gap: {_gap}"
+            return True, False, _text
+        if _act == "reports":
+            _reports = agent.accessibilityfinal_reports()
+            if not _reports:
+                return True, False, ("Run verdict: none held this "
+                                     "session - the checks verdict run "
+                                     "moves only as verdicts, and a verdict is "
+                                     "never inflated here.")
+            return True, False, "\n".join(
+                f"{_d.book} -> {_d.entry}: verdict - {_d.report} "
+                f"(state: {_d.state}; verdict is never inflated here)"
+                for _d in _reports)
+        if _act == "report":
+            try:
+                _d = agent.get_accessibilityfinal_report(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, (
+                f"{_d.book} -> {_d.entry}: verdict - {_d.report} "
+                f"(state: {_d.state}; verdict is never inflated here)")
+        if _act == "index":
+            return True, False, agent.accessibilityfinal_index()["index_text"]
+        if _act == "verdict":
+            return True, False, agent.accessibilityfinal_verdict()["verdict_text"]
+        return True, False, agent.accessibilityfinal_status()["screen"]
+
+    if command == "/docscompletion":
+        # M-263 terminal road: show the docs completion held
+        # this session - the public sets as
+        # registry entries: one entry per set, naming
+        # the word that set gives a single run and the
+        # standing of its gate,
+        # beside the run records held this session
+        # (no run recorded when none is held) - show
+        # the whole shipped registry, one guide's entry,
+        # the record held for one guide and run, the
+        # standing derived for one run, the run
+        # verdict held, the index derived over every held
+        # record, or the verdict derived for the
+        # session, on the agent-layer parser + the pure
+        # formatters. This road runs no benchmark,
+        # downloads no set, executes no grading test, inflates
+        # no result, probes no network and persists
+        # nothing - holding and telling are words only.
+        from .core.docs_completion import format_guide as _fmt_rcpart, format_guides as _fmt_rcparts, format_record as _fmt_rcrec
+        from .agents.llm import parse_docscompletion_args as _parse_rc
+        try:
+            _act, _tgt, _needs, _model = _parse_rc(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "guides":
+            return True, False, _fmt_rcparts(agent.docscompletion_guides())
+        if _act == "guide":
+            try:
+                _entry = agent.get_docscompletion_guide(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_rcpart(_entry)
+        if _act == "record":
+            try:
+                _rec = agent.get_docscompletion_record(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_rcrec(_rec)
+        if _act == "standing":
+            try:
+                _standing = agent.docscompletion_standing(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            _text = (f"{_tgt}: run "
+                     f"{'held as answered' if _standing.held else 'open'} "
+                     f"(stage: {_standing.stage}; "
+                     f"grade: {_standing.grade})")
+            for _gap in _standing.gaps:
+                _text += f"\n  gap: {_gap}"
+            return True, False, _text
+        if _act == "reports":
+            _reports = agent.docscompletion_reports()
+            if not _reports:
+                return True, False, ("Run verdict: none held this "
+                                     "session - the guides verdict run "
+                                     "moves only as verdicts, and a verdict is "
+                                     "never inflated here.")
+            return True, False, "\n".join(
+                f"{_d.book} -> {_d.entry}: verdict - {_d.report} "
+                f"(state: {_d.state}; verdict is never inflated here)"
+                for _d in _reports)
+        if _act == "report":
+            try:
+                _d = agent.get_docscompletion_report(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, (
+                f"{_d.book} -> {_d.entry}: verdict - {_d.report} "
+                f"(state: {_d.state}; verdict is never inflated here)")
+        if _act == "index":
+            return True, False, agent.docscompletion_index()["index_text"]
+        if _act == "verdict":
+            return True, False, agent.docscompletion_verdict()["verdict_text"]
+        return True, False, agent.docscompletion_status()["screen"]
+
+    if command == "/readmecare":
+        # M-264 terminal road: show the README care held
+        # this session - the public sets as
+        # registry entries: one entry per set, naming
+        # the word that set gives a single run and the
+        # standing of its gate,
+        # beside the run records held this session
+        # (no run recorded when none is held) - show
+        # the whole shipped registry, one section's entry,
+        # the record held for one section and run, the
+        # standing derived for one run, the run
+        # verdict held, the index derived over every held
+        # record, or the verdict derived for the
+        # session, on the agent-layer parser + the pure
+        # formatters. This road runs no benchmark,
+        # downloads no set, executes no grading test, inflates
+        # no result, probes no network and persists
+        # nothing - holding and telling are words only.
+        from .core.readme_care import format_section as _fmt_rmpart, format_sections as _fmt_rmparts, format_record as _fmt_rmrec
+        from .agents.llm import parse_readmecare_args as _parse_rm
+        try:
+            _act, _tgt, _needs, _model = _parse_rm(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "sections":
+            return True, False, _fmt_rmparts(agent.readmecare_sections())
+        if _act == "section":
+            try:
+                _entry = agent.get_readmecare_section(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_rmpart(_entry)
+        if _act == "record":
+            try:
+                _rec = agent.get_readmecare_record(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_rmrec(_rec)
+        if _act == "standing":
+            try:
+                _standing = agent.readmecare_standing(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            _text = (f"{_tgt}: run "
+                     f"{'held as answered' if _standing.held else 'open'} "
+                     f"(stage: {_standing.stage}; "
+                     f"grade: {_standing.grade})")
+            for _gap in _standing.gaps:
+                _text += f"\n  gap: {_gap}"
+            return True, False, _text
+        if _act == "reports":
+            _reports = agent.readmecare_reports()
+            if not _reports:
+                return True, False, ("Report: none held this "
+                                     "session - README reports move only as "
+                                     "moves only as reports, and a report is "
+                                     "never inflated here.")
+            return True, False, "\n".join(
+                f"{_d.book} -> {_d.entry}: report - {_d.report} "
+                f"(state: {_d.state}; a report is never inflated here)"
+                for _d in _reports)
+        if _act == "report":
+            try:
+                _d = agent.get_readmecare_report(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, (
+                f"{_d.book} -> {_d.entry}: report - {_d.report} "
+                f"(state: {_d.state}; a report is never inflated here)")
+        if _act == "index":
+            return True, False, agent.readmecare_index()["index_text"]
+        if _act == "verdict":
+            return True, False, agent.readmecare_verdict()["verdict_text"]
+        return True, False, agent.readmecare_status()["screen"]
+
+    if command == "/migrationproof":
+        # M-265 terminal road: show the Migration proof held
+        # this session - the public sets as
+        # registry entries: one entry per set, naming
+        # the word that set gives a single run and the
+        # standing of its gate,
+        # beside the run records held this session
+        # (no run recorded when none is held) - show
+        # the whole shipped registry, one area's entry,
+        # the record held for one area and run, the
+        # standing derived for one run, the run
+        # verdict held, the index derived over every held
+        # record, or the verdict derived for the
+        # session, on the agent-layer parser + the pure
+        # formatters. This road runs no benchmark,
+        # downloads no set, executes no grading test, inflates
+        # no result, probes no network and persists
+        # nothing - holding and telling are words only.
+        from .core.migration_proof import format_area as _fmt_mppart, format_areas as _fmt_mpparts, format_record as _fmt_mprec
+        from .agents.llm import parse_migrationproof_args as _parse_mp
+        try:
+            _act, _tgt, _needs, _model = _parse_mp(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "areas":
+            return True, False, _fmt_mpparts(agent.migrationproof_areas())
+        if _act == "area":
+            try:
+                _entry = agent.get_migrationproof_area(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_mppart(_entry)
+        if _act == "record":
+            try:
+                _rec = agent.get_migrationproof_record(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_mprec(_rec)
+        if _act == "standing":
+            try:
+                _standing = agent.migrationproof_standing(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            _text = (f"{_tgt}: run "
+                     f"{'held as answered' if _standing.held else 'open'} "
+                     f"(stage: {_standing.stage}; "
+                     f"grade: {_standing.grade})")
+            for _gap in _standing.gaps:
+                _text += f"\n  gap: {_gap}"
+            return True, False, _text
+        if _act == "reports":
+            _reports = agent.migrationproof_reports()
+            if not _reports:
+                return True, False, ("Report: none held this "
+                                     "session - Migration reports move only as "
+                                     "moves only as reports, and a report is "
+                                     "never inflated here.")
+            return True, False, "\n".join(
+                f"{_d.book} -> {_d.entry}: report - {_d.report} "
+                f"(state: {_d.state}; a report is never inflated here)"
+                for _d in _reports)
+        if _act == "report":
+            try:
+                _d = agent.get_migrationproof_report(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, (
+                f"{_d.book} -> {_d.entry}: report - {_d.report} "
+                f"(state: {_d.state}; a report is never inflated here)")
+        if _act == "index":
+            return True, False, agent.migrationproof_index()["index_text"]
+        if _act == "verdict":
+            return True, False, agent.migrationproof_verdict()["verdict_text"]
+        return True, False, agent.migrationproof_status()["screen"]
+
+    if command == "/strangerfleettest":
+        # M-266 terminal road: show the Stranger fleet test held
+        # this session - the public sets as
+        # registry entries: one entry per set, naming
+        # the word that set gives a single run and the
+        # standing of its gate,
+        # beside the run records held this session
+        # (no run recorded when none is held) - show
+        # the whole shipped registry, one exercise's entry,
+        # the record held for one exercise and run, the
+        # standing derived for one run, the run
+        # verdict held, the index derived over every held
+        # record, or the verdict derived for the
+        # session, on the agent-layer parser + the pure
+        # formatters. This road runs no benchmark,
+        # downloads no set, executes no grading test, inflates
+        # no result, probes no network and persists
+        # nothing - holding and telling are words only.
+        from .core.stranger_fleet_test import format_exercise as _fmt_sfpart, format_exercises as _fmt_sfparts, format_record as _fmt_sfrec
+        from .agents.llm import parse_strangerfleettest_args as _parse_sf
+        try:
+            _act, _tgt, _needs, _model = _parse_sf(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "exercises":
+            return True, False, _fmt_sfparts(agent.strangerfleettest_exercises())
+        if _act == "exercise":
+            try:
+                _entry = agent.get_strangerfleettest_exercise(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_sfpart(_entry)
+        if _act == "record":
+            try:
+                _rec = agent.get_strangerfleettest_record(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_sfrec(_rec)
+        if _act == "standing":
+            try:
+                _standing = agent.strangerfleettest_standing(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            _text = (f"{_tgt}: run "
+                     f"{'held as answered' if _standing.held else 'open'} "
+                     f"(stage: {_standing.stage}; "
+                     f"grade: {_standing.grade})")
+            for _gap in _standing.gaps:
+                _text += f"\n  gap: {_gap}"
+            return True, False, _text
+        if _act == "reports":
+            _reports = agent.strangerfleettest_reports()
+            if not _reports:
+                return True, False, ("Report: none held this "
+                                     "session - Fleet reports move only as "
+                                     "moves only as reports, and a report is "
+                                     "never inflated here.")
+            return True, False, "\n".join(
+                f"{_d.book} -> {_d.entry}: report - {_d.report} "
+                f"(state: {_d.state}; a report is never inflated here)"
+                for _d in _reports)
+        if _act == "report":
+            try:
+                _d = agent.get_strangerfleettest_report(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, (
+                f"{_d.book} -> {_d.entry}: report - {_d.report} "
+                f"(state: {_d.state}; a report is never inflated here)")
+        if _act == "index":
+            return True, False, agent.strangerfleettest_index()["index_text"]
+        if _act == "verdict":
+            return True, False, agent.strangerfleettest_verdict()["verdict_text"]
+        return True, False, agent.strangerfleettest_status()["screen"]
+
+    if command == "/costofquality":
+        # M-267 terminal road: show the Cost-of-quality report held
+        # this session - the public sets as
+        # registry entries: one entry per set, naming
+        # the word that set gives a single run and the
+        # standing of its gate,
+        # beside the run records held this session
+        # (no run recorded when none is held) - show
+        # the whole shipped registry, one route's entry,
+        # the record held for one route and run, the
+        # standing derived for one run, the run
+        # verdict held, the index derived over every held
+        # record, or the verdict derived for the
+        # session, on the agent-layer parser + the pure
+        # formatters. This road runs no benchmark,
+        # downloads no set, executes no grading test, inflates
+        # no result, probes no network and persists
+        # nothing - holding and telling are words only.
+        from .core.cost_of_quality import format_route as _fmt_cqpart, format_routes as _fmt_cqparts, format_record as _fmt_cqrec
+        from .agents.llm import parse_costofquality_args as _parse_cq
+        try:
+            _act, _tgt, _needs, _model = _parse_cq(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "routes":
+            return True, False, _fmt_cqparts(agent.costofquality_routes())
+        if _act == "route":
+            try:
+                _entry = agent.get_costofquality_route(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_cqpart(_entry)
+        if _act == "record":
+            try:
+                _rec = agent.get_costofquality_record(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_cqrec(_rec)
+        if _act == "standing":
+            try:
+                _standing = agent.costofquality_standing(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            _text = (f"{_tgt}: run "
+                     f"{'held as answered' if _standing.held else 'open'} "
+                     f"(stage: {_standing.stage}; "
+                     f"grade: {_standing.grade})")
+            for _gap in _standing.gaps:
+                _text += f"\n  gap: {_gap}"
+            return True, False, _text
+        if _act == "reports":
+            _reports = agent.costofquality_reports()
+            if not _reports:
+                return True, False, ("Report: none held this "
+                                     "session - Cost reports move only as "
+                                     "moves only as reports, and a report is "
+                                     "never inflated here.")
+            return True, False, "\n".join(
+                f"{_d.book} -> {_d.entry}: report - {_d.report} "
+                f"(state: {_d.state}; a report is never inflated here)"
+                for _d in _reports)
+        if _act == "report":
+            try:
+                _d = agent.get_costofquality_report(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, (
+                f"{_d.book} -> {_d.entry}: report - {_d.report} "
+                f"(state: {_d.state}; a report is never inflated here)")
+        if _act == "index":
+            return True, False, agent.costofquality_index()["index_text"]
+        if _act == "verdict":
+            return True, False, agent.costofquality_verdict()["verdict_text"]
+        return True, False, agent.costofquality_status()["screen"]
+
+    if command == "/truthfulchangelog":
+        # M-268 terminal road: show the Truthful changelog held
+        # this session - the public sets as
+        # registry entries: one entry per set, naming
+        # the word that set gives a single run and the
+        # standing of its gate,
+        # beside the run records held this session
+        # (no run recorded when none is held) - show
+        # the whole shipped registry, one family's entry,
+        # the record held for one family and run, the
+        # standing derived for one run, the run
+        # verdict held, the index derived over every held
+        # record, or the verdict derived for the
+        # session, on the agent-layer parser + the pure
+        # formatters. This road runs no test,
+        # downloads no set, executes no grading test, inflates
+        # no result, probes no network and persists
+        # nothing - holding and telling are words only.
+        from .core.truthful_changelog import format_family as _fmt_tcpart, format_families as _fmt_tcparts, format_record as _fmt_tcrec
+        from .agents.llm import parse_truthfulchangelog_args as _parse_tc
+        try:
+            _act, _tgt, _needs, _model = _parse_tc(arguments)
+        except ValueError as _exc:
+            return True, False, str(_exc)
+        if _act == "families":
+            return True, False, _fmt_tcparts(agent.truthfulchangelog_families())
+        if _act == "family":
+            try:
+                _entry = agent.get_truthfulchangelog_family(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_tcpart(_entry)
+        if _act == "record":
+            try:
+                _rec = agent.get_truthfulchangelog_record(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, _fmt_tcrec(_rec)
+        if _act == "standing":
+            try:
+                _standing = agent.truthfulchangelog_standing(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            _text = (f"{_tgt}: run "
+                     f"{'held as answered' if _standing.held else 'open'} "
+                     f"(stage: {_standing.stage}; "
+                     f"grade: {_standing.grade})")
+            for _gap in _standing.gaps:
+                _text += f"\n  gap: {_gap}"
+            return True, False, _text
+        if _act == "reports":
+            _reports = agent.truthfulchangelog_reports()
+            if not _reports:
+                return True, False, ("Report: none held this "
+                                     "session - Changelog reports move only as "
+                                     "moves only as reports, and a report is "
+                                     "never inflated here.")
+            return True, False, "\n".join(
+                f"{_d.book} -> {_d.entry}: report - {_d.report} "
+                f"(state: {_d.state}; a report is never inflated here)"
+                for _d in _reports)
+        if _act == "report":
+            try:
+                _d = agent.get_truthfulchangelog_report(_tgt)
+            except (KeyError, ValueError) as _exc:
+                return True, False, str(_exc)
+            return True, False, (
+                f"{_d.book} -> {_d.entry}: report - {_d.report} "
+                f"(state: {_d.state}; a report is never inflated here)")
+        if _act == "index":
+            return True, False, agent.truthfulchangelog_index()["index_text"]
+        if _act == "verdict":
+            return True, False, agent.truthfulchangelog_verdict()["verdict_text"]
+        return True, False, agent.truthfulchangelog_status()["screen"]
 
     if command == "/docsmcp":
         # M-252 terminal road: show the docs MCP pattern held

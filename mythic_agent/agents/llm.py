@@ -4070,6 +4070,2377 @@ def parse_securityaudit_args(args: Any):
     raise ValueError(SECURITYAUDIT_USAGE)
 
 
+#: The /privacyaudit slash grammar (M-261, agent layer).
+PRIVACYAUDIT_USAGE = (
+    "Usage: /privacyaudit | /privacyaudit surfaces | "
+    "/privacyaudit surface <surface> | /privacyaudit record "
+    "<surface> | /privacyaudit standing "
+    "<surface> | /privacyaudit report | "
+    "/privacyaudit report <book> | "
+    "/privacyaudit index | /privacyaudit verdict")
+
+
+def _pa_surface_dict(entry: Any) -> dict[str, Any]:
+    """One audit surface registry entry, as plain data (M-261)."""
+    return {"id": entry.id, "doctrine": entry.doctrine,
+            "subject": entry.subject,
+            "standing": entry.standing, "reason": entry.reason}
+
+
+
+def _pa_record_dict(record: Any) -> dict[str, Any]:
+    """One privacy-audit capture record, as plain data (M-261)."""
+    return {"surface": record.surface,
+            "run": record.run,
+            "date": record.date,
+            "disposition": record.disposition,
+            "owner": record.owner,
+            "proof_kind": record.proof_kind,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+
+def _pa_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived run standing, as plain data (M-261)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "grade": standing.grade,
+            "gaps": list(standing.gaps)}
+
+
+def _pa_report_dict(report: Any) -> dict[str, Any]:
+    """One audit report, as plain data (M-261)."""
+    return {"book": report.book,
+            "entry": report.entry, "report": report.report,
+            "date": report.date,
+            "clean_count": report.clean_count,
+            "roaded_count": report.roaded_count,
+            "total_surfaces": report.total_surfaces,
+            "claims": list(report.claims),
+            "state": report.state, "certified": report.certified,
+            "inflated": report.inflated}
+
+
+
+def _pa_report_text(report: Any) -> str:
+    """One audit report told in plain words (M-261)."""
+    return (f"{report.book} <- {report.entry}: "
+            f"report - {report.report} (state: "
+            f"{report.state}; a report is never "
+            "inflated here)")
+
+
+
+def _pa_coerce_record(record: Any):
+    """A capture record from a record or a plain telling (M-261)."""
+    from ..core.privacy_audit import CaptureRecord
+    if isinstance(record, CaptureRecord):
+        return record
+    if isinstance(record, dict):
+        return CaptureRecord(
+            surface=record["surface"],
+            run=record["run"],
+            date=record["date"],
+            disposition=record["disposition"],
+            owner=record["owner"],
+            proof_kind=record["proof_kind"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return CaptureRecord(
+        surface=record.surface, run=record.run,
+        date=record.date,
+        disposition=record.disposition,
+        owner=record.owner,
+        proof_kind=record.proof_kind,
+        stages=tuple(record.stages),
+        claims=tuple(record.claims))
+
+
+class PrivacyAuditRegistry:
+    """Session registry for the privacy audit (M-261).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.privacy_audit``):
+    it holds the shipped surface registry (one entry per
+    surface of the road, held as data) beside the
+    capture records held one by one for the session,
+    one record per surface, and the privacy
+    reports held for the session, one report per book. A
+    record is validated whole by the pure layer before it
+    is held - a record naming an unknown surface,
+    stage or evidence kind refuses by name here too, and a
+    refusal holds nothing new. A second record for a
+    surface already held refuses likewise.
+    Reports are held only through the pure layer's report
+    road - state ready by default, may be marked shared by
+    a human, a certification claimed only when every
+    combination stands answered, and never inflated:
+    the report tells the findings exactly as they
+    stand. Holding runs no benchmark, times no start and
+    probes no network: the registry holds tellings as
+    data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.privacy_audit import default_registry
+        self._surfaces = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._reports: dict[str, Any] = {}
+
+    def surfaces(self):
+        """The shipped surface registry held by the session."""
+        return self._surfaces
+
+    def register_record(self, record: Any):
+        """Hold one capture record, validated whole.
+
+        A second record for a surface already
+        held refuses, and a refusal holds nothing new.
+        """
+        held = _pa_coerce_record(record)
+        held.validate(self._surfaces)
+        key = held.surface
+        if key in self._records:
+            raise ValueError(
+                "a capture record for surface "
+                f"{held.surface!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, surface: Any):
+        """The held record for one surface."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(surface)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no capture record "
+                f"for surface {surface!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of capture records, validated whole.
+
+        Every record is validated, and checked against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _pa_coerce_record(record)
+            held.validate(self._surfaces)
+            key = held.surface
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "a capture record for surface "
+                    f"{held.surface!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[held.surface] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The capture records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the records and the reports."""
+        return (list(self._records.values())
+                + list(self._reports.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.privacy_audit import derive_standing
+        return [derive_standing(record, self._surfaces)
+                for record in self._records.values()]
+
+    def hold_report(self, book: Any, entry: Any,
+                      report: Any, date: Any,
+                      clean_count: Any, roaded_count: Any,
+                      total_surfaces: Any,
+                      claims: Any = (),
+                      state: Any = "ready",
+                      certified: Any = False):
+        """Prepare one audit report, held for the session.
+
+        The report is shaped by the pure layer alone -
+        a state word outside ready/shared refuses by name
+        there, a certification short of every surface answered
+        refuses there, and a report is never inflated. A
+        second report for a book already held refuses
+        likewise.
+        """
+        from ..core.privacy_audit import prepare_report
+        report = prepare_report(book, entry, report,
+                                 date, clean_count,
+                                 roaded_count,
+                                 total_surfaces,
+                                 claims=tuple(claims),
+                                 state=state, certified=certified)
+        if report.book in self._reports:
+            raise ValueError(
+                "an audit report for book "
+                f"{report.book!r} already stands held "
+                "for the session")
+        self._reports[report.book] = report
+        return report
+
+    def get_report(self, book: Any):
+        """The held audit report for one book."""
+        from ..core.validation import ValidationError
+        try:
+            return self._reports[book]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no audit report for "
+                f"book {book!r}") from None
+
+    def list_reports(self) -> list:
+        """The audit reports held, in hold order."""
+        return list(self._reports.values())
+
+    def book(self):
+        """The held pieces composed as a privacy audit book.
+
+        The book is plain data: the shipped surface
+        registry's entries beside the capture records
+        and audit reports held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.privacy_audit import PRIVACY_AUDIT_SCHEMA
+        return {
+            "schema": PRIVACY_AUDIT_SCHEMA,
+            "surfaces": [_pa_surface_dict(entry)
+                        for entry in self._surfaces.entries()],
+            "records": [_pa_record_dict(record)
+                        for record in self._records.values()],
+            "reports": [_pa_report_dict(verdict)
+                       for verdict in self._reports.values()],
+        }
+
+
+def parse_privacyaudit_args(args: Any):
+    """Parse /privacyaudit arguments (M-261).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``surfaces``, ``index`` and ``verdict`` name
+    their own stance with no target; ``surface <surface>``
+    names one surface; ``record <surface>`` and
+    ``standing <surface>`` name one surface alone - an audit
+    record is keyed by its surface, never by a pair;
+    ``report <book>`` names one book and the bare
+    ``report`` stance names the session's audit
+    reports. Anything else raises ValueError carrying
+    the usage line, exactly as the sibling parsers
+    refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("surfaces", "index", "verdict"):
+        if rest:
+            raise ValueError(PRIVACYAUDIT_USAGE)
+        return (head, None, (), None)
+    if head == "surface":
+        if len(rest) != 1:
+            raise ValueError(PRIVACYAUDIT_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 1:
+            raise ValueError(PRIVACYAUDIT_USAGE)
+        return (head, rest[0], (), None)
+    if head == "report":
+        if not rest:
+            return ("reports", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(PRIVACYAUDIT_USAGE)
+        return ("report", rest[0], (), None)
+    raise ValueError(PRIVACYAUDIT_USAGE)
+
+
+#: The /accessibilityfinal slash grammar (M-262, agent layer).
+ACCESSIBILITYFINAL_USAGE = (
+    "Usage: /accessibilityfinal | /accessibilityfinal checks | "
+    "/accessibilityfinal check <check> | /accessibilityfinal record "
+    "<check> | /accessibilityfinal standing "
+    "<check> | /accessibilityfinal report | "
+    "/accessibilityfinal report <book> | "
+    "/accessibilityfinal index | /accessibilityfinal verdict")
+
+
+def _af_check_dict(entry: Any) -> dict[str, Any]:
+    """One audit check registry entry, as plain data (M-262)."""
+    return {"id": entry.id, "doctrine": entry.doctrine,
+            "subject": entry.subject,
+            "standing": entry.standing, "reason": entry.reason}
+
+
+
+def _af_record_dict(record: Any) -> dict[str, Any]:
+    """One privacy-audit capture record, as plain data (M-262)."""
+    return {"check": record.check,
+            "task": record.task,
+            "date": record.date,
+            "disposition": record.disposition,
+            "owner": record.owner,
+            "proof_kind": record.proof_kind,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+
+def _af_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived run standing, as plain data (M-262)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "grade": standing.grade,
+            "gaps": list(standing.gaps)}
+
+
+def _af_report_dict(report: Any) -> dict[str, Any]:
+    """One audit report, as plain data (M-262)."""
+    return {"book": report.book,
+            "entry": report.entry, "report": report.report,
+            "date": report.date,
+            "passed_count": report.passed_count,
+            "roaded_count": report.roaded_count,
+            "total_checks": report.total_checks,
+            "claims": list(report.claims),
+            "state": report.state, "certified": report.certified,
+            "inflated": report.inflated}
+
+
+
+def _af_report_text(report: Any) -> str:
+    """One audit report told in plain words (M-262)."""
+    return (f"{report.book} <- {report.entry}: "
+            f"report - {report.report} (state: "
+            f"{report.state}; a report is never "
+            "inflated here)")
+
+
+
+def _af_coerce_record(record: Any):
+    """A capture record from a record or a plain telling (M-262)."""
+    from ..core.accessibility_final import GateRecord
+    if isinstance(record, GateRecord):
+        return record
+    if isinstance(record, dict):
+        return GateRecord(
+            check=record["check"],
+            task=record["task"],
+            date=record["date"],
+            disposition=record["disposition"],
+            owner=record["owner"],
+            proof_kind=record["proof_kind"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return GateRecord(
+        check=record.check, task=record.task,
+        date=record.date,
+        disposition=record.disposition,
+        owner=record.owner,
+        proof_kind=record.proof_kind,
+        stages=tuple(record.stages),
+        claims=tuple(record.claims))
+
+
+class AccessibilityFinalRegistry:
+    """Session registry for the accessibility final gate (M-262).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.accessibility_final``):
+    it holds the shipped check registry (one entry per
+    check of the road, held as data) beside the
+    capture records held one by one for the session,
+    one record per check, and the privacy
+    reports held for the session, one report per book. A
+    record is validated whole by the pure layer before it
+    is held - a record naming an unknown check,
+    stage or evidence kind refuses by name here too, and a
+    refusal holds nothing new. A second record for a
+    check already held refuses likewise.
+    Reports are held only through the pure layer's report
+    road - state ready by default, may be marked shared by
+    a human, a certification claimed only when every
+    combination stands answered, and never inflated:
+    the report tells the findings exactly as they
+    stand. Holding runs no benchmark, times no start and
+    probes no network: the registry holds tellings as
+    data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.accessibility_final import default_registry
+        self._surfaces = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._reports: dict[str, Any] = {}
+
+    def checks(self):
+        """The shipped check registry held by the session."""
+        return self._surfaces
+
+    def register_record(self, record: Any):
+        """Hold one capture record, validated whole.
+
+        A second record for a check already
+        held refuses, and a refusal holds nothing new.
+        """
+        held = _af_coerce_record(record)
+        held.validate(self._surfaces)
+        key = held.check
+        if key in self._records:
+            raise ValueError(
+                "a capture record for check "
+                f"{held.check!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, check: Any):
+        """The held record for one check."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(check)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no capture record "
+                f"for check {check!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of capture records, validated whole.
+
+        Every record is validated, and checked against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _af_coerce_record(record)
+            held.validate(self._surfaces)
+            key = held.check
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "a capture record for check "
+                    f"{held.check!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[held.check] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The capture records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the records and the reports."""
+        return (list(self._records.values())
+                + list(self._reports.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.accessibility_final import derive_standing
+        return [derive_standing(record, self._surfaces)
+                for record in self._records.values()]
+
+    def hold_report(self, book: Any, entry: Any,
+                      report: Any, date: Any,
+                      passed_count: Any, roaded_count: Any,
+                      total_checks: Any,
+                      claims: Any = (),
+                      state: Any = "ready",
+                      certified: Any = False):
+        """Prepare one audit report, held for the session.
+
+        The report is shaped by the pure layer alone -
+        a state word outside ready/shared refuses by name
+        there, a certification short of every check answered
+        refuses there, and a report is never inflated. A
+        second report for a book already held refuses
+        likewise.
+        """
+        from ..core.accessibility_final import prepare_report
+        report = prepare_report(book, entry, report,
+                                 date, passed_count,
+                                 roaded_count,
+                                 total_checks,
+                                 claims=tuple(claims),
+                                 state=state, certified=certified)
+        if report.book in self._reports:
+            raise ValueError(
+                "an audit report for book "
+                f"{report.book!r} already stands held "
+                "for the session")
+        self._reports[report.book] = report
+        return report
+
+    def get_report(self, book: Any):
+        """The held audit report for one book."""
+        from ..core.validation import ValidationError
+        try:
+            return self._reports[book]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no audit report for "
+                f"book {book!r}") from None
+
+    def list_reports(self) -> list:
+        """The audit reports held, in hold order."""
+        return list(self._reports.values())
+
+    def book(self):
+        """The held pieces composed as a accessibility final gate book.
+
+        The book is plain data: the shipped check
+        registry's entries beside the capture records
+        and audit reports held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.accessibility_final import ACCESSIBILITY_FINAL_SCHEMA
+        return {
+            "schema": ACCESSIBILITY_FINAL_SCHEMA,
+            "checks": [_af_check_dict(entry)
+                        for entry in self._surfaces.entries()],
+            "records": [_af_record_dict(record)
+                        for record in self._records.values()],
+            "reports": [_af_report_dict(verdict)
+                       for verdict in self._reports.values()],
+        }
+
+
+def parse_accessibilityfinal_args(args: Any):
+    """Parse /accessibilityfinal arguments (M-262).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``checks``, ``index`` and ``verdict`` name
+    their own stance with no target; ``check <check>``
+    names one check; ``record <check>`` and
+    ``standing <check>`` name one check alone - an audit
+    record is keyed by its check, never by a pair;
+    ``report <book>`` names one book and the bare
+    ``report`` stance names the session's audit
+    reports. Anything else raises ValueError carrying
+    the usage line, exactly as the sibling parsers
+    refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("checks", "index", "verdict"):
+        if rest:
+            raise ValueError(ACCESSIBILITYFINAL_USAGE)
+        return (head, None, (), None)
+    if head == "check":
+        if len(rest) != 1:
+            raise ValueError(ACCESSIBILITYFINAL_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 1:
+            raise ValueError(ACCESSIBILITYFINAL_USAGE)
+        return (head, rest[0], (), None)
+    if head == "report":
+        if not rest:
+            return ("reports", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(ACCESSIBILITYFINAL_USAGE)
+        return ("report", rest[0], (), None)
+    raise ValueError(ACCESSIBILITYFINAL_USAGE)
+
+
+#: The /docscompletion slash grammar (M-263, agent layer).
+DOCSCOMPLETION_USAGE = (
+    "Usage: /docscompletion | /docscompletion guides | "
+    "/docscompletion guide <guide> | /docscompletion record "
+    "<guide> | /docscompletion standing "
+    "<guide> | /docscompletion report | "
+    "/docscompletion report <book> | "
+    "/docscompletion index | /docscompletion verdict")
+
+
+def _dc_guide_dict(entry: Any) -> dict[str, Any]:
+    """One audit guide registry entry, as plain data (M-263)."""
+    return {"id": entry.id, "doctrine": entry.doctrine,
+            "subject": entry.subject,
+            "standing": entry.standing, "reason": entry.reason}
+
+
+
+def _dc_record_dict(record: Any) -> dict[str, Any]:
+    """One privacy-audit capture record, as plain data (M-263)."""
+    return {"guide": record.guide,
+            "work": record.work,
+            "date": record.date,
+            "disposition": record.disposition,
+            "owner": record.owner,
+            "proof_kind": record.proof_kind,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+
+def _dc_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived run standing, as plain data (M-263)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "grade": standing.grade,
+            "gaps": list(standing.gaps)}
+
+
+def _dc_report_dict(report: Any) -> dict[str, Any]:
+    """One audit report, as plain data (M-263)."""
+    return {"book": report.book,
+            "entry": report.entry, "report": report.report,
+            "date": report.date,
+            "reconciled_count": report.reconciled_count,
+            "roaded_count": report.roaded_count,
+            "total_guides": report.total_guides,
+            "claims": list(report.claims),
+            "state": report.state, "certified": report.certified,
+            "inflated": report.inflated}
+
+
+
+def _dc_report_text(report: Any) -> str:
+    """One audit report told in plain words (M-263)."""
+    return (f"{report.book} <- {report.entry}: "
+            f"report - {report.report} (state: "
+            f"{report.state}; a report is never "
+            "inflated here)")
+
+
+
+def _dc_coerce_record(record: Any):
+    """A capture record from a record or a plain telling (M-263)."""
+    from ..core.docs_completion import DocRecord
+    if isinstance(record, DocRecord):
+        return record
+    if isinstance(record, dict):
+        return DocRecord(
+            guide=record["guide"],
+            work=record["work"],
+            date=record["date"],
+            disposition=record["disposition"],
+            owner=record["owner"],
+            proof_kind=record["proof_kind"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return DocRecord(
+        guide=record.guide, work=record.work,
+        date=record.date,
+        disposition=record.disposition,
+        owner=record.owner,
+        proof_kind=record.proof_kind,
+        stages=tuple(record.stages),
+        claims=tuple(record.claims))
+
+
+class DocsCompletionRegistry:
+    """Session registry for the docs completion (M-263).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.docs_completion``):
+    it holds the shipped guide registry (one entry per
+    guide of the road, held as data) beside the
+    capture records held one by one for the session,
+    one record per guide, and the privacy
+    reports held for the session, one report per book. A
+    record is validated whole by the pure layer before it
+    is held - a record naming an unknown guide,
+    stage or evidence kind refuses by name here too, and a
+    refusal holds nothing new. A second record for a
+    guide already held refuses likewise.
+    Reports are held only through the pure layer's report
+    road - state ready by default, may be marked shared by
+    a human, a certification claimed only when every
+    combination stands answered, and never inflated:
+    the report tells the findings exactly as they
+    stand. Holding runs no benchmark, times no start and
+    probes no network: the registry holds tellings as
+    data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.docs_completion import default_registry
+        self._surfaces = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._reports: dict[str, Any] = {}
+
+    def guides(self):
+        """The shipped guide registry held by the session."""
+        return self._surfaces
+
+    def register_record(self, record: Any):
+        """Hold one capture record, validated whole.
+
+        A second record for a guide already
+        held refuses, and a refusal holds nothing new.
+        """
+        held = _dc_coerce_record(record)
+        held.validate(self._surfaces)
+        key = held.guide
+        if key in self._records:
+            raise ValueError(
+                "a capture record for guide "
+                f"{held.guide!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, guide: Any):
+        """The held record for one guide."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(guide)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no capture record "
+                f"for guide {guide!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of capture records, validated whole.
+
+        Every record is validated, and guideed against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _dc_coerce_record(record)
+            held.validate(self._surfaces)
+            key = held.guide
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "a capture record for guide "
+                    f"{held.guide!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[held.guide] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The capture records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the records and the reports."""
+        return (list(self._records.values())
+                + list(self._reports.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.docs_completion import derive_standing
+        return [derive_standing(record, self._surfaces)
+                for record in self._records.values()]
+
+    def hold_report(self, book: Any, entry: Any,
+                      report: Any, date: Any,
+                      reconciled_count: Any, roaded_count: Any,
+                      total_guides: Any,
+                      claims: Any = (),
+                      state: Any = "ready",
+                      certified: Any = False):
+        """Prepare one audit report, held for the session.
+
+        The report is shaped by the pure layer alone -
+        a state word outside ready/shared refuses by name
+        there, a certification short of every guide answered
+        refuses there, and a report is never inflated. A
+        second report for a book already held refuses
+        likewise.
+        """
+        from ..core.docs_completion import prepare_report
+        report = prepare_report(book, entry, report,
+                                 date, reconciled_count,
+                                 roaded_count,
+                                 total_guides,
+                                 claims=tuple(claims),
+                                 state=state, certified=certified)
+        if report.book in self._reports:
+            raise ValueError(
+                "an audit report for book "
+                f"{report.book!r} already stands held "
+                "for the session")
+        self._reports[report.book] = report
+        return report
+
+    def get_report(self, book: Any):
+        """The held audit report for one book."""
+        from ..core.validation import ValidationError
+        try:
+            return self._reports[book]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no audit report for "
+                f"book {book!r}") from None
+
+    def list_reports(self) -> list:
+        """The audit reports held, in hold order."""
+        return list(self._reports.values())
+
+    def book(self):
+        """The held pieces composed as a docs completion book.
+
+        The book is plain data: the shipped guide
+        registry's entries beside the capture records
+        and audit reports held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.docs_completion import DOCS_COMPLETION_SCHEMA
+        return {
+            "schema": DOCS_COMPLETION_SCHEMA,
+            "guides": [_dc_guide_dict(entry)
+                        for entry in self._surfaces.entries()],
+            "records": [_dc_record_dict(record)
+                        for record in self._records.values()],
+            "reports": [_dc_report_dict(verdict)
+                       for verdict in self._reports.values()],
+        }
+
+
+def parse_docscompletion_args(args: Any):
+    """Parse /docscompletion arguments (M-263).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``guides``, ``index`` and ``verdict`` name
+    their own stance with no target; ``guide <guide>``
+    names one guide; ``record <guide>`` and
+    ``standing <guide>`` name one guide alone - an audit
+    record is keyed by its guide, never by a pair;
+    ``report <book>`` names one book and the bare
+    ``report`` stance names the session's audit
+    reports. Anything else raises ValueError carrying
+    the usage line, exactly as the sibling parsers
+    refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("guides", "index", "verdict"):
+        if rest:
+            raise ValueError(DOCSCOMPLETION_USAGE)
+        return (head, None, (), None)
+    if head == "guide":
+        if len(rest) != 1:
+            raise ValueError(DOCSCOMPLETION_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 1:
+            raise ValueError(DOCSCOMPLETION_USAGE)
+        return (head, rest[0], (), None)
+    if head == "report":
+        if not rest:
+            return ("reports", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(DOCSCOMPLETION_USAGE)
+        return ("report", rest[0], (), None)
+    raise ValueError(DOCSCOMPLETION_USAGE)
+
+
+#: The /readmecare slash grammar (M-264, agent layer).
+READMECARE_USAGE = (
+    "Usage: /readmecare | /readmecare sections | "
+    "/readmecare section <section> | /readmecare record "
+    "<section> | /readmecare standing "
+    "<section> | /readmecare report | "
+    "/readmecare report <book> | "
+    "/readmecare index | /readmecare verdict")
+
+
+def _rcare_entry_dict(entry: Any) -> dict[str, Any]:
+    """One audit section registry entry, as plain data (M-264)."""
+    return {"id": entry.id, "doctrine": entry.doctrine,
+            "subject": entry.subject,
+            "standing": entry.standing, "reason": entry.reason}
+
+
+
+def _rcare_record_dict(record: Any) -> dict[str, Any]:
+    """One privacy-audit capture record, as plain data (M-264)."""
+    return {"section": record.section,
+            "work": record.work,
+            "date": record.date,
+            "disposition": record.disposition,
+            "owner": record.owner,
+            "proof_kind": record.proof_kind,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+
+def _rcare_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived run standing, as plain data (M-264)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "grade": standing.grade,
+            "gaps": list(standing.gaps)}
+
+
+def _rcare_report_dict(report: Any) -> dict[str, Any]:
+    """One audit report, as plain data (M-264)."""
+    return {"book": report.book,
+            "entry": report.entry, "report": report.report,
+            "date": report.date,
+            "extended_count": report.extended_count,
+            "roaded_count": report.roaded_count,
+            "total_sections": report.total_sections,
+            "claims": list(report.claims),
+            "state": report.state, "certified": report.certified,
+            "inflated": report.inflated}
+
+
+
+def _rcare_report_text(report: Any) -> str:
+    """One audit report told in plain words (M-264)."""
+    return (f"{report.book} <- {report.entry}: "
+            f"report - {report.report} (state: "
+            f"{report.state}; a report is never "
+            "inflated here)")
+
+
+
+def _rcare_coerce_record(record: Any):
+    """A capture record from a record or a plain telling (M-264)."""
+    from ..core.readme_care import CareRecord
+    if isinstance(record, CareRecord):
+        return record
+    if isinstance(record, dict):
+        return CareRecord(
+            section=record["section"],
+            work=record["work"],
+            date=record["date"],
+            disposition=record["disposition"],
+            owner=record["owner"],
+            proof_kind=record["proof_kind"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return CareRecord(
+        section=record.section, work=record.work,
+        date=record.date,
+        disposition=record.disposition,
+        owner=record.owner,
+        proof_kind=record.proof_kind,
+        stages=tuple(record.stages),
+        claims=tuple(record.claims))
+
+
+class ReadmeCareRegistry:
+    """Session registry for the README care (M-264).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.readme_care``):
+    it holds the shipped section registry (one entry per
+    section of the road, held as data) beside the
+    capture records held one by one for the session,
+    one record per section, and the privacy
+    reports held for the session, one report per book. A
+    record is validated whole by the pure layer before it
+    is held - a record naming an unknown section,
+    stage or evidence kind refuses by name here too, and a
+    refusal holds nothing new. A second record for a
+    section already held refuses likewise.
+    Reports are held only through the pure layer's report
+    road - state ready by default, may be marked shared by
+    a human, a certification claimed only when every
+    combination stands answered, and never inflated:
+    the report tells the findings exactly as they
+    stand. Holding runs no benchmark, times no start and
+    probes no network: the registry holds tellings as
+    data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.readme_care import default_registry
+        self._section_registry = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._reports: dict[str, Any] = {}
+
+    def sections(self):
+        """The shipped section registry held by the session."""
+        return self._section_registry
+
+    def register_record(self, record: Any):
+        """Hold one capture record, validated whole.
+
+        A second record for a section already
+        held refuses, and a refusal holds nothing new.
+        """
+        held = _rcare_coerce_record(record)
+        held.validate(self._section_registry)
+        key = held.section
+        if key in self._records:
+            raise ValueError(
+                "a care record for section "
+                f"{held.section!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, section: Any):
+        """The held record for one section."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(section)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no care record "
+                f"for section {section!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of capture records, validated whole.
+
+        Every record is validated, and guideed against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _rcare_coerce_record(record)
+            held.validate(self._section_registry)
+            key = held.section
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "a care record for section "
+                    f"{held.section!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[held.section] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The capture records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the records and the reports."""
+        return (list(self._records.values())
+                + list(self._reports.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.readme_care import derive_standing
+        return [derive_standing(record, self._section_registry)
+                for record in self._records.values()]
+
+    def hold_report(self, book: Any, entry: Any,
+                      report: Any, date: Any,
+                      extended_count: Any, roaded_count: Any,
+                      total_sections: Any,
+                      claims: Any = (),
+                      state: Any = "ready",
+                      certified: Any = False):
+        """Prepare one audit report, held for the session.
+
+        The report is shaped by the pure layer alone -
+        a state word outside ready/shared refuses by name
+        there, a certification short of every section answered
+        refuses there, and a report is never inflated. A
+        second report for a book already held refuses
+        likewise.
+        """
+        from ..core.readme_care import prepare_report
+        report = prepare_report(book, entry, report,
+                                 date, extended_count,
+                                 roaded_count,
+                                 total_sections,
+                                 claims=tuple(claims),
+                                 state=state, certified=certified)
+        if report.book in self._reports:
+            raise ValueError(
+                "an audit report for book "
+                f"{report.book!r} already stands held "
+                "for the session")
+        self._reports[report.book] = report
+        return report
+
+    def get_report(self, book: Any):
+        """The held audit report for one book."""
+        from ..core.validation import ValidationError
+        try:
+            return self._reports[book]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no audit report for "
+                f"book {book!r}") from None
+
+    def list_reports(self) -> list:
+        """The audit reports held, in hold order."""
+        return list(self._reports.values())
+
+    def book(self):
+        """The held pieces composed as a README care book.
+
+        The book is plain data: the shipped section
+        registry's entries beside the capture records
+        and audit reports held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.readme_care import README_CARE_SCHEMA
+        return {
+            "schema": README_CARE_SCHEMA,
+            "sections": [_rcare_entry_dict(entry)
+                        for entry in self._section_registry.entries()],
+            "records": [_rcare_record_dict(record)
+                        for record in self._records.values()],
+            "reports": [_rcare_report_dict(verdict)
+                       for verdict in self._reports.values()],
+        }
+
+
+def parse_readmecare_args(args: Any):
+    """Parse /readmecare arguments (M-264).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``sections``, ``index`` and ``verdict`` name
+    their own stance with no target; ``section <section>``
+    names one section; ``record <section>`` and
+    ``standing <section>`` name one section alone - an audit
+    record is keyed by its section, never by a pair;
+    ``report <book>`` names one book and the bare
+    ``report`` stance names the session's audit
+    reports. Anything else raises ValueError carrying
+    the usage line, exactly as the sibling parsers
+    refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("sections", "index", "verdict"):
+        if rest:
+            raise ValueError(READMECARE_USAGE)
+        return (head, None, (), None)
+    if head == "section":
+        if len(rest) != 1:
+            raise ValueError(READMECARE_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 1:
+            raise ValueError(READMECARE_USAGE)
+        return (head, rest[0], (), None)
+    if head == "report":
+        if not rest:
+            return ("reports", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(READMECARE_USAGE)
+        return ("report", rest[0], (), None)
+    raise ValueError(READMECARE_USAGE)
+
+
+#: The /migrationproof slash grammar (M-265, agent layer).
+MIGRATIONPROOF_USAGE = (
+    "Usage: /migrationproof | /migrationproof areas | "
+    "/migrationproof area <area> | /migrationproof record "
+    "<area> | /migrationproof standing "
+    "<area> | /migrationproof report | "
+    "/migrationproof report <book> | "
+    "/migrationproof index | /migrationproof verdict")
+
+
+def _mp_entry_dict(entry: Any) -> dict[str, Any]:
+    """One audit area registry entry, as plain data (M-265)."""
+    return {"id": entry.id, "doctrine": entry.doctrine,
+            "subject": entry.subject,
+            "standing": entry.standing, "reason": entry.reason}
+
+
+
+def _mp_record_dict(record: Any) -> dict[str, Any]:
+    """One migration-proof migration record, as plain data (M-265)."""
+    return {"area": record.area,
+            "work": record.work,
+            "date": record.date,
+            "disposition": record.disposition,
+            "owner": record.owner,
+            "proof_kind": record.proof_kind,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+
+def _mp_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived run standing, as plain data (M-265)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "grade": standing.grade,
+            "gaps": list(standing.gaps)}
+
+
+def _mp_report_dict(report: Any) -> dict[str, Any]:
+    """One migration report, as plain data (M-265)."""
+    return {"book": report.book,
+            "entry": report.entry, "report": report.report,
+            "date": report.date,
+            "proven_count": report.proven_count,
+            "roaded_count": report.roaded_count,
+            "total_areas": report.total_areas,
+            "claims": list(report.claims),
+            "state": report.state, "certified": report.certified,
+            "inflated": report.inflated}
+
+
+
+def _mp_report_text(report: Any) -> str:
+    """One migration report told in plain words (M-265)."""
+    return (f"{report.book} <- {report.entry}: "
+            f"report - {report.report} (state: "
+            f"{report.state}; a report is never "
+            "inflated here)")
+
+
+
+def _mp_coerce_record(record: Any):
+    """A migration record from a record or a plain telling (M-265)."""
+    from ..core.migration_proof import MigrationRecord
+    if isinstance(record, MigrationRecord):
+        return record
+    if isinstance(record, dict):
+        return MigrationRecord(
+            area=record["area"],
+            work=record["work"],
+            date=record["date"],
+            disposition=record["disposition"],
+            owner=record["owner"],
+            proof_kind=record["proof_kind"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return MigrationRecord(
+        area=record.area, work=record.work,
+        date=record.date,
+        disposition=record.disposition,
+        owner=record.owner,
+        proof_kind=record.proof_kind,
+        stages=tuple(record.stages),
+        claims=tuple(record.claims))
+
+
+class MigrationProofRegistry:
+    """Session registry for the Migration proof (M-265).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.migration_proof``):
+    it holds the shipped area registry (one entry per
+    area of the road, held as data) beside the
+    migration records held one by one for the session,
+    one record per area, and the privacy
+    reports held for the session, one report per book. A
+    record is validated whole by the pure layer before it
+    is held - a record naming an unknown area,
+    stage or evidence kind refuses by name here too, and a
+    refusal holds nothing new. A second record for a
+    area already held refuses likewise.
+    Reports are held only through the pure layer's report
+    road - state ready by default, may be marked shared by
+    a human, a certification claimed only when every
+    combination stands answered, and never inflated:
+    the report tells the findings exactly as they
+    stand. Holding runs no benchmark, times no start and
+    probes no network: the registry holds tellings as
+    data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.migration_proof import default_registry
+        self._area_registry = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._reports: dict[str, Any] = {}
+
+    def areas(self):
+        """The shipped area registry held by the session."""
+        return self._area_registry
+
+    def register_record(self, record: Any):
+        """Hold one migration record, validated whole.
+
+        A second record for a area already
+        held refuses, and a refusal holds nothing new.
+        """
+        held = _mp_coerce_record(record)
+        held.validate(self._area_registry)
+        key = held.area
+        if key in self._records:
+            raise ValueError(
+                "a care record for area "
+                f"{held.area!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, area: Any):
+        """The held record for one area."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(area)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no care record "
+                f"for area {area!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of migration records, validated whole.
+
+        Every record is validated, and guideed against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _mp_coerce_record(record)
+            held.validate(self._area_registry)
+            key = held.area
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "a care record for area "
+                    f"{held.area!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[held.area] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The migration records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the records and the reports."""
+        return (list(self._records.values())
+                + list(self._reports.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.migration_proof import derive_standing
+        return [derive_standing(record, self._area_registry)
+                for record in self._records.values()]
+
+    def hold_report(self, book: Any, entry: Any,
+                      report: Any, date: Any,
+                      proven_count: Any, roaded_count: Any,
+                      total_areas: Any,
+                      claims: Any = (),
+                      state: Any = "ready",
+                      certified: Any = False):
+        """Prepare one migration report, held for the session.
+
+        The report is shaped by the pure layer alone -
+        a state word outside ready/shared refuses by name
+        there, a certification short of every area answered
+        refuses there, and a report is never inflated. A
+        second report for a book already held refuses
+        likewise.
+        """
+        from ..core.migration_proof import prepare_report
+        report = prepare_report(book, entry, report,
+                                 date, proven_count,
+                                 roaded_count,
+                                 total_areas,
+                                 claims=tuple(claims),
+                                 state=state, certified=certified)
+        if report.book in self._reports:
+            raise ValueError(
+                "an migration report for book "
+                f"{report.book!r} already stands held "
+                "for the session")
+        self._reports[report.book] = report
+        return report
+
+    def get_report(self, book: Any):
+        """The held migration report for one book."""
+        from ..core.validation import ValidationError
+        try:
+            return self._reports[book]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no migration report for "
+                f"book {book!r}") from None
+
+    def list_reports(self) -> list:
+        """The migration reports held, in hold order."""
+        return list(self._reports.values())
+
+    def book(self):
+        """The held pieces composed as a Migration proof book.
+
+        The book is plain data: the shipped area
+        registry's entries beside the migration records
+        and migration reports held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.migration_proof import MIGRATION_PROOF_SCHEMA
+        return {
+            "schema": MIGRATION_PROOF_SCHEMA,
+            "areas": [_mp_entry_dict(entry)
+                        for entry in self._area_registry.entries()],
+            "records": [_mp_record_dict(record)
+                        for record in self._records.values()],
+            "reports": [_mp_report_dict(verdict)
+                       for verdict in self._reports.values()],
+        }
+
+
+def parse_migrationproof_args(args: Any):
+    """Parse /migrationproof arguments (M-265).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``areas``, ``index`` and ``verdict`` name
+    their own stance with no target; ``area <area>``
+    names one area; ``record <area>`` and
+    ``standing <area>`` name one area alone - an audit
+    record is keyed by its area, never by a pair;
+    ``report <book>`` names one book and the bare
+    ``report`` stance names the session's audit
+    reports. Anything else raises ValueError carrying
+    the usage line, exactly as the sibling parsers
+    refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("areas", "index", "verdict"):
+        if rest:
+            raise ValueError(MIGRATIONPROOF_USAGE)
+        return (head, None, (), None)
+    if head == "area":
+        if len(rest) != 1:
+            raise ValueError(MIGRATIONPROOF_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 1:
+            raise ValueError(MIGRATIONPROOF_USAGE)
+        return (head, rest[0], (), None)
+    if head == "report":
+        if not rest:
+            return ("reports", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(MIGRATIONPROOF_USAGE)
+        return ("report", rest[0], (), None)
+    raise ValueError(MIGRATIONPROOF_USAGE)
+
+
+#: The /strangerfleettest slash grammar (M-266, agent layer).
+STRANGERFLEETTEST_USAGE = (
+    "Usage: /strangerfleettest | /strangerfleettest exercises | "
+    "/strangerfleettest exercise <exercise> | /strangerfleettest record "
+    "<exercise> | /strangerfleettest standing "
+    "<exercise> | /strangerfleettest report | "
+    "/strangerfleettest report <book> | "
+    "/strangerfleettest index | /strangerfleettest verdict")
+
+
+def _sf_entry_dict(entry: Any) -> dict[str, Any]:
+    """One audit exercise registry entry, as plain data (M-266)."""
+    return {"id": entry.id, "doctrine": entry.doctrine,
+            "subject": entry.subject,
+            "standing": entry.standing, "reason": entry.reason}
+
+
+
+def _sf_record_dict(record: Any) -> dict[str, Any]:
+    """One fleet-proof fleet record, as plain data (M-266)."""
+    return {"exercise": record.exercise,
+            "work": record.work,
+            "date": record.date,
+            "disposition": record.disposition,
+            "owner": record.owner,
+            "proof_kind": record.proof_kind,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+
+def _sf_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived run standing, as plain data (M-266)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "grade": standing.grade,
+            "gaps": list(standing.gaps)}
+
+
+def _sf_report_dict(report: Any) -> dict[str, Any]:
+    """One fleet report, as plain data (M-266)."""
+    return {"book": report.book,
+            "entry": report.entry, "report": report.report,
+            "date": report.date,
+            "proven_count": report.proven_count,
+            "roaded_count": report.roaded_count,
+            "total_exercises": report.total_exercises,
+            "claims": list(report.claims),
+            "state": report.state, "certified": report.certified,
+            "inflated": report.inflated}
+
+
+
+def _sf_report_text(report: Any) -> str:
+    """One fleet report told in plain words (M-266)."""
+    return (f"{report.book} <- {report.entry}: "
+            f"report - {report.report} (state: "
+            f"{report.state}; a report is never "
+            "inflated here)")
+
+
+
+def _sf_coerce_record(record: Any):
+    """A fleet record from a record or a plain telling (M-266)."""
+    from ..core.stranger_fleet_test import StrangerFleetRecord
+    if isinstance(record, StrangerFleetRecord):
+        return record
+    if isinstance(record, dict):
+        return StrangerFleetRecord(
+            exercise=record["exercise"],
+            work=record["work"],
+            date=record["date"],
+            disposition=record["disposition"],
+            owner=record["owner"],
+            proof_kind=record["proof_kind"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return StrangerFleetRecord(
+        exercise=record.exercise, work=record.work,
+        date=record.date,
+        disposition=record.disposition,
+        owner=record.owner,
+        proof_kind=record.proof_kind,
+        stages=tuple(record.stages),
+        claims=tuple(record.claims))
+
+
+class StrangerFleetRegistry:
+    """Session registry for the Stranger fleet test (M-266).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.stranger_fleet_test``):
+    it holds the shipped exercise registry (one entry per
+    exercise of the road, held as data) beside the
+    fleet records held one by one for the session,
+    one record per exercise, and the privacy
+    reports held for the session, one report per book. A
+    record is validated whole by the pure layer before it
+    is held - a record naming an unknown exercise,
+    stage or evidence kind refuses by name here too, and a
+    refusal holds nothing new. A second record for a
+    exercise already held refuses likewise.
+    Reports are held only through the pure layer's report
+    road - state ready by default, may be marked shared by
+    a human, a certification claimed only when every
+    combination stands answered, and never inflated:
+    the report tells the findings exactly as they
+    stand. Holding runs no benchmark, times no start and
+    probes no network: the registry holds tellings as
+    data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.stranger_fleet_test import default_registry
+        self._exercise_registry = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._reports: dict[str, Any] = {}
+
+    def exercises(self):
+        """The shipped exercise registry held by the session."""
+        return self._exercise_registry
+
+    def register_record(self, record: Any):
+        """Hold one fleet record, validated whole.
+
+        A second record for a exercise already
+        held refuses, and a refusal holds nothing new.
+        """
+        held = _sf_coerce_record(record)
+        held.validate(self._exercise_registry)
+        key = held.exercise
+        if key in self._records:
+            raise ValueError(
+                "a care record for exercise "
+                f"{held.exercise!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, exercise: Any):
+        """The held record for one exercise."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(exercise)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no care record "
+                f"for exercise {exercise!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of fleet records, validated whole.
+
+        Every record is validated, and guideed against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _sf_coerce_record(record)
+            held.validate(self._exercise_registry)
+            key = held.exercise
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "a care record for exercise "
+                    f"{held.exercise!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[held.exercise] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The fleet records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the records and the reports."""
+        return (list(self._records.values())
+                + list(self._reports.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.stranger_fleet_test import derive_standing
+        return [derive_standing(record, self._exercise_registry)
+                for record in self._records.values()]
+
+    def hold_report(self, book: Any, entry: Any,
+                      report: Any, date: Any,
+                      proven_count: Any, roaded_count: Any,
+                      total_exercises: Any,
+                      claims: Any = (),
+                      state: Any = "ready",
+                      certified: Any = False):
+        """Prepare one fleet report, held for the session.
+
+        The report is shaped by the pure layer alone -
+        a state word outside ready/shared refuses by name
+        there, a certification short of every exercise answered
+        refuses there, and a report is never inflated. A
+        second report for a book already held refuses
+        likewise.
+        """
+        from ..core.stranger_fleet_test import prepare_report
+        report = prepare_report(book, entry, report,
+                                 date, proven_count,
+                                 roaded_count,
+                                 total_exercises,
+                                 claims=tuple(claims),
+                                 state=state, certified=certified)
+        if report.book in self._reports:
+            raise ValueError(
+                "an fleet report for book "
+                f"{report.book!r} already stands held "
+                "for the session")
+        self._reports[report.book] = report
+        return report
+
+    def get_report(self, book: Any):
+        """The held fleet report for one book."""
+        from ..core.validation import ValidationError
+        try:
+            return self._reports[book]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no fleet report for "
+                f"book {book!r}") from None
+
+    def list_reports(self) -> list:
+        """The fleet reports held, in hold order."""
+        return list(self._reports.values())
+
+    def book(self):
+        """The held pieces composed as a Stranger fleet test book.
+
+        The book is plain data: the shipped exercise
+        registry's entries beside the fleet records
+        and fleet reports held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.stranger_fleet_test import STRANGER_FLEET_TEST_SCHEMA
+        return {
+            "schema": STRANGER_FLEET_TEST_SCHEMA,
+            "exercises": [_sf_entry_dict(entry)
+                        for entry in self._exercise_registry.entries()],
+            "records": [_sf_record_dict(record)
+                        for record in self._records.values()],
+            "reports": [_sf_report_dict(verdict)
+                       for verdict in self._reports.values()],
+        }
+
+
+def parse_strangerfleettest_args(args: Any):
+    """Parse /strangerfleettest arguments (M-266).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``exercises``, ``index`` and ``verdict`` name
+    their own stance with no target; ``exercise <exercise>``
+    names one exercise; ``record <exercise>`` and
+    ``standing <exercise>`` name one exercise alone - an audit
+    record is keyed by its exercise, never by a pair;
+    ``report <book>`` names one book and the bare
+    ``report`` stance names the session's audit
+    reports. Anything else raises ValueError carrying
+    the usage line, exactly as the sibling parsers
+    refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("exercises", "index", "verdict"):
+        if rest:
+            raise ValueError(STRANGERFLEETTEST_USAGE)
+        return (head, None, (), None)
+    if head == "exercise":
+        if len(rest) != 1:
+            raise ValueError(STRANGERFLEETTEST_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 1:
+            raise ValueError(STRANGERFLEETTEST_USAGE)
+        return (head, rest[0], (), None)
+    if head == "report":
+        if not rest:
+            return ("reports", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(STRANGERFLEETTEST_USAGE)
+        return ("report", rest[0], (), None)
+    raise ValueError(STRANGERFLEETTEST_USAGE)
+
+
+#: The /costofquality slash grammar (M-267, agent layer).
+COSTOFQUALITY_USAGE = (
+    "Usage: /costofquality | /costofquality routes | "
+    "/costofquality route <route> | /costofquality record "
+    "<route> | /costofquality standing "
+    "<route> | /costofquality report | "
+    "/costofquality report <book> | "
+    "/costofquality index | /costofquality verdict")
+
+
+def _cq_entry_dict(entry: Any) -> dict[str, Any]:
+    """One audit route registry entry, as plain data (M-267)."""
+    return {"id": entry.id, "doctrine": entry.doctrine,
+            "subject": entry.subject,
+            "standing": entry.standing, "reason": entry.reason}
+
+
+
+def _cq_record_dict(record: Any) -> dict[str, Any]:
+    """One cost-proof cost record, as plain data (M-267)."""
+    return {"route": record.route,
+            "work": record.work,
+            "date": record.date,
+            "disposition": record.disposition,
+            "owner": record.owner,
+            "proof_kind": record.proof_kind,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+
+def _cq_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived run standing, as plain data (M-267)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "grade": standing.grade,
+            "gaps": list(standing.gaps)}
+
+
+def _cq_report_dict(report: Any) -> dict[str, Any]:
+    """One cost report, as plain data (M-267)."""
+    return {"book": report.book,
+            "entry": report.entry, "report": report.report,
+            "date": report.date,
+            "proven_count": report.proven_count,
+            "roaded_count": report.roaded_count,
+            "total_routes": report.total_routes,
+            "claims": list(report.claims),
+            "state": report.state, "certified": report.certified,
+            "inflated": report.inflated}
+
+
+
+def _cq_report_text(report: Any) -> str:
+    """One cost report told in plain words (M-267)."""
+    return (f"{report.book} <- {report.entry}: "
+            f"report - {report.report} (state: "
+            f"{report.state}; a report is never "
+            "inflated here)")
+
+
+
+def _cq_coerce_record(record: Any):
+    """A cost record from a record or a plain telling (M-267)."""
+    from ..core.cost_of_quality import CostOfQualityRecord
+    if isinstance(record, CostOfQualityRecord):
+        return record
+    if isinstance(record, dict):
+        return CostOfQualityRecord(
+            route=record["route"],
+            work=record["work"],
+            date=record["date"],
+            disposition=record["disposition"],
+            owner=record["owner"],
+            proof_kind=record["proof_kind"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return CostOfQualityRecord(
+        route=record.route, work=record.work,
+        date=record.date,
+        disposition=record.disposition,
+        owner=record.owner,
+        proof_kind=record.proof_kind,
+        stages=tuple(record.stages),
+        claims=tuple(record.claims))
+
+
+class CostOfQualityRegistry:
+    """Session registry for the Cost-of-quality report (M-267).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.cost_of_quality``):
+    it holds the shipped route registry (one entry per
+    route of the road, held as data) beside the
+    cost records held one by one for the session,
+    one record per route, and the privacy
+    reports held for the session, one report per book. A
+    record is validated whole by the pure layer before it
+    is held - a record naming an unknown route,
+    stage or evidence kind refuses by name here too, and a
+    refusal holds nothing new. A second record for a
+    route already held refuses likewise.
+    Reports are held only through the pure layer's report
+    road - state ready by default, may be marked shared by
+    a human, a certification claimed only when every
+    combination stands answered, and never inflated:
+    the report tells the findings exactly as they
+    stand. Holding runs no benchmark, times no start and
+    probes no network: the registry holds tellings as
+    data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.cost_of_quality import default_registry
+        self._route_registry = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._reports: dict[str, Any] = {}
+
+    def routes(self):
+        """The shipped route registry held by the session."""
+        return self._route_registry
+
+    def register_record(self, record: Any):
+        """Hold one cost record, validated whole.
+
+        A second record for a route already
+        held refuses, and a refusal holds nothing new.
+        """
+        held = _cq_coerce_record(record)
+        held.validate(self._route_registry)
+        key = held.route
+        if key in self._records:
+            raise ValueError(
+                "a care record for route "
+                f"{held.route!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, route: Any):
+        """The held record for one route."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(route)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no care record "
+                f"for route {route!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of cost records, validated whole.
+
+        Every record is validated, and guideed against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _cq_coerce_record(record)
+            held.validate(self._route_registry)
+            key = held.route
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "a care record for route "
+                    f"{held.route!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[held.route] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The cost records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the records and the reports."""
+        return (list(self._records.values())
+                + list(self._reports.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.cost_of_quality import derive_standing
+        return [derive_standing(record, self._route_registry)
+                for record in self._records.values()]
+
+    def hold_report(self, book: Any, entry: Any,
+                      report: Any, date: Any,
+                      proven_count: Any, roaded_count: Any,
+                      total_routes: Any,
+                      claims: Any = (),
+                      state: Any = "ready",
+                      certified: Any = False):
+        """Prepare one cost report, held for the session.
+
+        The report is shaped by the pure layer alone -
+        a state word outside ready/shared refuses by name
+        there, a certification short of every route answered
+        refuses there, and a report is never inflated. A
+        second report for a book already held refuses
+        likewise.
+        """
+        from ..core.cost_of_quality import prepare_report
+        report = prepare_report(book, entry, report,
+                                 date, proven_count,
+                                 roaded_count,
+                                 total_routes,
+                                 claims=tuple(claims),
+                                 state=state, certified=certified)
+        if report.book in self._reports:
+            raise ValueError(
+                "an cost report for book "
+                f"{report.book!r} already stands held "
+                "for the session")
+        self._reports[report.book] = report
+        return report
+
+    def get_report(self, book: Any):
+        """The held cost report for one book."""
+        from ..core.validation import ValidationError
+        try:
+            return self._reports[book]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no cost report for "
+                f"book {book!r}") from None
+
+    def list_reports(self) -> list:
+        """The cost reports held, in hold order."""
+        return list(self._reports.values())
+
+    def book(self):
+        """The held pieces composed as a Cost-of-quality report book.
+
+        The book is plain data: the shipped route
+        registry's entries beside the cost records
+        and cost reports held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.cost_of_quality import COST_OF_QUALITY_SCHEMA
+        return {
+            "schema": COST_OF_QUALITY_SCHEMA,
+            "routes": [_cq_entry_dict(entry)
+                        for entry in self._route_registry.entries()],
+            "records": [_cq_record_dict(record)
+                        for record in self._records.values()],
+            "reports": [_cq_report_dict(verdict)
+                       for verdict in self._reports.values()],
+        }
+
+
+def parse_costofquality_args(args: Any):
+    """Parse /costofquality arguments (M-267).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``routes``, ``index`` and ``verdict`` name
+    their own stance with no target; ``route <route>``
+    names one route; ``record <route>`` and
+    ``standing <route>`` name one route alone - an audit
+    record is keyed by its route, never by a pair;
+    ``report <book>`` names one book and the bare
+    ``report`` stance names the session's audit
+    reports. Anything else raises ValueError carrying
+    the usage line, exactly as the sibling parsers
+    refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("routes", "index", "verdict"):
+        if rest:
+            raise ValueError(COSTOFQUALITY_USAGE)
+        return (head, None, (), None)
+    if head == "route":
+        if len(rest) != 1:
+            raise ValueError(COSTOFQUALITY_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 1:
+            raise ValueError(COSTOFQUALITY_USAGE)
+        return (head, rest[0], (), None)
+    if head == "report":
+        if not rest:
+            return ("reports", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(COSTOFQUALITY_USAGE)
+        return ("report", rest[0], (), None)
+    raise ValueError(COSTOFQUALITY_USAGE)
+
+
+#: The /truthfulchangelog slash grammar (M-268, agent layer).
+TRUTHFULCHANGELOG_USAGE = (
+    "Usage: /truthfulchangelog | /truthfulchangelog families | "
+    "/truthfulchangelog family <family> | /truthfulchangelog record "
+    "<family> | /truthfulchangelog standing "
+    "<family> | /truthfulchangelog report | "
+    "/truthfulchangelog report <book> | "
+    "/truthfulchangelog index | /truthfulchangelog verdict")
+
+
+def _tc_entry_dict(entry: Any) -> dict[str, Any]:
+    """One audit family registry entry, as plain data (M-268)."""
+    return {"id": entry.id, "doctrine": entry.doctrine,
+            "subject": entry.subject,
+            "standing": entry.standing, "reason": entry.reason}
+
+
+
+def _tc_record_dict(record: Any) -> dict[str, Any]:
+    """One truth-proof changelog record, as plain data (M-268)."""
+    return {"family": record.family,
+            "work": record.work,
+            "date": record.date,
+            "disposition": record.disposition,
+            "owner": record.owner,
+            "proof_kind": record.proof_kind,
+            "stages": list(record.stages),
+            "claims": list(record.claims)}
+
+
+
+def _tc_standing_dict(standing: Any) -> dict[str, Any]:
+    """One derived run standing, as plain data (M-268)."""
+    return {"held": standing.held, "stage": standing.stage,
+            "grade": standing.grade,
+            "gaps": list(standing.gaps)}
+
+
+def _tc_report_dict(report: Any) -> dict[str, Any]:
+    """One changelog report, as plain data (M-268)."""
+    return {"book": report.book,
+            "entry": report.entry, "report": report.report,
+            "date": report.date,
+            "proven_count": report.proven_count,
+            "partial_count": report.partial_count,
+            "not_proven_count": report.not_proven_count,
+            "total_families": report.total_families,
+            "claims": list(report.claims),
+            "state": report.state, "certified": report.certified,
+            "inflated": report.inflated}
+
+
+
+def _tc_report_text(report: Any) -> str:
+    """One changelog report told in plain words (M-268)."""
+    return (f"{report.book} <- {report.entry}: "
+            f"report - {report.report} (state: "
+            f"{report.state}; a report is never "
+            "inflated here)")
+
+
+
+def _tc_coerce_record(record: Any):
+    """A changelog record from a record or a plain telling (M-268)."""
+    from ..core.truthful_changelog import TruthfulChangelogRecord
+    if isinstance(record, TruthfulChangelogRecord):
+        return record
+    if isinstance(record, dict):
+        return TruthfulChangelogRecord(
+            family=record["family"],
+            work=record["work"],
+            date=record["date"],
+            disposition=record["disposition"],
+            owner=record["owner"],
+            proof_kind=record["proof_kind"],
+            stages=tuple(record.get("stages", ())),
+            claims=tuple(record.get("claims", ())))
+    return TruthfulChangelogRecord(
+        family=record.family, work=record.work,
+        date=record.date,
+        disposition=record.disposition,
+        owner=record.owner,
+        proof_kind=record.proof_kind,
+        stages=tuple(record.stages),
+        claims=tuple(record.claims))
+
+
+class TruthfulChangelogRegistry:
+    """Session registry for the Truthful changelog (M-268).
+
+    The registry lives in the agent layer alone - it is
+    session state, not a stored setting - and wraps the
+    pure layer (``mythic_agent.core.truthful_changelog``):
+    it holds the shipped family registry (one entry per
+    family of the road, held as data) beside the
+    changelog records held one by one for the session,
+    one record per family, and the privacy
+    reports held for the session, one report per book. A
+    record is validated whole by the pure layer before it
+    is held - a record naming an unknown family,
+    stage or evidence kind refuses by name here too, and a
+    refusal holds nothing new. A second record for a
+    family already held refuses likewise.
+    Reports are held only through the pure layer's report
+    road - state ready by default, may be marked shared by
+    a human, a certification claimed only when every
+    combination stands answered, and never inflated:
+    the report tells the findings exactly as they
+    stand. Holding runs no test, times no start and
+    probes no network: the registry holds tellings as
+    data, alone.
+    """
+
+    def __init__(self) -> None:
+        from ..core.truthful_changelog import default_registry
+        self._family_registry = default_registry()
+        self._records: dict[tuple, Any] = {}
+        self._reports: dict[str, Any] = {}
+
+    def families(self):
+        """The shipped family registry held by the session."""
+        return self._family_registry
+
+    def register_record(self, record: Any):
+        """Hold one changelog record, validated whole.
+
+        A second record for a family already
+        held refuses, and a refusal holds nothing new.
+        """
+        held = _tc_coerce_record(record)
+        held.validate(self._family_registry)
+        key = held.family
+        if key in self._records:
+            raise ValueError(
+                "a care record for family "
+                f"{held.family!r} already stands held "
+                "for the session")
+        self._records[key] = held
+        return held
+
+    def get_record(self, family: Any):
+        """The held record for one family."""
+        from ..core.validation import ValidationError
+        try:
+            return self._records[(family)]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no care record "
+                f"for family {family!r}") from None
+
+    def register_records(self, records: Any):
+        """Hold a set of changelog records, validated whole.
+
+        Every record is validated, and guideed against
+        the records already held and within the set,
+        before anything is held, so a refusal holds
+        nothing new.
+        """
+        validated = []
+        seen: set = set()
+        for record in records:
+            held = _tc_coerce_record(record)
+            held.validate(self._family_registry)
+            key = held.family
+            if key in self._records or key in seen:
+                raise ValueError(
+                    "a care record for family "
+                    f"{held.family!r} already stands "
+                    "held for the session")
+            seen.add(key)
+            validated.append(held)
+        for held in validated:
+            self._records[held.family] = held
+        return validated
+
+    def list_records(self) -> list:
+        """The changelog records held one by one, in hold order."""
+        return list(self._records.values())
+
+    def list_items(self) -> list:
+        """Everything held: the records and the reports."""
+        return (list(self._records.values())
+                + list(self._reports.values()))
+
+    def standings(self) -> list:
+        """The held records' standings, derived at call time."""
+        from ..core.truthful_changelog import derive_standing
+        return [derive_standing(record, self._family_registry)
+                for record in self._records.values()]
+
+    def hold_report(self, book: Any, entry: Any,
+                      report: Any, date: Any,
+                      proven_count: Any, partial_count: Any,
+                      not_proven_count: Any,
+                      total_families: Any,
+                      claims: Any = (),
+                      state: Any = "ready",
+                      certified: Any = False):
+        """Prepare one changelog report, held for the session.
+
+        The report is shaped by the pure layer alone -
+        a state word outside ready/shared refuses by name
+        there, a certification short of every family answered
+        refuses there, and a report is never inflated. A
+        second report for a book already held refuses
+        likewise.
+        """
+        from ..core.truthful_changelog import prepare_report
+        report = prepare_report(book, entry, report,
+                                 date, proven_count,
+                                 partial_count,
+                                 not_proven_count,
+                                 total_families,
+                                 claims=tuple(claims),
+                                 state=state, certified=certified)
+        if report.book in self._reports:
+            raise ValueError(
+                "an changelog report for book "
+                f"{report.book!r} already stands held "
+                "for the session")
+        self._reports[report.book] = report
+        return report
+
+    def get_report(self, book: Any):
+        """The held changelog report for one book."""
+        from ..core.validation import ValidationError
+        try:
+            return self._reports[book]
+        except KeyError:
+            raise ValidationError(
+                "the session holds no changelog report for "
+                f"book {book!r}") from None
+
+    def list_reports(self) -> list:
+        """The changelog reports held, in hold order."""
+        return list(self._reports.values())
+
+    def book(self):
+        """The held pieces composed as a Truthful changelog book.
+
+        The book is plain data: the shipped family
+        registry's entries beside the changelog records
+        and changelog reports held for the session, under the
+        pure layer's schema word.
+        """
+        from ..core.truthful_changelog import TRUTHFUL_CHANGELOG_SCHEMA
+        return {
+            "schema": TRUTHFUL_CHANGELOG_SCHEMA,
+            "families": [_tc_entry_dict(entry)
+                        for entry in self._family_registry.entries()],
+            "records": [_tc_record_dict(record)
+                        for record in self._records.values()],
+            "reports": [_tc_report_dict(verdict)
+                       for verdict in self._reports.values()],
+        }
+
+
+def parse_truthfulchangelog_args(args: Any):
+    """Parse /truthfulchangelog arguments (M-268).
+
+    Returns ``(stance, target, (), None)``: the bare
+    command and ``show`` stand as ``("show", None, (),
+    None)``; ``families``, ``index`` and ``verdict`` name
+    their own stance with no target; ``family <family>``
+    names one family; ``record <family>`` and
+    ``standing <family>`` name one family alone - an audit
+    record is keyed by its family, never by a pair;
+    ``report <book>`` names one book and the bare
+    ``report`` stance names the session's audit
+    reports. Anything else raises ValueError carrying
+    the usage line, exactly as the sibling parsers
+    refuse.
+    """
+    text = (args or "").strip()
+    if not text or text == "show":
+        return ("show", None, (), None)
+    parts = text.split()
+    head, rest = parts[0], parts[1:]
+    if head in ("families", "index", "verdict"):
+        if rest:
+            raise ValueError(TRUTHFULCHANGELOG_USAGE)
+        return (head, None, (), None)
+    if head == "family":
+        if len(rest) != 1:
+            raise ValueError(TRUTHFULCHANGELOG_USAGE)
+        return (head, rest[0], (), None)
+    if head in ("record", "standing"):
+        if len(rest) != 1:
+            raise ValueError(TRUTHFULCHANGELOG_USAGE)
+        return (head, rest[0], (), None)
+    if head == "report":
+        if not rest:
+            return ("reports", None, (), None)
+        if len(rest) != 1:
+            raise ValueError(TRUTHFULCHANGELOG_USAGE)
+        return ("report", rest[0], (), None)
+    raise ValueError(TRUTHFULCHANGELOG_USAGE)
+
+
 #: The /docsmcp slash grammar (M-252, agent layer).
 DOCSMCP_USAGE = (
     "Usage: /docsmcp | /docsmcp projects | "
@@ -88691,6 +91062,5012 @@ class Agent:
         if announced is None:
             announced = set()
             self._securityaudit_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+    def _privacyaudit_registry(self):
+        """The held privacy-audit registry (M-261).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped surface registry beside the session's
+        capture records and audit reports one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_privacyaudit_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_privacyaudit_store", None)
+        if registry is None:
+            registry = PrivacyAuditRegistry()
+            self._privacyaudit_store = registry
+        return registry
+
+    def privacyaudit_surfaces(self):
+        """The shipped surface registry, as data (M-261).
+
+        One entry per surface of the road - P-01..P-12, the twelve doctrine by subject surfaces - held as registry entries, each naming its doctrine, its subject and its listed standing. Resolution registers and publishes
+        nothing, runs no benchmark and probes no
+        network.
+        """
+        return self._privacyaudit_registry().surfaces()
+
+    def privacyaudit_book(self):
+        """The session's privacy audit book, as data (M-261).
+
+        The held registry's book when the session holds
+        records or reports one by one - otherwise the book
+        boarded whole through
+        :meth:`record_privacyaudit_records`, or the shipped
+        surface registry with nothing held until a record
+        or report is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._privacyaudit_registry()
+        if registry.list_records() or registry.list_reports():
+            held = getattr(self, "_privacyaudit_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [r["surface"] for r in held["records"]]
+                    == [r["surface"] for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_privacyaudit_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _privacyaudit_effective_record(self, surface: Any):
+        """The record an surface's standing is derived from (M-261).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on, no date, no owner named - so an unheld
+        surface derives an honest open standing naming its
+        gaps, never a dressed claim: an absent finding
+        reads as unanswered. An unknown surface refuses by
+        name through the shipped registry first.
+        """
+        from ..core.privacy_audit import CaptureRecord
+        registry = self._privacyaudit_registry()
+        registry.surfaces().get(surface)
+        try:
+            return registry.get_record(surface)
+        except ValueError:
+            return CaptureRecord(
+                surface=surface, run="unrecorded",
+                date="",
+                disposition="ROADED",
+                owner="",
+                proof_kind="none",
+                stages=(), claims=())
+
+    def _privacyaudit_screen(self):
+        """The privacy-audit screen, in plain words (M-261).
+
+        The shipped surfaces first, then the held records
+        told by the pure layer - a held record reads
+        "held as answered" there - then each held
+        report. With no record held, the screen says
+        so plainly: a surface counts CLEAN only on
+        the audit's own network capture resting on
+        held capture evidence, and every other finding
+        ships ROADED with a named owner, in the open.
+        """
+        from ..core.privacy_audit import (
+            format_surfaces, format_records)
+        registry = self._privacyaudit_registry()
+        lines = [format_surfaces(registry.surfaces())]
+        records = registry.list_records()
+        if records:
+            lines.append(format_records(records, registry.surfaces()))
+        else:
+            lines.append(
+                "Privacy-audit records: none recorded "
+                "this session - a surface counts CLEAN "
+                "only on the audit's own network "
+                "capture resting on held capture "
+                "evidence, and every other finding "
+                "ships ROADED with a named owner, in "
+                "the open, never silent.")
+        for report in registry.list_reports():
+            lines.append(_pa_report_text(report))
+        return "\n".join(lines)
+
+    def privacyaudit_status(self) -> dict[str, Any]:
+        """The privacy audit account, in plain data (M-261).
+
+        The shipped surface registry's entries and the
+        capture records and audit reports held this session as
+        plain records (empty until held), the session
+        book's record (the shipped surface registry with
+        nothing held - until items are held), the records
+        standing held and still open derived at call time,
+        the index and verdict derived at call time, the
+        surfaces and records told in plain words through the
+        pure formatters, and the plain explanation. A
+        session holding no record for a finding derives that
+        finding's open standing. Resolution registers and
+        publishes nothing, runs no benchmark and probes
+        no network: this layer tells only.
+        """
+        from ..core import privacy_audit as camp_module
+        registry = self._privacyaudit_registry()
+        held_records = registry.list_records()
+        book = self.privacyaudit_book()
+        index = self.privacyaudit_index()
+        return {
+            "records": [_pa_record_dict(r)
+                        for r in held_records],
+            "surfaces": [_pa_surface_dict(e)
+                        for e in registry.surfaces().entries()],
+            "book": (book if held_records
+                     or registry.list_reports()
+                     or getattr(self, "_privacyaudit_held",
+                                None) is not None else None),
+            "privacyaudit_book": {
+                "schema": camp_module.PRIVACY_AUDIT_SCHEMA,
+                "surfaces": book["surfaces"],
+                "records": book["records"],
+                "reports": book["reports"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.privacyaudit_verdict()["verdict"],
+            "surfaces_text": camp_module.format_surfaces(
+                registry.surfaces()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "reports": [_pa_report_dict(d)
+                       for d in registry.list_reports()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._privacyaudit_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": PRIVACYAUDIT_USAGE,
+        }
+
+    def get_privacyaudit_surface(self, surface: Any):
+        """The one surface entry a surface name names (M-261).
+
+        The shipped surface registry answers: a surface the
+        surface book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._privacyaudit_registry().surfaces().get(surface)
+
+    def get_privacyaudit_record(self, surface: Any):
+        """The one record a surface names (M-261).
+
+        The session's held registry answers: a finding the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._privacyaudit_registry().get_record(surface)
+
+    def privacyaudit_standing(self, surface: Any):
+        """Derive one finding's standing (M-261).
+
+        The standing is derived at call time by the pure
+        layer from the finding's effective record - the held
+        record, or the honest empty record while none
+        stands held: held only on a full legal walk
+        resting on held finding evidence, with the
+        finding resting on held capture evidence, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.privacy_audit import derive_standing
+        registry = self._privacyaudit_registry()
+        return derive_standing(
+            self._privacyaudit_effective_record(surface),
+            registry.surfaces())
+
+    def captures_for_disposition(self, disposition_word: Any):
+        """The held records carrying one disposition (M-261)."""
+        if disposition_word is None or not str(disposition_word).strip():
+            raise ValueError(
+                "a disposition must be named to list its records")
+        return [r for r in
+                self._privacyaudit_registry().list_records()
+                if r.disposition == disposition_word]
+
+
+    def privacyaudit_held(self):
+        """The records whose standing stands held (M-261)."""
+        registry = self._privacyaudit_registry()
+        return [f"{r.surface}"
+                for r in registry.list_records()
+                if self.privacyaudit_standing(r.surface).held]
+
+    def privacyaudit_index(self) -> dict[str, Any]:
+        """Derive the privacy audit index at call time (M-261).
+
+        The index is derived from every held record
+        alone - each held record's derived standing, the
+        held records named and the open records named in
+        its gaps. Deriving registers and publishes nothing,
+        runs no benchmark and probes no network.
+        Returns the derived index record, the rendered
+        records, the screen and the plain explanation.
+        """
+        from ..core import privacy_audit as camp_module
+        registry = self._privacyaudit_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.privacyaudit_standing(record.surface)
+            standings.append({
+                "surface": record.surface,
+                **_pa_standing_dict(standing)})
+        index = {
+            "type": "privacyaudit_index",
+            "slice": camp_module.PRIVACY_AUDIT_SLICE,
+            "schema": camp_module.PRIVACY_AUDIT_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['surface']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['surface']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._privacyaudit_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def privacyaudit_verdict(self) -> dict[str, Any]:
+        """Derive the privacy audit verdict at call time (M-261).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and every
+        held record's standing stands held on held
+        finding evidence, with every finding
+        resting on held capture evidence, ``open`` while no record stands held or any held
+        record stands short of held - with the held and
+        open records named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import privacy_audit as camp_module
+        registry = self._privacyaudit_registry()
+        records = registry.list_records()
+        held = self.privacyaudit_held()
+        open_keys = [f"{r.surface}"
+                     for r in records
+                     if f"{r.surface}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Privacy audit stands held: every recorded "
+                "surface rests on held capture evidence "
+                "and stands answered - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Privacy audit stands open: no surface "
+                "is recorded this session - an absent "
+                "surface reads as unknown, never "
+                "as answered.")
+        else:
+            word = "open"
+            telling = (
+                "Privacy audit stands open: a surface "
+                "is held only when it rests on held "
+                "local evidence and stands answered, "
+                "and these surfaces "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "privacyaudit_verdict",
+            "slice": camp_module.PRIVACY_AUDIT_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._privacyaudit_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_privacyaudit_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one capture record for the session (M-261).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        surface, stage or evidence kind refuses by
+        name on this road too, and a refusal holds nothing
+        new and publishes nothing. A held record is
+        published as its ``privacyaudit_record``
+        session-news record through the checkpoint road.
+        Returns the held record, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a record runs no benchmark
+        and probes no network: the telling stands on
+        this layer's book, as data.
+        """
+        from ..core import privacy_audit as camp_module
+        registry = self._privacyaudit_registry()
+        held = registry.register_record(record)
+        news = {"type": "privacyaudit_record",
+                **_pa_record_dict(held)}
+        self._publish_privacyaudit_record(news)
+        return {
+            "record": _pa_record_dict(held),
+            "record_news": news,
+            "screen": self._privacyaudit_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_privacyaudit_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of capture records for the session (M-261).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order given.
+        Returns the held records, their news records,
+        the count of records held, the screen, and the
+        explanation. Registering runs no benchmark and probes
+        no network.
+        """
+        from ..core import privacy_audit as camp_module
+        registry = self._privacyaudit_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "privacyaudit_record", **_pa_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_privacyaudit_record(news)
+        return {
+            "records": [_pa_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._privacyaudit_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_privacyaudit_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of capture records (M-261).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its surface key and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held book,
+        its records, their news records, the count, the
+        screen, and the explanation. Recording runs no
+        benchmark and probes no network.
+        """
+        from ..core import privacy_audit as camp_module
+        validated = [_pa_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._privacyaudit_registry().surfaces())
+        fingerprint = (
+            tuple(r.surface for r in validated),
+            camp_module.PRIVACY_AUDIT_SCHEMA)
+        boarded = getattr(self, "_privacyaudit_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._privacyaudit_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these capture records are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._privacyaudit_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._privacyaudit_held = registry.book()
+        news_records = [
+            {"type": "privacyaudit_record", **_pa_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_privacyaudit_record(news)
+        return {
+            "book": self._privacyaudit_held,
+            "records": [_pa_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._privacyaudit_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_privacyaudit(
+            self, surface: Any) -> dict[str, Any]:
+        """Stand one finding's standing on the session book (M-261).
+
+        This is the book's own viewing road: the finding's
+        surface entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        finding's effective record, and published as its
+        ``privacyaudit_standing`` session news, with the held
+        record published as its ``privacyaudit_record``
+        session news when one stands held. Returns the
+        surface's entry, its derived standing, the held
+        record when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        findings as data alone - it runs no benchmark,
+        probes no network and inflates nothing here.
+        """
+        from ..core import privacy_audit as camp_module
+        entry = self.get_privacyaudit_surface(surface)
+        standing = self.privacyaudit_standing(surface)
+        try:
+            held = self.get_privacyaudit_record(surface)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "privacyaudit_record",
+                           **_pa_record_dict(held)}
+            self._publish_privacyaudit_record(record_news)
+        standing_news = {
+            "type": "privacyaudit_standing", "surface": surface,
+            **_pa_standing_dict(standing)}
+        self._publish_privacyaudit_record(standing_news)
+        return {
+            "surface": _pa_surface_dict(entry),
+            "standing": {"surface": surface,
+                         **_pa_standing_dict(standing)},
+            "record": (_pa_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._privacyaudit_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def prepare_privacyaudit_report(
+            self, book: Any, entry: Any, report: Any,
+            date: Any, clean_count: Any, roaded_count: Any,
+            total_surfaces: Any,
+            claims: Any = (),
+            state: Any = "ready",
+            certified: Any = False
+            ) -> dict[str, Any]:
+        """Prepare one audit report for the session (M-261).
+
+        The report is shaped by the pure layer alone -
+        it stands at state ready by default, may be
+        marked ``shared`` by a human, and a state
+        word outside ready/shared refuses by name;
+        a report is never inflated here, a certification
+        short of every surface answered refuses there, and
+        no finding is re-audited on this road. A held report
+        is published as its ``privacyaudit_verdict``
+        session-news record through the checkpoint road.
+        Returns the held report, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Preparing audits nothing and
+        runs nothing here.
+        """
+        from ..core import privacy_audit as camp_module
+        registry = self._privacyaudit_registry()
+        report = registry.hold_report(book, entry, report,
+                                       date, clean_count,
+                                       roaded_count,
+                                       total_surfaces,
+                                       claims=claims,
+                                       state=state,
+                                       certified=certified)
+        news = {"type": "privacyaudit_verdict",
+                **_pa_report_dict(report)}
+        self._publish_privacyaudit_record(news)
+        return {
+            "report": _pa_report_dict(report),
+            "report_news": news,
+            "screen": self._privacyaudit_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+
+    def get_privacyaudit_report(self, book: Any):
+        """The one report a book names (M-261).
+
+        The session's held registry answers: a book
+        the session holds no report for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._privacyaudit_registry().get_report(book)
+
+
+    def privacyaudit_reports(self) -> list:
+        """The audit reports held for the session (M-261)."""
+        return self._privacyaudit_registry().list_reports()
+
+
+    def report_privacyaudit(self) -> dict[str, Any]:
+        """Render the session privacy audit, as a verdict (M-261).
+
+        The shipped surface registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, runs no benchmark and probes
+        no network. Returns the book,
+        the surfaces, held records and reports as plain
+        records, the derived standings, the rendered
+        surfaces and records, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import privacy_audit as camp_module
+        registry = self._privacyaudit_registry()
+        book = self.privacyaudit_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.privacyaudit_standing(record.surface)
+            standings.append({
+                "surface": record.surface,
+                **_pa_standing_dict(standing)})
+        return {
+            "book": book,
+            "surfaces": [_pa_surface_dict(e)
+                        for e in registry.surfaces().entries()],
+            "records": [_pa_record_dict(r)
+                        for r in registry.list_records()],
+            "reports": [_pa_report_dict(d)
+                       for d in registry.list_reports()],
+            "standings": standings,
+            "index": self.privacyaudit_index()["index"],
+            "verdict": self.privacyaudit_verdict()["verdict"],
+            "surfaces_text": camp_module.format_surfaces(
+                registry.surfaces()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._privacyaudit_effective_record(r.surface))
+                for r in registry.list_records()),
+            "screen": self._privacyaudit_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_privacyaudit_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one capture record as session news (M-261).
+
+        The agent layer's ``privacyaudit_record``,
+        ``privacyaudit_standing`` and
+        ``privacyaudit_verdict`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is granted. Each
+        record is announced at most once per telling: a
+        record under its surface, its run, its date, its
+        disposition, its owner, its proof kind, its
+        walked stages and its claims, a standing under
+        its surface, its held word, its stage, its grade
+        and its gaps, and a report under its book, its
+        entry, its report and its state, so a standing
+        grown by a newly held record announces again
+        as the new figure it is.
+        A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "privacyaudit_record":
+            target = ("privacyaudit_record",
+                      record.get("surface"),
+                      record.get("run"),
+                      record.get("date"),
+                      record.get("disposition"),
+                      record.get("owner"),
+                      record.get("proof_kind"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "privacyaudit_standing":
+            target = ("privacyaudit_standing",
+                      record.get("surface"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("grade"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "privacyaudit_verdict":
+            target = ("privacyaudit_verdict",
+                      record.get("book"),
+                      record.get("entry"),
+                      record.get("report"),
+                      record.get("state"))
+        else:
+            return
+        announced = getattr(self, "_privacyaudit_announced", None)
+        if announced is None:
+            announced = set()
+            self._privacyaudit_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+    def _accessibilityfinal_registry(self):
+        """The held privacy-audit registry (M-262).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped check registry beside the session's
+        capture records and audit reports one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_accessibilityfinal_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_accessibilityfinal_store", None)
+        if registry is None:
+            registry = AccessibilityFinalRegistry()
+            self._accessibilityfinal_store = registry
+        return registry
+
+    def accessibilityfinal_checks(self):
+        """The shipped check registry, as data (M-262).
+
+        One entry per check of the road - P-01..P-12, the twelve doctrine by subject checks - held as registry entries, each naming its doctrine, its subject and its listed standing. Resolution registers and publishes
+        nothing, runs no benchmark and probes no
+        network.
+        """
+        return self._accessibilityfinal_registry().checks()
+
+    def accessibilityfinal_book(self):
+        """The session's accessibility final gate book, as data (M-262).
+
+        The held registry's book when the session holds
+        records or reports one by one - otherwise the book
+        boarded whole through
+        :meth:`record_accessibilityfinal_records`, or the shipped
+        check registry with nothing held until a record
+        or report is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._accessibilityfinal_registry()
+        if registry.list_records() or registry.list_reports():
+            held = getattr(self, "_accessibilityfinal_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [r["check"] for r in held["records"]]
+                    == [r["check"] for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_accessibilityfinal_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _accessibilityfinal_effective_record(self, check: Any):
+        """The record an check's standing is derived from (M-262).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on, no date, no owner named - so an unheld
+        check derives an honest open standing naming its
+        gaps, never a dressed claim: an absent finding
+        reads as unanswered. An unknown check refuses by
+        name through the shipped registry first.
+        """
+        from ..core.accessibility_final import GateRecord
+        registry = self._accessibilityfinal_registry()
+        registry.checks().get(check)
+        try:
+            return registry.get_record(check)
+        except ValueError:
+            return GateRecord(
+                check=check, task="unrecorded",
+                date="",
+                disposition="ROADED",
+                owner="",
+                proof_kind="none",
+                stages=(), claims=())
+
+    def _accessibilityfinal_screen(self):
+        """The accessibility-final-gate screen, in plain words (M-262).
+
+        The shipped checks first, then the held records told by the pure layer - a held record reads held as answered there - then each held report. With no record held, the screen says so plainly: a check counts PASSED only on the gate own shipped-TUI re-run resting on held rerun evidence, and every other finding ships ROADED with a named owner, in the open.
+        """
+        from ..core.accessibility_final import format_checks, format_records
+        registry = self._accessibilityfinal_registry()
+        lines = [format_checks(registry.checks())]
+        records = registry.list_records()
+        if records:
+            lines.append(format_records(records, registry.checks()))
+        else:
+            lines.append("Accessibility-final records: none recorded this session - a check counts PASSED only on the gate own shipped-TUI re-run resting on held rerun evidence, and every other finding ships ROADED with a named owner, in the open, never silent.")
+        for report in registry.list_reports():
+            lines.append(_af_report_text(report))
+        return "\n".join(lines)
+
+    def accessibilityfinal_status(self) -> dict[str, Any]:
+        """The accessibility final gate account, in plain data (M-262).
+
+        The shipped check registry's entries and the
+        capture records and audit reports held this session as
+        plain records (empty until held), the session
+        book's record (the shipped check registry with
+        nothing held - until items are held), the records
+        standing held and still open derived at call time,
+        the index and verdict derived at call time, the
+        checks and records told in plain words through the
+        pure formatters, and the plain explanation. A
+        session holding no record for a finding derives that
+        finding's open standing. Resolution registers and
+        publishes nothing, runs no benchmark and probes
+        no network: this layer tells only.
+        """
+        from ..core import accessibility_final as camp_module
+        registry = self._accessibilityfinal_registry()
+        held_records = registry.list_records()
+        book = self.accessibilityfinal_book()
+        index = self.accessibilityfinal_index()
+        return {
+            "records": [_af_record_dict(r)
+                        for r in held_records],
+            "checks": [_af_check_dict(e)
+                        for e in registry.checks().entries()],
+            "book": (book if held_records
+                     or registry.list_reports()
+                     or getattr(self, "_accessibilityfinal_held",
+                                None) is not None else None),
+            "accessibilityfinal_book": {
+                "schema": camp_module.ACCESSIBILITY_FINAL_SCHEMA,
+                "checks": book["checks"],
+                "records": book["records"],
+                "reports": book["reports"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.accessibilityfinal_verdict()["verdict"],
+            "checks_text": camp_module.format_checks(
+                registry.checks()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "reports": [_af_report_dict(d)
+                       for d in registry.list_reports()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._accessibilityfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": ACCESSIBILITYFINAL_USAGE,
+        }
+
+    def get_accessibilityfinal_check(self, check: Any):
+        """The one check entry a check name names (M-262).
+
+        The shipped check registry answers: a check the
+        check book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._accessibilityfinal_registry().checks().get(check)
+
+    def get_accessibilityfinal_record(self, check: Any):
+        """The one record a check names (M-262).
+
+        The session's held registry answers: a finding the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._accessibilityfinal_registry().get_record(check)
+
+    def accessibilityfinal_standing(self, check: Any):
+        """Derive one finding's standing (M-262).
+
+        The standing is derived at call time by the pure
+        layer from the finding's effective record - the held
+        record, or the honest empty record while none
+        stands held: held only on a full legal walk
+        resting on held finding evidence, with the
+        finding resting on held rerun evidence, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.accessibility_final import derive_standing
+        registry = self._accessibilityfinal_registry()
+        return derive_standing(
+            self._accessibilityfinal_effective_record(check),
+            registry.checks())
+
+    def gates_for_disposition(self, disposition_word: Any):
+        """The held records carrying one disposition (M-262)."""
+        if disposition_word is None or not str(disposition_word).strip():
+            raise ValueError(
+                "a disposition must be named to list its records")
+        return [r for r in
+                self._accessibilityfinal_registry().list_records()
+                if r.disposition == disposition_word]
+
+
+    def accessibilityfinal_held(self):
+        """The records whose standing stands held (M-262)."""
+        registry = self._accessibilityfinal_registry()
+        return [f"{r.check}"
+                for r in registry.list_records()
+                if self.accessibilityfinal_standing(r.check).held]
+
+    def accessibilityfinal_index(self) -> dict[str, Any]:
+        """Derive the accessibility final gate index at call time (M-262).
+
+        The index is derived from every held record
+        alone - each held record's derived standing, the
+        held records named and the open records named in
+        its gaps. Deriving registers and publishes nothing,
+        runs no benchmark and probes no network.
+        Returns the derived index record, the rendered
+        records, the screen and the plain explanation.
+        """
+        from ..core import accessibility_final as camp_module
+        registry = self._accessibilityfinal_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.accessibilityfinal_standing(record.check)
+            standings.append({
+                "check": record.check,
+                **_af_standing_dict(standing)})
+        index = {
+            "type": "accessibilityfinal_index",
+            "slice": camp_module.ACCESSIBILITY_FINAL_SLICE,
+            "schema": camp_module.ACCESSIBILITY_FINAL_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['check']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['check']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._accessibilityfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def accessibilityfinal_verdict(self) -> dict[str, Any]:
+        """Derive the accessibility final gate verdict at call time (M-262).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and every
+        held record's standing stands held on held
+        finding evidence, with every finding
+        resting on held rerun evidence, ``open`` while no record stands held or any held
+        record stands short of held - with the held and
+        open records named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import accessibility_final as camp_module
+        registry = self._accessibilityfinal_registry()
+        records = registry.list_records()
+        held = self.accessibilityfinal_held()
+        open_keys = [f"{r.check}"
+                     for r in records
+                     if f"{r.check}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Accessibility final gate stands held: every recorded "
+                "check rests on held rerun evidence "
+                "and stands answered - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Accessibility final gate stands open: no check "
+                "is recorded this session - an absent "
+                "check reads as unknown, never "
+                "as answered.")
+        else:
+            word = "open"
+            telling = (
+                "Accessibility final gate stands open: a check "
+                "is held only when it rests on held "
+                "local evidence and stands answered, "
+                "and these checks "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "accessibilityfinal_verdict",
+            "slice": camp_module.ACCESSIBILITY_FINAL_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._accessibilityfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_accessibilityfinal_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one capture record for the session (M-262).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        check, stage or evidence kind refuses by
+        name on this road too, and a refusal holds nothing
+        new and publishes nothing. A held record is
+        published as its ``accessibilityfinal_record``
+        session-news record through the checkpoint road.
+        Returns the held record, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a record runs no benchmark
+        and probes no network: the telling stands on
+        this layer's book, as data.
+        """
+        from ..core import accessibility_final as camp_module
+        registry = self._accessibilityfinal_registry()
+        held = registry.register_record(record)
+        news = {"type": "accessibilityfinal_record",
+                **_af_record_dict(held)}
+        self._publish_accessibilityfinal_record(news)
+        return {
+            "record": _af_record_dict(held),
+            "record_news": news,
+            "screen": self._accessibilityfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_accessibilityfinal_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of capture records for the session (M-262).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order given.
+        Returns the held records, their news records,
+        the count of records held, the screen, and the
+        explanation. Registering runs no benchmark and probes
+        no network.
+        """
+        from ..core import accessibility_final as camp_module
+        registry = self._accessibilityfinal_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "accessibilityfinal_record", **_af_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_accessibilityfinal_record(news)
+        return {
+            "records": [_af_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._accessibilityfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_accessibilityfinal_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of capture records (M-262).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its check key and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held book,
+        its records, their news records, the count, the
+        screen, and the explanation. Recording runs no
+        benchmark and probes no network.
+        """
+        from ..core import accessibility_final as camp_module
+        validated = [_af_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._accessibilityfinal_registry().checks())
+        fingerprint = (
+            tuple(r.check for r in validated),
+            camp_module.ACCESSIBILITY_FINAL_SCHEMA)
+        boarded = getattr(self, "_accessibilityfinal_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._accessibilityfinal_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these capture records are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._accessibilityfinal_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._accessibilityfinal_held = registry.book()
+        news_records = [
+            {"type": "accessibilityfinal_record", **_af_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_accessibilityfinal_record(news)
+        return {
+            "book": self._accessibilityfinal_held,
+            "records": [_af_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._accessibilityfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_accessibilityfinal(
+            self, check: Any) -> dict[str, Any]:
+        """Stand one finding's standing on the session book (M-262).
+
+        This is the book's own viewing road: the finding's
+        check entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        finding's effective record, and published as its
+        ``accessibilityfinal_standing`` session news, with the held
+        record published as its ``accessibilityfinal_record``
+        session news when one stands held. Returns the
+        check's entry, its derived standing, the held
+        record when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        findings as data alone - it runs no benchmark,
+        probes no network and inflates nothing here.
+        """
+        from ..core import accessibility_final as camp_module
+        entry = self.get_accessibilityfinal_check(check)
+        standing = self.accessibilityfinal_standing(check)
+        try:
+            held = self.get_accessibilityfinal_record(check)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "accessibilityfinal_record",
+                           **_af_record_dict(held)}
+            self._publish_accessibilityfinal_record(record_news)
+        standing_news = {
+            "type": "accessibilityfinal_standing", "check": check,
+            **_af_standing_dict(standing)}
+        self._publish_accessibilityfinal_record(standing_news)
+        return {
+            "check": _af_check_dict(entry),
+            "standing": {"check": check,
+                         **_af_standing_dict(standing)},
+            "record": (_af_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._accessibilityfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def prepare_accessibilityfinal_report(
+            self, book: Any, entry: Any, report: Any,
+            date: Any, passed_count: Any, roaded_count: Any,
+            total_checks: Any,
+            claims: Any = (),
+            state: Any = "ready",
+            certified: Any = False
+            ) -> dict[str, Any]:
+        """Prepare one audit report for the session (M-262).
+
+        The report is shaped by the pure layer alone -
+        it stands at state ready by default, may be
+        marked ``shared`` by a human, and a state
+        word outside ready/shared refuses by name;
+        a report is never inflated here, a certification
+        short of every check answered refuses there, and
+        no finding is re-audited on this road. A held report
+        is published as its ``accessibilityfinal_verdict``
+        session-news record through the checkpoint road.
+        Returns the held report, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Preparing audits nothing and
+        runs nothing here.
+        """
+        from ..core import accessibility_final as camp_module
+        registry = self._accessibilityfinal_registry()
+        report = registry.hold_report(book, entry, report,
+                                       date, passed_count,
+                                       roaded_count,
+                                       total_checks,
+                                       claims=claims,
+                                       state=state,
+                                       certified=certified)
+        news = {"type": "accessibilityfinal_verdict",
+                **_af_report_dict(report)}
+        self._publish_accessibilityfinal_record(news)
+        return {
+            "report": _af_report_dict(report),
+            "report_news": news,
+            "screen": self._accessibilityfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+
+    def get_accessibilityfinal_report(self, book: Any):
+        """The one report a book names (M-262).
+
+        The session's held registry answers: a book
+        the session holds no report for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._accessibilityfinal_registry().get_report(book)
+
+
+    def accessibilityfinal_reports(self) -> list:
+        """The audit reports held for the session (M-262)."""
+        return self._accessibilityfinal_registry().list_reports()
+
+
+    def report_accessibilityfinal(self) -> dict[str, Any]:
+        """Render the session accessibility final gate, as a verdict (M-262).
+
+        The shipped check registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, runs no benchmark and probes
+        no network. Returns the book,
+        the checks, held records and reports as plain
+        records, the derived standings, the rendered
+        checks and records, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import accessibility_final as camp_module
+        registry = self._accessibilityfinal_registry()
+        book = self.accessibilityfinal_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.accessibilityfinal_standing(record.check)
+            standings.append({
+                "check": record.check,
+                **_af_standing_dict(standing)})
+        return {
+            "book": book,
+            "checks": [_af_check_dict(e)
+                        for e in registry.checks().entries()],
+            "records": [_af_record_dict(r)
+                        for r in registry.list_records()],
+            "reports": [_af_report_dict(d)
+                       for d in registry.list_reports()],
+            "standings": standings,
+            "index": self.accessibilityfinal_index()["index"],
+            "verdict": self.accessibilityfinal_verdict()["verdict"],
+            "checks_text": camp_module.format_checks(
+                registry.checks()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._accessibilityfinal_effective_record(r.check))
+                for r in registry.list_records()),
+            "screen": self._accessibilityfinal_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_accessibilityfinal_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one capture record as session news (M-262).
+
+        The agent layer's ``accessibilityfinal_record``,
+        ``accessibilityfinal_standing`` and
+        ``accessibilityfinal_verdict`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is granted. Each
+        record is announced at most once per telling: a
+        record under its check, its run, its date, its
+        disposition, its owner, its proof kind, its
+        walked stages and its claims, a standing under
+        its check, its held word, its stage, its grade
+        and its gaps, and a report under its book, its
+        entry, its report and its state, so a standing
+        grown by a newly held record announces again
+        as the new figure it is.
+        A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "accessibilityfinal_record":
+            target = ("accessibilityfinal_record",
+                      record.get("check"),
+                      record.get("run"),
+                      record.get("date"),
+                      record.get("disposition"),
+                      record.get("owner"),
+                      record.get("proof_kind"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "accessibilityfinal_standing":
+            target = ("accessibilityfinal_standing",
+                      record.get("check"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("grade"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "accessibilityfinal_verdict":
+            target = ("accessibilityfinal_verdict",
+                      record.get("book"),
+                      record.get("entry"),
+                      record.get("report"),
+                      record.get("state"))
+        else:
+            return
+        announced = getattr(self, "_accessibilityfinal_announced", None)
+        if announced is None:
+            announced = set()
+            self._accessibilityfinal_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+    def _docscompletion_registry(self):
+        """The held privacy-audit registry (M-263).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped guide registry beside the session's
+        capture records and audit reports one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_docscompletion_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_docscompletion_store", None)
+        if registry is None:
+            registry = DocsCompletionRegistry()
+            self._docscompletion_store = registry
+        return registry
+
+    def docscompletion_guides(self):
+        """The shipped guide registry, as data (M-263).
+
+        One entry per guide of the road - P-01..P-12, the twelve doctrine by subject guides - held as registry entries, each naming its doctrine, its subject and its listed standing. Resolution registers and publishes
+        nothing, runs no benchmark and probes no
+        network.
+        """
+        return self._docscompletion_registry().guides()
+
+    def docscompletion_book(self):
+        """The session's docs completion book, as data (M-263).
+
+        The held registry's book when the session holds
+        records or reports one by one - otherwise the book
+        boarded whole through
+        :meth:`record_docscompletion_records`, or the shipped
+        guide registry with nothing held until a record
+        or report is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._docscompletion_registry()
+        if registry.list_records() or registry.list_reports():
+            held = getattr(self, "_docscompletion_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [r["guide"] for r in held["records"]]
+                    == [r["guide"] for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_docscompletion_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _docscompletion_effective_record(self, guide: Any):
+        """The record an guide's standing is derived from (M-263).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on, no date, no owner named - so an unheld
+        guide derives an honest open standing naming its
+        gaps, never a dressed claim: an absent finding
+        reads as unanswered. An unknown guide refuses by
+        name through the shipped registry first.
+        """
+        from ..core.docs_completion import DocRecord
+        registry = self._docscompletion_registry()
+        registry.guides().get(guide)
+        try:
+            return registry.get_record(guide)
+        except ValueError:
+            return DocRecord(
+                guide=guide, work="unrecorded",
+                date="",
+                disposition="ROADED",
+                owner="",
+                proof_kind="none",
+                stages=(), claims=())
+
+    def _docscompletion_screen(self):
+        """The docs-completion screen, in plain words (M-263).
+
+        The shipped guides first, then the held records
+        told by the pure layer - a held record reads
+        "held as answered" there - then each held
+        report. With no record held, the screen says
+        so plainly: a guide counts RECONCILED only on
+        reconciliation against the shipped code itself
+        resting on held code evidence, and every other
+        guide ships ROADED with a named owner, in the open.
+        """
+        from ..core.docs_completion import (
+            format_guides, format_records)
+        registry = self._docscompletion_registry()
+        lines = [format_guides(registry.guides())]
+        records = registry.list_records()
+        if records:
+            lines.append(format_records(records, registry.guides()))
+        else:
+            lines.append(
+                "Docs-completion records: none recorded "
+                "this session - a guide counts RECONCILED "
+                "only on reconciliation against the "
+                "shipped code itself resting on held code "
+                "evidence, and every other guide "
+                "ships ROADED with a named owner, in "
+                "the open, never silent.")
+        for report in registry.list_reports():
+            lines.append(_dc_report_text(report))
+        return "\n".join(lines)
+
+    def docscompletion_status(self) -> dict[str, Any]:
+        """The docs completion account, in plain data (M-263).
+
+        The shipped guide registry's entries and the
+        capture records and audit reports held this session as
+        plain records (empty until held), the session
+        book's record (the shipped guide registry with
+        nothing held - until items are held), the records
+        standing held and still open derived at call time,
+        the index and verdict derived at call time, the
+        guides and records told in plain words through the
+        pure formatters, and the plain explanation. A
+        session holding no record for a finding derives that
+        finding's open standing. Resolution registers and
+        publishes nothing, runs no benchmark and probes
+        no network: this layer tells only.
+        """
+        from ..core import docs_completion as camp_module
+        registry = self._docscompletion_registry()
+        held_records = registry.list_records()
+        book = self.docscompletion_book()
+        index = self.docscompletion_index()
+        return {
+            "records": [_dc_record_dict(r)
+                        for r in held_records],
+            "guides": [_dc_guide_dict(e)
+                        for e in registry.guides().entries()],
+            "book": (book if held_records
+                     or registry.list_reports()
+                     or getattr(self, "_docscompletion_held",
+                                None) is not None else None),
+            "docscompletion_book": {
+                "schema": camp_module.DOCS_COMPLETION_SCHEMA,
+                "guides": book["guides"],
+                "records": book["records"],
+                "reports": book["reports"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.docscompletion_verdict()["verdict"],
+            "guides_text": camp_module.format_guides(
+                registry.guides()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "reports": [_dc_report_dict(d)
+                       for d in registry.list_reports()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._docscompletion_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": DOCSCOMPLETION_USAGE,
+        }
+
+    def get_docscompletion_guide(self, guide: Any):
+        """The one guide entry a guide name names (M-263).
+
+        The shipped guide registry answers: a guide the
+        guide book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._docscompletion_registry().guides().get(guide)
+
+    def get_docscompletion_record(self, guide: Any):
+        """The one record a guide names (M-263).
+
+        The session's held registry answers: a finding the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._docscompletion_registry().get_record(guide)
+
+    def docscompletion_standing(self, guide: Any):
+        """Derive one finding's standing (M-263).
+
+        The standing is derived at call time by the pure
+        layer from the finding's effective record - the held
+        record, or the honest empty record while none
+        stands held: held only on a full legal walk
+        resting on held finding evidence, with the
+        finding resting on held code evidence, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.docs_completion import derive_standing
+        registry = self._docscompletion_registry()
+        return derive_standing(
+            self._docscompletion_effective_record(guide),
+            registry.guides())
+
+    def docs_for_disposition(self, disposition_word: Any):
+        """The held records carrying one disposition (M-263)."""
+        if disposition_word is None or not str(disposition_word).strip():
+            raise ValueError(
+                "a disposition must be named to list its records")
+        return [r for r in
+                self._docscompletion_registry().list_records()
+                if r.disposition == disposition_word]
+
+
+    def docscompletion_held(self):
+        """The records whose standing stands held (M-263)."""
+        registry = self._docscompletion_registry()
+        return [f"{r.guide}"
+                for r in registry.list_records()
+                if self.docscompletion_standing(r.guide).held]
+
+    def docscompletion_index(self) -> dict[str, Any]:
+        """Derive the docs completion index at call time (M-263).
+
+        The index is derived from every held record
+        alone - each held record's derived standing, the
+        held records named and the open records named in
+        its gaps. Deriving registers and publishes nothing,
+        runs no benchmark and probes no network.
+        Returns the derived index record, the rendered
+        records, the screen and the plain explanation.
+        """
+        from ..core import docs_completion as camp_module
+        registry = self._docscompletion_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.docscompletion_standing(record.guide)
+            standings.append({
+                "guide": record.guide,
+                **_dc_standing_dict(standing)})
+        index = {
+            "type": "docscompletion_index",
+            "slice": camp_module.DOCS_COMPLETION_SLICE,
+            "schema": camp_module.DOCS_COMPLETION_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['guide']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['guide']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._docscompletion_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def docscompletion_verdict(self) -> dict[str, Any]:
+        """Derive the docs completion verdict at call time (M-263).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and every
+        held record's standing stands held on held
+        code evidence, with every finding
+        resting on held code evidence, ``open`` while no record stands held or any held
+        record stands short of held - with the held and
+        open records named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import docs_completion as camp_module
+        registry = self._docscompletion_registry()
+        records = registry.list_records()
+        held = self.docscompletion_held()
+        open_keys = [f"{r.guide}"
+                     for r in records
+                     if f"{r.guide}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Docs completion stands held: every recorded "
+                "guide rests on held code evidence "
+                "and stands answered - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Docs completion stands open: no guide "
+                "is recorded this session - an absent "
+                "guide reads as unknown, never "
+                "as answered.")
+        else:
+            word = "open"
+            telling = (
+                "Docs completion stands open: a guide "
+                "is held only when it rests on held "
+                "local evidence and stands answered, "
+                "and these guides "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "docscompletion_verdict",
+            "slice": camp_module.DOCS_COMPLETION_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._docscompletion_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_docscompletion_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one capture record for the session (M-263).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        guide, stage or evidence kind refuses by
+        name on this road too, and a refusal holds nothing
+        new and publishes nothing. A held record is
+        published as its ``docscompletion_record``
+        session-news record through the checkpoint road.
+        Returns the held record, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a record runs no benchmark
+        and probes no network: the telling stands on
+        this layer's book, as data.
+        """
+        from ..core import docs_completion as camp_module
+        registry = self._docscompletion_registry()
+        held = registry.register_record(record)
+        news = {"type": "docscompletion_record",
+                **_dc_record_dict(held)}
+        self._publish_docscompletion_record(news)
+        return {
+            "record": _dc_record_dict(held),
+            "record_news": news,
+            "screen": self._docscompletion_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_docscompletion_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of capture records for the session (M-263).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order given.
+        Returns the held records, their news records,
+        the count of records held, the screen, and the
+        explanation. Registering runs no benchmark and probes
+        no network.
+        """
+        from ..core import docs_completion as camp_module
+        registry = self._docscompletion_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "docscompletion_record", **_dc_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_docscompletion_record(news)
+        return {
+            "records": [_dc_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._docscompletion_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_docscompletion_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of capture records (M-263).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its guide key and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held book,
+        its records, their news records, the count, the
+        screen, and the explanation. Recording runs no
+        benchmark and probes no network.
+        """
+        from ..core import docs_completion as camp_module
+        validated = [_dc_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._docscompletion_registry().guides())
+        fingerprint = (
+            tuple(r.guide for r in validated),
+            camp_module.DOCS_COMPLETION_SCHEMA)
+        boarded = getattr(self, "_docscompletion_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._docscompletion_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these capture records are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._docscompletion_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._docscompletion_held = registry.book()
+        news_records = [
+            {"type": "docscompletion_record", **_dc_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_docscompletion_record(news)
+        return {
+            "book": self._docscompletion_held,
+            "records": [_dc_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._docscompletion_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_docscompletion(
+            self, guide: Any) -> dict[str, Any]:
+        """Stand one finding's standing on the session book (M-263).
+
+        This is the book's own viewing road: the finding's
+        guide entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        finding's effective record, and published as its
+        ``docscompletion_standing`` session news, with the held
+        record published as its ``docscompletion_record``
+        session news when one stands held. Returns the
+        guide's entry, its derived standing, the held
+        record when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        findings as data alone - it runs no benchmark,
+        probes no network and inflates nothing here.
+        """
+        from ..core import docs_completion as camp_module
+        entry = self.get_docscompletion_guide(guide)
+        standing = self.docscompletion_standing(guide)
+        try:
+            held = self.get_docscompletion_record(guide)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "docscompletion_record",
+                           **_dc_record_dict(held)}
+            self._publish_docscompletion_record(record_news)
+        standing_news = {
+            "type": "docscompletion_standing", "guide": guide,
+            **_dc_standing_dict(standing)}
+        self._publish_docscompletion_record(standing_news)
+        return {
+            "guide": _dc_guide_dict(entry),
+            "standing": {"guide": guide,
+                         **_dc_standing_dict(standing)},
+            "record": (_dc_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._docscompletion_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def prepare_docscompletion_report(
+            self, book: Any, entry: Any, report: Any,
+            date: Any, reconciled_count: Any, roaded_count: Any,
+            total_guides: Any,
+            claims: Any = (),
+            state: Any = "ready",
+            certified: Any = False
+            ) -> dict[str, Any]:
+        """Prepare one audit report for the session (M-263).
+
+        The report is shaped by the pure layer alone -
+        it stands at state ready by default, may be
+        marked ``shared`` by a human, and a state
+        word outside ready/shared refuses by name;
+        a report is never inflated here, a certification
+        short of every guide answered refuses there, and
+        no finding is re-audited on this road. A held report
+        is published as its ``docscompletion_verdict``
+        session-news record through the checkpoint road.
+        Returns the held report, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Preparing audits nothing and
+        runs nothing here.
+        """
+        from ..core import docs_completion as camp_module
+        registry = self._docscompletion_registry()
+        report = registry.hold_report(book, entry, report,
+                                       date, reconciled_count,
+                                       roaded_count,
+                                       total_guides,
+                                       claims=claims,
+                                       state=state,
+                                       certified=certified)
+        news = {"type": "docscompletion_verdict",
+                **_dc_report_dict(report)}
+        self._publish_docscompletion_record(news)
+        return {
+            "report": _dc_report_dict(report),
+            "report_news": news,
+            "screen": self._docscompletion_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+
+    def get_docscompletion_report(self, book: Any):
+        """The one report a book names (M-263).
+
+        The session's held registry answers: a book
+        the session holds no report for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._docscompletion_registry().get_report(book)
+
+
+    def docscompletion_reports(self) -> list:
+        """The audit reports held for the session (M-263)."""
+        return self._docscompletion_registry().list_reports()
+
+
+    def report_docscompletion(self) -> dict[str, Any]:
+        """Render the session docs completion, as a verdict (M-263).
+
+        The shipped guide registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, runs no benchmark and probes
+        no network. Returns the book,
+        the guides, held records and reports as plain
+        records, the derived standings, the rendered
+        guides and records, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import docs_completion as camp_module
+        registry = self._docscompletion_registry()
+        book = self.docscompletion_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.docscompletion_standing(record.guide)
+            standings.append({
+                "guide": record.guide,
+                **_dc_standing_dict(standing)})
+        return {
+            "book": book,
+            "guides": [_dc_guide_dict(e)
+                        for e in registry.guides().entries()],
+            "records": [_dc_record_dict(r)
+                        for r in registry.list_records()],
+            "reports": [_dc_report_dict(d)
+                       for d in registry.list_reports()],
+            "standings": standings,
+            "index": self.docscompletion_index()["index"],
+            "verdict": self.docscompletion_verdict()["verdict"],
+            "guides_text": camp_module.format_guides(
+                registry.guides()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._docscompletion_effective_record(r.guide))
+                for r in registry.list_records()),
+            "screen": self._docscompletion_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_docscompletion_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one capture record as session news (M-263).
+
+        The agent layer's ``docscompletion_record``,
+        ``docscompletion_standing`` and
+        ``docscompletion_verdict`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is granted. Each
+        record is announced at most once per telling: a
+        record under its guide, its run, its date, its
+        disposition, its owner, its proof kind, its
+        walked stages and its claims, a standing under
+        its guide, its held word, its stage, its grade
+        and its gaps, and a report under its book, its
+        entry, its report and its state, so a standing
+        grown by a newly held record announces again
+        as the new figure it is.
+        A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "docscompletion_record":
+            target = ("docscompletion_record",
+                      record.get("guide"),
+                      record.get("run"),
+                      record.get("date"),
+                      record.get("disposition"),
+                      record.get("owner"),
+                      record.get("proof_kind"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "docscompletion_standing":
+            target = ("docscompletion_standing",
+                      record.get("guide"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("grade"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "docscompletion_verdict":
+            target = ("docscompletion_verdict",
+                      record.get("book"),
+                      record.get("entry"),
+                      record.get("report"),
+                      record.get("state"))
+        else:
+            return
+        announced = getattr(self, "_docscompletion_announced", None)
+        if announced is None:
+            announced = set()
+            self._docscompletion_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+    def _readmecare_registry(self):
+        """The held privacy-audit registry (M-264).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped section registry beside the session's
+        capture records and audit reports one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_readmecare_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_readmecare_store", None)
+        if registry is None:
+            registry = ReadmeCareRegistry()
+            self._readmecare_store = registry
+        return registry
+
+    def readmecare_sections(self):
+        """The shipped section registry, as data (M-264).
+
+        One entry per section of the road - R-01..R-12, the twelve doctrine by subject sections - held as registry entries, each naming its doctrine, its subject and its listed standing. Resolution registers and publishes
+        nothing, runs no benchmark and probes no
+        network.
+        """
+        return self._readmecare_registry().sections()
+
+    def readmecare_book(self):
+        """The session's README care book, as data (M-264).
+
+        The held registry's book when the session holds
+        records or reports one by one - otherwise the book
+        boarded whole through
+        :meth:`record_readmecare_records`, or the shipped
+        section registry with nothing held until a record
+        or report is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._readmecare_registry()
+        if registry.list_records() or registry.list_reports():
+            held = getattr(self, "_readmecare_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [r["section"] for r in held["records"]]
+                    == [r["section"] for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_readmecare_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _readmecare_effective_record(self, section: Any):
+        """The record an section's standing is derived from (M-264).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on, no date, no owner named - so an unheld
+        section derives an honest open standing naming its
+        gaps, never a dressed claim: an absent finding
+        reads as unanswered. An unknown section refuses by
+        name through the shipped registry first.
+        """
+        from ..core.readme_care import CareRecord
+        registry = self._readmecare_registry()
+        registry.sections().get(section)
+        try:
+            return registry.get_record(section)
+        except ValueError:
+            return CareRecord(
+                section=section, work="unrecorded",
+                date="",
+                disposition="ROADED",
+                owner="",
+                proof_kind="none",
+                stages=(), claims=())
+
+    def _readmecare_screen(self):
+        """The README-care screen, in plain words (M-264).
+
+        The shipped sections first, then the held records
+        told by the pure layer - a held record reads
+        "held as answered" there - then each held
+        report. With no record held, the screen says
+        so plainly: a section counts RECONCILED only on
+        reconciliation against the shipped code itself
+        resting on held README evidence, and every other
+        section ships ROADED with a named owner, in the open.
+        """
+        from ..core.readme_care import (
+            format_sections, format_records)
+        registry = self._readmecare_registry()
+        lines = [format_sections(registry.sections())]
+        records = registry.list_records()
+        if records:
+            lines.append(format_records(records, registry.sections()))
+        else:
+            lines.append(
+                "README-care records: none recorded "
+                "this session - a section counts EXTENDED "
+                "only on hand extension resting on held "
+                "README evidence of the README as it "
+                "stands, and every other section "
+                "ships ROADED with a named owner, in "
+                "the open, never silent.")
+        for report in registry.list_reports():
+            lines.append(_rcare_report_text(report))
+        return "\n".join(lines)
+
+    def readmecare_status(self) -> dict[str, Any]:
+        """The README care account, in plain data (M-264).
+
+        The shipped section registry's entries and the
+        capture records and audit reports held this session as
+        plain records (empty until held), the session
+        book's record (the shipped section registry with
+        nothing held - until items are held), the records
+        standing held and still open derived at call time,
+        the index and verdict derived at call time, the
+        sections and records told in plain words through the
+        pure formatters, and the plain explanation. A
+        session holding no record for a finding derives that
+        finding's open standing. Resolution registers and
+        publishes nothing, runs no benchmark and probes
+        no network: this layer tells only.
+        """
+        from ..core import readme_care as camp_module
+        registry = self._readmecare_registry()
+        held_records = registry.list_records()
+        book = self.readmecare_book()
+        index = self.readmecare_index()
+        return {
+            "records": [_rcare_record_dict(r)
+                        for r in held_records],
+            "sections": [_rcare_entry_dict(e)
+                        for e in registry.sections().entries()],
+            "book": (book if held_records
+                     or registry.list_reports()
+                     or getattr(self, "_readmecare_held",
+                                None) is not None else None),
+            "readmecare_book": {
+                "schema": camp_module.README_CARE_SCHEMA,
+                "sections": book["sections"],
+                "records": book["records"],
+                "reports": book["reports"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.readmecare_verdict()["verdict"],
+            "sections_text": camp_module.format_sections(
+                registry.sections()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "reports": [_rcare_report_dict(d)
+                       for d in registry.list_reports()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._readmecare_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": READMECARE_USAGE,
+        }
+
+    def get_readmecare_section(self, section: Any):
+        """The one section entry a section name names (M-264).
+
+        The shipped section registry answers: a section the
+        section book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._readmecare_registry().sections().get(section)
+
+    def get_readmecare_record(self, section: Any):
+        """The one record a section names (M-264).
+
+        The session's held registry answers: a finding the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._readmecare_registry().get_record(section)
+
+    def readmecare_standing(self, section: Any):
+        """Derive one finding's standing (M-264).
+
+        The standing is derived at call time by the pure
+        layer from the finding's effective record - the held
+        record, or the honest empty record while none
+        stands held: held only on a full legal walk
+        resting on held finding evidence, with the
+        finding resting on held README evidence, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.readme_care import derive_standing
+        registry = self._readmecare_registry()
+        return derive_standing(
+            self._readmecare_effective_record(section),
+            registry.sections())
+
+    def sections_for_disposition(self, disposition_word: Any):
+        """The held records carrying one disposition (M-264)."""
+        if disposition_word is None or not str(disposition_word).strip():
+            raise ValueError(
+                "a disposition must be named to list its records")
+        return [r for r in
+                self._readmecare_registry().list_records()
+                if r.disposition == disposition_word]
+
+
+    def readmecare_held(self):
+        """The records whose standing stands held (M-264)."""
+        registry = self._readmecare_registry()
+        return [f"{r.section}"
+                for r in registry.list_records()
+                if self.readmecare_standing(r.section).held]
+
+    def readmecare_index(self) -> dict[str, Any]:
+        """Derive the README care index at call time (M-264).
+
+        The index is derived from every held record
+        alone - each held record's derived standing, the
+        held records named and the open records named in
+        its gaps. Deriving registers and publishes nothing,
+        runs no benchmark and probes no network.
+        Returns the derived index record, the rendered
+        records, the screen and the plain explanation.
+        """
+        from ..core import readme_care as camp_module
+        registry = self._readmecare_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.readmecare_standing(record.section)
+            standings.append({
+                "section": record.section,
+                **_rcare_standing_dict(standing)})
+        index = {
+            "type": "readmecare_index",
+            "slice": camp_module.README_CARE_SLICE,
+            "schema": camp_module.README_CARE_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['section']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['section']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._readmecare_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def readmecare_verdict(self) -> dict[str, Any]:
+        """Derive the README care verdict at call time (M-264).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and every
+        held record's standing stands held on held
+        code evidence, with every finding
+        resting on held README evidence, ``open`` while no record stands held or any held
+        record stands short of held - with the held and
+        open records named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import readme_care as camp_module
+        registry = self._readmecare_registry()
+        records = registry.list_records()
+        held = self.readmecare_held()
+        open_keys = [f"{r.section}"
+                     for r in records
+                     if f"{r.section}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "README care stands held: every recorded "
+                "section rests on held README evidence "
+                "and stands answered - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "README care stands open: no section "
+                "is recorded this session - an absent "
+                "section reads as unknown, never "
+                "as answered.")
+        else:
+            word = "open"
+            telling = (
+                "README care stands open: a section "
+                "is held only when it rests on held "
+                "local evidence and stands answered, "
+                "and these sections "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "readmecare_verdict",
+            "slice": camp_module.README_CARE_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._readmecare_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_readmecare_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one capture record for the session (M-264).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        section, stage or evidence kind refuses by
+        name on this road too, and a refusal holds nothing
+        new and publishes nothing. A held record is
+        published as its ``readmecare_record``
+        session-news record through the checkpoint road.
+        Returns the held record, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a record runs no benchmark
+        and probes no network: the telling stands on
+        this layer's book, as data.
+        """
+        from ..core import readme_care as camp_module
+        registry = self._readmecare_registry()
+        held = registry.register_record(record)
+        news = {"type": "readmecare_record",
+                **_rcare_record_dict(held)}
+        self._publish_readmecare_record(news)
+        return {
+            "record": _rcare_record_dict(held),
+            "record_news": news,
+            "screen": self._readmecare_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_readmecare_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of capture records for the session (M-264).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order given.
+        Returns the held records, their news records,
+        the count of records held, the screen, and the
+        explanation. Registering runs no benchmark and probes
+        no network.
+        """
+        from ..core import readme_care as camp_module
+        registry = self._readmecare_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "readmecare_record", **_rcare_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_readmecare_record(news)
+        return {
+            "records": [_rcare_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._readmecare_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_readmecare_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of capture records (M-264).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its section key and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held book,
+        its records, their news records, the count, the
+        screen, and the explanation. Recording runs no
+        benchmark and probes no network.
+        """
+        from ..core import readme_care as camp_module
+        validated = [_rcare_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._readmecare_registry().sections())
+        fingerprint = (
+            tuple(r.section for r in validated),
+            camp_module.README_CARE_SCHEMA)
+        boarded = getattr(self, "_readmecare_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._readmecare_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these capture records are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._readmecare_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._readmecare_held = registry.book()
+        news_records = [
+            {"type": "readmecare_record", **_rcare_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_readmecare_record(news)
+        return {
+            "book": self._readmecare_held,
+            "records": [_rcare_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._readmecare_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_readmecare(
+            self, section: Any) -> dict[str, Any]:
+        """Stand one finding's standing on the session book (M-264).
+
+        This is the book's own viewing road: the finding's
+        section entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        finding's effective record, and published as its
+        ``readmecare_standing`` session news, with the held
+        record published as its ``readmecare_record``
+        session news when one stands held. Returns the
+        section's entry, its derived standing, the held
+        record when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        findings as data alone - it runs no benchmark,
+        probes no network and inflates nothing here.
+        """
+        from ..core import readme_care as camp_module
+        entry = self.get_readmecare_section(section)
+        standing = self.readmecare_standing(section)
+        try:
+            held = self.get_readmecare_record(section)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "readmecare_record",
+                           **_rcare_record_dict(held)}
+            self._publish_readmecare_record(record_news)
+        standing_news = {
+            "type": "readmecare_standing", "section": section,
+            **_rcare_standing_dict(standing)}
+        self._publish_readmecare_record(standing_news)
+        return {
+            "section": _rcare_entry_dict(entry),
+            "standing": {"section": section,
+                         **_rcare_standing_dict(standing)},
+            "record": (_rcare_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._readmecare_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def prepare_readmecare_report(
+            self, book: Any, entry: Any, report: Any,
+            date: Any, extended_count: Any, roaded_count: Any,
+            total_sections: Any,
+            claims: Any = (),
+            state: Any = "ready",
+            certified: Any = False
+            ) -> dict[str, Any]:
+        """Prepare one audit report for the session (M-264).
+
+        The report is shaped by the pure layer alone -
+        it stands at state ready by default, may be
+        marked ``shared`` by a human, and a state
+        word outside ready/shared refuses by name;
+        a report is never inflated here, a certification
+        short of every section answered refuses there, and
+        no finding is re-audited on this road. A held report
+        is published as its ``readmecare_verdict``
+        session-news record through the checkpoint road.
+        Returns the held report, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Preparing audits nothing and
+        runs nothing here.
+        """
+        from ..core import readme_care as camp_module
+        registry = self._readmecare_registry()
+        report = registry.hold_report(book, entry, report,
+                                       date, extended_count,
+                                       roaded_count,
+                                       total_sections,
+                                       claims=claims,
+                                       state=state,
+                                       certified=certified)
+        news = {"type": "readmecare_verdict",
+                **_rcare_report_dict(report)}
+        self._publish_readmecare_record(news)
+        return {
+            "report": _rcare_report_dict(report),
+            "report_news": news,
+            "screen": self._readmecare_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+
+    def get_readmecare_report(self, book: Any):
+        """The one report a book names (M-264).
+
+        The session's held registry answers: a book
+        the session holds no report for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._readmecare_registry().get_report(book)
+
+
+    def readmecare_reports(self) -> list:
+        """The audit reports held for the session (M-264)."""
+        return self._readmecare_registry().list_reports()
+
+
+    def report_readmecare(self) -> dict[str, Any]:
+        """Render the session README care, as a verdict (M-264).
+
+        The shipped section registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, runs no benchmark and probes
+        no network. Returns the book,
+        the sections, held records and reports as plain
+        records, the derived standings, the rendered
+        sections and records, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import readme_care as camp_module
+        registry = self._readmecare_registry()
+        book = self.readmecare_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.readmecare_standing(record.section)
+            standings.append({
+                "section": record.section,
+                **_rcare_standing_dict(standing)})
+        return {
+            "book": book,
+            "sections": [_rcare_entry_dict(e)
+                        for e in registry.sections().entries()],
+            "records": [_rcare_record_dict(r)
+                        for r in registry.list_records()],
+            "reports": [_rcare_report_dict(d)
+                       for d in registry.list_reports()],
+            "standings": standings,
+            "index": self.readmecare_index()["index"],
+            "verdict": self.readmecare_verdict()["verdict"],
+            "sections_text": camp_module.format_sections(
+                registry.sections()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._readmecare_effective_record(r.section))
+                for r in registry.list_records()),
+            "screen": self._readmecare_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_readmecare_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one capture record as session news (M-264).
+
+        The agent layer's ``readmecare_record``,
+        ``readmecare_standing`` and
+        ``readmecare_verdict`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is granted. Each
+        record is announced at most once per telling: a
+        record under its section, its run, its date, its
+        disposition, its owner, its proof kind, its
+        walked stages and its claims, a standing under
+        its section, its held word, its stage, its grade
+        and its gaps, and a report under its book, its
+        entry, its report and its state, so a standing
+        grown by a newly held record announces again
+        as the new figure it is.
+        A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "readmecare_record":
+            target = ("readmecare_record",
+                      record.get("section"),
+                      record.get("run"),
+                      record.get("date"),
+                      record.get("disposition"),
+                      record.get("owner"),
+                      record.get("proof_kind"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "readmecare_standing":
+            target = ("readmecare_standing",
+                      record.get("section"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("grade"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "readmecare_verdict":
+            target = ("readmecare_verdict",
+                      record.get("book"),
+                      record.get("entry"),
+                      record.get("report"),
+                      record.get("state"))
+        else:
+            return
+        announced = getattr(self, "_readmecare_announced", None)
+        if announced is None:
+            announced = set()
+            self._readmecare_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+    def _migrationproof_registry(self):
+        """The held migration-proof registry (M-265).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped area registry beside the session's
+        migration records and migration reports one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_migrationproof_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_migrationproof_store", None)
+        if registry is None:
+            registry = MigrationProofRegistry()
+            self._migrationproof_store = registry
+        return registry
+
+    def migrationproof_areas(self):
+        """The shipped area registry, as data (M-265).
+
+        One entry per area of the road - G-01..G-12, the twelve doctrine by subject areas - held as registry entries, each naming its doctrine, its subject and its listed standing. Resolution registers and publishes
+        nothing, runs no benchmark and probes no
+        network.
+        """
+        return self._migrationproof_registry().areas()
+
+    def migrationproof_book(self):
+        """The session's Migration proof book, as data (M-265).
+
+        The held registry's book when the session holds
+        records or reports one by one - otherwise the book
+        boarded whole through
+        :meth:`record_migrationproof_records`, or the shipped
+        area registry with nothing held until a record
+        or report is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._migrationproof_registry()
+        if registry.list_records() or registry.list_reports():
+            held = getattr(self, "_migrationproof_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [r["area"] for r in held["records"]]
+                    == [r["area"] for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_migrationproof_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _migrationproof_effective_record(self, area: Any):
+        """The record an area's standing is derived from (M-265).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on, no date, no owner named - so an unheld
+        area derives an honest open standing naming its
+        gaps, never a dressed claim: an absent finding
+        reads as unanswered. An unknown area refuses by
+        name through the shipped registry first.
+        """
+        from ..core.migration_proof import MigrationRecord
+        registry = self._migrationproof_registry()
+        registry.areas().get(area)
+        try:
+            return registry.get_record(area)
+        except ValueError:
+            return MigrationRecord(
+                area=area, work="unrecorded",
+                date="",
+                disposition="ROADED",
+                owner="",
+                proof_kind="none",
+                stages=(), claims=())
+
+    def _migrationproof_screen(self):
+        """The migration-proof screen, in plain words (M-265).
+
+        The shipped areas first, then the held records
+        told by the pure layer - a held record reads
+        "held as answered" there - then each held
+        report. With no record held, the screen says
+        so plainly: an area counts PROVEN only on the
+        old workspace actually opening in the new release
+        resting on held workspace evidence, and every
+        other area ships ROADED with a named owner, in the open.
+        """
+        from ..core.migration_proof import (
+            format_areas, format_records)
+        registry = self._migrationproof_registry()
+        lines = [format_areas(registry.areas())]
+        records = registry.list_records()
+        if records:
+            lines.append(format_records(records, registry.areas()))
+        else:
+            lines.append(
+                "Migration-proof records: none recorded "
+                "this session - an area counts PROVEN "
+                "only on the old workspace actually "
+                "opening in the new release resting on "
+                "held workspace evidence, and every "
+                "other area ships ROADED with a named "
+                "owner, in the open, never silent.")
+        for report in registry.list_reports():
+            lines.append(_mp_report_text(report))
+        return "\n".join(lines)
+    def migrationproof_status(self) -> dict[str, Any]:
+        """The Migration proof account, in plain data (M-265).
+
+        The shipped area registry's entries and the
+        migration records and migration reports held this session as
+        plain records (empty until held), the session
+        book's record (the shipped area registry with
+        nothing held - until items are held), the records
+        standing held and still open derived at call time,
+        the index and verdict derived at call time, the
+        areas and records told in plain words through the
+        pure formatters, and the plain explanation. A
+        session holding no record for a finding derives that
+        finding's open standing. Resolution registers and
+        publishes nothing, runs no benchmark and probes
+        no network: this layer tells only.
+        """
+        from ..core import migration_proof as camp_module
+        registry = self._migrationproof_registry()
+        held_records = registry.list_records()
+        book = self.migrationproof_book()
+        index = self.migrationproof_index()
+        return {
+            "records": [_mp_record_dict(r)
+                        for r in held_records],
+            "areas": [_mp_entry_dict(e)
+                        for e in registry.areas().entries()],
+            "book": (book if held_records
+                     or registry.list_reports()
+                     or getattr(self, "_migrationproof_held",
+                                None) is not None else None),
+            "migrationproof_book": {
+                "schema": camp_module.MIGRATION_PROOF_SCHEMA,
+                "areas": book["areas"],
+                "records": book["records"],
+                "reports": book["reports"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.migrationproof_verdict()["verdict"],
+            "areas_text": camp_module.format_areas(
+                registry.areas()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "reports": [_mp_report_dict(d)
+                       for d in registry.list_reports()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._migrationproof_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": MIGRATIONPROOF_USAGE,
+        }
+
+    def get_migrationproof_area(self, area: Any):
+        """The one area entry a area name names (M-265).
+
+        The shipped area registry answers: a area the
+        area book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._migrationproof_registry().areas().get(area)
+
+    def get_migrationproof_record(self, area: Any):
+        """The one record a area names (M-265).
+
+        The session's held registry answers: a finding the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._migrationproof_registry().get_record(area)
+
+    def migrationproof_standing(self, area: Any):
+        """Derive one finding's standing (M-265).
+
+        The standing is derived at call time by the pure
+        layer from the finding's effective record - the held
+        record, or the honest empty record while none
+        stands held: held only on a full legal walk
+        resting on held finding evidence, with the
+        finding resting on held workspace evidence, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.migration_proof import derive_standing
+        registry = self._migrationproof_registry()
+        return derive_standing(
+            self._migrationproof_effective_record(area),
+            registry.areas())
+
+    def areas_for_disposition(self, disposition_word: Any):
+        """The held records carrying one disposition (M-265)."""
+        if disposition_word is None or not str(disposition_word).strip():
+            raise ValueError(
+                "a disposition must be named to list its records")
+        return [r for r in
+                self._migrationproof_registry().list_records()
+                if r.disposition == disposition_word]
+
+
+    def migrationproof_held(self):
+        """The records whose standing stands held (M-265)."""
+        registry = self._migrationproof_registry()
+        return [f"{r.area}"
+                for r in registry.list_records()
+                if self.migrationproof_standing(r.area).held]
+
+    def migrationproof_index(self) -> dict[str, Any]:
+        """Derive the Migration proof index at call time (M-265).
+
+        The index is derived from every held record
+        alone - each held record's derived standing, the
+        held records named and the open records named in
+        its gaps. Deriving registers and publishes nothing,
+        runs no benchmark and probes no network.
+        Returns the derived index record, the rendered
+        records, the screen and the plain explanation.
+        """
+        from ..core import migration_proof as camp_module
+        registry = self._migrationproof_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.migrationproof_standing(record.area)
+            standings.append({
+                "area": record.area,
+                **_mp_standing_dict(standing)})
+        index = {
+            "type": "migrationproof_index",
+            "slice": camp_module.MIGRATION_PROOF_SLICE,
+            "schema": camp_module.MIGRATION_PROOF_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['area']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['area']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._migrationproof_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def migrationproof_verdict(self) -> dict[str, Any]:
+        """Derive the Migration proof verdict at call time (M-265).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and every
+        held record's standing stands held on held
+        code evidence, with every finding
+        resting on held workspace evidence, ``open`` while no record stands held or any held
+        record stands short of held - with the held and
+        open records named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import migration_proof as camp_module
+        registry = self._migrationproof_registry()
+        records = registry.list_records()
+        held = self.migrationproof_held()
+        open_keys = [f"{r.area}"
+                     for r in records
+                     if f"{r.area}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Migration proof stands held: every recorded "
+                "area rests on held workspace evidence "
+                "and stands answered - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Migration proof stands open: no area "
+                "is recorded this session - an absent "
+                "area reads as unknown, never "
+                "as answered.")
+        else:
+            word = "open"
+            telling = (
+                "Migration proof stands open: a area "
+                "is held only when it rests on held "
+                "local evidence and stands answered, "
+                "and these areas "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "migrationproof_verdict",
+            "slice": camp_module.MIGRATION_PROOF_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._migrationproof_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_migrationproof_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one migration record for the session (M-265).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        area, stage or evidence kind refuses by
+        name on this road too, and a refusal holds nothing
+        new and publishes nothing. A held record is
+        published as its ``migrationproof_record``
+        session-news record through the checkpoint road.
+        Returns the held record, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a record runs no benchmark
+        and probes no network: the telling stands on
+        this layer's book, as data.
+        """
+        from ..core import migration_proof as camp_module
+        registry = self._migrationproof_registry()
+        held = registry.register_record(record)
+        news = {"type": "migrationproof_record",
+                **_mp_record_dict(held)}
+        self._publish_migrationproof_record(news)
+        return {
+            "record": _mp_record_dict(held),
+            "record_news": news,
+            "screen": self._migrationproof_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_migrationproof_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of migration records for the session (M-265).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order given.
+        Returns the held records, their news records,
+        the count of records held, the screen, and the
+        explanation. Registering runs no benchmark and probes
+        no network.
+        """
+        from ..core import migration_proof as camp_module
+        registry = self._migrationproof_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "migrationproof_record", **_mp_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_migrationproof_record(news)
+        return {
+            "records": [_mp_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._migrationproof_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_migrationproof_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of migration records (M-265).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its area key and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held book,
+        its records, their news records, the count, the
+        screen, and the explanation. Recording runs no
+        benchmark and probes no network.
+        """
+        from ..core import migration_proof as camp_module
+        validated = [_mp_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._migrationproof_registry().areas())
+        fingerprint = (
+            tuple(r.area for r in validated),
+            camp_module.MIGRATION_PROOF_SCHEMA)
+        boarded = getattr(self, "_migrationproof_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._migrationproof_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these migration records are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._migrationproof_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._migrationproof_held = registry.book()
+        news_records = [
+            {"type": "migrationproof_record", **_mp_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_migrationproof_record(news)
+        return {
+            "book": self._migrationproof_held,
+            "records": [_mp_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._migrationproof_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_migrationproof(
+            self, area: Any) -> dict[str, Any]:
+        """Stand one finding's standing on the session book (M-265).
+
+        This is the book's own viewing road: the finding's
+        area entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        finding's effective record, and published as its
+        ``migrationproof_standing`` session news, with the held
+        record published as its ``migrationproof_record``
+        session news when one stands held. Returns the
+        area's entry, its derived standing, the held
+        record when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        findings as data alone - it runs no benchmark,
+        probes no network and inflates nothing here.
+        """
+        from ..core import migration_proof as camp_module
+        entry = self.get_migrationproof_area(area)
+        standing = self.migrationproof_standing(area)
+        try:
+            held = self.get_migrationproof_record(area)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "migrationproof_record",
+                           **_mp_record_dict(held)}
+            self._publish_migrationproof_record(record_news)
+        standing_news = {
+            "type": "migrationproof_standing", "area": area,
+            **_mp_standing_dict(standing)}
+        self._publish_migrationproof_record(standing_news)
+        return {
+            "area": _mp_entry_dict(entry),
+            "standing": {"area": area,
+                         **_mp_standing_dict(standing)},
+            "record": (_mp_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._migrationproof_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def prepare_migrationproof_report(
+            self, book: Any, entry: Any, report: Any,
+            date: Any, proven_count: Any, roaded_count: Any,
+            total_areas: Any,
+            claims: Any = (),
+            state: Any = "ready",
+            certified: Any = False
+            ) -> dict[str, Any]:
+        """Prepare one migration report for the session (M-265).
+
+        The report is shaped by the pure layer alone -
+        it stands at state ready by default, may be
+        marked ``shared`` by a human, and a state
+        word outside ready/shared refuses by name;
+        a report is never inflated here, a certification
+        short of every area answered refuses there, and
+        no finding is re-audited on this road. A held report
+        is published as its ``migrationproof_verdict``
+        session-news record through the checkpoint road.
+        Returns the held report, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Preparing audits nothing and
+        runs nothing here.
+        """
+        from ..core import migration_proof as camp_module
+        registry = self._migrationproof_registry()
+        report = registry.hold_report(book, entry, report,
+                                       date, proven_count,
+                                       roaded_count,
+                                       total_areas,
+                                       claims=claims,
+                                       state=state,
+                                       certified=certified)
+        news = {"type": "migrationproof_verdict",
+                **_mp_report_dict(report)}
+        self._publish_migrationproof_record(news)
+        return {
+            "report": _mp_report_dict(report),
+            "report_news": news,
+            "screen": self._migrationproof_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+
+    def get_migrationproof_report(self, book: Any):
+        """The one report a book names (M-265).
+
+        The session's held registry answers: a book
+        the session holds no report for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._migrationproof_registry().get_report(book)
+
+
+    def migrationproof_reports(self) -> list:
+        """The migration reports held for the session (M-265)."""
+        return self._migrationproof_registry().list_reports()
+
+
+    def report_migrationproof(self) -> dict[str, Any]:
+        """Render the session Migration proof, as a verdict (M-265).
+
+        The shipped area registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, runs no benchmark and probes
+        no network. Returns the book,
+        the areas, held records and reports as plain
+        records, the derived standings, the rendered
+        areas and records, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import migration_proof as camp_module
+        registry = self._migrationproof_registry()
+        book = self.migrationproof_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.migrationproof_standing(record.area)
+            standings.append({
+                "area": record.area,
+                **_mp_standing_dict(standing)})
+        return {
+            "book": book,
+            "areas": [_mp_entry_dict(e)
+                        for e in registry.areas().entries()],
+            "records": [_mp_record_dict(r)
+                        for r in registry.list_records()],
+            "reports": [_mp_report_dict(d)
+                       for d in registry.list_reports()],
+            "standings": standings,
+            "index": self.migrationproof_index()["index"],
+            "verdict": self.migrationproof_verdict()["verdict"],
+            "areas_text": camp_module.format_areas(
+                registry.areas()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._migrationproof_effective_record(r.area))
+                for r in registry.list_records()),
+            "screen": self._migrationproof_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_migrationproof_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one migration record as session news (M-265).
+
+        The agent layer's ``migrationproof_record``,
+        ``migrationproof_standing`` and
+        ``migrationproof_verdict`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is granted. Each
+        record is announced at most once per telling: a
+        record under its area, its run, its date, its
+        disposition, its owner, its proof kind, its
+        walked stages and its claims, a standing under
+        its area, its held word, its stage, its grade
+        and its gaps, and a report under its book, its
+        entry, its report and its state, so a standing
+        grown by a newly held record announces again
+        as the new figure it is.
+        A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "migrationproof_record":
+            target = ("migrationproof_record",
+                      record.get("area"),
+                      record.get("run"),
+                      record.get("date"),
+                      record.get("disposition"),
+                      record.get("owner"),
+                      record.get("proof_kind"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "migrationproof_standing":
+            target = ("migrationproof_standing",
+                      record.get("area"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("grade"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "migrationproof_verdict":
+            target = ("migrationproof_verdict",
+                      record.get("book"),
+                      record.get("entry"),
+                      record.get("report"),
+                      record.get("state"))
+        else:
+            return
+        announced = getattr(self, "_migrationproof_announced", None)
+        if announced is None:
+            announced = set()
+            self._migrationproof_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+    def _strangerfleettest_registry(self):
+        """The held fleet-proof registry (M-266).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped exercise registry beside the session's
+        fleet records and fleet reports one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_strangerfleettest_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_strangerfleettest_store", None)
+        if registry is None:
+            registry = StrangerFleetRegistry()
+            self._strangerfleettest_store = registry
+        return registry
+
+    def strangerfleettest_exercises(self):
+        """The shipped exercise registry, as data (M-266).
+
+        One entry per exercise of the road - F-01..F-03, the three doctrine by subject exercises - held as registry entries, each naming its doctrine, its subject and its listed standing. Resolution registers and publishes
+        nothing, runs no benchmark and probes no
+        network.
+        """
+        return self._strangerfleettest_registry().exercises()
+
+    def strangerfleettest_book(self):
+        """The session's Stranger fleet test book, as data (M-266).
+
+        The held registry's book when the session holds
+        records or reports one by one - otherwise the book
+        boarded whole through
+        :meth:`record_strangerfleettest_records`, or the shipped
+        exercise registry with nothing held until a record
+        or report is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._strangerfleettest_registry()
+        if registry.list_records() or registry.list_reports():
+            held = getattr(self, "_strangerfleettest_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [r["exercise"] for r in held["records"]]
+                    == [r["exercise"] for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_strangerfleettest_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _strangerfleettest_effective_record(self, exercise: Any):
+        """The record an exercise's standing is derived from (M-266).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on, no date, no owner named - so an unheld
+        exercise derives an honest open standing naming its
+        gaps, never a dressed claim: an absent finding
+        reads as unanswered. An unknown exercise refuses by
+        name through the shipped registry first.
+        """
+        from ..core.stranger_fleet_test import StrangerFleetRecord
+        registry = self._strangerfleettest_registry()
+        registry.exercises().get(exercise)
+        try:
+            return registry.get_record(exercise)
+        except ValueError:
+            return StrangerFleetRecord(
+                exercise=exercise, work="unrecorded",
+                date="",
+                disposition="ROADED",
+                owner="",
+                proof_kind="none",
+                stages=(), claims=())
+
+    def _strangerfleettest_screen(self):
+        """The stranger-fleet-test screen, in plain words (M-266).
+
+        The shipped exercises first, then the held records
+        told by the pure layer - a held record reads
+        "held as answered" there - then each held
+        report. With no record held, the screen says
+        so plainly: an exercise counts PROVEN only on a
+        docs-only run on a clean machine resting on
+        held evidence, and every
+        other exercise ships ROADED with a named owner, in the open.
+        """
+        from ..core.stranger_fleet_test import (
+            format_exercises, format_records)
+        registry = self._strangerfleettest_registry()
+        lines = [format_exercises(registry.exercises())]
+        records = registry.list_records()
+        if records:
+            lines.append(format_records(records, registry.exercises()))
+        else:
+            lines.append(
+                "Stranger-fleet-test records: none recorded "
+                "this session - an exercise counts PROVEN "
+                "only on a docs-only run on a "
+                "clean machine resting on "
+                "held evidence, and every "
+                "other exercise ships ROADED with a named "
+                "owner, in the open, never silent.")
+        for report in registry.list_reports():
+            lines.append(_sf_report_text(report))
+        return "\n".join(lines)
+    def strangerfleettest_status(self) -> dict[str, Any]:
+        """The Stranger fleet test account, in plain data (M-266).
+
+        The shipped exercise registry's entries and the
+        fleet records and fleet reports held this session as
+        plain records (empty until held), the session
+        book's record (the shipped exercise registry with
+        nothing held - until items are held), the records
+        standing held and still open derived at call time,
+        the index and verdict derived at call time, the
+        exercises and records told in plain words through the
+        pure formatters, and the plain explanation. A
+        session holding no record for a finding derives that
+        finding's open standing. Resolution registers and
+        publishes nothing, runs no benchmark and probes
+        no network: this layer tells only.
+        """
+        from ..core import stranger_fleet_test as camp_module
+        registry = self._strangerfleettest_registry()
+        held_records = registry.list_records()
+        book = self.strangerfleettest_book()
+        index = self.strangerfleettest_index()
+        return {
+            "records": [_sf_record_dict(r)
+                        for r in held_records],
+            "exercises": [_sf_entry_dict(e)
+                        for e in registry.exercises().entries()],
+            "book": (book if held_records
+                     or registry.list_reports()
+                     or getattr(self, "_strangerfleettest_held",
+                                None) is not None else None),
+            "strangerfleettest_book": {
+                "schema": camp_module.STRANGER_FLEET_TEST_SCHEMA,
+                "exercises": book["exercises"],
+                "records": book["records"],
+                "reports": book["reports"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.strangerfleettest_verdict()["verdict"],
+            "exercises_text": camp_module.format_exercises(
+                registry.exercises()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "reports": [_sf_report_dict(d)
+                       for d in registry.list_reports()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._strangerfleettest_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": STRANGERFLEETTEST_USAGE,
+        }
+
+    def get_strangerfleettest_exercise(self, exercise: Any):
+        """The one exercise entry a exercise name names (M-266).
+
+        The shipped exercise registry answers: a exercise the
+        exercise book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._strangerfleettest_registry().exercises().get(exercise)
+
+    def get_strangerfleettest_record(self, exercise: Any):
+        """The one record a exercise names (M-266).
+
+        The session's held registry answers: a finding the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._strangerfleettest_registry().get_record(exercise)
+
+    def strangerfleettest_standing(self, exercise: Any):
+        """Derive one finding's standing (M-266).
+
+        The standing is derived at call time by the pure
+        layer from the finding's effective record - the held
+        record, or the honest empty record while none
+        stands held: held only on a full legal walk
+        resting on held finding evidence, with the
+        finding resting on held workspace evidence, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.stranger_fleet_test import derive_standing
+        registry = self._strangerfleettest_registry()
+        return derive_standing(
+            self._strangerfleettest_effective_record(exercise),
+            registry.exercises())
+
+    def exercises_for_disposition(self, disposition_word: Any):
+        """The held records carrying one disposition (M-266)."""
+        if disposition_word is None or not str(disposition_word).strip():
+            raise ValueError(
+                "a disposition must be named to list its records")
+        return [r for r in
+                self._strangerfleettest_registry().list_records()
+                if r.disposition == disposition_word]
+
+
+    def strangerfleettest_held(self):
+        """The records whose standing stands held (M-266)."""
+        registry = self._strangerfleettest_registry()
+        return [f"{r.exercise}"
+                for r in registry.list_records()
+                if self.strangerfleettest_standing(r.exercise).held]
+
+    def strangerfleettest_index(self) -> dict[str, Any]:
+        """Derive the Stranger fleet test index at call time (M-266).
+
+        The index is derived from every held record
+        alone - each held record's derived standing, the
+        held records named and the open records named in
+        its gaps. Deriving registers and publishes nothing,
+        runs no benchmark and probes no network.
+        Returns the derived index record, the rendered
+        records, the screen and the plain explanation.
+        """
+        from ..core import stranger_fleet_test as camp_module
+        registry = self._strangerfleettest_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.strangerfleettest_standing(record.exercise)
+            standings.append({
+                "exercise": record.exercise,
+                **_sf_standing_dict(standing)})
+        index = {
+            "type": "strangerfleettest_index",
+            "slice": camp_module.STRANGER_FLEET_TEST_SLICE,
+            "schema": camp_module.STRANGER_FLEET_TEST_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['exercise']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['exercise']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._strangerfleettest_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def strangerfleettest_verdict(self) -> dict[str, Any]:
+        """Derive the Stranger fleet test verdict at call time (M-266).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and every
+        held record's standing stands held on held
+        code evidence, with every finding
+        resting on held workspace evidence, ``open`` while no record stands held or any held
+        record stands short of held - with the held and
+        open records named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import stranger_fleet_test as camp_module
+        registry = self._strangerfleettest_registry()
+        records = registry.list_records()
+        held = self.strangerfleettest_held()
+        open_keys = [f"{r.exercise}"
+                     for r in records
+                     if f"{r.exercise}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Stranger fleet test stands held: every recorded "
+                "exercise rests on held workspace evidence "
+                "and stands answered - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Stranger fleet test stands open: no exercise "
+                "is recorded this session - an absent "
+                "exercise reads as unknown, never "
+                "as answered.")
+        else:
+            word = "open"
+            telling = (
+                "Stranger fleet test stands open: a exercise "
+                "is held only when it rests on held "
+                "local evidence and stands answered, "
+                "and these exercises "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "strangerfleettest_verdict",
+            "slice": camp_module.STRANGER_FLEET_TEST_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._strangerfleettest_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_strangerfleettest_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one fleet record for the session (M-266).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        exercise, stage or evidence kind refuses by
+        name on this road too, and a refusal holds nothing
+        new and publishes nothing. A held record is
+        published as its ``strangerfleettest_record``
+        session-news record through the checkpoint road.
+        Returns the held record, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a record runs no benchmark
+        and probes no network: the telling stands on
+        this layer's book, as data.
+        """
+        from ..core import stranger_fleet_test as camp_module
+        registry = self._strangerfleettest_registry()
+        held = registry.register_record(record)
+        news = {"type": "strangerfleettest_record",
+                **_sf_record_dict(held)}
+        self._publish_strangerfleettest_record(news)
+        return {
+            "record": _sf_record_dict(held),
+            "record_news": news,
+            "screen": self._strangerfleettest_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_strangerfleettest_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of fleet records for the session (M-266).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order given.
+        Returns the held records, their news records,
+        the count of records held, the screen, and the
+        explanation. Registering runs no benchmark and probes
+        no network.
+        """
+        from ..core import stranger_fleet_test as camp_module
+        registry = self._strangerfleettest_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "strangerfleettest_record", **_sf_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_strangerfleettest_record(news)
+        return {
+            "records": [_sf_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._strangerfleettest_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_strangerfleettest_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of fleet records (M-266).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its exercise key and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held book,
+        its records, their news records, the count, the
+        screen, and the explanation. Recording runs no
+        benchmark and probes no network.
+        """
+        from ..core import stranger_fleet_test as camp_module
+        validated = [_sf_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._strangerfleettest_registry().exercises())
+        fingerprint = (
+            tuple(r.exercise for r in validated),
+            camp_module.STRANGER_FLEET_TEST_SCHEMA)
+        boarded = getattr(self, "_strangerfleettest_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._strangerfleettest_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these fleet records are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._strangerfleettest_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._strangerfleettest_held = registry.book()
+        news_records = [
+            {"type": "strangerfleettest_record", **_sf_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_strangerfleettest_record(news)
+        return {
+            "book": self._strangerfleettest_held,
+            "records": [_sf_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._strangerfleettest_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_strangerfleettest(
+            self, exercise: Any) -> dict[str, Any]:
+        """Stand one finding's standing on the session book (M-266).
+
+        This is the book's own viewing road: the finding's
+        exercise entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        finding's effective record, and published as its
+        ``strangerfleettest_standing`` session news, with the held
+        record published as its ``strangerfleettest_record``
+        session news when one stands held. Returns the
+        exercise's entry, its derived standing, the held
+        record when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        findings as data alone - it runs no benchmark,
+        probes no network and inflates nothing here.
+        """
+        from ..core import stranger_fleet_test as camp_module
+        entry = self.get_strangerfleettest_exercise(exercise)
+        standing = self.strangerfleettest_standing(exercise)
+        try:
+            held = self.get_strangerfleettest_record(exercise)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "strangerfleettest_record",
+                           **_sf_record_dict(held)}
+            self._publish_strangerfleettest_record(record_news)
+        standing_news = {
+            "type": "strangerfleettest_standing", "exercise": exercise,
+            **_sf_standing_dict(standing)}
+        self._publish_strangerfleettest_record(standing_news)
+        return {
+            "exercise": _sf_entry_dict(entry),
+            "standing": {"exercise": exercise,
+                         **_sf_standing_dict(standing)},
+            "record": (_sf_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._strangerfleettest_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def prepare_strangerfleettest_report(
+            self, book: Any, entry: Any, report: Any,
+            date: Any, proven_count: Any, roaded_count: Any,
+            total_exercises: Any,
+            claims: Any = (),
+            state: Any = "ready",
+            certified: Any = False
+            ) -> dict[str, Any]:
+        """Prepare one fleet report for the session (M-266).
+
+        The report is shaped by the pure layer alone -
+        it stands at state ready by default, may be
+        marked ``shared`` by a human, and a state
+        word outside ready/shared refuses by name;
+        a report is never inflated here, a certification
+        short of every exercise answered refuses there, and
+        no finding is re-audited on this road. A held report
+        is published as its ``strangerfleettest_verdict``
+        session-news record through the checkpoint road.
+        Returns the held report, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Preparing audits nothing and
+        runs nothing here.
+        """
+        from ..core import stranger_fleet_test as camp_module
+        registry = self._strangerfleettest_registry()
+        report = registry.hold_report(book, entry, report,
+                                       date, proven_count,
+                                       roaded_count,
+                                       total_exercises,
+                                       claims=claims,
+                                       state=state,
+                                       certified=certified)
+        news = {"type": "strangerfleettest_verdict",
+                **_sf_report_dict(report)}
+        self._publish_strangerfleettest_record(news)
+        return {
+            "report": _sf_report_dict(report),
+            "report_news": news,
+            "screen": self._strangerfleettest_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+
+    def get_strangerfleettest_report(self, book: Any):
+        """The one report a book names (M-266).
+
+        The session's held registry answers: a book
+        the session holds no report for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._strangerfleettest_registry().get_report(book)
+
+
+    def strangerfleettest_reports(self) -> list:
+        """The fleet reports held for the session (M-266)."""
+        return self._strangerfleettest_registry().list_reports()
+
+
+    def report_strangerfleettest(self) -> dict[str, Any]:
+        """Render the session Stranger fleet test, as a verdict (M-266).
+
+        The shipped exercise registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, runs no benchmark and probes
+        no network. Returns the book,
+        the exercises, held records and reports as plain
+        records, the derived standings, the rendered
+        exercises and records, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import stranger_fleet_test as camp_module
+        registry = self._strangerfleettest_registry()
+        book = self.strangerfleettest_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.strangerfleettest_standing(record.exercise)
+            standings.append({
+                "exercise": record.exercise,
+                **_sf_standing_dict(standing)})
+        return {
+            "book": book,
+            "exercises": [_sf_entry_dict(e)
+                        for e in registry.exercises().entries()],
+            "records": [_sf_record_dict(r)
+                        for r in registry.list_records()],
+            "reports": [_sf_report_dict(d)
+                       for d in registry.list_reports()],
+            "standings": standings,
+            "index": self.strangerfleettest_index()["index"],
+            "verdict": self.strangerfleettest_verdict()["verdict"],
+            "exercises_text": camp_module.format_exercises(
+                registry.exercises()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._strangerfleettest_effective_record(r.exercise))
+                for r in registry.list_records()),
+            "screen": self._strangerfleettest_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_strangerfleettest_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one fleet record as session news (M-266).
+
+        The agent layer's ``strangerfleettest_record``,
+        ``strangerfleettest_standing`` and
+        ``strangerfleettest_verdict`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is granted. Each
+        record is announced at most once per telling: a
+        record under its exercise, its run, its date, its
+        disposition, its owner, its proof kind, its
+        walked stages and its claims, a standing under
+        its exercise, its held word, its stage, its grade
+        and its gaps, and a report under its book, its
+        entry, its report and its state, so a standing
+        grown by a newly held record announces again
+        as the new figure it is.
+        A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "strangerfleettest_record":
+            target = ("strangerfleettest_record",
+                      record.get("exercise"),
+                      record.get("run"),
+                      record.get("date"),
+                      record.get("disposition"),
+                      record.get("owner"),
+                      record.get("proof_kind"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "strangerfleettest_standing":
+            target = ("strangerfleettest_standing",
+                      record.get("exercise"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("grade"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "strangerfleettest_verdict":
+            target = ("strangerfleettest_verdict",
+                      record.get("book"),
+                      record.get("entry"),
+                      record.get("report"),
+                      record.get("state"))
+        else:
+            return
+        announced = getattr(self, "_strangerfleettest_announced", None)
+        if announced is None:
+            announced = set()
+            self._strangerfleettest_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+    def _costofquality_registry(self):
+        """The held cost-proof registry (M-267).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped route registry beside the session's
+        cost records and cost reports one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_costofquality_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_costofquality_store", None)
+        if registry is None:
+            registry = CostOfQualityRegistry()
+            self._costofquality_store = registry
+        return registry
+
+    def costofquality_routes(self):
+        """The shipped route registry, as data (M-267).
+
+        One entry per route of the road - Q-01..Q-12, the twelve doctrine by subject routes - held as registry entries, each naming its doctrine, its subject and its listed standing. Resolution registers and publishes
+        nothing, runs no benchmark and probes no
+        network.
+        """
+        return self._costofquality_registry().routes()
+
+    def costofquality_book(self):
+        """The session's Cost-of-quality report book, as data (M-267).
+
+        The held registry's book when the session holds
+        records or reports one by one - otherwise the book
+        boarded whole through
+        :meth:`record_costofquality_records`, or the shipped
+        route registry with nothing held until a record
+        or report is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._costofquality_registry()
+        if registry.list_records() or registry.list_reports():
+            held = getattr(self, "_costofquality_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [r["route"] for r in held["records"]]
+                    == [r["route"] for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_costofquality_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _costofquality_effective_record(self, route: Any):
+        """The record an route's standing is derived from (M-267).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on, no date, no owner named - so an unheld
+        route derives an honest open standing naming its
+        gaps, never a dressed claim: an absent finding
+        reads as unanswered. An unknown route refuses by
+        name through the shipped registry first.
+        """
+        from ..core.cost_of_quality import CostOfQualityRecord
+        registry = self._costofquality_registry()
+        registry.routes().get(route)
+        try:
+            return registry.get_record(route)
+        except ValueError:
+            return CostOfQualityRecord(
+                route=route, work="unrecorded",
+                date="",
+                disposition="ROADED",
+                owner="",
+                proof_kind="none",
+                stages=(), claims=())
+
+    def _costofquality_screen(self):
+        """The cost-of-quality screen, in plain words (M-267).
+
+        The shipped routes first, then the held records
+        told by the pure layer - a held record reads
+        "held as answered" there - then each held
+        report. With no record held, the screen says
+        so plainly: a route counts PROVEN only on
+        benchmark scores measured against spend
+        actually paid resting on held evidence, and every
+        other route ships ROADED with a named owner, in the open.
+        """
+        from ..core.cost_of_quality import (
+            format_routes, format_records)
+        registry = self._costofquality_registry()
+        lines = [format_routes(registry.routes())]
+        records = registry.list_records()
+        if records:
+            lines.append(format_records(records, registry.routes()))
+        else:
+            lines.append(
+                "Cost-of-quality records: none recorded "
+                "this session - a route counts PROVEN "
+                "only on benchmark scores measured "
+                "against spend actually paid resting on "
+                "held evidence, and every "
+                "other route ships ROADED with a named "
+                "owner, in the open, never silent.")
+        for report in registry.list_reports():
+            lines.append(_cq_report_text(report))
+        return "\n".join(lines)
+    def costofquality_status(self) -> dict[str, Any]:
+        """The Cost-of-quality report account, in plain data (M-267).
+
+        The shipped route registry's entries and the
+        cost records and cost reports held this session as
+        plain records (empty until held), the session
+        book's record (the shipped route registry with
+        nothing held - until items are held), the records
+        standing held and still open derived at call time,
+        the index and verdict derived at call time, the
+        routes and records told in plain words through the
+        pure formatters, and the plain explanation. A
+        session holding no record for a finding derives that
+        finding's open standing. Resolution registers and
+        publishes nothing, runs no benchmark and probes
+        no network: this layer tells only.
+        """
+        from ..core import cost_of_quality as camp_module
+        registry = self._costofquality_registry()
+        held_records = registry.list_records()
+        book = self.costofquality_book()
+        index = self.costofquality_index()
+        return {
+            "records": [_cq_record_dict(r)
+                        for r in held_records],
+            "routes": [_cq_entry_dict(e)
+                        for e in registry.routes().entries()],
+            "book": (book if held_records
+                     or registry.list_reports()
+                     or getattr(self, "_costofquality_held",
+                                None) is not None else None),
+            "costofquality_book": {
+                "schema": camp_module.COST_OF_QUALITY_SCHEMA,
+                "routes": book["routes"],
+                "records": book["records"],
+                "reports": book["reports"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.costofquality_verdict()["verdict"],
+            "routes_text": camp_module.format_routes(
+                registry.routes()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "reports": [_cq_report_dict(d)
+                       for d in registry.list_reports()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._costofquality_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": COSTOFQUALITY_USAGE,
+        }
+
+    def get_costofquality_route(self, route: Any):
+        """The one route entry a route name names (M-267).
+
+        The shipped route registry answers: a route the
+        route book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._costofquality_registry().routes().get(route)
+
+    def get_costofquality_record(self, route: Any):
+        """The one record a route names (M-267).
+
+        The session's held registry answers: a finding the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._costofquality_registry().get_record(route)
+
+    def costofquality_standing(self, route: Any):
+        """Derive one finding's standing (M-267).
+
+        The standing is derived at call time by the pure
+        layer from the finding's effective record - the held
+        record, or the honest empty record while none
+        stands held: held only on a full legal walk
+        resting on held evidence, with the
+        finding resting on held evidence, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.cost_of_quality import derive_standing
+        registry = self._costofquality_registry()
+        return derive_standing(
+            self._costofquality_effective_record(route),
+            registry.routes())
+
+    def routes_for_disposition(self, disposition_word: Any):
+        """The held records carrying one disposition (M-267)."""
+        if disposition_word is None or not str(disposition_word).strip():
+            raise ValueError(
+                "a disposition must be named to list its records")
+        return [r for r in
+                self._costofquality_registry().list_records()
+                if r.disposition == disposition_word]
+
+
+    def costofquality_held(self):
+        """The records whose standing stands held (M-267)."""
+        registry = self._costofquality_registry()
+        return [f"{r.route}"
+                for r in registry.list_records()
+                if self.costofquality_standing(r.route).held]
+
+    def costofquality_index(self) -> dict[str, Any]:
+        """Derive the Cost-of-quality report index at call time (M-267).
+
+        The index is derived from every held record
+        alone - each held record's derived standing, the
+        held records named and the open records named in
+        its gaps. Deriving registers and publishes nothing,
+        runs no benchmark and probes no network.
+        Returns the derived index record, the rendered
+        records, the screen and the plain explanation.
+        """
+        from ..core import cost_of_quality as camp_module
+        registry = self._costofquality_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.costofquality_standing(record.route)
+            standings.append({
+                "route": record.route,
+                **_cq_standing_dict(standing)})
+        index = {
+            "type": "costofquality_index",
+            "slice": camp_module.COST_OF_QUALITY_SLICE,
+            "schema": camp_module.COST_OF_QUALITY_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['route']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['route']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._costofquality_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def costofquality_verdict(self) -> dict[str, Any]:
+        """Derive the Cost-of-quality report verdict at call time (M-267).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and every
+        held record's standing stands held on held
+        code evidence, with every finding
+        resting on held evidence, ``open`` while no record stands held or any held
+        record stands short of held - with the held and
+        open records named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import cost_of_quality as camp_module
+        registry = self._costofquality_registry()
+        records = registry.list_records()
+        held = self.costofquality_held()
+        open_keys = [f"{r.route}"
+                     for r in records
+                     if f"{r.route}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Cost-of-quality report stands held: every recorded "
+                "route rests on held evidence "
+                "and stands answered - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Cost-of-quality report stands open: no route "
+                "is recorded this session - an absent "
+                "route reads as unknown, never "
+                "as answered.")
+        else:
+            word = "open"
+            telling = (
+                "Cost-of-quality report stands open: a route "
+                "is held only when it rests on held "
+                "local evidence and stands answered, "
+                "and these routes "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "costofquality_verdict",
+            "slice": camp_module.COST_OF_QUALITY_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._costofquality_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_costofquality_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one cost record for the session (M-267).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        route, stage or evidence kind refuses by
+        name on this road too, and a refusal holds nothing
+        new and publishes nothing. A held record is
+        published as its ``costofquality_record``
+        session-news record through the checkpoint road.
+        Returns the held record, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a record runs no benchmark
+        and probes no network: the telling stands on
+        this layer's book, as data.
+        """
+        from ..core import cost_of_quality as camp_module
+        registry = self._costofquality_registry()
+        held = registry.register_record(record)
+        news = {"type": "costofquality_record",
+                **_cq_record_dict(held)}
+        self._publish_costofquality_record(news)
+        return {
+            "record": _cq_record_dict(held),
+            "record_news": news,
+            "screen": self._costofquality_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_costofquality_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of cost records for the session (M-267).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order given.
+        Returns the held records, their news records,
+        the count of records held, the screen, and the
+        explanation. Registering runs no benchmark and probes
+        no network.
+        """
+        from ..core import cost_of_quality as camp_module
+        registry = self._costofquality_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "costofquality_record", **_cq_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_costofquality_record(news)
+        return {
+            "records": [_cq_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._costofquality_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_costofquality_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of cost records (M-267).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its route key and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held book,
+        its records, their news records, the count, the
+        screen, and the explanation. Recording runs no
+        benchmark and probes no network.
+        """
+        from ..core import cost_of_quality as camp_module
+        validated = [_cq_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._costofquality_registry().routes())
+        fingerprint = (
+            tuple(r.route for r in validated),
+            camp_module.COST_OF_QUALITY_SCHEMA)
+        boarded = getattr(self, "_costofquality_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._costofquality_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these cost records are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._costofquality_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._costofquality_held = registry.book()
+        news_records = [
+            {"type": "costofquality_record", **_cq_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_costofquality_record(news)
+        return {
+            "book": self._costofquality_held,
+            "records": [_cq_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._costofquality_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_costofquality(
+            self, route: Any) -> dict[str, Any]:
+        """Stand one finding's standing on the session book (M-267).
+
+        This is the book's own viewing road: the finding's
+        route entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        finding's effective record, and published as its
+        ``costofquality_standing`` session news, with the held
+        record published as its ``costofquality_record``
+        session news when one stands held. Returns the
+        route's entry, its derived standing, the held
+        record when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        findings as data alone - it runs no benchmark,
+        probes no network and inflates nothing here.
+        """
+        from ..core import cost_of_quality as camp_module
+        entry = self.get_costofquality_route(route)
+        standing = self.costofquality_standing(route)
+        try:
+            held = self.get_costofquality_record(route)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "costofquality_record",
+                           **_cq_record_dict(held)}
+            self._publish_costofquality_record(record_news)
+        standing_news = {
+            "type": "costofquality_standing", "route": route,
+            **_cq_standing_dict(standing)}
+        self._publish_costofquality_record(standing_news)
+        return {
+            "route": _cq_entry_dict(entry),
+            "standing": {"route": route,
+                         **_cq_standing_dict(standing)},
+            "record": (_cq_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._costofquality_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def prepare_costofquality_report(
+            self, book: Any, entry: Any, report: Any,
+            date: Any, proven_count: Any, roaded_count: Any,
+            total_routes: Any,
+            claims: Any = (),
+            state: Any = "ready",
+            certified: Any = False
+            ) -> dict[str, Any]:
+        """Prepare one cost report for the session (M-267).
+
+        The report is shaped by the pure layer alone -
+        it stands at state ready by default, may be
+        marked ``shared`` by a human, and a state
+        word outside ready/shared refuses by name;
+        a report is never inflated here, a certification
+        short of every route answered refuses there, and
+        no finding is re-audited on this road. A held report
+        is published as its ``costofquality_verdict``
+        session-news record through the checkpoint road.
+        Returns the held report, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Preparing audits nothing and
+        runs nothing here.
+        """
+        from ..core import cost_of_quality as camp_module
+        registry = self._costofquality_registry()
+        report = registry.hold_report(book, entry, report,
+                                       date, proven_count,
+                                       roaded_count,
+                                       total_routes,
+                                       claims=claims,
+                                       state=state,
+                                       certified=certified)
+        news = {"type": "costofquality_verdict",
+                **_cq_report_dict(report)}
+        self._publish_costofquality_record(news)
+        return {
+            "report": _cq_report_dict(report),
+            "report_news": news,
+            "screen": self._costofquality_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+
+    def get_costofquality_report(self, book: Any):
+        """The one report a book names (M-267).
+
+        The session's held registry answers: a book
+        the session holds no report for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._costofquality_registry().get_report(book)
+
+
+    def costofquality_reports(self) -> list:
+        """The cost reports held for the session (M-267)."""
+        return self._costofquality_registry().list_reports()
+
+
+    def report_costofquality(self) -> dict[str, Any]:
+        """Render the session Cost-of-quality report, as a verdict (M-267).
+
+        The shipped route registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, runs no benchmark and probes
+        no network. Returns the book,
+        the routes, held records and reports as plain
+        records, the derived standings, the rendered
+        routes and records, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import cost_of_quality as camp_module
+        registry = self._costofquality_registry()
+        book = self.costofquality_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.costofquality_standing(record.route)
+            standings.append({
+                "route": record.route,
+                **_cq_standing_dict(standing)})
+        return {
+            "book": book,
+            "routes": [_cq_entry_dict(e)
+                        for e in registry.routes().entries()],
+            "records": [_cq_record_dict(r)
+                        for r in registry.list_records()],
+            "reports": [_cq_report_dict(d)
+                       for d in registry.list_reports()],
+            "standings": standings,
+            "index": self.costofquality_index()["index"],
+            "verdict": self.costofquality_verdict()["verdict"],
+            "routes_text": camp_module.format_routes(
+                registry.routes()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._costofquality_effective_record(r.route))
+                for r in registry.list_records()),
+            "screen": self._costofquality_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_costofquality_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one cost record as session news (M-267).
+
+        The agent layer's ``costofquality_record``,
+        ``costofquality_standing`` and
+        ``costofquality_verdict`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is granted. Each
+        record is announced at most once per telling: a
+        record under its route, its run, its date, its
+        disposition, its owner, its proof kind, its
+        walked stages and its claims, a standing under
+        its route, its held word, its stage, its grade
+        and its gaps, and a report under its book, its
+        entry, its report and its state, so a standing
+        grown by a newly held record announces again
+        as the new figure it is.
+        A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "costofquality_record":
+            target = ("costofquality_record",
+                      record.get("route"),
+                      record.get("run"),
+                      record.get("date"),
+                      record.get("disposition"),
+                      record.get("owner"),
+                      record.get("proof_kind"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "costofquality_standing":
+            target = ("costofquality_standing",
+                      record.get("route"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("grade"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "costofquality_verdict":
+            target = ("costofquality_verdict",
+                      record.get("book"),
+                      record.get("entry"),
+                      record.get("report"),
+                      record.get("state"))
+        else:
+            return
+        announced = getattr(self, "_costofquality_announced", None)
+        if announced is None:
+            announced = set()
+            self._costofquality_announced = announced
+        if target in announced:
+            return
+        announced.add(target)
+        if self._session_store and self.session_id:
+            self._checkpoint(record)
+    def _truthfulchangelog_registry(self):
+        """The held truth-proof registry (M-268).
+
+        The registry lives in the agent layer alone - it
+        is session state, not a stored setting - and holds
+        the shipped family registry beside the session's
+        changelog records and changelog reports one by one. It
+        is created on first use, so an agent whose
+        ``__init__`` never ran still holds exactly one.
+        The attribute is named ``_truthfulchangelog_store``, never
+        the method's own name (the M-108 resolution).
+        """
+        registry = getattr(self, "_truthfulchangelog_store", None)
+        if registry is None:
+            registry = TruthfulChangelogRegistry()
+            self._truthfulchangelog_store = registry
+        return registry
+
+    def truthfulchangelog_families(self):
+        """The shipped family registry, as data (M-268).
+
+        One entry per family of the road - C-01..C-12, the twelve doctrine by subject families - held as registry entries, each naming its doctrine, its subject and its listed standing. Resolution registers and publishes
+        nothing, runs no test and probes no
+        network.
+        """
+        return self._truthfulchangelog_registry().families()
+
+    def truthfulchangelog_book(self):
+        """The session's Truthful changelog book, as data (M-268).
+
+        The held registry's book when the session holds
+        records or reports one by one - otherwise the book
+        boarded whole through
+        :meth:`record_truthfulchangelog_records`, or the shipped
+        family registry with nothing held until a record
+        or report is held. Resolution registers and
+        publishes nothing.
+        """
+        registry = self._truthfulchangelog_registry()
+        if registry.list_records() or registry.list_reports():
+            held = getattr(self, "_truthfulchangelog_held", None)
+            book = registry.book()
+            if held is not None and (
+                    [r["family"] for r in held["records"]]
+                    == [r["family"] for r in book["records"]]):
+                return held
+            return book
+        book = getattr(self, "_truthfulchangelog_held", None)
+        if book is None:
+            return registry.book()
+        return book
+
+    def _truthfulchangelog_effective_record(self, family: Any):
+        """The record an family's standing is derived from (M-268).
+
+        The held record when one stands; otherwise an
+        empty record - no stage walked, no claim rested
+        on, no date, no owner named - so an unheld
+        family derives an honest open standing naming its
+        gaps, never a dressed claim: an absent finding
+        reads as unanswered. An unknown family refuses by
+        name through the shipped registry first.
+        """
+        from ..core.truthful_changelog import TruthfulChangelogRecord
+        registry = self._truthfulchangelog_registry()
+        registry.families().get(family)
+        try:
+            return registry.get_record(family)
+        except ValueError:
+            return TruthfulChangelogRecord(
+                family=family, work="unrecorded",
+                date="",
+                disposition="NOT_PROVEN",
+                owner="",
+                proof_kind="none",
+                stages=(), claims=())
+
+    def _truthfulchangelog_screen(self):
+        """The truthful changelog screen, in plain words (M-268).
+
+        The shipped families first, then the held records
+        told by the pure layer - a held record reads
+        "held as answered" there - then each held
+        report. With no record held, the screen says
+        so plainly: a family counts PROVEN only on
+        held proof measured in the release itself
+        resting on held evidence, and every
+        other family ships PARTIAL or NOT PROVEN with a named owner, in the open.
+        """
+        from ..core.truthful_changelog import (
+            format_families, format_records)
+        registry = self._truthfulchangelog_registry()
+        lines = [format_families(registry.families())]
+        records = registry.list_records()
+        if records:
+            lines.append(format_records(records, registry.families()))
+        else:
+            lines.append(
+                "Truthful changelog records: none recorded "
+                "this session - a family counts PROVEN "
+                "only on held proof measured "
+                "in the release itself resting on "
+                "held evidence, and every "
+                "other family ships PARTIAL or NOT PROVEN with a named "
+                "owner, in the open, never silent.")
+        for report in registry.list_reports():
+            lines.append(_tc_report_text(report))
+        return "\n".join(lines)
+    def truthfulchangelog_status(self) -> dict[str, Any]:
+        """The Truthful changelog account, in plain data (M-268).
+
+        The shipped family registry's entries and the
+        changelog records and changelog reports held this session as
+        plain records (empty until held), the session
+        book's record (the shipped family registry with
+        nothing held - until items are held), the records
+        standing held and still open derived at call time,
+        the index and verdict derived at call time, the
+        families and records told in plain words through the
+        pure formatters, and the plain explanation. A
+        session holding no record for a finding derives that
+        finding's open standing. Resolution registers and
+        publishes nothing, runs no test and probes
+        no network: this layer tells only.
+        """
+        from ..core import truthful_changelog as camp_module
+        registry = self._truthfulchangelog_registry()
+        held_records = registry.list_records()
+        book = self.truthfulchangelog_book()
+        index = self.truthfulchangelog_index()
+        return {
+            "records": [_tc_record_dict(r)
+                        for r in held_records],
+            "families": [_tc_entry_dict(e)
+                        for e in registry.families().entries()],
+            "book": (book if held_records
+                     or registry.list_reports()
+                     or getattr(self, "_truthfulchangelog_held",
+                                None) is not None else None),
+            "truthfulchangelog_book": {
+                "schema": camp_module.TRUTHFUL_CHANGELOG_SCHEMA,
+                "families": book["families"],
+                "records": book["records"],
+                "reports": book["reports"],
+            },
+            "held": index["index"]["held"],
+            "open": index["index"]["gaps"],
+            "index": index["index"],
+            "verdict": self.truthfulchangelog_verdict()["verdict"],
+            "families_text": camp_module.format_families(
+                registry.families()),
+            "records_text": "\n".join(
+                camp_module.format_record(record)
+                for record in held_records),
+            "reports": [_tc_report_dict(d)
+                       for d in registry.list_reports()],
+            "plain_words": camp_module.PLAIN_EXPLANATION,
+            "screen": self._truthfulchangelog_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+            "usage": TRUTHFULCHANGELOG_USAGE,
+        }
+
+    def get_truthfulchangelog_family(self, family: Any):
+        """The one family entry a family name names (M-268).
+
+        The shipped family registry answers: a family the
+        family book does not hold refuses by name, exactly
+        as the pure layer answers. Resolution registers
+        and publishes nothing.
+        """
+        return self._truthfulchangelog_registry().families().get(family)
+
+    def get_truthfulchangelog_record(self, family: Any):
+        """The one record a family names (M-268).
+
+        The session's held registry answers: a finding the
+        session holds no record for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._truthfulchangelog_registry().get_record(family)
+
+    def truthfulchangelog_standing(self, family: Any):
+        """Derive one finding's standing (M-268).
+
+        The standing is derived at call time by the pure
+        layer from the finding's effective record - the held
+        record, or the honest empty record while none
+        stands held: held only on a full legal walk
+        resting on held evidence, with the
+        finding resting on held evidence, otherwise
+        open, naming every gap. Deriving registers and
+        publishes nothing.
+        """
+        from ..core.truthful_changelog import derive_standing
+        registry = self._truthfulchangelog_registry()
+        return derive_standing(
+            self._truthfulchangelog_effective_record(family),
+            registry.families())
+
+    def families_for_disposition(self, disposition_word: Any):
+        """The held records carrying one disposition (M-268)."""
+        if disposition_word is None or not str(disposition_word).strip():
+            raise ValueError(
+                "a disposition must be named to list its records")
+        return [r for r in
+                self._truthfulchangelog_registry().list_records()
+                if r.disposition == disposition_word]
+
+
+    def truthfulchangelog_held(self):
+        """The records whose standing stands held (M-268)."""
+        registry = self._truthfulchangelog_registry()
+        return [f"{r.family}"
+                for r in registry.list_records()
+                if self.truthfulchangelog_standing(r.family).held]
+
+    def truthfulchangelog_index(self) -> dict[str, Any]:
+        """Derive the Truthful changelog index at call time (M-268).
+
+        The index is derived from every held record
+        alone - each held record's derived standing, the
+        held records named and the open records named in
+        its gaps. Deriving registers and publishes nothing,
+        runs no test and probes no network.
+        Returns the derived index record, the rendered
+        records, the screen and the plain explanation.
+        """
+        from ..core import truthful_changelog as camp_module
+        registry = self._truthfulchangelog_registry()
+        records = registry.list_records()
+        standings = []
+        for record in records:
+            standing = self.truthfulchangelog_standing(record.family)
+            standings.append({
+                "family": record.family,
+                **_tc_standing_dict(standing)})
+        index = {
+            "type": "truthfulchangelog_index",
+            "slice": camp_module.TRUTHFUL_CHANGELOG_SLICE,
+            "schema": camp_module.TRUTHFUL_CHANGELOG_SCHEMA,
+            "standings": standings,
+            "held": [f"{s['family']}"
+                     for s in standings if s["held"]],
+            "gaps": [f"{s['family']}"
+                     for s in standings if not s["held"]],
+            "total": len(standings),
+        }
+        return {
+            "index": index,
+            "index_text": "\n".join(
+                camp_module.format_record(record)
+                for record in records),
+            "screen": self._truthfulchangelog_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def truthfulchangelog_verdict(self) -> dict[str, Any]:
+        """Derive the Truthful changelog verdict at call time (M-268).
+
+        The verdict is derived from every held record
+        alone: ``held`` when records stand held and every
+        held record's standing stands held on held
+        code evidence, with every finding
+        resting on held evidence, ``open`` while no record stands held or any held
+        record stands short of held - with the held and
+        open records named either way. Deriving registers
+        and publishes nothing. Returns the verdict record,
+        its plain-words telling, the screen and the plain
+        explanation.
+        """
+        from ..core import truthful_changelog as camp_module
+        registry = self._truthfulchangelog_registry()
+        records = registry.list_records()
+        held = self.truthfulchangelog_held()
+        open_keys = [f"{r.family}"
+                     for r in records
+                     if f"{r.family}" not in held]
+        if records and not open_keys:
+            word = "held"
+            telling = (
+                "Truthful changelog stands held: every recorded "
+                "family rests on held evidence "
+                "and stands answered - " + ", ".join(held) + ".")
+        elif not records:
+            word = "open"
+            telling = (
+                "Truthful changelog stands open: no family "
+                "is recorded this session - an absent "
+                "family reads as unknown, never "
+                "as answered.")
+        else:
+            word = "open"
+            telling = (
+                "Truthful changelog stands open: a family "
+                "is held only when it rests on held "
+                "local evidence and stands answered, "
+                "and these families "
+                "stand short of held - "
+                + ", ".join(open_keys) + ".")
+        verdict = {
+            "type": "truthfulchangelog_verdict",
+            "slice": camp_module.TRUTHFUL_CHANGELOG_SLICE,
+            "verdict": word,
+            "held": held,
+            "open": open_keys,
+        }
+        return {
+            "verdict": verdict,
+            "verdict_text": telling,
+            "screen": self._truthfulchangelog_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_truthfulchangelog_record(
+            self, record: Any) -> dict[str, Any]:
+        """Hold one changelog record for the session (M-268).
+
+        The record is held whole by the session registry
+        before it is held: a record naming an unknown
+        family, stage or evidence kind refuses by
+        name on this road too, and a refusal holds nothing
+        new and publishes nothing. A held record is
+        published as its ``truthfulchangelog_record``
+        session-news record through the checkpoint road.
+        Returns the held record, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Holding a record runs no test
+        and probes no network: the telling stands on
+        this layer's book, as data.
+        """
+        from ..core import truthful_changelog as camp_module
+        registry = self._truthfulchangelog_registry()
+        held = registry.register_record(record)
+        news = {"type": "truthfulchangelog_record",
+                **_tc_record_dict(held)}
+        self._publish_truthfulchangelog_record(news)
+        return {
+            "record": _tc_record_dict(held),
+            "record_news": news,
+            "screen": self._truthfulchangelog_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def register_truthfulchangelog_records(
+            self, records: Any) -> dict[str, Any]:
+        """Hold a set of changelog records for the session (M-268).
+
+        Every record is held by the session registry -
+        the set is validated whole, and against the
+        records already held, before anything is held,
+        so a refusal holds nothing new. Every record is
+        published as its session news, in the order given.
+        Returns the held records, their news records,
+        the count of records held, the screen, and the
+        explanation. Registering runs no test and probes
+        no network.
+        """
+        from ..core import truthful_changelog as camp_module
+        registry = self._truthfulchangelog_registry()
+        validated = registry.register_records(records)
+        news_records = [
+            {"type": "truthfulchangelog_record", **_tc_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_truthfulchangelog_record(news)
+        return {
+            "records": [_tc_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._truthfulchangelog_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def record_truthfulchangelog_records(
+            self, records: Any) -> dict[str, Any]:
+        """Record a whole set of changelog records (M-268).
+
+        The set is validated whole before anything is
+        held, and remembered whole as the session's book;
+        the same set boarded twice refuses - fingerprinted
+        on its family key and schema. Every
+        record is held and published as its session
+        news, in the order given. Returns the held book,
+        its records, their news records, the count, the
+        screen, and the explanation. Recording runs no
+        test and probes no network.
+        """
+        from ..core import truthful_changelog as camp_module
+        validated = [_tc_coerce_record(record)
+                     for record in records]
+        for held in validated:
+            held.validate(
+                self._truthfulchangelog_registry().families())
+        fingerprint = (
+            tuple(r.family for r in validated),
+            camp_module.TRUTHFUL_CHANGELOG_SCHEMA)
+        boarded = getattr(self, "_truthfulchangelog_recorded", None)
+        if boarded is None:
+            boarded = set()
+            self._truthfulchangelog_recorded = boarded
+        if fingerprint in boarded:
+            raise ValueError(
+                "these changelog records are already "
+                "boarded for the session; a set is boarded once")
+        registry = self._truthfulchangelog_registry()
+        registry.register_records(validated)
+        boarded.add(fingerprint)
+        self._truthfulchangelog_held = registry.book()
+        news_records = [
+            {"type": "truthfulchangelog_record", **_tc_record_dict(r)}
+            for r in validated]
+        for news in news_records:
+            self._publish_truthfulchangelog_record(news)
+        return {
+            "book": self._truthfulchangelog_held,
+            "records": [_tc_record_dict(r) for r in validated],
+            "records_news": news_records,
+            "count": len(validated),
+            "screen": self._truthfulchangelog_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def view_truthfulchangelog(
+            self, family: Any) -> dict[str, Any]:
+        """Stand one finding's standing on the session book (M-268).
+
+        This is the book's own viewing road: the finding's
+        family entry is read from the shipped registry and
+        its standing is derived by the pure layer from the
+        finding's effective record, and published as its
+        ``truthfulchangelog_standing`` session news, with the held
+        record published as its ``truthfulchangelog_record``
+        session news when one stands held. Returns the
+        family's entry, its derived standing, the held
+        record when one stands, their news records, the
+        screen rendered after they landed and the plain
+        explanation. HONEST BOUNDARY: viewing tells
+        findings as data alone - it runs no test,
+        probes no network and inflates nothing here.
+        """
+        from ..core import truthful_changelog as camp_module
+        entry = self.get_truthfulchangelog_family(family)
+        standing = self.truthfulchangelog_standing(family)
+        try:
+            held = self.get_truthfulchangelog_record(family)
+        except ValueError:
+            held = None
+        record_news = None
+        if held is not None:
+            record_news = {"type": "truthfulchangelog_record",
+                           **_tc_record_dict(held)}
+            self._publish_truthfulchangelog_record(record_news)
+        standing_news = {
+            "type": "truthfulchangelog_standing", "family": family,
+            **_tc_standing_dict(standing)}
+        self._publish_truthfulchangelog_record(standing_news)
+        return {
+            "family": _tc_entry_dict(entry),
+            "standing": {"family": family,
+                         **_tc_standing_dict(standing)},
+            "record": (_tc_record_dict(held)
+                       if held is not None else None),
+            "record_news": standing_news,
+            "held_record_news": record_news,
+            "screen": self._truthfulchangelog_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def prepare_truthfulchangelog_report(
+            self, book: Any, entry: Any, report: Any,
+            date: Any, proven_count: Any, partial_count: Any,
+            not_proven_count: Any, total_families: Any,
+            claims: Any = (),
+            state: Any = "ready",
+            certified: Any = False
+            ) -> dict[str, Any]:
+        """Prepare one changelog report for the session (M-268).
+
+        The report is shaped by the pure layer alone -
+        it stands at state ready by default, may be
+        marked ``shared`` by a human, and a state
+        word outside ready/shared refuses by name;
+        a report is never inflated here, a certification
+        short of every family answered refuses there, and
+        no finding is re-audited on this road. A held report
+        is published as its ``truthfulchangelog_verdict``
+        session-news record through the checkpoint road.
+        Returns the held report, its news record, the
+        screen rendered after it landed, and the plain
+        explanation. Preparing audits nothing and
+        runs nothing here.
+        """
+        from ..core import truthful_changelog as camp_module
+        registry = self._truthfulchangelog_registry()
+        report = registry.hold_report(book, entry, report,
+                                       date, proven_count,
+                                       partial_count,
+                                       not_proven_count,
+                                       total_families,
+                                       claims=claims,
+                                       state=state,
+                                       certified=certified)
+        news = {"type": "truthfulchangelog_verdict",
+                **_tc_report_dict(report)}
+        self._publish_truthfulchangelog_record(news)
+        return {
+            "report": _tc_report_dict(report),
+            "report_news": news,
+            "screen": self._truthfulchangelog_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+
+    def get_truthfulchangelog_report(self, book: Any):
+        """The one report a book names (M-268).
+
+        The session's held registry answers: a book
+        the session holds no report for refuses by name,
+        exactly as the held registry answers. Resolution
+        registers and publishes nothing.
+        """
+        return self._truthfulchangelog_registry().get_report(book)
+
+
+    def truthfulchangelog_reports(self) -> list:
+        """The changelog reports held for the session (M-268)."""
+        return self._truthfulchangelog_registry().list_reports()
+
+
+    def report_truthfulchangelog(self) -> dict[str, Any]:
+        """Render the session Truthful changelog, as a verdict (M-268).
+
+        The shipped family registry and every held
+        record's derived standing are rendered through
+        the pure formatters alone. Rendering registers and
+        publishes nothing, runs no test and probes
+        no network. Returns the book,
+        the families, held records and reports as plain
+        records, the derived standings, the rendered
+        families and records, the index, the verdict, the
+        screen, and the plain explanation.
+        """
+        from ..core import truthful_changelog as camp_module
+        registry = self._truthfulchangelog_registry()
+        book = self.truthfulchangelog_book()
+        standings = []
+        for record in registry.list_records():
+            standing = self.truthfulchangelog_standing(record.family)
+            standings.append({
+                "family": record.family,
+                **_tc_standing_dict(standing)})
+        return {
+            "book": book,
+            "families": [_tc_entry_dict(e)
+                        for e in registry.families().entries()],
+            "records": [_tc_record_dict(r)
+                        for r in registry.list_records()],
+            "reports": [_tc_report_dict(d)
+                       for d in registry.list_reports()],
+            "standings": standings,
+            "index": self.truthfulchangelog_index()["index"],
+            "verdict": self.truthfulchangelog_verdict()["verdict"],
+            "families_text": camp_module.format_families(
+                registry.families()),
+            "records_text": "\n".join(
+                camp_module.format_record(
+                    self._truthfulchangelog_effective_record(r.family))
+                for r in registry.list_records()),
+            "screen": self._truthfulchangelog_screen(),
+            "explanation": camp_module.PLAIN_EXPLANATION,
+        }
+
+    def _publish_truthfulchangelog_record(
+            self, record: dict[str, Any]) -> None:
+        """Publish one changelog record as session news (M-268).
+
+        The agent layer's ``truthfulchangelog_record``,
+        ``truthfulchangelog_standing`` and
+        ``truthfulchangelog_verdict`` records are journaled
+        through the same checkpoint road every sibling
+        bridge uses, when a session is granted. Each
+        record is announced at most once per telling: a
+        record under its family, its run, its date, its
+        disposition, its owner, its proof kind, its
+        walked stages and its claims, a standing under
+        its family, its held word, its stage, its grade
+        and its gaps, and a report under its book, its
+        entry, its report and its state, so a standing
+        grown by a newly held record announces again
+        as the new figure it is.
+        A foreign record type is never published on
+        this road.
+        """
+        if record.get("type") == "truthfulchangelog_record":
+            target = ("truthfulchangelog_record",
+                      record.get("family"),
+                      record.get("run"),
+                      record.get("date"),
+                      record.get("disposition"),
+                      record.get("owner"),
+                      record.get("proof_kind"),
+                      tuple(record.get("stages", [])),
+                      tuple(record.get("claims", [])))
+        elif record.get("type") == "truthfulchangelog_standing":
+            target = ("truthfulchangelog_standing",
+                      record.get("family"),
+                      record.get("held"),
+                      record.get("stage"),
+                      record.get("grade"),
+                      tuple(record.get("gaps", [])))
+        elif record.get("type") == "truthfulchangelog_verdict":
+            target = ("truthfulchangelog_verdict",
+                      record.get("book"),
+                      record.get("entry"),
+                      record.get("report"),
+                      record.get("state"))
+        else:
+            return
+        announced = getattr(self, "_truthfulchangelog_announced", None)
+        if announced is None:
+            announced = set()
+            self._truthfulchangelog_announced = announced
         if target in announced:
             return
         announced.add(target)

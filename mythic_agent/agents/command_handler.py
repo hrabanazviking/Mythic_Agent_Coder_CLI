@@ -539,6 +539,22 @@ class CommandHandler:
                 self._handle_platformmatrixfinal(args)
             elif cmd == "/securityaudit":
                 self._handle_securityaudit(args)
+            elif cmd == "/privacyaudit":
+                self._handle_privacyaudit(args)
+            elif cmd == "/accessibilityfinal":
+                self._handle_accessibilityfinal(args)
+            elif cmd == "/docscompletion":
+                self._handle_docscompletion(args)
+            elif cmd == "/readmecare":
+                self._handle_readmecare(args)
+            elif cmd == "/migrationproof":
+                self._handle_migrationproof(args)
+            elif cmd == "/strangerfleettest":
+                self._handle_strangerfleettest(args)
+            elif cmd == "/costofquality":
+                self._handle_costofquality(args)
+            elif cmd == "/truthfulchangelog":
+                self._handle_truthfulchangelog(args)
             elif cmd == "/mcpserver":
                 self._handle_mcpserver(args)
             elif cmd == "/ceremony":
@@ -14815,6 +14831,918 @@ class CommandHandler:
                     "verdict_text"]
             else:
                 text = primary.securityaudit_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+    def _handle_privacyaudit(self, args: str):
+        """M-261: /privacyaudit - the privacy audit as data.
+
+        ``/privacyaudit`` shows the surfaces held this session -
+        the public sets as registry entries: one
+        entry per set, naming the word that set
+        gives a single run and the standing of its
+        gate, beside the run records
+        held this session (no run recorded yet when
+        none is held - a run is held only when a
+        reported run rests on held gate evidence);
+        ``/privacyaudit surfaces`` shows the whole shipped
+        surface registry; ``/privacyaudit surface <surface>``
+        shows one surface's registry entry; ``/privacyaudit
+        record <surface> <run>`` shows the record held
+        for one surface and run; ``/privacyaudit standing
+        <surface> <run>`` shows the standing derived for
+        one run - held only on a full legal walk resting
+        on held gate evidence, with the verdict carrying
+        model, cost and date together, otherwise
+        open, naming its gaps; ``/privacyaudit verdict`` shows
+        the run verdicts held this session and
+        ``/privacyaudit verdict <surface>`` shows one surface's
+        verdict - a verdict is never inflated here and no
+        run is graded here on this road; ``/privacyaudit
+        index`` shows the index derived over every held
+        record; ``/privacyaudit verdict`` shows the verdict
+        derived for the session. Resolution registers and
+        publishes nothing as session news on this heading:
+        records are held only when they are given
+        through the agent's register roads, stood on the
+        book on the viewing road, or held on the book
+        roads, and every record held for the session is
+        journaled as a privacyaudit_record session record,
+        every viewed standing as a privacyaudit_standing
+        session record and every held verdict as
+        a privacyaudit_verdict session record. This heading
+        runs no benchmark, downloads no set,
+        executes no grading test and inflates nothing here -
+        holding and telling are words only.
+        """
+        from ..core.privacy_audit import (
+            format_record,
+            format_surface,
+            format_surfaces,
+        )
+        from .llm import parse_privacyaudit_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_privacyaudit_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "surfaces":
+                text = format_surfaces(
+                    primary.privacyaudit_surfaces())
+            elif stance == "surface":
+                text = format_surface(
+                    primary.get_privacyaudit_surface(target))
+            elif stance == "record":
+                text = format_record(
+                    primary.get_privacyaudit_record(target))
+            elif stance == "standing":
+                standing = primary.privacyaudit_standing(
+                    target)
+                text = (
+                    f"{target}: "
+                    f"{'held as answered' if standing.held else 'open'} "
+                    f"(stage: {standing.stage}; "
+                    f"grade: {standing.grade})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "reports":
+                verdicts = primary.privacyaudit_reports()
+                if not verdicts:
+                    text = (
+                        "Run verdict: none held this "
+                        "session - the surfaces verdict run "
+                        "moves only as verdicts, and a verdict is "
+                        "never inflated here.")
+                else:
+                    text = "\n".join(
+                        f"{d.book} -> {d.entry}: verdict - "
+                        f"{d.report} (state: {d.state}; "
+                        "verdict is never inflated here)"
+                        for d in verdicts)
+            elif stance == "report":
+                d = primary.get_privacyaudit_report(target)
+                text = (
+                    f"{d.book} -> {d.entry}: verdict - "
+                    f"{d.report} (state: {d.state}; "
+                    "verdict is never inflated here)")
+            elif stance == "index":
+                text = primary.privacyaudit_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.privacyaudit_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.privacyaudit_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+    def _handle_accessibilityfinal(self, args: str):
+        """M-262: /accessibilityfinal - the accessibility final gate as data.
+
+        ``/accessibilityfinal`` shows the checks held this session -
+        the public sets as registry entries: one
+        entry per set, naming the word that set
+        gives a single run and the standing of its
+        gate, beside the run records
+        held this session (no run recorded yet when
+        none is held - a run is held only when a
+        reported run rests on held gate evidence);
+        ``/accessibilityfinal checks`` shows the whole shipped
+        check registry; ``/accessibilityfinal check <check>``
+        shows one check's registry entry; ``/accessibilityfinal
+        record <check> <run>`` shows the record held
+        for one check and run; ``/accessibilityfinal standing
+        <check> <run>`` shows the standing derived for
+        one run - held only on a full legal walk resting
+        on held gate evidence, with the verdict carrying
+        model, cost and date together, otherwise
+        open, naming its gaps; ``/accessibilityfinal verdict`` shows
+        the run verdicts held this session and
+        ``/accessibilityfinal verdict <check>`` shows one check's
+        verdict - a verdict is never inflated here and no
+        run is graded here on this road; ``/accessibilityfinal
+        index`` shows the index derived over every held
+        record; ``/accessibilityfinal verdict`` shows the verdict
+        derived for the session. Resolution registers and
+        publishes nothing as session news on this heading:
+        records are held only when they are given
+        through the agent's register roads, stood on the
+        book on the viewing road, or held on the book
+        roads, and every record held for the session is
+        journaled as a accessibilityfinal_record session record,
+        every viewed standing as a accessibilityfinal_standing
+        session record and every held verdict as
+        a accessibilityfinal_verdict session record. This heading
+        runs no benchmark, downloads no set,
+        executes no grading test and inflates nothing here -
+        holding and telling are words only.
+        """
+        from ..core.accessibility_final import (
+            format_record,
+            format_check,
+            format_checks,
+        )
+        from .llm import parse_accessibilityfinal_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_accessibilityfinal_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "checks":
+                text = format_checks(
+                    primary.accessibilityfinal_checks())
+            elif stance == "check":
+                text = format_check(
+                    primary.get_accessibilityfinal_check(target))
+            elif stance == "record":
+                text = format_record(
+                    primary.get_accessibilityfinal_record(target))
+            elif stance == "standing":
+                standing = primary.accessibilityfinal_standing(
+                    target)
+                text = (
+                    f"{target}: "
+                    f"{'held as answered' if standing.held else 'open'} "
+                    f"(stage: {standing.stage}; "
+                    f"grade: {standing.grade})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "reports":
+                verdicts = primary.accessibilityfinal_reports()
+                if not verdicts:
+                    text = (
+                        "Run verdict: none held this "
+                        "session - the checks verdict run "
+                        "moves only as verdicts, and a verdict is "
+                        "never inflated here.")
+                else:
+                    text = "\n".join(
+                        f"{d.book} -> {d.entry}: verdict - "
+                        f"{d.report} (state: {d.state}; "
+                        "verdict is never inflated here)"
+                        for d in verdicts)
+            elif stance == "report":
+                d = primary.get_accessibilityfinal_report(target)
+                text = (
+                    f"{d.book} -> {d.entry}: verdict - "
+                    f"{d.report} (state: {d.state}; "
+                    "verdict is never inflated here)")
+            elif stance == "index":
+                text = primary.accessibilityfinal_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.accessibilityfinal_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.accessibilityfinal_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+    def _handle_docscompletion(self, args: str):
+        """M-263: /docscompletion - the docs completion as data.
+
+        ``/docscompletion`` shows the guides held this session -
+        the public sets as registry entries: one
+        entry per set, naming the word that set
+        gives a single run and the standing of its
+        gate, beside the run records
+        held this session (no run recorded yet when
+        none is held - a run is held only when a
+        reported run rests on held gate evidence);
+        ``/docscompletion guides`` shows the whole shipped
+        guide registry; ``/docscompletion guide <guide>``
+        shows one guide's registry entry; ``/docscompletion
+        record <guide> <run>`` shows the record held
+        for one guide and run; ``/docscompletion standing
+        <guide> <run>`` shows the standing derived for
+        one run - held only on a full legal walk resting
+        on held gate evidence, with the verdict carrying
+        model, cost and date together, otherwise
+        open, naming its gaps; ``/docscompletion verdict`` shows
+        the run verdicts held this session and
+        ``/docscompletion verdict <guide>`` shows one guide's
+        verdict - a verdict is never inflated here and no
+        run is graded here on this road; ``/docscompletion
+        index`` shows the index derived over every held
+        record; ``/docscompletion verdict`` shows the verdict
+        derived for the session. Resolution registers and
+        publishes nothing as session news on this heading:
+        records are held only when they are given
+        through the agent's register roads, stood on the
+        book on the viewing road, or held on the book
+        roads, and every record held for the session is
+        journaled as a docscompletion_record session record,
+        every viewed standing as a docscompletion_standing
+        session record and every held verdict as
+        a docscompletion_verdict session record. This heading
+        runs no benchmark, downloads no set,
+        executes no grading test and inflates nothing here -
+        holding and telling are words only.
+        """
+        from ..core.docs_completion import (
+            format_record,
+            format_guide,
+            format_guides,
+        )
+        from .llm import parse_docscompletion_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_docscompletion_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "guides":
+                text = format_guides(
+                    primary.docscompletion_guides())
+            elif stance == "guide":
+                text = format_guide(
+                    primary.get_docscompletion_guide(target))
+            elif stance == "record":
+                text = format_record(
+                    primary.get_docscompletion_record(target))
+            elif stance == "standing":
+                standing = primary.docscompletion_standing(
+                    target)
+                text = (
+                    f"{target}: "
+                    f"{'held as answered' if standing.held else 'open'} "
+                    f"(stage: {standing.stage}; "
+                    f"grade: {standing.grade})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "reports":
+                verdicts = primary.docscompletion_reports()
+                if not verdicts:
+                    text = (
+                        "Run verdict: none held this "
+                        "session - the guides verdict run "
+                        "moves only as verdicts, and a verdict is "
+                        "never inflated here.")
+                else:
+                    text = "\n".join(
+                        f"{d.book} -> {d.entry}: verdict - "
+                        f"{d.report} (state: {d.state}; "
+                        "verdict is never inflated here)"
+                        for d in verdicts)
+            elif stance == "report":
+                d = primary.get_docscompletion_report(target)
+                text = (
+                    f"{d.book} -> {d.entry}: verdict - "
+                    f"{d.report} (state: {d.state}; "
+                    "verdict is never inflated here)")
+            elif stance == "index":
+                text = primary.docscompletion_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.docscompletion_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.docscompletion_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+    def _handle_readmecare(self, args: str):
+        """M-264: /readmecare - the README care as data.
+
+        ``/readmecare`` shows the sections held this session -
+        the public sets as registry entries: one
+        entry per set, naming the word that set
+        gives a single run and the standing of its
+        gate, beside the run records
+        held this session (no run recorded yet when
+        none is held - a run is held only when a
+        reported run rests on held gate evidence);
+        ``/readmecare sections`` shows the whole shipped
+        section registry; ``/readmecare section <section>``
+        shows one section's registry entry; ``/readmecare
+        record <section> <run>`` shows the record held
+        for one section and run; ``/readmecare standing
+        <section> <run>`` shows the standing derived for
+        one run - held only on a full legal walk resting
+        on held gate evidence, with the verdict carrying
+        model, cost and date together, otherwise
+        open, naming its gaps; ``/readmecare verdict`` shows
+        the run verdicts held this session and
+        ``/readmecare verdict <section>`` shows one section's
+        verdict - a verdict is never inflated here and no
+        run is graded here on this road; ``/readmecare
+        index`` shows the index derived over every held
+        record; ``/readmecare verdict`` shows the verdict
+        derived for the session. Resolution registers and
+        publishes nothing as session news on this heading:
+        records are held only when they are given
+        through the agent's register roads, stood on the
+        book on the viewing road, or held on the book
+        roads, and every record held for the session is
+        journaled as a readmecare_record session record,
+        every viewed standing as a readmecare_standing
+        session record and every held verdict as
+        a readmecare_verdict session record. This heading
+        runs no benchmark, downloads no set,
+        executes no grading test and inflates nothing here -
+        holding and telling are words only.
+        """
+        from ..core.readme_care import (
+            format_record,
+            format_section,
+            format_sections,
+        )
+        from .llm import parse_readmecare_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_readmecare_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "sections":
+                text = format_sections(
+                    primary.readmecare_sections())
+            elif stance == "section":
+                text = format_section(
+                    primary.get_readmecare_section(target))
+            elif stance == "record":
+                text = format_record(
+                    primary.get_readmecare_record(target))
+            elif stance == "standing":
+                standing = primary.readmecare_standing(
+                    target)
+                text = (
+                    f"{target}: "
+                    f"{'held as answered' if standing.held else 'open'} "
+                    f"(stage: {standing.stage}; "
+                    f"grade: {standing.grade})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "reports":
+                verdicts = primary.readmecare_reports()
+                if not verdicts:
+                    text = (
+                        "Report: none held this "
+                        "session - README reports move only as "
+                        "moves only as reports, and a report is "
+                        "never inflated here.")
+                else:
+                    text = "\n".join(
+                        f"{d.book} -> {d.entry}: report - "
+                        f"{d.report} (state: {d.state}; "
+                        "a report is never inflated here)"
+                        for d in verdicts)
+            elif stance == "report":
+                d = primary.get_readmecare_report(target)
+                text = (
+                    f"{d.book} -> {d.entry}: report - "
+                    f"{d.report} (state: {d.state}; "
+                    "a report is never inflated here)")
+            elif stance == "index":
+                text = primary.readmecare_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.readmecare_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.readmecare_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+    def _handle_migrationproof(self, args: str):
+        """M-265: /migrationproof - the Migration proof as data.
+
+        ``/migrationproof`` shows the areas held this session -
+        the public sets as registry entries: one
+        entry per set, naming the word that set
+        gives a single run and the standing of its
+        gate, beside the run records
+        held this session (no run recorded yet when
+        none is held - a run is held only when a
+        reported run rests on held gate evidence);
+        ``/migrationproof areas`` shows the whole shipped
+        area registry; ``/migrationproof area <area>``
+        shows one area's registry entry; ``/migrationproof
+        record <area> <run>`` shows the record held
+        for one area and run; ``/migrationproof standing
+        <area> <run>`` shows the standing derived for
+        one run - held only on a full legal walk resting
+        on held gate evidence, with the verdict carrying
+        model, cost and date together, otherwise
+        open, naming its gaps; ``/migrationproof verdict`` shows
+        the run verdicts held this session and
+        ``/migrationproof verdict <area>`` shows one area's
+        verdict - a verdict is never inflated here and no
+        run is graded here on this road; ``/migrationproof
+        index`` shows the index derived over every held
+        record; ``/migrationproof verdict`` shows the verdict
+        derived for the session. Resolution registers and
+        publishes nothing as session news on this heading:
+        records are held only when they are given
+        through the agent's register roads, stood on the
+        book on the viewing road, or held on the book
+        roads, and every record held for the session is
+        journaled as a migrationproof_record session record,
+        every viewed standing as a migrationproof_standing
+        session record and every held verdict as
+        a migrationproof_verdict session record. This heading
+        runs no benchmark, downloads no set,
+        executes no grading test and inflates nothing here -
+        holding and telling are words only.
+        """
+        from ..core.migration_proof import (
+            format_record,
+            format_area,
+            format_areas,
+        )
+        from .llm import parse_migrationproof_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_migrationproof_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "areas":
+                text = format_areas(
+                    primary.migrationproof_areas())
+            elif stance == "area":
+                text = format_area(
+                    primary.get_migrationproof_area(target))
+            elif stance == "record":
+                text = format_record(
+                    primary.get_migrationproof_record(target))
+            elif stance == "standing":
+                standing = primary.migrationproof_standing(
+                    target)
+                text = (
+                    f"{target}: "
+                    f"{'held as answered' if standing.held else 'open'} "
+                    f"(stage: {standing.stage}; "
+                    f"grade: {standing.grade})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "reports":
+                verdicts = primary.migrationproof_reports()
+                if not verdicts:
+                    text = (
+                        "Report: none held this "
+                        "session - Migration reports move only as "
+                        "moves only as reports, and a report is "
+                        "never inflated here.")
+                else:
+                    text = "\n".join(
+                        f"{d.book} -> {d.entry}: report - "
+                        f"{d.report} (state: {d.state}; "
+                        "a report is never inflated here)"
+                        for d in verdicts)
+            elif stance == "report":
+                d = primary.get_migrationproof_report(target)
+                text = (
+                    f"{d.book} -> {d.entry}: report - "
+                    f"{d.report} (state: {d.state}; "
+                    "a report is never inflated here)")
+            elif stance == "index":
+                text = primary.migrationproof_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.migrationproof_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.migrationproof_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+    def _handle_strangerfleettest(self, args: str):
+        """M-266: /strangerfleettest - the Stranger fleet test as data.
+
+        ``/strangerfleettest`` shows the exercises held this session -
+        the public sets as registry entries: one
+        entry per set, naming the word that set
+        gives a single run and the standing of its
+        gate, beside the run records
+        held this session (no run recorded yet when
+        none is held - a run is held only when a
+        reported run rests on held gate evidence);
+        ``/strangerfleettest exercises`` shows the whole shipped
+        exercise registry; ``/strangerfleettest exercise <exercise>``
+        shows one exercise's registry entry; ``/strangerfleettest
+        record <exercise> <run>`` shows the record held
+        for one exercise and run; ``/strangerfleettest standing
+        <exercise> <run>`` shows the standing derived for
+        one run - held only on a full legal walk resting
+        on held gate evidence, with the verdict carrying
+        model, cost and date together, otherwise
+        open, naming its gaps; ``/strangerfleettest verdict`` shows
+        the run verdicts held this session and
+        ``/strangerfleettest verdict <exercise>`` shows one exercise's
+        verdict - a verdict is never inflated here and no
+        run is graded here on this road; ``/strangerfleettest
+        index`` shows the index derived over every held
+        record; ``/strangerfleettest verdict`` shows the verdict
+        derived for the session. Resolution registers and
+        publishes nothing as session news on this heading:
+        records are held only when they are given
+        through the agent's register roads, stood on the
+        book on the viewing road, or held on the book
+        roads, and every record held for the session is
+        journaled as a strangerfleettest_record session record,
+        every viewed standing as a strangerfleettest_standing
+        session record and every held verdict as
+        a strangerfleettest_verdict session record. This heading
+        runs no benchmark, downloads no set,
+        executes no grading test and inflates nothing here -
+        holding and telling are words only.
+        """
+        from ..core.stranger_fleet_test import (
+            format_record,
+            format_exercise,
+            format_exercises,
+        )
+        from .llm import parse_strangerfleettest_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_strangerfleettest_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "exercises":
+                text = format_exercises(
+                    primary.strangerfleettest_exercises())
+            elif stance == "exercise":
+                text = format_exercise(
+                    primary.get_strangerfleettest_exercise(target))
+            elif stance == "record":
+                text = format_record(
+                    primary.get_strangerfleettest_record(target))
+            elif stance == "standing":
+                standing = primary.strangerfleettest_standing(
+                    target)
+                text = (
+                    f"{target}: "
+                    f"{'held as answered' if standing.held else 'open'} "
+                    f"(stage: {standing.stage}; "
+                    f"grade: {standing.grade})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "reports":
+                verdicts = primary.strangerfleettest_reports()
+                if not verdicts:
+                    text = (
+                        "Report: none held this "
+                        "session - Fleet reports move only as "
+                        "moves only as reports, and a report is "
+                        "never inflated here.")
+                else:
+                    text = "\n".join(
+                        f"{d.book} -> {d.entry}: report - "
+                        f"{d.report} (state: {d.state}; "
+                        "a report is never inflated here)"
+                        for d in verdicts)
+            elif stance == "report":
+                d = primary.get_strangerfleettest_report(target)
+                text = (
+                    f"{d.book} -> {d.entry}: report - "
+                    f"{d.report} (state: {d.state}; "
+                    "a report is never inflated here)")
+            elif stance == "index":
+                text = primary.strangerfleettest_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.strangerfleettest_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.strangerfleettest_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+    def _handle_costofquality(self, args: str):
+        """M-267: /costofquality - the Cost-of-quality report as data.
+
+        ``/costofquality`` shows the routes held this session -
+        the public sets as registry entries: one
+        entry per set, naming the word that set
+        gives a single run and the standing of its
+        gate, beside the run records
+        held this session (no run recorded yet when
+        none is held - a run is held only when a
+        reported run rests on held evidence);
+        ``/costofquality routes`` shows the whole shipped
+        route registry; ``/costofquality route <route>``
+        shows one route's registry entry; ``/costofquality
+        record <route> <run>`` shows the record held
+        for one route and run; ``/costofquality standing
+        <route> <run>`` shows the standing derived for
+        one run - held only on a full legal walk resting
+        on held evidence, with the verdict carrying
+        model, cost and date together, otherwise
+        open, naming its gaps; ``/costofquality verdict`` shows
+        the run verdicts held this session and
+        ``/costofquality verdict <route>`` shows one route's
+        verdict - a verdict is never inflated here and no
+        run is graded here on this road; ``/costofquality
+        index`` shows the index derived over every held
+        record; ``/costofquality verdict`` shows the verdict
+        derived for the session. Resolution registers and
+        publishes nothing as session news on this heading:
+        records are held only when they are given
+        through the agent's register roads, stood on the
+        book on the viewing road, or held on the book
+        roads, and every record held for the session is
+        journaled as a costofquality_record session record,
+        every viewed standing as a costofquality_standing
+        session record and every held verdict as
+        a costofquality_verdict session record. This heading
+        runs no benchmark, downloads no set,
+        executes no grading test and inflates nothing here -
+        holding and telling are words only.
+        """
+        from ..core.cost_of_quality import (
+            format_record,
+            format_route,
+            format_routes,
+        )
+        from .llm import parse_costofquality_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_costofquality_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "routes":
+                text = format_routes(
+                    primary.costofquality_routes())
+            elif stance == "route":
+                text = format_route(
+                    primary.get_costofquality_route(target))
+            elif stance == "record":
+                text = format_record(
+                    primary.get_costofquality_record(target))
+            elif stance == "standing":
+                standing = primary.costofquality_standing(
+                    target)
+                text = (
+                    f"{target}: "
+                    f"{'held as answered' if standing.held else 'open'} "
+                    f"(stage: {standing.stage}; "
+                    f"grade: {standing.grade})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "reports":
+                verdicts = primary.costofquality_reports()
+                if not verdicts:
+                    text = (
+                        "Report: none held this "
+                        "session - Cost reports move only as "
+                        "moves only as reports, and a report is "
+                        "never inflated here.")
+                else:
+                    text = "\n".join(
+                        f"{d.book} -> {d.entry}: report - "
+                        f"{d.report} (state: {d.state}; "
+                        "a report is never inflated here)"
+                        for d in verdicts)
+            elif stance == "report":
+                d = primary.get_costofquality_report(target)
+                text = (
+                    f"{d.book} -> {d.entry}: report - "
+                    f"{d.report} (state: {d.state}; "
+                    "a report is never inflated here)")
+            elif stance == "index":
+                text = primary.costofquality_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.costofquality_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.costofquality_status()["screen"]
+        except (KeyError, ValueError) as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        publish_sync(
+            "agent_chat_chunk", agent_name="Primary",
+            text=f"\n[bold cyan]{text}[/bold cyan]\n")
+    def _handle_truthfulchangelog(self, args: str):
+        """M-268: /truthfulchangelog - the Truthful changelog as data.
+
+        ``/truthfulchangelog`` shows the families held this session -
+        the public sets as registry entries: one
+        entry per set, naming the word that set
+        gives a single run and the standing of its
+        gate, beside the run records
+        held this session (no run recorded yet when
+        none is held - a run is held only when a
+        reported run rests on held evidence);
+        ``/truthfulchangelog families`` shows the whole shipped
+        family registry; ``/truthfulchangelog family <family>``
+        shows one family's registry entry; ``/truthfulchangelog
+        record <family> <run>`` shows the record held
+        for one family and run; ``/truthfulchangelog standing
+        <family> <run>`` shows the standing derived for
+        one run - held only on a full legal walk resting
+        on held evidence, with the verdict carrying
+        model, changelog and date together, otherwise
+        open, naming its gaps; ``/truthfulchangelog verdict`` shows
+        the run verdicts held this session and
+        ``/truthfulchangelog verdict <family>`` shows one family's
+        verdict - a verdict is never inflated here and no
+        run is graded here on this road; ``/truthfulchangelog
+        index`` shows the index derived over every held
+        record; ``/truthfulchangelog verdict`` shows the verdict
+        derived for the session. Resolution registers and
+        publishes nothing as session news on this heading:
+        records are held only when they are given
+        through the agent's register roads, stood on the
+        book on the viewing road, or held on the book
+        roads, and every record held for the session is
+        journaled as a truthfulchangelog_record session record,
+        every viewed standing as a truthfulchangelog_standing
+        session record and every held verdict as
+        a truthfulchangelog_verdict session record. This heading
+        runs no test, downloads no set,
+        executes no grading test and inflates nothing here -
+        holding and telling are words only.
+        """
+        from ..core.truthful_changelog import (
+            format_record,
+            format_family,
+            format_families,
+        )
+        from .llm import parse_truthfulchangelog_args
+        primary = self._primary()
+        if primary is None:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text="\n[dim]Agent is not initialized yet.[/dim]\n")
+            return
+        try:
+            stance, target, needs, model = (
+                parse_truthfulchangelog_args(args))
+        except ValueError as e:
+            publish_sync("agent_chat_chunk", agent_name="Primary",
+                         text=f"\n[red]{e}[/red]\n")
+            return
+        try:
+            if stance == "families":
+                text = format_families(
+                    primary.truthfulchangelog_families())
+            elif stance == "family":
+                text = format_family(
+                    primary.get_truthfulchangelog_family(target))
+            elif stance == "record":
+                text = format_record(
+                    primary.get_truthfulchangelog_record(target))
+            elif stance == "standing":
+                standing = primary.truthfulchangelog_standing(
+                    target)
+                text = (
+                    f"{target}: "
+                    f"{'held as answered' if standing.held else 'open'} "
+                    f"(stage: {standing.stage}; "
+                    f"grade: {standing.grade})")
+                for gap in standing.gaps:
+                    text += f"\n  gap: {gap}"
+            elif stance == "reports":
+                verdicts = primary.truthfulchangelog_reports()
+                if not verdicts:
+                    text = (
+                        "Report: none held this "
+                        "session - Changelog reports move only as "
+                        "moves only as reports, and a report is "
+                        "never inflated here.")
+                else:
+                    text = "\n".join(
+                        f"{d.book} -> {d.entry}: report - "
+                        f"{d.report} (state: {d.state}; "
+                        "a report is never inflated here)"
+                        for d in verdicts)
+            elif stance == "report":
+                d = primary.get_truthfulchangelog_report(target)
+                text = (
+                    f"{d.book} -> {d.entry}: report - "
+                    f"{d.report} (state: {d.state}; "
+                    "a report is never inflated here)")
+            elif stance == "index":
+                text = primary.truthfulchangelog_index()[
+                    "index_text"]
+            elif stance == "verdict":
+                text = primary.truthfulchangelog_verdict()[
+                    "verdict_text"]
+            else:
+                text = primary.truthfulchangelog_status()["screen"]
         except (KeyError, ValueError) as e:
             publish_sync("agent_chat_chunk", agent_name="Primary",
                          text=f"\n[red]{e}[/red]\n")
