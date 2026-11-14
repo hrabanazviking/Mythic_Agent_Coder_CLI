@@ -42,7 +42,7 @@ __all__ = [
     "prepare_report",
 ]
 
-RETRO_LESSONS_SLICE = "M-270"
+RETRO_LESSONS_SLICE = "M-271"
 RETRO_LESSONS_SCHEMA = "mythic.retro_lessons/1"
 
 PLAIN_EXPLANATION = (
